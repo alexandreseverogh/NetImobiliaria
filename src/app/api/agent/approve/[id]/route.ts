@@ -20,6 +20,8 @@ async function getAction(id: string) {
       a.approval_pin     AS "approvalPin",
       a.approval_pin_exp AS "approvalPinExp",
       a.budget_proposed,
+      a.audience_id                        AS "audienceId",
+      a.audience_external_id               AS "audienceExternalId",
       COALESCE(
         a.scale_pct,
         (SELECT sb.value::int FROM public.system_benchmarks sb
@@ -36,7 +38,8 @@ async function getAction(id: string) {
     WHERE a.id = $1
     GROUP BY a.id, a.tenant_id, a."campaignId", a."campaignName", a.type, a.title,
              a.description, a.confidence, a.status, a.approval_pin, a.approval_pin_exp,
-             a.budget_proposed, a.scale_pct, cl.segment_id, t.segment_id
+             a.budget_proposed, a.audience_id, a.audience_external_id, a.scale_pct,
+             cl.segment_id, t.segment_id
     LIMIT 1
   `, [id]);
   return rows[0] ?? null;

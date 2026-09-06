@@ -7,6 +7,7 @@ import {
 } from './agentNotificador';
 import { invokeForContext } from '../../intelligence/llmInvoker';
 import { getNetworkServiceForTenant } from '../networks/factory';
+import { MetaAdsAdapter } from '../networks/meta/metaAdsAdapter';
 import type { NetworkCode } from '../networks/types';
 import { transitionCampaign } from './campaignStateMachine';
 import { getAngleInsights } from './angleInsightsService';
@@ -33,7 +34,9 @@ async function resolveNetworkCode(networkId: string | null | undefined): Promise
 // ruim já comprovado sem conversão) — mesmo tratamento de PAUSE/DOWNSCALE.
 const DEFENSIVE_TYPES = ['PAUSE', 'DOWNSCALE', 'ADD_NEGATIVE_KEYWORD'];
 // Ações ofensivas: exigem aprovação via WhatsApp/Slack
-const OFFENSIVE_TYPES = ['SCALE', 'REFRESH_CREATIVE', 'ADJUST_AUDIENCE', 'REALLOCATE_BUDGET'];
+// Tier 3 "Loop do ICP" — USE_LOOKALIKE_AUDIENCE muda a segmentação de uma campanha real, mesma
+// classe de risco de SCALE/REALLOCATE_BUDGET — nunca auto-executa.
+const OFFENSIVE_TYPES = ['SCALE', 'REFRESH_CREATIVE', 'ADJUST_AUDIENCE', 'REALLOCATE_BUDGET', 'USE_LOOKALIKE_AUDIENCE'];
 
 export async function runDecisor(tenantId?: string): Promise<{ actionsCreated: number }> {
   const result = await generateAiInsights(undefined, tenantId);
@@ -99,6 +102,9 @@ export async function runDecisor(tenantId?: string): Promise<{ actionsCreated: n
     const actionDesc = enriched.description || insight.description;
 
     const scalePctVal = insight.type === 'SCALE' ? (insight.scalePct ?? null) : null;
+    // Tier 3 "Loop do ICP" — USE_LOOKALIKE_AUDIENCE carrega qual audiência aplicar
+    const audienceIdVal = insight.type === 'USE_LOOKALIKE_AUDIENCE' ? (insight.audienceId ?? null) : null;
+    const audienceExtIdVal = insight.type === 'USE_LOOKALIKE_AUDIENCE' ? (insight.audienceExternalId ?? null) : null;
 
     // Para SCALE: computa o budget proposto pelo agente e grava na linha
     let budgetProposed: number | null = null;
@@ -111,16 +117,19 @@ export async function runDecisor(tenantId?: string): Promise<{ actionsCreated: n
     await prisma.$executeRaw`
       INSERT INTO campanhasmarketingdigital."AgentAction"
         (id, tenant_id, "campaignId", "campaignName", type, title, description, confidence,
-         approval_pin, approval_pin_exp, status, scale_pct, budget_proposed, "createdAt")
+         approval_pin, approval_pin_exp, status, scale_pct, budget_proposed, audience_id,
+         audience_external_id, "createdAt")
       VALUES
         (${actionId}, ${resolvedTenantId}::uuid, ${insight.campaignId}, ${insight.campaignName},
          ${insight.type}, ${insight.title}, ${actionDesc}, ${insight.confidence},
-         ${pin}, ${pinExp}, ${actionStatus}, ${scalePctVal}, ${budgetProposed}, now())
+         ${pin}, ${pinExp}, ${actionStatus}, ${scalePctVal}, ${budgetProposed},
+         ${audienceIdVal}::uuid, ${audienceExtIdVal}, now())
     `;
 
     const action = { id: actionId, campaignId: insight.campaignId, campaignName: insight.campaignName,
       type: insight.type, title: insight.title, description: actionDesc,
-      tenantId: resolvedTenantId, approvalPin: pin, approvalPinExp: pinExp, status: actionStatus };
+      tenantId: resolvedTenantId, approvalPin: pin, approvalPinExp: pinExp, status: actionStatus,
+      audienceId: audienceIdVal, audienceExternalId: audienceExtIdVal };
 
     actionsCreated++;
 
@@ -437,6 +446,31 @@ export async function executeAction(
       });
 
       budgetChange = { before: realloc.sourceBudgetBefore, after: sourceBudgetAfter };
+
+    } else if (action.type === 'USE_LOOKALIKE_AUDIENCE') {
+      // Tier 3 "Loop do ICP" — diferente de PAUSE/SCALE/DOWNSCALE/REALLOCATE_BUDGET, aqui não
+      // existe nenhum estado LOCAL equivalente à ação (não é orçamento, não sincroniza de novo
+      // num próximo ciclo) — a ação inteira É a chamada de rede. Mesmo assim, seguida a MESMA
+      // disciplina de "melhor esforço, falha de rede nunca bloqueia a marcação de executado" já
+      // usada em toda esta função, por consistência — uma falha aqui fica só no log do
+      // servidor, sem re-tentativa automática (limitação conhecida, documentada).
+      if (!action.audienceExternalId) throw new Error('audienceExternalId ausente na ação USE_LOOKALIKE_AUDIENCE');
+      if (tenantId && externalId) {
+        try {
+          const networkService = await getNetworkServiceForTenant(tenantId, networkCode);
+          if (networkService instanceof MetaAdsAdapter) {
+            const adSets = await prisma.adSet.findMany({ where: { campaignId: action.campaignId } });
+            for (const adSet of adSets) {
+              const extAdSetId = (adSet as any).external_id || (adSet as any).metaAdSetId;
+              if (extAdSetId) {
+                await networkService.applyCustomAudienceToAdSet(extAdSetId, action.audienceExternalId);
+              }
+            }
+          }
+        } catch (err) {
+          console.error('[agentDecisor] USE_LOOKALIKE_AUDIENCE falhou ao aplicar na rede real:', err);
+        }
+      }
     }
 
     const bBefore = budgetChange?.before ?? null;

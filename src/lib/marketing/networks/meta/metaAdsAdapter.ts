@@ -1,5 +1,6 @@
 import axios from 'axios';
 import fs from 'fs';
+import crypto from 'crypto';
 import FormData from 'form-data';
 import type {
   AdNetworkService,
@@ -10,6 +11,60 @@ import type {
   TargetingResult,
   UploadResult,
 } from '../types';
+import {
+  assertAdSetOutboundFields,
+  assertCustomEventType,
+  assertMetaInsightsRows,
+  extractMetaMutateId,
+} from '../apiSchemas';
+
+// ── Tier 3 do plano "Loop do ICP" (2026-09-04) — Custom Audience / Lookalike ────────────────
+// Fonte do contrato de API: developers.facebook.com/docs/marketing-api/audiences (consultado
+// nesta sessão, não memória). Só Meta suporta isso hoje entre os adapters reais — por isso
+// vive como método extra da classe, fora da interface AdNetworkService genérica (mesmo padrão
+// de fetchRecommendations acima).
+export interface CustomAudienceMatchRow {
+  email?: string;
+  phone?: string; // formato livre — normalizePhoneForMatch() extrai só os dígitos
+}
+
+export interface CreateAudienceResult {
+  externalId: string;
+}
+
+export interface AudienceStatusResult {
+  /** Código real de operation_status.code da Meta — 200 (Normal) e 441 (preenchendo, já
+   *  utilizável) contam como pronta; qualquer outro valor real (ver developers.facebook.com/
+   *  docs/marketing-api/reference/custom-audience) indica atenção/processamento/erro. */
+  operationStatus: number | null;
+  approximateCount: number | null;
+}
+
+/** SHA256 hex — obrigatório pela Meta para todo campo de match (EMAIL/PHONE). Exportado
+ *  (junto das 2 funções abaixo) pra ser testável isoladamente, sem chamada de rede — ver
+ *  scratch/test-icp-tier3-audience-hash.ts na sessão que introduziu isto. */
+export function sha256Hex(value: string): string {
+  return crypto.createHash('sha256').update(value, 'utf8').digest('hex');
+}
+
+/** Normaliza e-mail conforme a Meta exige: trim + minúsculo, sem outro tratamento. */
+export function normalizeEmailForMatch(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+/**
+ * Normaliza telefone conforme a Meta exige: só dígitos, sem zeros à esquerda, COM código de
+ * país. Limitação real da v1, documentada: assume Brasil (+55) quando o número não já vem com
+ * código de país explícito (heurística: 10-11 dígitos = DDD+número sem país; 12-13 dígitos
+ * começando em '55' = já tem o código). Não detecta outros países — se este projeto vier a
+ * atender tenant fora do Brasil, esta função precisa de revisão antes de usar audiences.
+ */
+export function normalizePhoneForMatch(phone: string): string {
+  let digits = phone.replace(/\D/g, '').replace(/^0+/, '');
+  if (digits.length <= 11) digits = '55' + digits; // sem código de país — assume Brasil
+  return digits;
+}
+
 
 const META_API_BASE = 'https://graph.facebook.com/v21.0';
 
@@ -594,9 +649,16 @@ export class MetaAdsAdapter implements AdNetworkService {
       this.url(`act_${this.adAccountId}/campaigns`),
       campaignPayload,
     );
-    const externalId = campaignRes.data.id;
+    // FASE 19.5 — nunca deixar um shape de resposta divergente virar `undefined` propagado
+    // silenciosamente pelo resto da cadeia (adset/creative/ad, todos dependem deste id).
+    const externalId = extractMetaMutateId(campaignRes.data, 'criar campanha');
 
     // 3. Create ad set
+    // FASE 19.5 — valida os campos que a Meta exige como string não-vazia ANTES de montar o
+    // payload de saída (resolvidos automaticamente por network_defaults do segmento — um
+    // valor vazio/malformado aqui é bug de config, não algo que devesse virar chamada real).
+    assertAdSetOutboundFields(input.adSet);
+
     const targeting: any = {
       age_min: input.adSet.ageMin,
       age_max: input.adSet.ageMax,
@@ -632,14 +694,16 @@ export class MetaAdsAdapter implements AdNetworkService {
     // Promoted object (pixel + conversão) — quando pixel_id disponível
     const pixelId = input.pixelId || this.pixelId;
     if (pixelId) {
+      const customEventType = input.customEventType || 'LEAD';
+      assertCustomEventType(customEventType); // FASE 19.5
       adSetPayload.promoted_object = {
         pixel_id:          pixelId,
-        custom_event_type: input.customEventType || 'LEAD',
+        custom_event_type: customEventType,
       };
     }
 
     const adSetRes = await axios.post(this.url(`act_${this.adAccountId}/adsets`), adSetPayload);
-    const externalAdSetId = adSetRes.data.id;
+    const externalAdSetId = extractMetaMutateId(adSetRes.data, 'criar ad set'); // FASE 19.5
 
     // 4. Create creative
     // HOTFIX: usar page_id real das credenciais, não o ad_account_id
@@ -702,7 +766,7 @@ export class MetaAdsAdapter implements AdNetworkService {
       this.url(`act_${this.adAccountId}/adcreatives`),
       creativePayload,
     );
-    const creativeId = creativeRes.data.id;
+    const creativeId = extractMetaMutateId(creativeRes.data, 'criar creative'); // FASE 19.5
 
     // 5. Create ad
     const adRes = await axios.post(this.url(`act_${this.adAccountId}/ads`), {
@@ -716,7 +780,7 @@ export class MetaAdsAdapter implements AdNetworkService {
     return {
       externalId,
       externalAdSetId,
-      externalAdId: adRes.data.id,
+      externalAdId: extractMetaMutateId(adRes.data, 'criar ad'), // FASE 19.5
       networkMetadata: {
         creative_id: creativeId,
         page_id: pageId,
@@ -782,7 +846,10 @@ export class MetaAdsAdapter implements AdNetworkService {
       },
     });
 
-    return (res.data.data || []).map((row: any) => {
+    const rows = res.data.data || [];
+    assertMetaInsightsRows(rows); // FASE 19.5 — nunca deixar linha malformada virar "0" mentiroso
+
+    return rows.map((row: any) => {
       const actions: any[]       = row.actions || [];
       const actionValues: any[]  = row.action_values || [];
       const leads      = actions.find((a: any) => a.action_type === 'lead')?.value || 0;
@@ -889,6 +956,111 @@ export class MetaAdsAdapter implements AdNetworkService {
     } catch {
       return [];  // gracioso — recomendações são opcionais
     }
+  }
+
+  // ── Tier 3 do plano "Loop do ICP" — Custom Audience / Lookalike ──────────────────────────
+
+  /** Cria uma Custom Audience vazia (subtype=CUSTOM) — ainda sem membros; ver uploadAudienceUsers. */
+  async createCustomAudience(name: string, description?: string): Promise<CreateAudienceResult> {
+    const res = await axios.post(this.url(`act_${this.adAccountId}/customaudiences`), {
+      name,
+      subtype: 'CUSTOM',
+      description: description || '',
+      customer_file_source: 'USER_PROVIDED_ONLY',
+      ...this.auth,
+    });
+    return { externalId: extractMetaMutateId(res.data, 'criar Custom Audience') };
+  }
+
+  /**
+   * Envia os membros hasheados pra uma Custom Audience já criada. V1: 1 único lote
+   * (last_batch_flag sempre true) — a Meta aceita até 10.000 linhas por requisição; tenant
+   * com mais negócios fechados que isso precisaria de paginação em lotes, não implementada
+   * ainda (nenhum tenant real desta plataforma chega perto desse volume hoje).
+   */
+  async uploadAudienceUsers(audienceExternalId: string, rows: CustomAudienceMatchRow[]): Promise<number> {
+    if (rows.length > 10000) {
+      throw new Error(`uploadAudienceUsers: ${rows.length} linhas excede o limite de 10.000 por lote (paginação não implementada nesta v1).`);
+    }
+    const schema: string[] = [];
+    if (rows.some((r) => r.email)) schema.push('EMAIL');
+    if (rows.some((r) => r.phone)) schema.push('PHONE');
+    if (schema.length === 0) return 0;
+
+    const data = rows
+      .map((r) => schema.map((field) => {
+        if (field === 'EMAIL') return r.email ? sha256Hex(normalizeEmailForMatch(r.email)) : '';
+        return r.phone ? sha256Hex(normalizePhoneForMatch(r.phone)) : '';
+      }))
+      .filter((row) => row.some((v) => v !== '')); // descarta linha sem NENHUM campo de match
+
+    await axios.post(this.url(`${audienceExternalId}/users`), {
+      session: {
+        session_id: Date.now(),
+        batch_seq: 1,
+        last_batch_flag: true,
+        estimated_num_total: data.length,
+      },
+      payload: { schema, data },
+      ...this.auth,
+    });
+    return data.length;
+  }
+
+  /**
+   * Cria uma Lookalike a partir de uma Custom Audience já existente (semente). A Meta exige
+   * semente com ≥100 membros — quem chama deve checar isso ANTES (audienceService.ts faz essa
+   * contagem real via banco antes de sequer tentar), pra dar um erro honesto e específico em
+   * vez de deixar a Meta rejeitar com uma mensagem genérica.
+   */
+  async createLookalikeAudience(
+    originAudienceExternalId: string,
+    country: string,
+    ratio: number,
+  ): Promise<CreateAudienceResult> {
+    const res = await axios.post(this.url(`act_${this.adAccountId}/customaudiences`), {
+      name: `Lookalike ${(ratio * 100).toFixed(0)}% - ${country}`,
+      subtype: 'LOOKALIKE',
+      origin_audience_id: originAudienceExternalId,
+      lookalike_spec: JSON.stringify({ type: 'similarity', country, ratio }),
+      ...this.auth,
+    });
+    return { externalId: extractMetaMutateId(res.data, 'criar Lookalike Audience') };
+  }
+
+  /** Status real de processamento — a Meta populariza a audience de forma assíncrona (até
+   *  24h pra Custom, 1-6h pra Lookalike); chamar isso depois pra saber se já está pronta. */
+  async getAudienceStatus(externalId: string): Promise<AudienceStatusResult> {
+    const res = await axios.get(this.url(externalId), {
+      params: { ...this.auth, fields: 'operation_status,approximate_count_lower_bound' },
+    });
+    return {
+      operationStatus: typeof res.data?.operation_status?.code === 'number' ? res.data.operation_status.code : null,
+      approximateCount: res.data?.approximate_count_lower_bound ?? null,
+    };
+  }
+
+  /**
+   * Aplica uma Custom/Lookalike Audience ao targeting de um Ad Set já existente — o passo que
+   * de fato conecta a audiência gerada a uma campanha real. Lê o `targeting` ATUAL do AdSet
+   * antes de escrever (a Meta substitui o objeto inteiro num update, nunca faz merge) e só
+   * ACRESCENTA `custom_audiences`, preservando idade/gênero/localização/interesses já
+   * configurados — nunca reseta a segmentação existente. Idempotente: se a audiência já está
+   * aplicada, não faz nenhuma chamada de escrita.
+   */
+  async applyCustomAudienceToAdSet(adSetExternalId: string, audienceExternalId: string): Promise<void> {
+    const res = await axios.get(this.url(adSetExternalId), {
+      params: { ...this.auth, fields: 'targeting' },
+    });
+    const targeting = res.data?.targeting || {};
+    const existing: Array<{ id: string }> = Array.isArray(targeting.custom_audiences) ? targeting.custom_audiences : [];
+    if (existing.some((a) => a.id === audienceExternalId)) return; // já aplicada — nada a fazer
+
+    targeting.custom_audiences = [...existing, { id: audienceExternalId }];
+    await axios.post(this.url(adSetExternalId), {
+      targeting: JSON.stringify(targeting),
+      ...this.auth,
+    });
   }
 
   async searchTargeting(

@@ -399,6 +399,108 @@ cron.schedule('30 3 * * *', async () => {
   timezone: 'America/Sao_Paulo'
 });
 
+// FASE 19.3 — Blindagem contra mudança de API: canário leve de hora em hora, verifica se a
+// credencial de cada tenant+rede ainda responde (validateCredentials, já existente em todo
+// adapter) — bem mais frequente que o sync pesado (6h), garante que o disjuntor da 19.2 nunca
+// fica preso pelo cooldown inteiro sem uma tentativa de recuperação. docs/CHECKPOINT.md.
+cron.schedule('0 * * * *', async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/cron/campanhas/network-healthcheck`, {
+      method: 'POST',
+      headers: { 'x-cron-secret': CRON_SECRET, 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+      console.error(`❌ [network-healthcheck] Erro (${response.status})`);
+      return;
+    }
+    const data = await response.json();
+    if (data.failed > 0) {
+      console.log(`⚠️ [network-healthcheck] checked=${data.checked} healthy=${data.healthy} failed=${data.failed} tripped=${data.tripped}`);
+    }
+  } catch (error) {
+    console.error('❌ [network-healthcheck] Erro de conexão:', error.message);
+  }
+}, {
+  scheduled: true,
+  timezone: 'America/Sao_Paulo'
+});
+
+// Tier 3 "Loop do ICP" (2026-09-05) — mantém Custom Audience/Lookalike atualizadas sem
+// intervenção humana: reenvia negócios fechados novos, cria audiência nova onde ainda falta,
+// gera a Lookalike assim que a semente estiver pronta. Nunca toca em campanha real — a etapa
+// que de fato altera segmentação de campanha (USE_LOOKALIKE_AUDIENCE) sempre passa por
+// aprovação humana via PIN, disparada pelo ciclo do agente (agentMonitor.ts), não por aqui.
+// Diário às 07:30 — negócio fechado não muda em alta frequência, não precisa de mais que isso.
+cron.schedule('30 7 * * *', async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/cron/campanhas/audiences-refresh`, {
+      method: 'POST',
+      headers: { 'x-cron-secret': CRON_SECRET, 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+      console.error(`❌ [audiences-refresh] Erro (${response.status})`);
+      return;
+    }
+    const data = await response.json();
+    console.log(`✅ [audiences-refresh] status=${JSON.stringify(data.statusRefresh)} criadas=${JSON.stringify(data.customAudiencesCreated)} atualizadas=${JSON.stringify(data.customAudiencesRefreshed)} lookalikes=${JSON.stringify(data.lookalikesCreated)}`);
+  } catch (error) {
+    console.error('❌ [audiences-refresh] Erro de conexão:', error.message);
+  }
+}, {
+  scheduled: true,
+  timezone: 'America/Sao_Paulo'
+});
+
+// Sinais exógenos (Google Trends) por segmento — alimenta o Radar de Demanda (FASE 18.2).
+// Diário às 06:00, conforme o próprio comentário da rota. Achado real em 2026-09-03: existia
+// desde a FASE 18.2, documentada como "cron diário" no CHECKPOINT, mas nunca foi de fato
+// agendada em lugar nenhum — só disparada manualmente durante depuração.
+cron.schedule('0 6 * * *', async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/cron/campanhas/exogenous-signals`, {
+      method: 'POST',
+      headers: { 'x-cron-secret': CRON_SECRET, 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+      console.error(`❌ [exogenous-signals] Erro (${response.status})`);
+      return;
+    }
+    const data = await response.json();
+    console.log(`✅ [exogenous-signals] upserted=${data.totalUpserted} ${data.elapsedMs}ms`);
+  } catch (error) {
+    console.error('❌ [exogenous-signals] Erro de conexão:', error.message);
+  }
+}, {
+  scheduled: true,
+  timezone: 'America/Sao_Paulo'
+});
+
+// Expira PIN de aprovação vencido de ações do agente (AgentAction PENDING_APPROVAL). De hora
+// em hora, deslocado 15min do canário de rede (:00) pra não bater os dois no mesmo instante.
+// Achado real em 2026-09-03: rota já existia e já dizia no próprio comentário "chamado pelo
+// cron (ex: a cada hora)", mas nunca tinha sido agendada.
+cron.schedule('15 * * * *', async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/cron/agent-expire`, {
+      method: 'GET',
+      headers: { 'x-cron-secret': CRON_SECRET },
+    });
+    if (!response.ok) {
+      console.error(`❌ [agent-expire] Erro (${response.status})`);
+      return;
+    }
+    const data = await response.json();
+    if (data.expired > 0) {
+      console.log(`✅ [agent-expire] expired=${data.expired}`);
+    }
+  } catch (error) {
+    console.error('❌ [agent-expire] Erro de conexão:', error.message);
+  }
+}, {
+  scheduled: true,
+  timezone: 'America/Sao_Paulo'
+});
+
 console.log('✅ Agendador configurado:');
 console.log('   • Feed sync diário        → 03:00 (America/Sao_Paulo)');
 console.log('   • Transbordo de leads     → a cada 5 min');
@@ -409,6 +511,9 @@ console.log('   • Mensageria SLA check    → a cada 5 min');
 console.log('   • CRM agentes (scan)      → a cada 5 min');
 console.log('   • CRM pendência (reconc.) → diário às 03:30');
 console.log('   • CRM recalibração score  → diário às 04:00');
+console.log('   • Canário de rede (19.3)  → de hora em hora');
+console.log('   • Sinais exógenos (Trends)→ diário às 06:00');
+console.log('   • Expira PIN de agente    → de hora em hora (15min)');
 console.log('\n🚀 Agendador rodando... (Ctrl+C para parar)\n');
 
 // Removido o boot sync imediato para respeitar a janela das 03:00h conforme solicitado pelo usuário.

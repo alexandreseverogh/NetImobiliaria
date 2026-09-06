@@ -21,6 +21,7 @@ import {
   type LifecycleStatus,
   type TriggerSource,
 } from './campaignLifecycleTypes';
+import { getLeadEvents, sumLeads } from './leadEvents';
 
 // Re-exporta para que importadores legados não quebrem
 export {
@@ -116,7 +117,7 @@ export async function inferLifecycleStatus(campaignId: string): Promise<void> {
 
   if (!campaignRow.rows[0]) return;
 
-  const { lifecycle_status, status, createdAt: created_at } = campaignRow.rows[0];
+  const { lifecycle_status, status, createdAt: created_at, tenant_id } = campaignRow.rows[0];
   const current = lifecycle_status as LifecycleStatus;
 
   // Campanhas KILLED nunca mudam
@@ -132,6 +133,15 @@ export async function inferLifecycleStatus(campaignId: string): Promise<void> {
   if (status !== 'ACTIVE') return;
 
   // Busca insights últimos 7 dias
+  // Achado real (auditoria "O Loop Quebrado do ICP", 2026-09-04): `total_conversions` lia
+  // `breakdowns->>'conversions'` — chave que NENHUM dos 2 adapters (Meta/Google) jamais escreve
+  // em `breakdowns` — o branch "≥50 conversões" abaixo estava estruturalmente morto pra toda
+  // campanha, toda rede. Corrigido pra ler a coluna real `conversions` (também corrigida na
+  // mesma auditoria — `agentMonitor.ts` nunca a persistia). Mantido aqui como sinal secundário;
+  // o sinal PRINCIPAL de volume agora é `leadEvents.ts` (ver abaixo) — pra Meta/lead-gen
+  // (ex. Imobiliário), `conversions` só captura `offsite_conversion.fb_pixel_purchase` (pixel
+  // de e-commerce), que nunca dispara nesse tipo de campanha; `leadEvents.ts` já resolve o
+  // sinal certo por rede (clique de WhatsApp/formulário pro Meta, conversion real pro Google).
   const insightsRow = await pool.query<{
     avg_frequency: number;
     avg_ctr: number;
@@ -145,10 +155,10 @@ export async function inferLifecycleStatus(campaignId: string): Promise<void> {
        AVG(ctr::float)                                AS avg_ctr,
        (ARRAY_AGG(ctr::float ORDER BY date ASC))[1]   AS first_ctr,
        (ARRAY_AGG(ctr::float ORDER BY date DESC))[1]  AS last_ctr,
-       COALESCE(SUM((breakdowns->>'conversions')::float), 0) AS total_conversions,
+       COALESCE(SUM(conversions), 0)                   AS total_conversions,
        COUNT(*)                                        AS day_count
      FROM campanhasmarketingdigital."Insight"
-    WHERE campaign_id = $1
+    WHERE "campaignId" = $1
       AND date >= NOW() - INTERVAL '7 days'`,
     [campaignId],
   );
@@ -173,13 +183,35 @@ export async function inferLifecycleStatus(campaignId: string): Promise<void> {
     return;
   }
 
-  // Regra: LEARNING → STABLE (≥7 dias ativo ou ≥50 conversões)
-  if (current === 'LEARNING' && (ageInDays >= 7 || Number(m.total_conversions) >= 50)) {
-    await transitionCampaign(
-      campaignId, 'STABLE', 'SYNC',
-      `${ageInDays.toFixed(0)} dias ativo · ${Number(m.total_conversions).toFixed(0)} conversões`,
-    );
-    return;
+  // Regra: LEARNING → STABLE (≥7 dias ativo ou ≥50 leads reais)
+  // Sinal principal: leadEvents.ts (fonte única já ciente de rede — clique de WhatsApp/
+  // formulário pro Meta, conversão real da API pro Google). `total_conversions` (Insight.
+  // conversions) fica como sinal secundário — só relevante pra campanha de e-commerce/venda
+  // (offsite_conversion.fb_pixel_purchase), nunca aparece em lead-gen.
+  if (current === 'LEARNING') {
+    let realLeads = 0;
+    if (tenant_id) {
+      try {
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const events = await getLeadEvents(tenant_id, {
+          campaignIds: [campaignId],
+          startDate: sevenDaysAgo,
+          endDate: new Date(),
+        });
+        realLeads = sumLeads(events);
+      } catch (err) {
+        console.warn(`[StateMachine] Falha ao buscar leadEvents pra ${campaignId} — usando só idade/conversions:`, err);
+      }
+    }
+    const volumeSignal = Math.max(realLeads, Number(m.total_conversions) || 0);
+    if (ageInDays >= 7 || volumeSignal >= 50) {
+      await transitionCampaign(
+        campaignId, 'STABLE', 'SYNC',
+        `${Math.max(0, ageInDays).toFixed(0)} dias ativo · ${realLeads} leads reais · ${Number(m.total_conversions).toFixed(0)} conversões`,
+        { age_days: ageInDays, real_leads: realLeads, total_conversions: Number(m.total_conversions) || 0 },
+      );
+      return;
+    }
   }
 
   // Regra: READY → LEARNING (campanha ativa com primeiros dados)

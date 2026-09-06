@@ -11,7 +11,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { adminFetch } from '@/lib/auth/adminFetch';
 import { cn } from '@/lib/marketing-utils';
-import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
+import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector';
 import { ANGLE_LABELS as SHARED_ANGLE_LABELS } from '@/lib/marketing/angles';
 
 // ── Types ──────────────────────────────────────────────────────────────────────

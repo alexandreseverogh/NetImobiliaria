@@ -152,7 +152,8 @@ export async function POST(req: NextRequest) {
 
   try {
     const rows = await prisma.$queryRaw<any[]>`
-      SELECT id, tenant_id AS "tenantId", "campaignId", "campaignName", type, title, description, confidence, status
+      SELECT id, tenant_id AS "tenantId", "campaignId", "campaignName", type, title, description, confidence, status,
+             audience_id AS "audienceId", audience_external_id AS "audienceExternalId"
       FROM campanhasmarketingdigital."AgentAction" WHERE id = ${body.id} LIMIT 1`;
     const action = rows[0];
 

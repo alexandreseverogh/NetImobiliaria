@@ -1,5 +1,1691 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-09-06 — **Automação completa do ciclo de vida da Lookalike/Custom
+> Audience (Meta), fechando o gap de UX identificado na sessão anterior: o recurso do Tier 3
+> item 5 estava construído mas só funcionava via clique manual — sem nenhum jeito de de fato
+> USAR uma Lookalike pronta dentro de uma campanha real, e sem nenhuma atualização automática
+> da lista de membros/criação da audiência quando um escopo se tornava elegível.**
+>
+> **Origem:** o usuário, ao testar a feature nova, perguntou 3 vezes seguidas em profundidade
+> crescente — onde a feature aparece na sidebar, o que ela faz em termos de negócio, e como o
+> usuário operacionalizaria isso em termos de UX — até a 3ª pergunta expor o gap real: não
+> existia nenhum caminho, no `CampaignWizard`, para de fato aplicar uma Lookalike pronta a uma
+> campanha. A resposta direta do usuário — "eu pensei que isso poderia ser 'automatizado', sem
+> depender de uma intervenção humana" — virou o requisito central desta frente. Perguntado via
+> `AskUserQuestion` como tratar especificamente a etapa 3 (usar a Lookalike numa campanha real,
+> a única que gasta dinheiro/altera live targeting), o usuário escolheu **"Sugestão automática +
+> aprovação por PIN"** — nunca execução 100% autônoma para essa etapa específica, seguindo a
+> mesma arquitetura de segurança já usada por SCALE/REALLOCATE_BUDGET.
+>
+> **Desenho final, 4 partes — as 3 primeiras 100% automáticas, a 4ª sempre com aprovação
+> humana:**
+> 1. Manter a lista de membros da Custom Audience sempre atualizada (reenvia negócios fechados
+>    novos desde a última rodada).
+> 2. Auto-criar a Custom Audience na primeira vez que um escopo (tenant ou cliente) se torna
+>    elegível (≥100 negócios fechados reais com e-mail ou telefone) — sem esperar clique manual.
+> 3. Auto-criar a Lookalike a partir de toda Custom Audience já pronta e madura o suficiente.
+> 4. **Nunca automático** — detectar e sugerir aplicar uma Lookalike pronta a uma campanha real
+>    (nova regra de agente autônomo `USE_LOOKALIKE_AUDIENCE`), sempre passando pelo mesmo fluxo
+>    de aprovação humana por PIN via WhatsApp já usado pelo resto dos agentes OFFENSIVE.
+>
+> **Achado real, decisivo para o desenho:** `ADJUST_AUDIENCE` já existia como tipo OFFENSIVE
+> registrado no catálogo (`agentDecisor.ts`), mas nascido de uma regra completamente diferente
+> (CTR muito baixo + poucos leads → sugestão textual genérica de "ajustar segmentação") e **sem
+> nenhuma execução mecânica real** por trás — confirmado ao vivo que nada acontece mesmo quando
+> um humano aprova essa ação via PIN. Isso confirmou que reaproveitar `ADJUST_AUDIENCE` seria
+> errado (semântica diferente: sugestão vaga vs. ação real e executável) — `USE_LOOKALIKE_AUDIENCE`
+> foi criado do zero, com execução mecânica de verdade.
+>
+> **Implementado:**
+> 1. `prisma/migration-2026-09-05-agent-audience-columns.sql` — `AgentAction.audience_id`/
+>    `audience_external_id` (novas colunas, carregam qual Lookalike a ação se refere).
+> 2. `MetaAdsAdapter.applyCustomAudienceToAdSet(adSetExternalId, audienceExternalId)` (novo
+>    método) — faz merge idempotente de `custom_audiences` dentro do `targeting` já existente do
+>    AdSet, nunca sobrescreve idade/gênero/localização/interesses já configurados.
+> 3. `audienceService.ts` ganha 5 funções novas de automação: `refreshCustomAudienceMembers`,
+>    `findScopesNeedingCustomAudience`+`autoCreateCustomAudiencesForEligibleScopes`,
+>    `refreshAllExistingCustomAudiences`, `autoCreateLookalikesFromReadyCustoms`,
+>    `refreshAllProcessingStatuses` — todas best-effort (uma falha isolada nunca trava as
+>    demais no mesmo escopo), reaproveitando 100% a lógica de gate/isolamento de tenant já
+>    testada na sessão anterior (nunca uma 2ª implementação paralela desses critérios).
+> 4. `aiInsights.ts` — nova regra `USE_LOOKALIKE_AUDIENCE` via `mapReadyLookalikeAudiences()`:
+>    detecta, por campanha, se existe uma Lookalike `READY` pronta para aquele
+>    tenant/cliente ainda não aplicada — `confidence: 0.85` fixo (não probabilístico como as
+>    regras estatísticas do resto do arquivo), justificado em comentário: a condição aqui é um
+>    fato determinístico (a audiência existe e está pronta, ou não existe), não uma inferência
+>    de tendência — 0.85 bate exatamente o `agent_confidence_threshold` real do tenant de
+>    desenvolvimento "Marketing Digital", confirmado via SQL antes de escolher o valor (uma
+>    confiança abaixo disso nunca dispararia de verdade pelo pipeline real).
+> 5. `agentDecisor.ts` — `OFFENSIVE_TYPES` ganha `'USE_LOOKALIKE_AUDIENCE'`; `runDecisor()`
+>    carrega `audienceId`/`audienceExternalId` da insight pro INSERT da `AgentAction`;
+>    `executeAction()` ganha o branch novo — resolve o `MetaAdsAdapter` real via
+>    `getNetworkServiceForTenant` + `instanceof MetaAdsAdapter` (mesmo padrão de guarda já usado
+>    para `GoogleAdsAdapter` em `agentMonitor.ts`), itera os `AdSet`s reais da campanha e chama
+>    `applyCustomAudienceToAdSet` best-effort — mesma filosofia "nunca bloqueante" já usada por
+>    PAUSE/SCALE/DOWNSCALE/REALLOCATE_BUDGET (falha de rede real nunca impede a `AgentAction` de
+>    ser marcada `EXECUTED`; limitação conhecida e aceita, documentada no código, por
+>    consistência com o resto da base — diferente de budget, não há "estado local equivalente"
+>    pra honrar a intenção sozinho aqui).
+> 6. Exposição dos 2 campos novos nas 2 rotas de aprovação (`/api/agent/approve/[id]` via
+>    WhatsApp+PIN, `/api/admin/master/aprovacoes` via painel autenticado).
+> 7. `agentNotificador.ts` — `ACTION_EMOJI`/`ACTION_LABEL` ganham `USE_LOOKALIKE_AUDIENCE:
+>    '👥'`/`'Audiência Lookalike aplicada'` + **novo bucket dedicado `lookalikes` no digest**
+>    (mesmo padrão já usado por `reallocs`) — achado crítico, mesma classe de bug já corrigida
+>    antes para `REALLOCATE_BUDGET`: sem um bucket próprio, a ação cairia no bucket genérico
+>    "outras", que nunca renderiza PIN/link de aprovar/rejeitar — a ação existiria no banco mas
+>    seria **impossível de aprovar via WhatsApp**.
+> 8. `src/app/api/cron/campanhas/audiences-refresh/route.ts` (novo) — orquestra as 4 funções de
+>    automação (1-3 do desenho acima) em sequência: `refreshAllProcessingStatuses` →
+>    `autoCreateCustomAudiencesForEligibleScopes` → `refreshAllExistingCustomAudiences` →
+>    `autoCreateLookalikesFromReadyCustoms`. Protegido por `x-cron-secret`. Registrado no
+>    Mecanismo 1 (`scripts/feed-cron-scheduler.js`, diário 07:30, entre `network-healthcheck` e
+>    `exogenous-signals`) — nunca no ciclo interno do `agentMonitor.ts` (Mecanismo 2), por ser
+>    trabalho independente do ciclo de sync/decisor/negativação/realocação/briefing (não usa
+>    `Insight`, não chama API de métricas) — regra de decisão já documentada no CLAUDE.md,
+>    "Arquitetura de Cron Jobs". `CLAUDE.md` atualizado: "13 jobs hoje" → "14 jobs hoje".
+>
+> **Incidente de segurança real, contido e corrigido durante os testes desta sessão — a lição
+> mais importante desta frente:** ao validar a nova regra `USE_LOOKALIKE_AUDIENCE` pela primeira
+> vez, chamei `runDecisor(TENANT_ID)` **sem escopar por campanha** contra o tenant real
+> "Marketing Digital" — `runDecisor()` processa TODAS as campanhas reais daquele tenant numa
+> única passada, então isso acionou uma regra PAUSE completamente não relacionada sobre uma
+> campanha real e ativa ("TikTok - Campanha Teste", id `446ae8a1-9a1c-4a07-8ade-1f29fd1c9839`),
+> pausando-a de verdade (`Campaign.status='PAUSED'`) e criando uma `AgentAction` real de PAUSE.
+> **Detectado e revertido na mesma sessão:** `Campaign.status` restaurado para `'ACTIVE'` via
+> SQL direto, a `AgentAction` errônea (id `d3ca318a-7922-4f0a-897e-8c07edd5060d`) deletada,
+> estado da campanha confirmado idêntico ao original via SQL. **Lição registrada e aplicada em
+> todo o resto dos testes desta sessão:** nunca mais chamar `runDecisor(tenantId)` sem escopo
+> para testar uma regra isolada — o padrão seguro adotado a partir daí foi: chamar
+> `generateAiInsights(campaignId, tenantId)` (escopado a 1 única campanha de teste) para
+> observar se a regra dispara, e depois inserir/testar a `AgentAction` manualmente via SQL para
+> validar `executeAction()` isoladamente, sem nunca invocar `runDecisor()` de novo contra um
+> tenant com campanhas reais ativas durante o desenvolvimento.
+>
+> **2 achados técnicos adicionais durante o teste, ambos corrigidos:**
+> - A regra nova nunca disparava pelo pipeline real porque a confiança inicial de teste (0.72)
+>   ficava abaixo do `agent_confidence_threshold` real do tenant — confirmado via
+>   `SELECT agent_confidence_threshold FROM public.tenants WHERE id = ...` (0.85 exato) antes de
+>   ajustar a constante da regra para 0.85 (ver item 4 acima).
+> - O primeiro `AdSet` de teste foi criado apontando o external id da rede na coluna errada
+>   (`external_id`, que a coluna real do banco tem mas o Prisma nunca mapeia — confirmado via
+>   grep e leitura do `schema.marketing.prisma`) em vez de `metaAdSetId` (o único campo que o
+>   código de produção de fato lê/grava via `prisma.adSet.update({data:{metaAdSetId:...}})`) —
+>   erro só do dado de teste, não um bug de produção; o padrão `(adSet as any).external_id ||
+>   (adSet as any).metaAdSetId` já usado em `agentDecisor.ts` sempre foi seguro por isso.
+>   Corrigido o AdSet de teste, o restante do fluxo (resolução real do adapter Meta, tentativa
+>   de chamada de rede real, `401 invalid_token` genuíno por credencial Meta expirada — o mesmo
+>   achado já documentado em sessões anteriores para este tenant) confirmou o caminho de
+>   execução completo funcionando de ponta a ponta, com falha honesta e não-bloqueante.
+>
+> **Verificação final desta sessão — a etapa que faltava confirmar: o cron encontra sozinho um
+> escopo recém-elegível e tenta criar a Custom Audience automaticamente, sem nenhum clique
+> manual.** Testado com um tenant de bancada sem NENHUMA `tenant_audiences` prévia ("Teste RAG —
+> Multi-Segmento"): 105 leads sintéticos reais com negócio fechado (coluna de kanban
+> `is_ganho=true`, criada só para este teste) + e-mail, exatamente no mínimo exigido pela Meta
+> (≥100) — confirmado via SQL que os 105 leads batiam no critério de elegibilidade real antes de
+> invocar o cron. `POST /api/cron/campanhas/audiences-refresh` (servidor dev real, não
+> simulado) → `{"customAudiencesCreated":{"created":0,"failed":1}}` — **confirma que o cron
+> detectou o escopo automaticamente e tentou criar a audiência sozinho**, falhando honestamente
+> só na resolução de credencial Meta real (`Tenant não possui credenciais configuradas para a
+> rede "meta"` — este tenant de bancada genuinamente não tem credencial Meta, mesmo padrão de
+> "falha honesta sem conta real" já documentado em toda a sessão anterior para TikTok
+> T2/MCP 19.7) — nunca chegou a tentar enviar nenhum dado real à Meta. Confirmado por SQL que
+> nenhuma linha foi persistida em `tenant_audiences` (a falha ocorre antes de qualquer
+> `INSERT`). Todo dado de teste removido ao final (105 leads + coluna de kanban + linhas de
+> `leads_kanban`), `count(*)=0` confirmado em `leads_staging`/`kanban_colunas`/`leads_kanban`
+> (escopados a esse tenant) e em `tenant_audiences`/`AgentAction` (type
+> `USE_LOOKALIKE_AUDIENCE`) globalmente.
+>
+> **Pendência real, idêntica à já documentada para o resto da feature:** nenhuma chamada de
+> rede real contra a API da Meta foi exercitada com sucesso em nenhum ponto desta frente — segue
+> bloqueada pela ausência de uma conta de anúncio de teste real, mesmo tratamento já dado a
+> TikTok T2/MCP 19.7. Toda a lógica de detecção/orquestração/isolamento/aprovação foi testada e
+> confirmada funcionando ponta a ponta contra dado real da própria plataforma.
+>
+> **Com isso, o gap de automação identificado pelo usuário está fechado**: manutenção de
+> membros, criação de Custom Audience e criação de Lookalike são 100% automáticos (cron diário,
+> zero clique humano); só a aplicação da Lookalike numa campanha real continua exigindo
+> aprovação humana por PIN — decisão consciente do usuário, não uma limitação técnica.
+
+> **Atualizado em:** 2026-09-05 — **Tier 3 do plano "Loop do ICP" — 5º e último item concluído:
+> Lookalike/Custom Audience (Meta). Com isso, o Tier 3 está formalmente fechado (5/5).**
+>
+> **Processo seguido, a pedido explícito do usuário: investigação e desenho ANTES de codar**
+> (diferente do resto do Tier 3, item de maior superfície de risco — toca dado de PII real e
+> API de rede externa). Confirmado por grep que não existia NENHUMA infraestrutura prévia
+> (nenhuma tabela, nenhum método de adapter, nenhuma UI) — zero reaproveitamento possível.
+> Contrato real da Meta Marketing API pesquisado via documentação oficial nesta sessão (nunca
+> memória): criar Custom Audience vazia (`POST act_{ID}/customaudiences`, `subtype:CUSTOM`) →
+> normalizar+hashear SHA256 email (trim+lowercase) e telefone (só dígitos, sem zero à esquerda,
+> com código de país) → enviar membros (`POST {ID}/users`, até 10.000/lote) → criar Lookalike
+> a partir da semente (`subtype:LOOKALIKE`, `lookalike_spec`, exige **≥100 membros** na semente)
+> → consultar `operation_status.code` pra saber quando terminou de processar (código 200=Normal
+> ou 441=preenchendo/já utilizável — confirmados via a página de referência oficial da API, não
+> chutados; outros ~15 códigos reais documentados também, cobrindo erro/baixa taxa de match/
+> flag de integridade/etc.).
+>
+> **3 perguntas de esclarecimento feitas antes de implementar, respondidas pelo usuário:**
+> (1) critério da semente — usuário não entendeu de primeira, reexplicado com exemplo numérico
+> concreto, escolhida a **Opção A**: semente = TODO lead com negócio fechado real
+> (`leads_kanban.is_ganho`) e email OU telefone, sem filtro adicional de fit-score (mais
+> robusto que filtrar por fit — dependeria de há quanto tempo a IA de qualificação está ativa
+> naquele tenant, correndo risco real de nunca bater o mínimo de 100 da Meta). (2) conta de
+> teste real da Meta — usuário confirmou que **não existe ainda**, "isso terá que ser
+> documentado para testarmos quando existir" — mesmo tratamento já dado a TikTok T2 e MCP 19.7
+> em pendências anteriores deste projeto (implementar e validar tudo o que dá pra validar sem a
+> API real, documentar o restante como pendência explícita). (3) pergunta minha mal formulada
+> sobre aviso de UI antes de enviar dado de contato real à Meta — usuário esclareceu o modelo de
+> negócio real da plataforma: "o administrador do tenant poderá promover campanhas de quaisquer
+> de seus clientes sem pedir permissão" — não é um fluxo de aprovação extra, é a mesma autoridade
+> que o admin já tem sobre qualquer ação de campanha dos clientes que gerencia.
+>
+> **Implementado:**
+> 1. `prisma/migration-2026-09-04-tenant-audiences.sql` — nova tabela `public.tenant_audiences`
+>    (schema `public`, mesma convenção de `leads_staging`/`marketing_eventos` — é dado de
+>    negócio compartilhado entre Campanhas e o lead real do CRM): tenant/cliente, rede (só
+>    `meta` nesta v1 — Google Ads tem "Customer Match", API bem diferente, fora de escopo,
+>    registrado como extensão futura), tipo (`custom`/`lookalike`), `external_id` real da Meta,
+>    `origin_audience_id` (auto-FK, só pra lookalike), `criteria` jsonb (auditoria do filtro
+>    usado), contagem enviada/aproximada, status (`CREATING→UPLOADING→PROCESSING→READY|FAILED`).
+> 2. `MetaAdsAdapter.ts` ganha 4 métodos novos (`createCustomAudience`, `uploadAudienceUsers`,
+>    `createLookalikeAudience`, `getAudienceStatus`) + 3 funções puras exportadas
+>    (`sha256Hex`, `normalizeEmailForMatch`, `normalizePhoneForMatch`) — vivem como métodos
+>    extras da classe, fora da interface `AdNetworkService` genérica (mesmo padrão já usado por
+>    `fetchRecommendations`), já que Custom Audience não é uma capacidade compartilhada entre
+>    todos os adapters de rede deste projeto.
+> 3. `src/lib/marketing/services/audienceService.ts` (novo) — orquestração real: conta leads
+>    elegíveis sem enviar nada (`countEligibleClosedDeals`, usado como gate honesto na UI antes
+>    de qualquer tentativa), cria a Custom Audience só depois de confirmar localmente que a
+>    amostra bate o mínimo de 100 (nunca deixa a Meta rejeitar com erro genérico por algo que já
+>    sabíamos de antemão), cria Lookalike a partir de uma semente já existente (mesmo gate local
+>    de 100 membros, checando `member_count_uploaded` já persistido — nunca uma 2ª contagem
+>    redundante), atualiza status sob demanda (sem cron — volume esperado baixo, não justifica
+>    um 3º mecanismo de agendamento, ver seção "Arquitetura de Cron Jobs" do CLAUDE.md). Resolve
+>    o adapter real via `getNetworkServiceForTenant(tenantId, 'meta', clientId)` (já existente,
+>    reaproveitado) + `instanceof MetaAdsAdapter` (mesmo padrão de checagem por instância já
+>    usado em `agentMonitor.ts` pra `GoogleAdsAdapter`) — nunca tenta chamar os métodos de
+>    audience num adapter fake/de outra rede.
+> 4. `GET/POST /api/admin/campanhas/audiences` + `POST .../[id]/lookalike` + `POST .../[id]/
+>    refresh` — `requireApiPermission` (READ pra leitura/refresh, UPDATE pra criar) com os
+>    resources reais `dashboard-campanhas`/`configuracoes-campanhas` (confirmados existentes no
+>    catálogo antes de usar, não assumidos). **Isolamento de tenant reforçado no próprio
+>    serviço, não só na rota** — `createLookalikeFromAudience`/`refreshAudienceStatus` exigem
+>    `expectedTenantId` e comparam contra o `tenant_id` real da linha ANTES de qualquer ação;
+>    um `id` de audiência de outro tenant sempre responde "não encontrada" (nunca revela que o
+>    id existe, mas é de outro dono).
+> 5. `/admin/campanhas/audiences` (nova página) — contagem real de elegíveis com o texto "faltam
+>    N pra atingir o mínimo" quando abaixo de 100, formulário de criação desabilitado até bater
+>    o mínimo, lista de audiências com status/contagens reais, botão "Criar Lookalike" (com
+>    input de ratio %) só nas Custom Audiences que já bateram o mínimo, botão "Atualizar status".
+>    Banner âmbar fixo no topo documentando a pendência real de teste com conta Meta verdadeira.
+>    Feature cadastrada no catálogo real (`system_features` id 122, slug
+>    `campanhas-audiences`, vinculada ao módulo "Gestão de Campanhas de Marketing Digital") —
+>    **deliberadamente sem `tenant_feature_overrides` ainda**, mesma disciplina de "provisionar é
+>    ato deliberado do Master" já documentada em `docs/ACCESS_CONTROL.md`: feature nova sem
+>    validação real contra a API não deveria aparecer pronta pra uso em nenhum tenant real ainda.
+>
+> **Achado real de fonte oficial, corrigido antes mesmo de rodar qualquer teste:** minha 1ª
+> versão do `refreshAudienceStatus` comparava `operationStatus === 'None'` (string) pra decidir
+> se a audiência estava pronta — nunca teria funcionado, porque `operation_status.code` da Meta é
+> **numérico**. Corrigido depois de confirmar via a página de referência oficial da API (não
+> assumido): 200 (Normal) e 441 (preenchendo, já utilizável) são os 2 códigos que significam
+> "pronta"; os outros ~13 códigos documentados (baixa taxa de match, pixel com problema, conta
+> criadora inativa, flag de integridade, erro) mantêm o status local intocado — nunca promove pra
+> READY sem confirmação real da rede.
+>
+> **Testado ao vivo, ponta a ponta, com dado real (o que dava pra testar sem conta Meta real):**
+> isolado testado o SHA256/normalização (`scratch/test-icp-tier3-audience-hash.ts`, removido ao
+> final) contra o exemplo oficial da própria documentação da Meta — bateu byte a byte, 6/6
+> checks · inseridos 105 leads sintéticos reais (>= 100, o mínimo da Meta) com negócio fechado
+> real (coluna de kanban `is_ganho=true` criada só pro teste) no tenant de bancada "Teste RAG —
+> Multi-Segmento" → `GET /audiences` real confirmou `eligibleCount:105`, batendo exato com a
+> contagem via SQL direto · `POST /audiences` com esses 105 leads → gate de amostra mínima
+> passou corretamente (não caiu no erro de "amostra insuficiente") e falhou honestamente na
+> resolução de credencial real da Meta (que genuinamente não existe pra esse tenant) — nunca
+> tentou enviar nada, erro claro e específico · testado o CONTRASTE: mesmo tenant mas escopo de
+> cliente sem nenhum lead elegível → erro correto "Apenas 0 negócio(s) fechado(s)..." antes de
+> sequer tentar resolver credencial · **isolamento de tenant confirmado via API real, não só
+> revisão de código**: inserida 1 linha de audiência pertencente a OUTRO tenant real (Marketing
+> Digital) → tentativa de refresh/lookalike usando o token do tenant de teste retornou
+> corretamente `404 "não encontrada"` nos dois endpoints (nunca revelou que o id existia) →
+> confirmado que o dono real (Marketing Digital) continua vendo a linha normalmente via `GET
+> /audiences` com todos os campos mapeados corretos. Todo dado de teste removido (105 leads +
+> kanban + coluna de teste + a linha de audiência cross-tenant), `count(*)=0` confirmado nas 4
+> tabelas tocadas. `npx tsc --noEmit`: **zero erros em todo o projeto**.
+>
+> **Pendência real, documentada e não atacável nesta sessão:** nenhuma chamada de rede real
+> contra a API da Meta (`createCustomAudience`, `uploadAudienceUsers`, `createLookalikeAudience`,
+> `getAudienceStatus`) foi exercitada de verdade — não existe conta de anúncio de teste
+> disponível. A normalização/hash e toda a lógica de gate/orquestração/isolamento foram testadas
+> isoladamente e via API real deste projeto; a confirmação ponta a ponta contra a Meta de verdade
+> fica pendente até existir uma conta de teste, mesmo tratamento já dado a TikTok T2/MCP 19.7.
+>
+> **Com isso, os 5 itens do Tier 3 do plano "Loop do ICP" estão formalmente concluídos:** (1)
+> `revenueAttributionService` com fit médio por campanha, (2) `wastedSpendService` com a
+> categoria "CPL bom, zero venda", (3) taxa de fechamento real por ângulo em
+> `angleInsightsService`, (4) recalibração sob demanda do `avg_fit_scale_min`, (5) Lookalike/
+> Custom Audience. Não decidido ainda se existe um Tier 4 a retomar — verificar o plano original
+> da auditoria "O Loop Quebrado do ICP" se o usuário quiser continuar essa frente.
+
+> **Atualizado em:** 2026-09-04 (continuação 13) — **Tier 3 do plano "Loop do ICP" — 4 de 5
+> itens concluídos: recalibração sob demanda do limiar `avg_fit_scale_min` ("o espelho do
+> `scoreRecalibrationService` em Campanhas"), implementada com escopo deliberadamente mais
+> enxuto que o F5 original do CRM.**
+>
+> **Decisão de design, antes de implementar:** o F5 do CRM (recalibração de `score_base` de
+> regras categóricas) tem migração+tabela de sugestão+cron diário+endpoint de decisão própria.
+> Replicar essa infra inteira pra um limiar numérico contínuo seria desproporcional — a pergunta
+> aqui não é "este valor está certo?" (categórico), é "que ponto de corte discrimina melhor quem
+> converte de quem não converte?" (uma varredura de candidatos). Optado por **cálculo sob
+> demanda, sem tabela nova, sem cron** — o Master pede quando quiser, vê a sugestão com o dado
+> bruto por trás, e aplica preenchendo o campo já existente + o botão "Salvar Parâmetros" já
+> testado (ver achado abaixo). Documentado no topo do novo arquivo o porquê da divergência de
+> escopo em relação ao F5.
+>
+> **O que foi implementado:** `benchmarkRecalibrationService.ts` (novo) —
+> `computeFitThresholdSuggestion(segmentId, janelaDias)`: gate duplo (`crm_ia_ativa=true` no
+> segmento + pelo menos 1 tenant do segmento com `hasCrmModule()`), busca leads com
+> `score_fit IS NOT NULL` correlacionados a `leads_kanban.is_ganho` (só dos tenants do segmento
+> que efetivamente têm CRM — sem esse filtro, tenant sem CRM contaria como "nunca converte" e
+> enviesaria o cálculo), testa 9 candidatos de corte (10 a 90) e escolhe o que MAXIMIZA a
+> diferença de taxa de conversão entre "abaixo" e "acima" — exigindo amostra mínima (15) em
+> AMBOS os grupos e uma divergência real (≥10 pontos vs. o valor atual, ≥15pp de discriminação)
+> antes de sugerir troca. `GET /api/admin/master/segments/[id]/benchmarks/recalibrate-fit`
+> (Master-only) expõe isso. UI: `SegmentBenchmarksModal.tsx` ganhou `FitRecalibrationPanel` —
+> botão "Recalibrar com dados reais do CRM" ao lado do campo, mostra a sugestão com as 2 taxas
+> de conversão reais lado a lado, e um botão "Usar valor sugerido" que só preenche o campo local
+> (nunca persiste sozinho).
+>
+> **Achado real e corrigido no caminho, fora do escopo original mas bloqueante pra ele:**
+> `POST /api/admin/master/segments/[id]/benchmarks` (a própria tela "Parâmetros do Agente")
+> sempre falhava com 500 ao editar um valor JÁ EXISTENTE — o caso normal de uso. Causa: o
+> `ON CONFLICT (segment_id, metric_key)` da rota não batia com a constraint única REAL da
+> tabela — `system_benchmarks_seg_metric_net_key`, `UNIQUE (segment_id, metric_key,
+> COALESCE(network_id, '00000...'))`, adicionada na fase multi-rede/TikTok sem que esta rota
+> tivesse sido atualizada junto. Reproduzido via SQL direto ANTES de mexer no código (erro real,
+> não hipotético) e corrigido igualando o predicado. `avg_fit_scale_min` (criado no Tier 2 Item
+> 1) também nunca tinha sido exposto nesta tela — só existia no `benchmarkResolver.ts`, editável
+> só via SQL — adicionado ao campo do modal e ao `AGENT_KEYS` da rota.
+>
+> **Testado ao vivo, ponta a ponta, com dado real, nas duas camadas:** backend — 40 leads
+> sintéticos com padrão real de conversão (fit<40→5%, fit≥40→40%), valor atual forçado pra 10 →
+> `computeFitThresholdSuggestion` encontrou o corte exato (40), com as taxas batendo exatas
+> (5,0% / 40,0%, 20 leads em cada grupo) — 5/5 checks. **UI, clique real, não sintético**
+> (mesma sessão JWT Master injetada): botão "Recalibrar com dados reais do CRM" → sugestão
+> exibida idêntica ao cálculo de backend ("Valor atual 10 → sugerido 40... Fechamento abaixo do
+> corte: 5.0% (20 leads) · acima: 40.0% (20 leads)") → clique em "Usar valor sugerido (40)" →
+> campo do formulário confirmado atualizado pra 40. Modal fechado sem salvar (valor real já era
+> 40 no banco — nunca precisou persistir de novo). Todo dado de teste removido
+> (`leads_kanban`/`marketing_eventos`/`leads_staging`, prefixo "Teste Recal..."), benchmark
+> restaurado ao valor real (40), `count(*)=0` confirmado. `npx tsc --noEmit`: **zero erros em
+> todo o projeto**.
+>
+> **Próximo passo:** só resta 1 item do Tier 3 — Lookalike/Custom Audience, o maior escopo dos
+> 5 ("precisa de tabela nova + integração de rede", já classificado assim no plano original) —
+> decidir se vira sua própria sub-fase ou se é atacado agora.
+
+> **Atualizado em:** 2026-09-04 (continuação 12) — **Achado real e corrigido, fora do escopo do
+> Tier 3 mas bloqueante pra ele: `POST /api/admin/master/segments/[id]/benchmarks` (a tela
+> "Parâmetros do Agente") sempre falhava com 500 ao editar um valor JÁ EXISTENTE — o caso normal
+> de uso. `avg_fit_scale_min` (criado no Tier 2 Item 1) também nunca tinha sido exposto nesta
+> tela — só existia no `benchmarkResolver.ts`, editável apenas via SQL direto.**
+>
+> **Causa raiz do 500:** o `ON CONFLICT (segment_id, metric_key)` da rota não batia com a
+> constraint única REAL da tabela — `system_benchmarks_seg_metric_net_key`, que é
+> `UNIQUE (segment_id, metric_key, COALESCE(network_id, '00000...'))` (adicionada na fase
+> multi-rede/TikTok, `docs/PLANO_TIKTOK.md §5.1`, sem que esta rota tivesse sido atualizada
+> junto). Reproduzido via SQL direto ANTES de mexer no código (`ERROR: there is no unique or
+> exclusion constraint matching the ON CONFLICT specification`) — não hipotético. Corrigido
+> igualando o predicado do `ON CONFLICT` à expressão exata da constraint.
+>
+> **`avg_fit_scale_min` adicionado**: `SegmentBenchmarksModal.tsx` (campo novo em "Detecção —
+> Quando agir", com o mesmo hint do `SEGMENT_SEED_DEFAULTS`) + `AGENT_KEYS` da rota (senão
+> label/unit cairiam no fallback genérico ao salvar).
+>
+> **Testado ao vivo, ponta a ponta, com clique real no botão (não curl sintético)**: sessão
+> Master real (JWT injetado via cookie+localStorage), modal "Regimento do Segmento" → "Parâmetros
+> do Agente" → campo "Fit Médio Mín. p/ Escalar" confirmado renderizando com o valor real (40) →
+> clique real em "Salvar Parâmetros" → `POST .../benchmarks` confirmado `200 OK` via network log
+> real (antes do fix, teria sido `500` — reproduzido isoladamente via SQL antes da correção) →
+> `SELECT` final confirma as 30 linhas de benchmark do segmento intactas, `avg_fit_scale_min=40`
+> persistido, nenhum outro valor corrompido. `npx tsc --noEmit`: **zero erros em todo o
+> projeto**.
+>
+> **Achado adicional durante o teste, sem relação com o bug:** o layout responsivo da tabela de
+> `/admin/master/segments` tem overflow horizontal real (coluna "Ações" fica fora do viewport
+> em telas ~1280px sem scroll horizontal manual) — não investigado nem corrigido, fora do
+> escopo desta rodada, registrado só por transparência (não é bug funcional, só de layout).
+>
+> **Próximo passo:** implementar a recalibração sob demanda do `avg_fit_scale_min` (o item
+> "scoreRecalibrationService sem espelho em Campanhas" do Tier 3) — agora com a tela de destino
+> confirmada funcionando corretamente pra receber a sugestão.
+
+> **Atualizado em:** 2026-09-04 (continuação 11) — **Tier 3 do plano "Loop do ICP" — 3 de 5
+> itens concluídos: `angleInsightsService.ts` ganha taxa de fechamento REAL por ângulo (a outra
+> metade do gap de ângulo — fit médio, Tier 2, é proxy; isto é resultado de negócio de
+> verdade).**
+>
+> **O que mudou:** `AngleStat` ganhou `dealsWon`/`closeRate` (0-100), calculados via
+> `mapCloseRateByAngle` — mesma correlação `marketing_eventos`↔`leads_staging`↔`leads_kanban`↔
+> `kanban_colunas.is_ganho` já usada em `revenueAttributionService.ts`/F6 e
+> `wastedSpendService.ts` (item anterior), agora agregada por ÂNGULO em vez de por campanha.
+> Extraído `resolveAngleByCampaignId()` como helper compartilhado (antes duplicado dentro de
+> `mapAvgFitByAngle` — usado agora também por `mapCloseRateByAngle`, evita uma 3ª cópia da
+> mesma subquery de resolução de ângulo). Novo campo `AngleInsightsResult.crmAvailable` — mesmo
+> gate `hasCrmModule()` da Visão 4; sem CRM, `dealsWon`/`closeRate` ficam sempre `0`/`null` em
+> todo `AngleStat`, nunca calculados. `textSummary` ganhou a taxa de fechamento na listagem +
+> um alerta quando o vencedor por CPL teve fechamento real de exatamente 0% (sinal mais forte
+> que o alerta de fit baixo do Tier 2 — "nenhum lead virou negócio", não "fit baixo, atenção").
+> UI (`cross-insights/page.tsx`, "Performance por Ângulo") ganhou a linha "Fechamento real: X%
+> (N negócios)" no card do vencedor + "fechamento X%" discreto em cada linha da tabela — sem
+> mexer no grid de 5 colunas fixas já existente (Ângulo/Camp./CTR/CPL/Investido).
+>
+> **Testado ao vivo, ponta a ponta, com dado real:** 2 campanhas sintéticas — `urgency` (CPL
+> R$30, dentro do ideal, ZERO negócio fechado) vs. `luxury` (CPL R$100, pior, mas 2/6 negócios
+> reais fechados) — `urgency` continuou vencendo por CPL (critério intocado, mesma disciplina
+> conservadora de todo o Tier 2/3), `closeRate` bateu exato nos dois (0% e ~33,33%), e o alerta
+> "fechamento real de 0%" apareceu corretamente no `textSummary`. **Confirmado visualmente no
+> navegador real** (mesma sessão JWT injetada, tenant Marketing Digital): card do vencedor
+> mostrou "Fechamento real: 0.0% (0 negócios)" e a linha da tabela mostrou "✅ MELHOR fechamento
+> 0%", exatamente como implementado. Todo dado de teste removido (prefixos
+> `test-icp-t3-close-*` e `test-icp-t3-visual-angle`), `count(*)=0` confirmado. `npx tsc
+> --noEmit`: **zero erros em todo o projeto**.
+>
+> **Próximo passo:** os 2 itens restantes do Tier 3 — `scoreRecalibrationService` sem espelho em
+> Campanhas (o mais substancial: recalibração automática do limiar `avg_fit_scale_min` pela
+> correlação real com conversão, análogo à F5 do CRM — migração+serviço+cron+endpoint próprios,
+> não "1 coluna a mais") e Lookalike/Custom Audience (zero infra hoje, o maior escopo dos 5,
+> provavelmente candidato a virar sua própria sub-fase em vez de mais um item desta lista).
+
+> **Atualizado em:** 2026-09-04 (continuação 10) — **Tier 3 do plano "Loop do ICP" — 2 de 5 itens
+> concluídos: `revenueAttributionService` ganha fit médio por campanha, `wastedSpendService`
+> ganha a 6ª categoria "CPL bom, zero venda". Recuperado o plano completo do Tier 3, dos 5 itens
+> mapeados na proposta original (ver continuação 9 pra como o Tier 2 foi recuperado do transcript).**
+>
+> **Item 1 — `revenueAttributionService.ts` ganha `avgFit`/`leadsWithFit` por campanha e no
+> total.** O plano original já apontava certo: "já faz o JOIN certo — 1 coluna a mais no SELECT"
+> — a CTE `deals` já correlaciona `marketing_eventos`↔`leads_staging`↔`leads_kanban`↔
+> `kanban_colunas.is_ganho`; só faltava a CTE `leads` (que conta leads identificados, ANTES de
+> saber se fecharam negócio) trazer `score_fit`. Adicionado `LEFT JOIN leads_staging` na CTE
+> `leads` — 1:1 por `lead_uuid`, nunca causa fan-out (diferente do `JOIN Insight`, que por isso
+> vive numa CTE separada desde sempre). Média ponderada por lead (não "média das médias") tanto
+> por campanha quanto no total agregado. UI (`RevenueAttributionWidget.tsx`) ganhou uma linha
+> "fit médio X/100 (N leads)" no card de cada campanha do top 5 — nunca substitui ROAS/CPA como
+> critério de ranking, só ajuda a entender POR QUE um ROAS ficou fraco.
+>
+> **Item 2 — `wastedSpendService.ts` ganha a 6ª categoria `GOOD_CPL_NO_CONVERSION`.** As 5
+> categorias existentes (ZERO_LEADS/HIGH_CPL/ELEVATED_CPL/FATIGUED/LEARNING_LIMITED) são todas
+> derivadas de CPL/frequência/volume de LEAD — nenhuma olha se o lead virou negócio. Nova regra:
+> CPL dentro do ideal (nunca colide com HIGH/ELEVATED_CPL_SPEND, que exigem `cpl > cpl_ideal`) +
+> volume (`leads >= min_leads_scale`) e tempo (`daysRunning >= min_days_running*2`, mesmo
+> critério já usado em LEARNING_LIMITED) suficientes pra confiar que "zero venda" não é
+> coincidência de amostra pequena + `dealsWon === 0` — só roda com `hasCrmModule()` true (mesmo
+> gate da Visão 4/F6; sem CRM, `dealsWonByCampaign` nunca é calculado — o gate evita classificar
+> tudo errado como "zero venda" por falta de dado, não só por ausência real de venda). Gasto
+> "desperdiçado" = 50% do spend da campanha (fração de alerta, não de certeza — meio caminho
+> entre `LEARNING_LIMITED` 35% e `FATIGUED_CONTINUE` 80%). Novo campo `crmAvailable` no relatório
+> (paralelo ao `available` da Visão 4). UI (`desperdicio/page.tsx`) ganhou a entrada em
+> `CATEGORY_META` (ícone 🎯, cor violeta — deliberadamente distinta das outras 5, sinal do CRM,
+> não de CPL/frequência) + o tipo local `WastedReport` atualizado.
+>
+> **Testado ao vivo, ponta a ponta, com dado real, os 2 itens:** Item 1 — 2 campanhas sintéticas
+> (fit baixo real ~17,3 com 3/6 negócios fechados, fit alto real ~85,3 com 2/6 fechados) — `avgFit`
+> por campanha bateu exato nas duas, `avgFit` total ponderado bateu exato (51,33, considerando só
+> as 2 campanhas de teste — nenhuma outra campanha real do tenant tinha `leads_with_fit>0` no
+> período testado), `leadsIdentified`/`dealsWon` confirmados sem regressão. Item 2 — 2 campanhas
+> sintéticas com CPL idêntico (R$30, dentro do ideal R$35) e mesmo volume/tempo — a SEM negócio
+> caiu corretamente em `GOOD_CPL_NO_CONVERSION` (R$90 = 50% de R$180 gasto), a COM negócio não
+> caiu em NENHUMA categoria de desperdício (comportamento saudável correto). **Confirmado
+> visualmente no navegador real** (sessão JWT real injetada via cookie+localStorage — playbook
+> de `docs/claude-memory/project_browser_auth_unlock.md` — tenant Marketing Digital, usuário
+> real `admmd`): os dois widgets renderizam corretamente com dado de teste temporário — "fit
+> médio 63/100 (4 leads)" no card do Funil de Receita, e "🎯 CPL Bom, Sem Venda — R$90,00" em 3
+> lugares da página de Desperdício (destaque, breakdown, plano de recuperação, top campanhas),
+> sem quebra de layout. Todo dado de teste removido (`marketing_eventos`/`leads_staging`/
+> `CtaInteraction`/`leads_kanban`/`Insight`/`Campaign`, prefixos `test-icp-t3-rev-*` e
+> `test-icp-t3-waste-*`, incluindo os 2 rounds de dado só-visual), `count(*)=0` confirmado em
+> todas as tabelas tocadas. `npx tsc --noEmit`: **zero erros em todo o projeto**, em cada uma das
+> 2 rodadas de mudança.
+>
+> **Próximo passo:** os 3 itens restantes do Tier 3 — `scoreRecalibrationService` sem espelho em
+> Campanhas, taxa de fechamento real por ângulo (a outra metade do gap de ângulo, já que a
+> metade "fit" foi fechada no Tier 2), e Lookalike/Custom Audience (zero infra hoje, o maior
+> escopo dos 5 — provavelmente candidato a virar sua própria sub-fase, não uma tarde de trabalho).
+
+> **Atualizado em:** 2026-09-04 (continuação 9) — **Tier 2 do plano "Loop do ICP" concluído por
+> completo: dos 4 itens mapeados, 3 já tinham sido resolvidos como efeito direto do trabalho da
+> continuação anterior (regra SCALE, chave de benchmark, plumbing de `score_fit` sem depender de
+> CRM contratado); o último ("ângulo criativo medido só por CPL/CTR, sem qualidade de lead") foi
+> implementado agora em `angleInsightsService.ts` — com um 2º bug real de SQL, diferente do bug
+> de timezone da rodada anterior, achado e corrigido no processo.**
+>
+> **Recuperação de contexto, antes de agir:** a árvore completa de Tiers (1-4, mapeando os 12
+> gaps da auditoria original por dependência de módulo) nunca tinha sido salva como plan file —
+> só existia na conversa anterior à compactação desta sessão. Recuperada lendo o transcript JSONL
+> bruto desta mesma sessão (não reconstruída de memória) antes de decidir o que "prosseguir"
+> significava — confirmado que os itens "nenhuma regra usa qualidade de lead",
+> "`system_benchmarks` sem chave de qualidade" e "`score_fit` nunca sai do CRM (plumbing)" já
+> estavam cobertos pelo `avg_fit_scale_min`/`mapCampaignAvgFit` da rodada anterior (lê direto de
+> `leads_staging`/`marketing_eventos`, schema `public`, sem tocar em nenhuma API do CRM nem
+> checar módulo contratado — já era exatamente o "plumbing" pedido). Só restava o item de ângulo.
+>
+> **O que mudou:** `angleInsightsService.ts` (`getAngleInsights`, já consumido por
+> `agentDecisor.ts`/`strategicBriefing.ts`/o endpoint `portfolio/angle-insights`) ganhou
+> `avgFit`/`leadsWithFit` por ângulo, calculado via nova função `mapAvgFitByAngle` (2 queries:
+> resolve `campaign_id → effective_angle` com a MESMA lógica `declared_angle ?? Vision ??
+> 'unknown'` já usada na query principal; agrega `score_fit` por campanha via o mesmo JOIN
+> `marketing_eventos`↔`leads_staging` de `mapCampaignAvgFit`; merge em JS faz média PONDERADA
+> por lead — campanha com mais leads pesa mais na média do ângulo, nunca "média das médias").
+> Decisão deliberada de não fundir isso na query principal: ela já faz `JOIN Insight` (1 linha/
+> dia/campanha) — somar `marketing_eventos`/`leads_staging` (1 linha/lead) na mesma query causaria
+> fan-out (spend/conversions multiplicados pelo nº de leads), mesma classe de bug já documentada
+> e corrigida em `cross-insights` numa sessão anterior (`project_gaps_tecnicos`/histórico deste
+> arquivo). `textSummary` (o bloco injetado em variável de prompt LLM) ganhou o fit por ângulo na
+> listagem + um alerta específico quando o vencedor por CPL tem fit abaixo do limiar
+> (`avg_fit_scale_min`, resolvido via `benchmarkResolver` real, não hardcoded 2x) — **o critério
+> de "vencedor" continua sendo só CPL, nunca mudou** — mesma disciplina conservadora do Item 1:
+> enriquece a informação disponível, não substitui a decisão já estabelecida.
+>
+> **2º bug real, diferente do de timezone, achado testando ao vivo:** a 1ª versão reaproveitava
+> as strings `clientFilter`/`segmentFilter` já montadas pela query PRINCIPAL de
+> `getAngleInsights` (que referenciam `$3`/`$4`, assumindo o array `params=[tenantId,
+> periodDays,...]` da query principal) — mas a nova query de resolução de ângulo nunca usa `$2`
+> (`periodDays`) no próprio texto. Isso deixa um "buraco": o Postgres recebe um bind com valor na
+> posição 2 mas nenhuma referência a `$2` em lugar nenhum do SQL, e não consegue inferir o TIPO
+> desse parâmetro — `could not determine data type of parameter $2`. Investigado por eliminação
+> (isolando a query sozinha, depois em `Promise.all`, depois sequencial, depois com pool
+> completamente separado) até a causa real ficar clara — não era paralelismo nem cache de
+> prepared statement, era literalmente um parâmetro nunca referenciado no texto da query.
+> Corrigido reconstruindo os filtros de client/segment LOCALMENTE dentro de `mapAvgFitByAngle`,
+> com índices próprios (`$1`=tenant, `$2`=client se houver, `$3`=segment se houver) — nunca mais
+> reaproveitando string de filtro construída pra outro array de parâmetros.
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (2 campanhas sintéticas, ângulos reais da
+> taxonomia — `urgency` com CPL bom mas fit baixo real, `luxury` com CPL ruim mas fit alto real,
+> 6 leads reais cada via `leads_staging`+`marketing_eventos`): fit médio de `urgency` bateu exato
+> (15,0, média dos 6 valores reais semeados) · fit médio de `luxury` bateu exato (80,0) · vencedor
+> por CPL continuou sendo `urgency` (menor CPL), critério intocado · alerta "vencedor por CPL tem
+> fit médio baixo" apareceu corretamente no `textSummary`, citando o limiar real resolvido via
+> `benchmarkResolver` (40) · ângulos sem nenhum lead com fit (a maioria dos ângulos reais do
+> tenant, incluindo "sem ângulo classificado") mostraram `avgFit:undefined` honesto, sem
+> fabricar número. Todo dado de teste removido (`marketing_eventos`/`leads_staging`/`Insight`/
+> `Campaign`, prefixo `test-icp-t2-angle-*`), `count(*)=0` confirmado nas 3 tabelas. `npx tsc
+> --noEmit`: **zero erros em todo o projeto**.
+>
+> **Com isso, o Tier 2 do plano "Loop do ICP" está formalmente concluído — os 4 itens.** Próximo
+> passo: Tier 3 (sub-loop que precisa dos 2 módulos, CRM+Campanhas — mesmo gate `hasCrmModule()`
+> já usado e testado pela Visão 4/F6): `revenueAttributionService` ignora `score_fit`,
+> `wastedSpendService.ts` sem categoria "CPL bom, zero venda", zero infra de Lookalike/Custom
+> Audience, `scoreRecalibrationService` sem espelho em Campanhas, e a taxa de fechamento real por
+> ângulo (a outra metade do mesmo gap de ângulo, agora que a metade "fit" está fechada) — ou
+> decidir se a varredura dos 5 arquivos com o padrão de risco de timezone (registrada na
+> continuação anterior, ainda não atacada) entra antes.
+
+> **Atualizado em:** 2026-09-04 (continuação 8) — **Tier 2, Item 1 do plano "Loop do ICP"
+> concluído: nenhuma das 11 regras de decisão em `aiInsights.ts` considerava qualidade de lead
+> (`score_fit`) — corrigido na regra SCALE. No processo, achado e corrigido um bug de timezone
+> real e mais amplo que só apareceu ao testar com dado vivo, não hipotético.**
+>
+> **O que mudou:** `benchmarkResolver.ts` ganhou `avg_fit_scale_min` (default 40, dentro de
+> `SEGMENT_SEED_DEFAULTS` — nunca crasha se o segmento não tiver essa chave curada, cai no
+> fallback com o mesmo `console.error` de sempre). `aiInsights.ts` ganhou
+> `mapCampaignAvgFit(campaignIds, tenantId, startDate, endDate)` — correlaciona
+> `marketing_eventos` (schema public, tem `campaign_id`/`lead_uuid`) com `leads_staging`
+> (schema public, tem `score_fit`) pelo mesmo JOIN já usado por `revenueAttributionService.ts`
+> — e `hasAcceptableLeadQuality(d, b)` (`avgFit === null || avgFit >= threshold`). A regra
+> SCALE ganhou esse check a mais; **`avgFit === null` nunca bloqueia** — segmento sem
+> `crm_ia_ativa` ou lead sem `score_fit` continua escalando exatamente como antes, sem
+> regressão pra tenant sem CRM contratado (mesmo espírito do gate `hasCrmModule` de F6).
+>
+> **Achado real, não hipotético, que atrasou o fechamento desta fase:** o primeiro teste ao
+> vivo (3 campanhas idênticas em CTR/volume/CPL, variando só o fit médio dos leads) falhou —
+> a campanha de fit baixo (~15, abaixo do limiar 40) disparou SCALE mesmo assim, como se
+> `avgFit` tivesse resolvido `null`. Investigação isolada (`docker exec psql` direto, depois
+> `pg.Pool` cru, depois `prisma.$queryRaw`) achou a causa raiz: **o driver `pg` (node-postgres)
+> serializa um parâmetro `Date` como texto no fuso horário LOCAL DO PROCESSO** (aqui,
+> `America/Sao_Paulo`, UTC-3, confirmado via `Intl.DateTimeFormat().resolvedOptions().timeZone`
+> — não UTC, mesmo a sessão do Postgres estando em UTC) — com offset explícito
+> (`2026-09-04T16:45:49.250-03:00`). Quando o SQL faz `$N::timestamp` (cast pra tipo SEM
+> timezone) sobre esse parâmetro, o Postgres **descarta o offset sem normalizar pra UTC
+> primeiro** — grava/compara literalmente os dígitos de hora local (`16:45:49`) como se
+> fossem UTC, um deslocamento de 3h. Comparado contra `marketing_eventos.created_at`
+> (genuinamente `timestamptz`, sessão em UTC, valor real correto), a comparação
+> `created_at <= $N::timestamp` ficava sistematicamente errada por até 3h — motivo real do
+> `avgFit` nunca resolver linha nenhuma nos testes.
+>
+> **Por que `leadEvents.ts` (usado extensivamente em dezenas de sessões anteriores, sempre
+> "batendo exato") nunca pegou esse bug:** ele usa `prisma.$queryRaw` (tagged template), não
+> `pg.Pool.query()` cru. Confirmado lado a lado (mesmo parâmetro `Date`, mesma query): o
+> Prisma serializa o `Date` **já normalizado em UTC** (`2026-09-04 19:45:49.250`, sem offset,
+> valor absoluto correto), então o cast `::timestamp` nunca desloca nada ali — o bug é
+> específico de `pg.Pool.query()` cru com parâmetro `Date` + cast `::timestamp` (sem tz) contra
+> uma coluna `timestamptz` real. **Corrigido no ponto motivador**
+> (`aiInsights.ts`/`mapCampaignAvgFit`): `$3::timestamp`/`$4::timestamp` → `$3::timestamptz`/
+> `$4::timestamptz` (interpreta o offset corretamente antes de comparar, em vez de descartá-lo).
+>
+> **Escopo mais amplo do achado, registrado mas NÃO atacado nesta rodada (fora do escopo do
+> Tier 2 Item 1, expandir agora seria descontrolar a frente):** grep confirma o mesmo padrão
+> (`pool.query` + `::timestamp` sem tz + parâmetro `Date`) em outros 6 arquivos
+> (`campaignStateMachine.ts`, `dashboard/funnel/route.ts`, `trackingHealthService.ts`,
+> `routing/prospectRouter.ts`, `admin/campanhas/segments/route.ts`,
+> `admin/dashboards/login-profiles/route.ts`, `admin/dashboards/audit-actions/route.ts`).
+> **Verificado que nem todos são risco ativo** — `campaignStateMachine.ts` grava/lê
+> `lifecycle_changed_at`/`learning_started_at`/`stable_since` em colunas genuinamente
+> `timestamp SEM timezone` (confirmado via `information_schema.columns`), sempre pelo mesmo
+> processo/timezone — o deslocamento de gravação e o de leitura se cancelam, autoconsistente
+> na prática (mesmo não sendo UTC "de verdade" no disco). O risco real é só onde o parâmetro
+> `Date` (via `pool.query` cru) é comparado contra uma coluna **`timestamptz` genuína** — os
+> outros 6 arquivos não foram auditados individualmente ainda; fica registrado como pendência
+> pra uma varredura dedicada futura, não decidida como urgente agora.
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (3 campanhas sintéticas, mesmo CTR/volume/
+> CPL, variando só `score_fit` dos leads via `leads_staging`+`marketing_eventos`+
+> `CtaInteraction` reais): sem fit (`null`, 6 leads via WhatsApp) → SCALE disparou normalmente,
+> **zero regressão confirmada** · fit baixo (~15, 6 leads reais) → SCALE **não disparou**,
+> bloqueado corretamente pela primeira vez depois do fix do bug de timezone · fit alto (~75,
+> 6 leads reais) → SCALE disparou com a descrição citando "fit médio 75/100" explicitamente.
+> Todo dado de teste removido (`marketing_eventos`/`leads_staging`/`CtaInteraction`/`Insight`/
+> `Campaign`, prefixo `test-icp-t2-*`), incluindo 1 linha residual de um script de debug
+> intermediário (`test-debug-camp2`) que tinha ficado sem limpeza — confirmado `count(*)=0`
+> em todas as tabelas tocadas por esta investigação. `npx tsc --noEmit`: **zero erros em todo
+> o projeto**.
+>
+> **Próximo passo:** seguir o Tier 2 do plano "Loop do ICP" (itens restantes — ver plano
+> original da auditoria, ainda não retomado em detalhe nesta sessão) ou decidir se a varredura
+> dos 6 arquivos com o padrão de timezone arriscado vira uma fase própria antes de continuar.
+
+> **Atualizado em:** 2026-09-04 (continuação 7) — **Gap 3 do Tier 1 (ICP) concluído — com o
+> escopo dos "3 pedaços" combinado com o usuário, e um 4º bug real e pré-existente achado no
+> processo (nunca introduzido por mim, mascarado por try/catch silencioso). Fecha o Tier 1 por
+> completo.**
+>
+> **Investigação foi mais funda do que a auditoria original descreveu — confirmado antes de
+> mexer.** `Insight.conversions` (a coluna, não `breakdowns`) nunca era persistida por
+> `agentMonitor.ts`, pra QUALQUER rede/segmento, não só Meta/Imobiliário: `insightBase`
+> (linhas 291-319) nunca incluía `conversions: day.conversions`, apesar do campo já vir certo
+> de ambos os adapters. Confirmado por que isso nunca foi notado em nenhuma sessão anterior:
+> todo teste com "conversions real" ao longo da história deste projeto veio de **seed SQL**
+> (`INSERT INTO ... conversions ...` direto, ex. `seed-demo-google-ads.sql:29`), nunca de um
+> sync de verdade passando por esse código.
+>
+> **Implementados os 3 pedaços combinados:**
+> 1. `agentMonitor.ts` — `conversions: day.conversions ?? 0` adicionado ao `insightBase`.
+> 2. `campaignStateMachine.ts` — a query de `total_conversions` lia `breakdowns->>'conversions'`,
+>    uma chave que nenhum adapter jamais escreve — trocada pra ler a coluna real `conversions`.
+> 3. A regra LEARNING→STABLE (antes só `total_conversions >= 50`) passou a usar `leadEvents.ts`
+>    (a fonte única já ciente de rede, extraída numa auditoria de julho/2026) como sinal
+>    PRINCIPAL de volume — `conversions` vira sinal secundário (`Math.max` entre os dois).
+>    Resolve o ponto real da auditoria: pra Meta/lead-gen, `conversions` só captura
+>    `offsite_conversion.fb_pixel_purchase` (pixel de e-commerce), nunca dispara em campanha de
+>    imobiliária; `leadEvents.ts` já resolve o sinal certo (clique de WhatsApp/formulário).
+>
+> **4º achado real, pré-existente, não introduzido nesta sessão — corrigido no mesmo passo:**
+> testando ao vivo, `inferLifecycleStatus()` sempre falhava com `column "campaign_id" does not
+> exist` — a query de `Insight` usava `WHERE campaign_id = $1`, mas a coluna real é
+> `"campaignId"` (camelCase, sem `@map` no schema — `CampaignLifecycleEvent.campaign_id`, uma
+> tabela DIFERENTE, essa sim snake_case, confundiu quem escreveu a query original). Explica por
+> que a regra LEARNING→STABLE nunca funcionou de verdade em nenhuma sessão anterior — o próprio
+> `agentMonitor.ts` já envolve essa chamada num try/catch com o comentário "FASE 4 — infere
+> lifecycle após sync (**falha silenciosa**)" — o erro sempre foi engolido, `console.error`,
+> nunca propagado, nunca notado. Corrigido: `WHERE "campaignId" = $1`.
+>
+> **Incidente real durante o teste, resolvido, registrado com transparência:** a 1ª tentativa
+> de testar via `__SIMULATED__` (o mecanismo padrão desta plataforma pra ativar o Fake adapter)
+> não funcionou como esperado — a credencial real do tenant "Marketing Digital" foi
+> temporariamente sobrescrita, mas `getNetworkServiceForTenant` continuou usando o token real
+> antigo (provável cascata legada em `factory.ts` não totalmente mapeada nesta investigação,
+> não teve tempo de aprofundar). **Capturado o valor original ANTES de qualquer escrita**
+> (disciplina já padrão nesta sessão) e restaurado byte-a-byte assim que o problema foi
+> percebido — confirmado depois via SQL que o token/app_id batem exatos com o valor original.
+> Nenhuma chamada de rede real foi feita com sucesso durante o incidente (só um 400 da API real
+> do Meta, a mesma credencial "genuinamente expirada" já documentada em sessões anteriores —
+> nenhum dado foi enviado, só uma tentativa de leitura que falhou). Reescrito o teste pra usar
+> um mock direto de `AdNetworkService` em vez de depender da resolução de credencial — mais
+> isolado, testa exatamente a lógica que mudou, zero risco de tocar credencial real de novo.
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (`scratch/test-icp-gap3-conversions.ts`,
+> temporário, removido ao final): **Teste A** — mock determinístico retornando `conversions:7`
+> e `conversions:3` em 2 dias → `Insight.conversions` gravado exatos (total=10, seria sempre 0
+> antes do fix) · **Teste B** — campanha nova (idade ~0), 55 `CtaInteraction` reais
+> (`WHATSAPP_CLICK`) nos últimos 3 dias → `LEARNING→STABLE` disparou de fato, motivo citando
+> "55 leads reais" (não idade) · **Teste C (contraste)** — mesma campanha nova, só 5 cliques
+> (abaixo do limiar 50) → permanece `LEARNING` corretamente, confirma que a regra não dispara
+> indiscriminadamente. `npx tsc --noEmit`: zero erros em todo o projeto. Toda a limpeza
+> confirmada por SQL: 0 campanhas/CtaInteraction residuais, credencial real do tenant intacta.
+>
+> **Com isso, o Tier 1 (3 gaps, zero dependência de módulo) está formalmente concluído.**
+> Próximo passo: Tier 2 (sub-loop "só score_fit", funciona pra qualquer tenant com segmento
+> curado, independente de módulo comprado) — primeiro item: nenhuma das 11 regras de decisão
+> em `aiInsights.ts` usa qualidade de lead.
+
+> **Atualizado em:** 2026-09-04 (continuação 6) — **Gap 2 do Tier 1 (ICP) concluído: bidding
+> strategy do Google Ads (TCPA/TROAS) agora chega de verdade na campanha real.**
+>
+> **Confirmado antes de mexer** (não suposição): o payload que `GoogleAiMaxWizard.tsx` monta já
+> estava correto — `biddingStrategy.type`/`targetValue` sempre foram coletados certinho da UI.
+> O bug era 100% do lado do adapter: `GoogleAdsAdapter.createCampaign()` sempre mandava
+> `bidding_strategy_type: MAXIMIZE_CONVERSIONS` fixo pra API real, ignorando por completo o que
+> `gInput.biddingStrategy` dizia — TCPA/TROAS escolhido na UI nunca influenciava a campanha de
+> verdade. Nomes de campo confirmados direto do SDK
+> (`node_modules/google-ads-api/build/src/protos/autogen/fields.d.ts`, não suposição):
+> `campaign.target_cpa.target_cpa_micros` / `campaign.target_roas.target_roas`; enum
+> confirmado em `enums.d.ts` (`TARGET_CPA=6`, `TARGET_ROAS=8`, `MAXIMIZE_CONVERSIONS=10`).
+>
+> **Corrigido:** nova função pura `resolveGoogleBiddingStrategy()` em `GoogleAdsAdapter.ts` —
+> resolve o `bidding_strategy_type` + sub-objeto certo a partir do input real, com a conversão
+> de unidade documentada (o `biddingTarget` do wizard reaproveita a mesma convenção "×100" de
+> `budget` tanto pra TCPA quanto pra TROAS — a conversão de volta não é simétrica entre os 2:
+> TCPA `× 10.000` → micros; TROAS `÷ 10.000` → fração 0-N que a API espera, ex. 200% → `2.0`).
+> Nunca manda `TARGET_CPA`/`TARGET_ROAS` sem um `targetValue` válido — cai no default seguro
+> (`MAXIMIZE_CONVERSIONS`) nesse caso, evitando um payload malformado pra API real.
+>
+> **Achado extra, documentado e deliberadamente NÃO implementado agora:** `gInput.
+> conversionGoal` também nunca é lido em lugar nenhum de `createCampaign()` — mas a UI hoje só
+> oferece 3 IDs mock fixos (`mock_goal_leads` etc.), não Conversion Actions reais da conta.
+> Corrigir isso de verdade exige um método novo no adapter pra listar Conversion Actions reais
+> (provavelmente via `CampaignConversionGoal`, shape não confirmável sem conta Google Ads real
+> conectada) — escopo maior que "bug de wiring", registrado como gap adjacente, não atacado
+> nesta rodada pra não implementar às cegas sem poder verificar.
+>
+> **Testado ao vivo, não hipotético** (`scratch/test-icp-gap2-bidding.ts`, temporário, via
+> `ts-node -r tsconfig-paths/register`, removido ao final): 5/5 casos — TCPA R$50,00 →
+> `target_cpa_micros:50000000` exato; TROAS 200%/350% → `target_roas:2.0`/`3.5` exatos;
+> `MAXIMIZE_CONVERSIONS` default e TCPA-sem-valor (guarda-corpo) confirmados. Não foi possível
+> testar contra a API real do Google Ads (sem conta real conectada, mesma limitação já
+> documentada em toda a sessão) — a matemática de unidade e os nomes de campo foram verificados
+> na fonte (SDK + docs oficiais), não a chamada de rede em si. `npx tsc --noEmit`: zero erros.
+>
+> **Próximo passo:** Gap 3 do Tier 1 — `action_type='lead'` do Meta extraído e descartado
+> (`metaAdsAdapter.ts`), deixando a métrica de conversões perto de zero pro segmento
+> Imobiliário.
+
+> **Atualizado em:** 2026-09-04 (continuação 5) — **Frente "Loop do ICP": plano de ataque
+> fechado com o usuário (12 gaps da auditoria de 03/09, classificados por dependência de módulo
+> — Tier 1 zero-dependência / Tier 2 sub-loop "só score_fit" / Tier 3 sub-loop "negócio fechado,
+> precisa CRM+Campanhas" / Tier 4 independente) e Gap 1 do Tier 1 implementado e testado.**
+>
+> **Gap 1 (Crítico) — `optimization_goal` descartado no wizard, CORRIGIDO:** achado confirmado
+> real antes de tocar código (não hipotético) — `resolveSegmentNetworkDefaults()`
+> (`factory.ts:256`) e a rota `GET /segment-defaults` já calculavam `optimizationGoal`/
+> `billingEvent` certos pro segmento (`LEAD_GENERATION`/`IMPRESSIONS` pro Imobiliário) desde a
+> revisão 1.6 (maio/2026) — mas `CampaignWizard.tsx` nunca lia esses 2 campos do retorno da
+> rota, nunca guardava em `autoFields`, nunca mandava no payload de `createCampaign()`. O
+> servidor então caía no próprio fallback (`campaigns/route.ts:255`,
+> `optimizationGoal || 'LINK_CLICKS'`) — toda campanha lançada por esta plataforma, desde
+> sempre, saía configurada pro Meta otimizar por CLIQUE, nunca por LEAD, mesmo o segmento
+> pedindo o oposto.
+>
+> **Corrigido** (`CampaignWizard.tsx`): `optimizationGoal`/`billingEvent` adicionados ao estado
+> `autoFields` (default `LEAD_GENERATION`/`IMPRESSIONS`, mesmo fallback seguro já usado no
+> backend) + lidos de `segDefaults` em `loadAutoFields()` + enviados em `handleSubmit()`. Sem
+> controle de UI (mesmo padrão de `specialAdCategory`/`customEventType` — resolvido 100%
+> automático pelo segmento, nunca digitado pelo usuário).
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant Marketing Digital, segmento
+> Imobiliário, usuário real `admmd`): `GET /segment-defaults?network=meta` real confirmou
+> `optimizationGoal:"LEAD_GENERATION"` · `POST /campaigns` simulando o payload do wizard
+> CORRIGIDO → `AdSet` real gravado com `optimizationGoal='LEAD_GENERATION'` (confirmado via
+> SQL) · **teste de contraste, provando o bug original**: mesmo `POST` SEM o campo (simulando o
+> wizard ANTES do fix) → `AdSet` gravado com `optimizationGoal='LINK_CLICKS'` — confirma que o
+> bug era real, não hipótese, e que o fix resolve exatamente ele. `npx tsc --noEmit`: zero
+> erros em todo o projeto. As 2 campanhas de teste removidas, `count(*)=0` confirmado em
+> `Campaign`/`AdSet`.
+>
+> **Próximo passo:** Gap 2 do Tier 1 — bidding strategy do Google Ads hardcoded
+> (`GoogleAdsAdapter.ts:134`, sempre `MAXIMIZE_CONVERSIONS`, TCPA/TROAS escolhido na UI nunca
+> aplicado).
+
+> **Atualizado em:** 2026-09-04 (continuação 4) — **FASE 19 encerrada nesta rodada: 19.0 e 19.7
+> ficam deliberadamente pendentes, registradas como "verificar assim que a aplicação estiver em
+> produção real" (decisão do usuário) — não é um "não fiz", é uma decisão de escopo.**
+>
+> **19.0** (assinar changelog oficial Meta/Google/TikTok) sempre foi processo humano, nunca
+> código — nada a implementar, só o lembrete de fazer isso quando a operação real começar.
+>
+> **19.7** (detector de mudança via MCP oficial) — pesquisa desta mesma sessão (ver entrada
+> anterior) achou algo mais sério que "falta credencial": Meta exige OAuth real contra a conta
+> de negócio (mesma classe de bloqueio já documentada pro TikTok T2), e o servidor MCP oficial
+> do Google **não é hospedado por eles** — precisaríamos autohospedar (Python 3.12+,
+> `google-ads.yaml`, developer token) só pra ter o canário funcionando. Decidido não construir
+> nenhum stub/mock especulativo agora (violaria a disciplina desta sessão de nunca implementar
+> sem poder verificar contra dado/endpoint real) — fica documentado no `CLAUDE.md` (seção
+> "Pendências e Próximos Passos", item 2) como pendência real, a reavaliar (inclusive se ainda
+> vale o custo de autohospedar o lado Google) quando a aplicação estiver em produção de fato.
+>
+> **Estado final da frente de blindagem contra mudança de API** (`crystalline-riding-squid.md`,
+> aprovado e implementado nesta sessão inteira, 2026-09-03/04): 19.1 (alerta) · 19.2 (circuit
+> breaker) · 19.3 (canário de hora em hora) · 19.4 (checklist de rollout via staging) · 19.5
+> (validação zod na fronteira) · 19.6 (Dependabot) — **todas concluídas e testadas ao vivo com
+> dado real**, mais o achado incidental e corrigido da arquitetura de cron (3º mecanismo morto/
+> duplicado removido antes do 1º deploy real de Campanhas/CRM/Mensageria). 19.0/19.7 registradas
+> como pendência consciente. Nenhum commit feito ao longo de toda a frente — pendente de pedido
+> explícito do usuário.
+
+> **Atualizado em:** 2026-09-04 (continuação 3) — **FASE 19.5 concluída: validação de schema
+> (zod) na fronteira das chamadas Meta/Google — última peça de código real do plano de
+> blindagem contra mudança de API. Com isso, só resta 19.7 (bloqueada por acesso externo).**
+>
+> `zod@4.5.4` instalado (`npm install zod --save --legacy-peer-deps`, mesmo motivo já
+> documentado neste projeto pro conflito de peer-dep do `react-leaflet@5`).
+>
+> **Investigação antes de implementar** (lendo `campaigns/route.ts`, `types.ts`,
+> `metaAdsAdapter.ts`, `GoogleAdsAdapter.ts` — não supondo o shape): achado real, não
+> hipotético — todo `axios.post(...)` do adapter da Meta em `createCampaign()` (campanha/
+> adset/creative/ad, 4 pontos) acessava `xRes.data.id` **sem validação nenhuma**; se a Meta
+> mudasse o shape, `undefined` se propagava silenciosamente pela cadeia inteira
+> (`adSetPayload.campaign_id = undefined`, etc.), sem erro nenhum até uma falha confusa bem
+> mais adiante. O adapter do Google já tinha essa mesma proteção (`firstResourceName()`, escrita
+> numa sessão de julho, comentário citando `docs/PLANO_GOOGLE_TIKTOK.md A3`) — não duplicada,
+> deixada como está. `fetchInsights` dos dois adapters tinha o mesmo problema em formatos
+> diferentes: Meta usa `parseInt(row.impressions || 0)` (nunca lança, mas produz um "zero
+> mentiroso" indistinguível de campanha real sem atividade se `row` não for nem um insight de
+> verdade); Google usa `row.metrics.impressions || 0` (lançaria um `TypeError` cru e sem
+> contexto se `row.metrics` sumisse — nenhum dos dois é o comportamento certo).
+>
+> **Implementado** (`src/lib/marketing/networks/apiSchemas.ts`, novo, ~140 linhas):
+> `assertAdSetOutboundFields`/`assertCustomEventType` — validação ESTRUTURAL (string não-vazia,
+> tipo certo), deliberadamente **não** uma allowlist fechada de valores — travar numa lista
+> fixa de `optimization_goal`/`custom_event_type` seria repetir o mesmo tipo de "quebra a
+> aplicação" que esta fase inteira existe pra prevenir, já que a Meta pode adicionar objetivo
+> novo a qualquer momento. `extractMetaMutateId` — substitui os 4 acessos diretos
+> `xRes.data.id` por uma extração validada, erro claro no 1º ponto em que o shape diverge.
+> `assertMetaInsightsRows`/`assertGoogleInsightsRows` — validam a linha ANTES do parsing manual
+> já existente (que continua intocado); nunca mascaram resposta malformada como zero, sempre
+> lançam erro claro.
+>
+> **Decisão de design deliberada, fechando o loop com as fases anteriores do mesmo dia:** erro
+> de validação SEMPRE lança (nunca fallback silencioso) — cai no MESMO catch já usado pelo
+> alerta da FASE 19.1 (`agentMonitor.ts`), alimentando o circuit breaker da 19.2 e o canário da
+> 19.3, em vez de inventar um 4º mecanismo de alerta paralelo pra esta fase.
+>
+> **Testado ao vivo, não hipotético** (`scratch/test-fase19-5-schemas.ts`, temporário, via
+> `ts-node -r tsconfig-paths/register`, removido ao final): 20/20 casos — payload/resposta
+> REAIS (ex.: `optimizationGoal:'LEAD_GENERATION'`, `{id:'120212345678901234'}`, linha real de
+> insights com `date_start`) passam sem erro, confirmando zero regressão; 12 casos malformados
+> (campo ausente, string vazia, tipo errado, objeto de erro disfarçado de linha, `metrics`
+> ausente) rejeitados com mensagem clara **antes** de qualquer chamada de rede real — exatamente
+> os 2 critérios de verificação já definidos no plano original pra esta fase. `npx tsc
+> --noEmit`: zero erros em todo o projeto.
+>
+> **Com isso, das 8 fases do plano de blindagem (`crystalline-riding-squid.md`), restam:** 19.0
+> (assinar changelogs — processo humano, não código) e 19.7 (detector via MCP oficial —
+> bloqueada por acesso OAuth às 3 contas de negócio, mesma classe de bloqueio já documentada pro
+> TikTok T2). Nenhuma pendência de código real restante nesta frente.
+
+> **Atualizado em:** 2026-09-04 (continuação 2) — **FASE 19.4 (rollout faseado de versão de
+> API) + 19.6 (Renovate/Dependabot) concluídas — processo/config, sem código de lógica novo.**
+>
+> **19.4:** nova seção "Rollout de Mudança de Versão de API (Meta/Google/TikTok) — FASE 19.4"
+> no `CLAUDE.md` (logo após "Multi-Rede"). Checklist de 5 passos reaproveitando integralmente a
+> infra de staging já existente e já auditada nas 2 entradas anteriores deste mesmo dia
+> (`.github/workflows/deploy.yml` → `scripts/vps/deploy-github.sh`, que já bloqueia promover
+> branch≠`main` pra produção) — sem nenhuma tabela de "tenant canário"/rollout percentual, por
+> decisão consciente do próprio plano original (volume atual da plataforma não justifica).
+> Aponta pro `AGENT_SYNC_SCHEDULE`/`GET /api/agent/tick` como forma de confirmar 1 sync real em
+> staging antes de promover.
+>
+> **19.6:** `.github/dependabot.yml` (novo) — escopo deliberadamente estreito, só
+> `google-ads-api` (única dependência de rede versionada via SDK; Meta é fetch cru contra
+> `META_API_BASE`, TikTok ainda sem adapter real). Semanal, `open-pull-requests-limit: 2`,
+> nunca automerge — sem suíte de teste automatizada neste projeto (confirmado, sem Jest/Vitest
+> configurado), então o gate real é o checklist de rollout da 19.4, não CI. Validado como YAML
+> (`js-yaml`, mesma técnica já usada pra validar `docker-compose.vps.yml` em sessões
+> anteriores) — estrutura confirmada correta.
+>
+> **Verificado:** `npx tsc --noEmit`: zero erros em todo o projeto. Nenhum teste "ao vivo"
+> possível aqui — são processo/config, não lógica de runtime (mesma natureza já prevista no
+> plano original: "sem teste de código; confirmar que o checklist está documentado").
+>
+> **Com isso, restam da FASE 19 original:** 19.5 (validação de schema com zod na fronteira das
+> chamadas Meta/Google — a única peça de código real que falta, escopo estreito: payload de
+> `optimization_goal`/`custom_event_type` antes de sair pro Meta, formato de resposta de
+> `createCampaign`/`fetchInsights` dos 2 adapters reais) e 19.7 (detector via MCP oficial,
+> bloqueada por acesso externo às 3 contas de negócio — mesma classe de bloqueio já documentada
+> pro TikTok T2, sem novidade). **Próximo passo:** 19.5.
+
+> **Atualizado em:** 2026-09-04 (continuação) — **Achado mais sério, na sequência direta da
+> entrada anterior do mesmo dia: existia um 3º mecanismo de agendamento, paralelo aos outros 2,
+> já com 3 das 5 rotas mortas — nunca chegou a rodar contra uma VPS real (confirmado pelo
+> usuário: "nunca foi realizado o deploy dos módulos de campanhas, crm e mensageria"), mas
+> teria quebrado silenciosamente no 1º deploy real se não fosse corrigido agora.**
+>
+> **Como foi achado:** investigando `.github/workflows/deploy.yml` (deploy manual via SSH,
+> `workflow_dispatch`) pra entender o processo real de rollout antes de escrever o checklist da
+> FASE 19.4, achei que ele chama `scripts/vps/deploy-github.sh`, cujo passo `[6/6]` configurava
+> **o crontab do sistema operacional do host da VPS** — um 3º mecanismo, completamente
+> independente de `feed-cron-scheduler.js` (mecanismo já auditado na entrada anterior) e de
+> `instrumentation.ts`/`agentMonitor.ts` (o ciclo interno do Next.js).
+>
+> **Conferido campo a campo, não suposto:** das 5 entradas que esse bloco criava —
+> `agent-expire` (hora em hora), `agent-tick` (30/30min, chama `/api/agent/tick`),
+> `briefing-morning` (08h BRT), `briefing-closing` (22h BRT), `meta-sync` (15/15min, chama
+> `/api/cron/campanhas`) — **3 apontavam pra rotas que não existem mais**
+> (`/api/cron/briefing/morning`, `/api/cron/briefing/closing`, `/api/cron/campanhas` sem
+> subpath — todas renomeadas/reorganizadas em sessões anteriores, sem que este script tivesse
+> sido atualizado junto) e as 2 que existiam duplicavam trabalho que os outros 2 mecanismos já
+> fazem (`agent-expire` com o que adicionei ontem no `feed-cron-scheduler.js`; `agent-tick` —
+> achado que é a implementação real e completa da FASE 15 do plano mestre antigo, "endpoint
+> externo que substitui node-cron em ambientes serverless", com `AgentHeartbeat` — com o ciclo
+> interno do `agentMonitor.ts`). Como `curl -sf -o /dev/null` engole tanto o corpo quanto
+> qualquer log de erro visível, as 3 rotas mortas nunca gerariam nenhum sinal de alarme —
+> falhariam pra sempre, silenciosamente, todo santo dia.
+>
+> **Decisão, com o usuário confirmando explicitamente que nenhum deploy real desses módulos já
+> aconteceu ("tudo deverá funcionar 'automaticamente' quando for realizado o deploy... de todos
+> os cron"):** removido o bloco `[6/6]` inteiro de `scripts/vps/deploy-github.sh` — os 2
+> mecanismos que sobram (`feed-cron-scheduler.js` + o ciclo interno completo do
+> `agentMonitor.ts`, ver entrada anterior) já cobrem 100% do que ele tentava fazer, de forma
+> mais confiável (versionado, testado ao vivo nesta mesma sessão, sem depender de mutação
+> imperativa de crontab a cada deploy). `/api/agent/tick` e `/api/cron/agent-expire`
+> **continuam existindo**, intocados como rota — só pararam de ser chamados automaticamente,
+> mesmo tratamento já dado a `/api/cron/campanhas/sync`/`briefing` na entrada anterior
+> (fallback manual/diagnóstico, comentário de cada rota atualizado explicando isso). Passos
+> `[1/6]`...`[5/6]` renumerados pra `[1/5]`...`[5/5]`.
+>
+> **Nova seção canônica "Arquitetura de Cron Jobs" adicionada ao `CLAUDE.md`** — documenta os
+> 2 mecanismos legítimos que sobraram (o que cada um cobre, os 13 jobs do `feed-cron-
+> scheduler.js`, os 3 do `agentMonitor.ts`) e a regra de decisão pra onde um cron novo deve ir
+> — pra nenhuma sessão futura reintroduzir um 3º mecanismo pelo mesmo caminho que este.
+>
+> **Verificado:** `bash -n scripts/vps/deploy-github.sh` limpo · `npx tsc --noEmit`: zero erros
+> em todo o projeto (só comentários tocados nos arquivos TS). Não testado contra uma VPS real
+> (nenhuma existe provisionada ainda pra Campanhas/CRM/Mensageria, confirmado pelo usuário) —
+> a próxima verificação real só é possível no 1º deploy de fato desses módulos; até lá, a
+> garantia vem de: os 2 mecanismos que restaram já foram testados ao vivo, rota a rota, nesta
+> mesma sessão (ver entrada anterior — `exogenous-signals`/`agent-expire` via
+> `feed-cron-scheduler.js`; `runNegationAgent`/`runReallocationAgent`/`notifyDigest` são código
+> idêntico ao já usado e provado em `campanhas/sync/route.ts` desde julho, só chamado de um 2º
+> lugar agora).
+>
+> **Próximo passo:** retomar a FASE 19 (19.4 rollout faseado de versão de API — tema diferente
+> deste achado, sobre trocar `META_API_BASE`/versão do `google-ads-api` com segurança via
+> staging; 19.5 validação zod; 19.6 Renovate/Dependabot), a partir de 19.4+19.6 juntas
+> (recomendação já dada ao usuário), depois 19.5.
+
+> **Atualizado em:** 2026-09-04 — **Achado real e corrigido, fora da numeração da FASE 19: 3
+> crons já construídos e testados em sessões anteriores nunca eram disparados automaticamente
+> em nenhum deploy — nem na VPS, nem localmente.** Surgiu de uma pergunta direta do usuário
+> ("como garantir que TODOS os cron, de TODA a aplicação, vão funcionar no deploy?"), depois da
+> FASE 19.3. Investigação (não suposição): reconferi os 11 `cron.schedule()` reais de
+> `scripts/feed-cron-scheduler.js` contra os 11 arquivos de rota via `Glob` (o loop bash
+> anterior que dava "FALTA" nos 11 era mesmo um falso negativo — path Windows misturado com
+> substituição bash de barra, corrigido usando Glob em vez de path manual) — confirmados os 11
+> batendo certo. Só que essa varredura revelou, por comparação com o inventário completo de
+> rotas `cron/` existentes no projeto, que **5 rotas reais existem mas não os 11 do scheduler**.
+>
+> **3 achados reais, cada um investigado até a causa raiz antes de decidir a correção:**
+>
+> 1. **`agentMonitor.ts` roda seu PRÓPRIO cron dentro do processo do Next.js** (via
+>    `src/instrumentation.ts` → `register()`, hook oficial do Next.js disparado 1x quando o
+>    servidor Node sobe — não passa por `feed-cron-scheduler.js` nem por container separado;
+>    legítimo aqui porque `prod_app`/`staging_app` são processos `next start` de longa duração
+>    em Docker, não serverless). Esse cron interno (`SYNC_SCHEDULE`, default a cada 6h) sempre
+>    fez só `syncMetrics()`+`runDecisor()` — **nunca** chamava `runNegationAgent` (A6, negativação
+>    de termo de busca do Google) nem `runReallocationAgent` (T4, motor de realocação cross-rede,
+>    já documentado como "formalmente concluído" numa sessão de julho) nem `notifyDigest`. Essas
+>    3 chamadas só existiam na rota HTTP irmã (`/api/cron/campanhas/sync/route.ts`) — que o
+>    próprio CLAUDE.md documenta como "o" caminho de produção ("inclui o motor de realocação
+>    cross-rede, T4"), mas que **nenhum scheduler jamais chamava**. Ou seja: T4 nunca dispararia
+>    sozinho numa VPS recém-feita, só se alguém curlasse a rota manualmente.
+>    **Corrigido sem duplicar chamada de rede:** em vez de agendar a rota HTTP também (o que
+>    rodaria `syncMetrics`/`runDecisor` 2x, dobrando chamada real às APIs de anúncio e
+>    adiantando o esgotamento do circuit breaker da FASE 19.2), completei o MESMO ciclo interno
+>    do `agentMonitor.ts` — importados `runNegationAgent`/`runReallocationAgent`/`notifyDigest`
+>    e adicionadas as mesmas 3 chamadas que a rota HTTP já fazia, dentro do bloco
+>    `cron.schedule(SYNC_SCHEDULE, ...)` já existente. A rota HTTP virou explicitamente o
+>    fallback manual/externo (comentário atualizado explicando isso e o motivo de nunca agendar
+>    os dois juntos pro mesmo horário).
+> 2. **`POST /api/cron/campanhas/exogenous-signals`** (Google Trends por segmento, alimenta o
+>    Radar de Demanda, FASE 18.2) — o próprio CHECKPOINT de uma sessão anterior já registrava
+>    "Cron diário de Trends: `POST /api/cron/campanhas/exogenous-signals`", mas confirmado via
+>    grep que nunca tinha sido de fato agendado em lugar nenhum — só rodado manualmente naquela
+>    sessão de depuração. Adicionado ao scheduler, `0 6 * * *` (o próprio comentário da rota já
+>    recomendava "06:00 BRT").
+> 3. **`GET /api/cron/agent-expire`** (expira PIN de aprovação vencido de `AgentAction`
+>    `PENDING_APPROVAL`) — o próprio comentário da rota já dizia "chamado pelo cron (ex: a cada
+>    hora)", nunca tinha sido. Adicionado, `15 * * * *` (deslocado 15min do canário de rede da
+>    19.3, que já ocupa o `:00` de cada hora, só pra não bater os dois no mesmo instante).
+>
+> **4ª rota investigada e deliberadamente DEIXADA DE FORA, por não ser um gap real:**
+> `GET /api/cron/scheduler` (enfileira jobs novos em `feed.feed_jobs` a partir de
+> `feed.feed_fontes`) parecia órfã à primeira vista (também nunca chamada por nada) — mas
+> investigação confirmou que o mesmo papel (popular a fila do feed) já é coberto todo dia às
+> 03:00 por `scripts/create-feed-jobs.js`, chamado dentro do próprio bloco de feed-sync já
+> existente no scheduler (`feed-cron-scheduler.js:143`). Agendar as duas juntas arriscaria
+> enfileirar job duplicado pra mesma fonte na mesma janela. Registrado como candidato a limpeza
+> de código morto numa rodada futura — não tocado agora, fora do escopo desta correção.
+>
+> **Testado ao vivo, ponta a ponta, com dado real (nunca hipotético), servidor dev real deste
+> ambiente** (`CRON_SECRET` local = `your-secret-key`, o próprio fallback hardcoded que
+> `feed-cron-scheduler.js` usa quando a env var não está setada — em produção o `deploy.sh`
+> gera um valor real via `openssl rand -hex 32`):
+> - `POST /cron/campanhas/exogenous-signals` → `{ok:true, totalUpserted:20, perSegment:[...5
+>   segmentos...]}` (87s — chamada real ao Google Trends por segmento×ângulo, não instantânea,
+>   por isso o 1º curl em foreground bateu timeout de 60s e foi pro background) — confirmado via
+>   SQL direto: 20 linhas reais com `source='trends'` gravadas em `exogenous_signals` pra hoje,
+>   batendo exato com a resposta HTTP.
+> - `GET /cron/agent-expire` → `{ok:true, expired:6}` — confirmado via SQL direto: 6 linhas reais
+>   de `AgentAction` viraram `status='EXPIRED'`, `executedAt` batendo com o horário exato do
+>   teste (a 1ª tentativa de conferir via `now() - interval '5 minutes'` deu 0 linhas por
+>   desalinhamento de timezone entre o wrapper psql e o valor gravado — corrigido consultando
+>   sem filtro de tempo, `max(executedAt)` bateu exato com o momento do curl).
+> - Ciclo interno completado do `agentMonitor.ts` (negation+reallocation+digest) não foi
+>   re-testado isoladamente — é literalmente o mesmo código (mesmas 3 funções, mesma sequência)
+>   já usado e provado na rota HTTP irmã `campanhas/sync/route.ts` desde julho; só passou a ser
+>   chamado de um 2º lugar. `node -c scripts/feed-cron-scheduler.js` limpo · `npx tsc --noEmit`:
+>   **zero erros em todo o projeto**.
+>
+> **Com isso, os 13 crons reais da aplicação (11 originais + os 2 novos deste achado) estão
+> todos agendados em algum mecanismo automático de deploy** — 12 via `feed-cron-scheduler.js`
+> (`prod_feed`/`staging_feed`) + 1 via `instrumentation.ts` (dentro do próprio `prod_app`/
+> `staging_app`, agora completo). Retomar a FASE 19 (19.4 rollout/processo, 19.5 validação zod,
+> 19.6 Renovate, ou 19.7 detector MCP) fica pra quando o usuário decidir qual atacar.
+
+> **Atualizado em:** 2026-09-03 (continuação 2) — **FASE 19.3 concluída: health-check/canário
+> dedicado, de hora em hora — 3ª e última fase de código do plano de blindagem contra mudança de
+> API (19.4-19.6 são processo/config, não código novo; 19.7 depende de acesso externo ainda não
+> disponível). Fecha o gap que a 19.2 não conseguiu testar: reset-por-sucesso do disjuntor,
+> agora verificado ponta a ponta pela primeira vez.**
+>
+> **Achado que simplificou tudo:** `validateCredentials()` já existe no contrato
+> `AdNetworkService` (`types.ts`) — e já estava implementado corretamente em TODOS os adapters,
+> reais e fake: Meta (`GET /me?fields=id,name`), Google (`SELECT customer.id FROM customer LIMIT
+> 1`), e os 3 Fakes (sempre `{valid:true}`) — usado até agora só manualmente pelo botão "Validar"
+> da tela de configurações. Não precisei adicionar nada aos adapters — só automatizar a chamada
+> que já existia e ligar ao circuit breaker da 19.2.
+>
+> **Refatoração feita antes de implementar:** a lógica de circuit breaker (antes só dentro de
+> `agentMonitor.ts`, FASE 19.2) foi extraída pra `src/lib/marketing/services/
+> networkCircuitBreaker.ts` — módulo compartilhado entre `agentMonitor.ts` (sync pesado) e o
+> endpoint novo (canário), pra nunca duplicar a mesma regra em 2 lugares (exatamente o tipo de
+> drift que esta frente inteira existe pra evitar). Exporta `CIRCUIT_BREAKER_THRESHOLD`/
+> `COOLDOWN_MINUTES`, `getNetworkMaps`, `getCircuitState`, `isCircuitOpen`,
+> `recordCircuitFailure`, `resetCircuitBreaker`, `formatSyncFailureAlert`. `agentMonitor.ts`
+> reescrito pra importar dali — comportamento idêntico, `npx tsc --noEmit` limpo antes e depois.
+>
+> **Novo endpoint** `POST /api/cron/campanhas/network-healthcheck` (mesmo padrão `x-cron-secret`
+> dos crons existentes) — pra todo par (tenant, rede) com credencial `is_active=true` (via
+> `tenant_network_credentials`, não via `Campaign` — cobre tenant sem nenhuma campanha
+> sincronizando nesta hora, diferente do sync pesado), filtrado por `getProvisionedNetworkCodes`
+> (mesma fonte de verdade já usada em `syncMetrics()`), chama `validateCredentials()` e alimenta
+> o mesmo `recordCircuitFailure`/`resetCircuitBreaker` da 19.2. Agnóstico de rede de propósito —
+> zero menção a "meta"/"google" no código — TikTok herda a cobertura de graça quando o adapter
+> real (T2) existir. Registrado no `scripts/feed-cron-scheduler.js`, `0 * * * *` (hora em hora).
+>
+> **Decisão consciente, documentada no próprio código:** diferente de `syncMetrics()`, o canário
+> **nunca** checa `isCircuitOpen()` antes de tentar — é o próprio mecanismo de recuperação; se
+> respeitasse o cooldown de 3h também, um disjuntor só teria chance de fechar de novo 1x a cada
+> 3h, a mesma cadência que já existe sem esta fase, derrotando o propósito de rodar de hora em
+> hora. Seguro porque a chamada é sempre a mais barata do adapter.
+>
+> **Testado ao vivo, ponta a ponta, contra o servidor dev real** (`POST` real via curl,
+> `x-cron-secret` real, tenant de teste "Teste RAG — Multi-Segmento" com `consecutive_failures`
+> pré-setado em 4, credencial de Google genuinamente inválida): 1ª chamada → 4→5, cruza o
+> limiar, `tripped:1` na resposta, exatamente 1 alerta no mock (`"5 falhas seguidas..."`) · 2ª
+> chamada imediata (disjuntor já aberto) → **tenta mesmo assim** (decisão consciente acima),
+> 5→6, `tripped:0`, **0 novo alerta** (não é nova abertura) · **teste que fechou o gap da 19.2**:
+> trocada a credencial pro marcador `__SIMULATED__` (ativa o `FakeGoogleAdapter`, sempre válido,
+> mesmo mecanismo já usado em outras partes do projeto pra testar sem credencial real) → 3ª
+> chamada → sucesso real → `consecutive_failures=0, circuit_tripped_at=NULL` confirmado por SQL
+> — primeira vez nesta frente que o reset-por-sucesso foi verificado ponta a ponta, não só a SQL
+> isolada · desprovisionada a rede → `checked` cai de 6 pra 5 (exclusão confirmada) · secret
+> errado → `401` · todas as chamadas rodaram contra o platform inteiro (não só o tenant de
+> teste) — `checked`/`healthy`/`failed` sempre bateram com o número real de credenciais ativas
+> no ambiente, incluindo o tenant "Marketing Digital" (credencial Meta genuinamente quebrada,
+> achado já registrado na 19.1/19.2), confirmando que o canário também vale pra dado real do
+> ambiente, não só o sintético.
+>
+> **Limpeza confirmada por SQL:** credencial de teste, override de provisionamento e config de
+> Evolution do tenant de teste — todos removidos, `count(*)=0`/`NULL`. Mock server e script
+> temporário removidos. `npx tsc --noEmit`: **zero erros em todo o projeto**.
+>
+> **Com isso, as 3 fases de código do plano de blindagem (19.1 alerta, 19.2 circuit breaker,
+> 19.3 canário) estão concluídas e testadas.** Restam: 19.4 (rollout faseado — processo/
+> checklist, sem código, ainda não escrito em lugar nenhum) e 19.6 (Renovate/Dependabot pro
+> `google-ads-api` — config, não código); 19.5 (validação de schema na fronteira, zod) é a
+> próxima peça de código real; 19.7 (detector via MCP oficial) segue bloqueada por acesso
+> externo às 3 contas de negócio, mesma classe do bloqueio já documentado pro TikTok T2.
+>
+> **Próximo passo:** aguardando decisão do usuário sobre qual das fases restantes atacar —
+> 19.4/19.6 são rápidas (documentação/config); 19.5 é a peça de maior esforço real que falta.
+
+> **Atualizado em:** 2026-09-03 (continuação) — **FASE 19.2 concluída: circuit breaker real por
+> tenant+rede — 2ª fase do plano de blindagem contra mudança de API.** Achado real durante o
+> teste, corrigido antes de fechar a fase: o "half-open" (retry depois do cooldown) liberava
+> TODAS as campanhas pendentes de uma vez em vez de só 1 tentativa-teste antes de re-fechar.
+>
+> **Migração aditiva:** `prisma/migration-2026-09-03-network-circuit-breaker.sql` — 2 colunas em
+> `public.tenant_network_credentials`: `consecutive_failures INTEGER NOT NULL DEFAULT 0`,
+> `circuit_tripped_at TIMESTAMPTZ`. Aplicada.
+>
+> **Implementado** (`agentMonitor.ts`): limiar configurável (`NETWORK_CIRCUIT_BREAKER_THRESHOLD`,
+> default 5) e cooldown (`NETWORK_CIRCUIT_COOLDOWN_MINUTES`, default 180 = 3h). Estado lido 1x
+> por tenant por rodada (`circuitState`, join `tenant_network_credentials`+`ad_networks`); antes
+> de cada campanha, se o disjuntor está aberto E ainda dentro do cooldown, pula sem tentar. Toda
+> falha real (mesmos 2 pontos da 19.1 — `syncCampaignInsights`/`fetchInsights` e
+> `collectGoogleSearchTerms`/`fetchSearchTerms`, nunca o catch de credencial ausente) incrementa
+> o contador em memória (efeito imediato nesta mesma rodada) **e** no banco (persiste entre
+> rodadas de cron); todo sucesso zera os dois. O alerta da 19.1 foi refinado: agora dispara só no
+> momento exato em que o disjuntor abre (cruza o limiar), nunca a cada falha isolada nem a cada
+> re-tentativa que falha de novo — throttling de graça, sem precisar de nenhum estado novo além
+> do que o circuit breaker já mantém.
+>
+> **Achado real, não hipotético, corrigido no processo (mesmo antes de qualquer teste externo
+> apontar): o "half-open" da 1ª versão estava errado.** `circuitTrippedAt` só era refrescado em
+> memória no momento exato do `justTripped` (a 1ª vez que cruza o limiar) — depois disso, mesmo
+> com falhas repetidas, o timestamp em memória ficava congelado no valor antigo. Resultado
+> prático: assim que o cooldown expirava e a 1ª campanha da rodada tentava de novo e falhava, as
+> campanhas SEGUINTES da mesma rodada ainda liam o timestamp velho (já fora do cooldown) e
+> tentavam também — liberando todas de uma vez em vez de 1 tentativa-teste por vez, exatamente o
+> comportamento que um circuit breaker existe pra evitar. Corrigido: o timestamp em memória agora
+> refresca em TODA falha enquanto acima do limiar (não só na 1ª), igual a SQL do banco já fazia
+> desde o início (`CASE WHEN consecutive_failures + 1 >= $3 THEN now()...`) — a inconsistência
+> era só entre o código em memória e a SQL, nunca um bug na SQL em si.
+>
+> **Testado ao vivo, ponta a ponta, com dado real e sintético ao mesmo tempo** (tenant de teste
+> "Teste RAG — Multi-Segmento", credencial de Google genuinamente inválida — 401 real do OAuth,
+> mesma técnica da 19.1): 6 campanhas de teste, limiar=5 → confirmado que as 5 primeiras são
+> tentadas de verdade (uma a uma, cada uma incrementando o contador) e a 6ª é pulada sem tentar
+> — log mostra exatamente "5 falhas seguidas — pulando" antes da 6ª · **achado incidental real,
+> não fabricado**: no mesmo run, o tenant "Marketing Digital" (26 campanhas reais com credencial
+> Meta genuinamente expirada, achado já registrado na 19.1) mostrou o EXATO mesmo padrão sem
+> nenhum ajuste meu — 5 falhas reais tentadas, disjuntor abre, as 21 campanhas restantes puladas
+> — confirma o mecanismo funcionando contra dado de produção real do próprio ambiente, não só o
+> cenário sintético · exatamente 1 alerta chegou no mock (`"5 falhas seguidas... pausada...
+> Nova tentativa automática em até 3h"`) · rodada imediata seguinte (dentro do cooldown): 0
+> tentativas reais, 6 skips, 0 novo alerta (confirma throttling) · `circuit_tripped_at`
+> retrocedido 4h manualmente (simula cooldown expirado) → **1ª versão**: 6 tentativas de uma vez
+> (bug) → corrigido → **retestado do zero**: exatamente 1 tentativa, contador vai de 5→6 (não
+> 5→11), 0 novo alerta (re-trip não é "nova abertura") · reset-por-sucesso: função não pôde ser
+> exercitada ponta a ponta contra uma chamada real bem-sucedida (sem credencial de teste válida
+> disponível neste ambiente, mesma limitação já documentada em várias sessões anteriores) — a
+> SQL exata que a função executa foi confirmada isoladamente, produzindo o resultado correto
+> (`consecutive_failures=0, circuit_tripped_at=NULL`).
+>
+> **Limpeza confirmada por SQL:** as 6 campanhas de teste, a credencial bogus, o override de
+> provisionamento e a config de Evolution do tenant de teste — todos removidos/revertidos,
+> `count(*)=0`/`NULL` em cada tabela. Mock server e scripts temporários removidos. **Decisão
+> consciente, não revertida:** o estado do disjuntor do tenant "Marketing Digital" (rede `meta`)
+> foi deixado tripado — não é dado de teste meu, é reflexo real de uma credencial genuinamente
+> quebrada que já existia antes desta sessão; resetar não mudaria o resultado (re-tripa sozinho
+> no próximo cron real, já que a credencial continua inválida) e geraria um re-alerta
+> desnecessário. `npx tsc --noEmit`: **zero erros em todo o projeto**, antes e depois do fix do
+> half-open.
+>
+> **Achado real, ainda não atacado, documentado por transparência:** se um tenant nunca teve
+> nenhuma linha em `tenant_network_credentials` pra uma rede (ex.: tenants Meta legados que só
+> usam as colunas antigas em `public.tenants`, cascata com prioridade sobre a tabela nova — ver
+> `factory.ts`), o `UPDATE` de `recordCircuitFailure`/`resetCircuitBreaker` afeta 0 linhas — o
+> disjuntor funciona corretamente DENTRO da mesma rodada (o mapa em memória sempre funciona),
+> mas nunca persiste entre rodadas de cron pra esse caso específico. Não corrigido agora (exigiria
+> UPSERT com fallback pras colunas legadas, mais complexidade do que o "eficientemente" pedido
+> justifica nesta fase) — registrado como limitação conhecida, não um bug ativo (o comportamento
+> dentro de 1 rodada continua correto e seguro).
+>
+> **Próximo passo:** 19.3 (health-check/canário dedicado, mais frequente que o sync pesado —
+> é o que garante retry mesmo sem depender só do cooldown de 3h), aguardando aprovação do
+> usuário pra prosseguir.
+
+> **Atualizado em:** 2026-09-03 — **FASE 19.1 concluída: alerta real de falha de sincronização
+> (Meta/Google Ads) — 1ª fase do plano de blindagem contra mudança de API descrito em
+> `docs/CHECKPOINT.md`/artefatos "O Loop Quebrado do ICP" e "MCP Só Lê" (análises da sessão
+> anterior, sem código). Achado real de brinde, corrigido: `GoogleAdsAdapter.fetchInsights()`
+> engolia qualquer erro silenciosamente — corrigido antes de testar, senão a 19.1 inteira
+> ficaria cega pro Google.**
+>
+> **Contexto:** duas rodadas de análise (sem implementação) identificaram que a plataforma não
+> tinha nenhum mecanismo de alerta quando uma chamada às APIs de anúncio quebra — só
+> `console.error` silencioso em `agentMonitor.ts`. Usuário aprovou um plano de 8 fases (19.0-19.7,
+> plano salvo em `C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`) pra fechar essa
+> lacuna, com disciplina de "1 fase por vez, teste com dado real, checkpoint, aprovação antes da
+> próxima" — mesmo passe estreito já usado em toda frente grande deste projeto. Esta entrada é a
+> 1ª fase.
+>
+> **Implementado** (`src/lib/marketing/services/agentMonitor.ts`, dentro de `syncMetrics()`):
+> acumulador em memória (`Map<networkCode, {count, lastError}>`), escopado por tenant (resetado a
+> cada iteração do loop externo), populado nos 2 catches que representam falha REAL de chamada de
+> rede (`syncCampaignInsights`/`fetchInsights` e `collectGoogleSearchTerms`/`fetchSearchTerms`) —
+> deliberadamente **não** no catch de credencial ausente (`getNetworkServiceForTenant`, que é
+> "não configurado", não "API quebrou") nem no catch de `inferLifecycleStatus` (lógica interna,
+> sem chamada de rede). Ao final do loop de cada tenant, 1 alerta agregado por rede que teve
+> falha — nunca 1 por campanha — via `notifyWhatsApp` (`agentNotificador.ts`, já existia, já
+> tenant-scoped, só nunca tinha sido chamado fora do briefing diário).
+>
+> **Achado real, não hipotético, corrigido no processo:**
+> `GoogleAdsAdapter.fetchInsights()` (`src/lib/marketing/networks/google/GoogleAdsAdapter.ts`)
+> tinha um `catch` genérico que sempre fazia `console.error` + `return []` — nunca relançava.
+> Comentário do próprio código admitia a indecisão: *"Return empty array to not break the
+> dashboard on errors, or throw depending on policy"*. Confirmado por grep: `fetchInsights` tem
+> **exatamente 1 chamador em todo o projeto** (`agentMonitor.ts`'s `syncCampaignInsights`, usado
+> tanto pelo cron quanto pelo sync manual `/insights/sync`) — nenhum outro consumidor dependia do
+> retorno `[]` gracioso. O adapter da Meta (`metaAdsAdapter.ts`), pra comparação, nunca engoliu
+> erro em `fetchInsights` — deixa propagar normalmente. Ou seja: **antes desta correção, uma
+> falha real da API do Google (token expirado, campo removido, etc.) nunca teria disparado o
+> alerta da 19.1** — o adapter escondia o problema antes dele sequer chegar no código novo.
+> Corrigido: `catch` agora faz `throw e` (mesmo comportamento do Meta), preservando o `console.error`
+> de diagnóstico que já existia.
+>
+> **Testado ao vivo, ponta a ponta, tenant de teste "Teste RAG — Multi-Segmento"** (todos os
+> tenants deste ambiente são de teste, nenhum é produção real — confirmado pelo usuário):
+> provisionada a rede Google (`tenant_feature_overrides`), credencial bogus real inserida
+> (`developer_token`/`refresh_token` inválidos — gera 401 `invalid_client` genuíno do próprio
+> OAuth do Google, não um erro simulado), 2 campanhas de teste na mesma rede, canal de alerta
+> apontado pra um mock HTTP local (`scratch/mock-evolution-19-1.js`, temporário, removido ao
+> final) via `syncMetrics()` chamado diretamente (`ts-node -r tsconfig-paths/register`, fora do
+> Next.js, mesma técnica já documentada nesta sessão) — não pela rota de cron completa
+> (`/api/cron/campanhas/sync`), pra não disparar também `runDecisor`/`runNegationAgent`/
+> `runReallocationAgent` pra todos os tenants só pra testar o alerta.
+>
+> **1ª tentativa falhou por erro de setup meu, não do código** — esqueci de setar
+> `evolution_api_key` no tenant de teste; `notifyWhatsApp` retorna silenciosamente se faltar
+> qualquer um de apiUrl/apiKey/phoneNumber (comportamento pré-existente, correto). Corrigido o
+> setup, testado de novo: **exatamente 1 POST chegou no mock**, com `"2 campanhas falharam ao
+> sincronizar com a Google Ads nesta rodada... Último erro: invalid_client"` — confirma
+> agregação correta (não 1 alerta por campanha) e formato de mensagem correto.
+>
+> **Susto investigado e descartado, registrado por transparência:** o mesmo sync platform-wide
+> também tocou (só leitura + tentativa de alerta, nunca mutação) o tenant "Marketing Digital"
+> — 26 campanhas reais dele já estavam com credencial Meta expirada/inválida (achado incidental,
+> não relacionado à 19.1 em si, mas exatamente o tipo de coisa que essa fase existe pra
+> sinalizar). A tentativa de alerta pra esse tenant falhou com `ECONNREFUSED` (nada escutando
+> em `localhost:8081`, confirmado via `netstat`/`docker ps` — nem container Evolution rodando)
+> — engolida silenciosamente pelo catch pré-existente de `notifyWhatsApp`. Isolado e confirmado
+> à parte (script dedicado, fora do fluxo real) que `ECONNREFUSED` produz `err.message=""`,
+> explicando por que o log mostrava "Evolution API notify error: " sem texto nenhum depois —
+> não é evidência de entrega bem-sucedida, é o formato real de uma conexão recusada. Nenhuma
+> mensagem foi enviada a lugar nenhum de verdade.
+>
+> **Limpeza confirmada por SQL:** as 2 campanhas de teste, a credencial bogus, o override de
+> provisionamento e a config de Evolution do tenant de teste — todos removidos/revertidos a
+> `NULL`, `count(*)=0` em cada tabela tocada. Mock server e scripts temporários (`scratch/
+> mock-evolution-19-1.js`, `scratch/run-sync-test-19-1.ts`, `scratch/test-notify-isolated.ts`)
+> removidos. `npx tsc --noEmit`: **zero erros em todo o projeto**, antes e depois da correção do
+> adapter.
+>
+> **Metodologia de teste, reaproveitável nas próximas fases (19.2-19.7):** tenant de teste
+> dedicado → credencial genuinamente inválida (não simulação de erro em código, erro real vindo
+> da API real) → mock HTTP local no lugar do canal de alerta real → chamar a função relevante
+> isolada via `ts-node -r tsconfig-paths/register` (não a rota de cron inteira, quando o teste
+> não precisa dos outros agentes) → inspecionar o mock + o banco → limpar tudo e confirmar via
+> SQL. Mesmo padrão vale pra 19.2 (circuit breaker — repetir a falha N vezes, checar o contador)
+> e 19.3 (canário — chamar o endpoint novo isolado).
+>
+> **Próximo passo:** 19.2 (circuit breaker por tenant+rede), aguardando aprovação do usuário
+> pra prosseguir.
+
+> **Atualizado em:** 2026-09-02 (continuação 3) — **`docs/ROTEIRO_TESTES_CRM.md` revisado e
+> atualizado à luz das 4 Peças do desacoplamento (Peças 1-4 acima) — a pedido explícito do
+> usuário, antes de retomar os testes manuais.**
+>
+> Pedido do usuário: analisar o roteiro inteiro (795 linhas) e determinar se as mudanças de
+> desacoplamento (LLM cascade, canal Evolution, webhook secret, `ClientSelector` — todos
+> movidos/estendidos pra `components/crm/` e alcançáveis de CRM/Mensageria/Campanhas) exigiam
+> atualização dos testes já escritos, ou testes novos, antes de continuar a rodada de testes
+> manuais que estava em andamento (parada no item 1.6c). Análise feita primeiro, sem tocar no
+> arquivo, com as descobertas apresentadas ao usuário — só depois de confirmadas é que os
+> edits abaixo foram aplicados.
+>
+> **5 edits aplicados, todos com o sufixo `[novo, 2026-09-02]` marcando o que é adição desta
+> rodada** (nunca reescrita silenciosa de teste já existente):
+> 1. Cabeçalho do documento — "cobrindo o CRM em 4 blocos" → "5 blocos", nova linha
+>    apresentando a Parte 1B.
+> 2. Item 0.1 (escolha de tenant por parte) — nova entrada explicando que **nenhum tenant deste
+>    ambiente de dev tem hoje `mensageria` provisionado sem `crm`** (achado real, não hipótese —
+>    conferido em `tenant_modules` antes de escrever a instrução) e como provisionar um antes de
+>    testar a Parte 1B.
+> 3. Item 1.6b — título e passo 1 corrigidos: apontavam pra `/admin/campanhas/configuracoes`
+>    (onde a cascata de LLM vivia ANTES da Peça 1), agora aponta pro local real pós-Peça 1
+>    (`/crm/config/ia`), com uma nota explicando a mudança.
+> 4. Item 1.7 — ganhou uma subseção nova "Canal de comunicação (Peças 2/3)" antes da subseção já
+>    existente, cobrindo os 2 componentes novos (`AgentWhatsAppChannelSection`/
+>    `WhatsAppWebhookSection`) e testando explicitamente os 2 sentidos do `confirm()` de
+>    "Regenerar" (cancelar não muda nada / confirmar muda de verdade) — a mesma disciplina de
+>    prova nos dois sentidos já usada no resto do roteiro pra dialogs nativos.
+> 5. **Nova seção "1B — Mensageria sozinha, sem CRM"** (a peça mais substancial desta rodada,
+>    não uma correção) — cenário de contratação real, confirmado com o usuário na mesma
+>    conversa ("Um tenant poderá contratar apenas o modulo de Mensageria"), nunca coberto pelo
+>    roteiro até agora. 4 subseções: sidebar sem nenhum item de CRM + bloqueio de rota direta ·
+>    cascata de LLM funcionando só por Mensageria · canal de alerta/webhook funcionando só por
+>    Mensageria · e um teste de **confirmação, não de descoberta** (o achado em si já estava
+>    documentado numa sessão anterior como "T3": `processInboundWhatsAppMessage` sempre tenta
+>    criar lead no CRM mesmo sem CRM contratado, decisão de design deliberada — a Parte 1B só
+>    confirma que esse comportamento continua vigente e não foi alterado pelas Peças 1-4).
+> 6. **Nova seção "3.7"** (regressão, mesmo espírito do 3.6 já existente pro modelo de LLM) —
+>    confirma que os 2 componentes extraídos nas Peças 2/3 continuam 100% funcionais dentro de
+>    Campanhas (não só "não quebrados", mas com o mesmo dado batendo entre as 2 telas que agora
+>    compartilham o componente).
+> 7. Checklist de limpeza final — 2 itens novos: decidir se o tenant fixture da Parte 1B fica
+>    permanente ou é removido/reprovisionado; confirmar que qualquer "Regenerar" de webhook
+>    confirmado DE VERDADE (fora de um tenant de teste dedicado) já teve a URL nova atualizada
+>    no painel da Evolution API.
+>
+> **Verificação de coerência feita depois de aplicar os 7 edits:** releitura do cabeçalho, das
+> 3 fronteiras de seção tocadas (1.6b/1.7, Parte 1→1B→2, final de Parte 3→3.7→Parte 4) — sem
+> duplicação de parágrafo de limpeza, sem referência cruzada quebrada, numeração de seção
+> (`1B` em vez de renumerar 2/3/4) escolhida deliberadamente pra não obrigar a tocar as dezenas
+> de referências cruzadas já existentes no documento (`2.5`, `3.1`, `4.2` etc.).
+>
+> **Decisão explicitamente adiada nesta mesma conversa, sem ação:** renomear `/api/admin/
+> campanhas/clients` pra um path neutro de módulo — usuário respondeu "não vale a pena",
+> mantido como pendência de arquitetura registrada (Peça 4 acima), não atacada.
+>
+> **Próximo passo real:** retomar a execução manual do roteiro a partir do item 1.6c, agora com
+> o documento já refletindo o estado pós-desacoplamento — nenhuma mudança de código pendente
+> desta rodada, só documentação de teste.
+
+> **Atualizado em:** 2026-09-02 (continuação 2) — **Peça 4 concluída: `ClientSelector` saiu
+> de `components/marketing/` e virou `components/crm/ClientSelector.tsx`, fechando o item que
+> ficou explicitamente adiado desde o início desta frente ("depois teremos que resolver a
+> questão do ClientSelector").**
+>
+> **Diferente das Peças 1-3, não havia bug funcional aqui** — `ClientSelector` já funcionava
+> perfeitamente em CRM/Mensageria antes desta mudança (nenhuma reachability quebrada, nenhum
+> gate de permissão faltando no endpoint que o hook consome, `GET /api/admin/campanhas/
+> clients` — confirmado sem `requireApiPermission` nenhum, mas é uma lista de nomes de
+> cliente, não um secret, então o "ungated" ali é aceitável, não uma vulnerabilidade como as
+> das peças anteriores). O problema era só de organização: o arquivo morava numa pasta com
+> nome de Campanhas, mas era importado por 5 arquivos de CRM/Mensageria (`crm/config/ia`,
+> `crm/config/agentes`, `crm/kanban`, `mensageria/config`, `LlmCascadeSection.tsx`) — mesmo
+> tipo de acoplamento file-level que motivou a extração de `PromptOverrideCard`/
+> `LlmCascadeSection`/`AgentWhatsAppChannelSection`/`WhatsAppWebhookSection` pra
+> `components/crm/`, mesmo precedente reaproveitado aqui (CRM como dona natural deste tipo de
+> componente compartilhado nesta base).
+>
+> **Mudança mecânica:** `git mv` conceitual (cópia + delete) de `components/marketing/
+> ClientSelector.tsx` pra `components/crm/ClientSelector.tsx` (conteúdo idêntico, só o
+> cabeçalho de comentário atualizado explicando a origem/motivo do movimento) + os 17 imports
+> reais atualizados (`from '@/components/marketing/ClientSelector'` → `from '@/components/
+> crm/ClientSelector'`) — 12 telas de Campanhas (dashboard, leads, criativos, auditoria,
+> desperdício, portfolio, publicações, cta-analytics, iniciativas, configurações, mecanismos,
+> criativos/padrões) + `CampanhasModal.tsx` + os 5 consumidores de CRM/Mensageria já citados.
+> Rota da API (`/api/admin/campanhas/clients`) deliberadamente **não** movida/renomeada nesta
+> peça — é uma decisão maior e separada (muda contrato público, cache, monitoramento),
+> registrada como pendência em aberto, não uma vulnerabilidade a corrigir às pressas.
+>
+> **Achado real no processo de teste, causa raiz confirmada e descartada como falso-alarme:**
+> depois de mover os arquivos, `read_console_messages` no navegador mostrou um erro de sintaxe
+> em `mensageria/config/page.tsx` ("Unexpected token `div`") — investigação (log do PRÓPRIO
+> servidor dev, `tsc --noEmit` limpo, `Get-CimInstance` confirmando o número da linha do erro
+> divergindo por 1 linha do arquivo real em disco) confirmou que era **histórico acumulado do
+> console do navegador de ANTES do restart do servidor** (mesmo padrão de falso-negativo já
+> registrado nesta sessão pra `get_page_text`/`innerText`) — não um bug real. Confirmado numa
+> aba 100% nova (`read_console_messages` → "No console logs") que tanto `/crm/config/ia`
+> quanto `/mensageria/config` renderizam perfeitamente, sem nenhum erro, com o `ClientSelector`
+> relocado funcionando normalmente nos dois. Servidor dev reiniciado no processo (mesmo remédio
+> já documentado váras vezes neste projeto pra sessões de dev muito longas) — não por haver um
+> bug real, mas porque a suspeita inicial exigia descartar a hipótese de bundle stale antes de
+> confiar no restante da verificação.
+>
+> **Testado ao vivo, ponta a ponta:** `/crm/config/ia` (tenant "CRM SOZINHO") — pills "Minha
+> Empresa"/"Para um Cliente" renderizando corretamente (variant="toggle") · `/mensageria/
+> config` → Inboxes — mesma coisa, canal WhatsApp real da tenant listado corretamente ·
+> `/admin/campanhas/dashboard` (tenant real "Marketing Digital") — página carrega sem erro,
+> todas as chamadas de API (segments/clients/sidebar/skills/redes) retornando 200 no log do
+> servidor. `npx tsc --noEmit`: **zero erros em todo o projeto** (exit code 0). `git status`
+> confirma exatamente os 17 imports + a movimentação do arquivo, nenhum resíduo.
+>
+> **Com isso, as 4 peças da frente de desacoplamento Campanhas/CRM/Mensageria (investigação
+> iniciada em 2026-09-01) estão concluídas.** Pendência real remanescente, registrada acima
+> (não uma vulnerabilidade, uma decisão de arquitetura maior e deliberadamente adiada): mover/
+> renomear a rota `/api/admin/campanhas/clients` pra um path neutro, se algum dia fizer
+> sentido — nenhuma urgência, o endpoint já funciona corretamente pra todos os módulos hoje.
+>
+> **Atualizado em:** 2026-09-02 (continuação) — **Peça 3 do desacoplamento concluída — a mais
+> arriscada das 3 (o portão de entrada real de mensagem de WhatsApp em produção): a
+> URL+secret do webhook (`tenants.evolution_webhook_secret`) agora é visível/regenerável a
+> partir de Campanhas, CRM e Mensageria — e um achado mais sério que o objetivo original,
+> corrigido no mesmo passo: essa rota nunca teve NENHUM gate de permissão, nem pra LER o
+> secret nem pra REGENERÁ-LO (ação destrutiva que derruba mensagens em produção na hora).**
+>
+> Confirmado por investigação antes de tocar em qualquer código: `processInboundWhatsAppMessage`
+> (`src/lib/whatsapp/inboundProcessor.ts`) sempre tenta as duas coisas incondicionalmente —
+> criar lead no CRM E ingerir na Mensageria — não há gate por módulo contratado; um tenant
+> CRM-only depende deste MESMO secret pra receber lead de WhatsApp orgânico, mesmo nunca tendo
+> contratado Mensageria. Mesma classe de achado das Peças 1/2 (config presa atrás de um único
+> módulo, mas genuinamente usada por todos).
+>
+> **Novo componente `src/components/crm/WhatsAppWebhookSection.tsx`** — extraído da aba "E ·
+> WhatsApp (Evolution)" de `/admin/campanhas/mecanismos` (as outras 3 abas dessa página — Link
+> Rastreado, API/Webhook, Meta Lead Ads — são mecanismos de atribuição de campanha,
+> genuinamente Campanhas-only, ficaram intocadas). O texto sobre rastreamento `[ref:slug]`
+> (Destino de CTA) ficou só na versão de Campanhas — CRM/Mensageria-only não têm Destino de
+> CTA pra gerar esse link, então não se aplica a eles; o componente compartilhado fala só do
+> caminho que sempre existe (mensagem orgânica vira lead/conversa, com ou sem `[ref:]`).
+> Montado em `/admin/campanhas/mecanismos` (aba WA, substituindo o código antigo),
+> `/crm/config/agentes` (logo abaixo do canal de alerta da Peça 2 — são conceitos distintos:
+> alerta é SAÍDA pro tenant, este é ENTRADA de mensagem real) e `/mensageria/config` → aba
+> Inboxes (o lugar natural — é literalmente sobre como um canal de mensagem chega à
+> plataforma).
+>
+> **Achado real, mais sério que "só falta abrir pra CRM/Mensageria": zero gate em GET e
+> POST.** `GET/POST /api/admin/campanhas/evolution-config` só exigia `getTokenPayload(request)
+> ?.tenantId` — nem checava se o usuário tinha alguma permissão relacionada. Ou seja, **qualquer
+> usuário autenticado do tenant, de qualquer role, sempre pôde LER o token secreto do webhook
+> em texto puro (GET) e REGENERÁ-LO (POST) sem confirmação nenhuma no backend** — um Atendente
+> comum, sem nenhuma feature administrativa, sempre teve esse poder. Corrigido com
+> `requireAnyApiPermission(request, ['crm-agentes-config', 'mensageria-config',
+> 'configuracoes-campanhas'], 'READ'|'UPDATE')` — mesmo padrão OR das Peças 1/2, aplicado
+> tanto no GET quanto no POST (a leitura do secret também merece gate — é uma credencial).
+>
+> **Achado de UX, corrigido no mesmo passo:** o botão "Regenerar" nunca teve nenhuma
+> confirmação — um clique acidental derrubava o fluxo de mensagens de produção na hora, apesar
+> do aviso vermelho logo abaixo já alertar sobre a consequência. Adicionado `confirm()` com o
+> texto explicando exatamente o que vai acontecer, antes de qualquer chamada à API — mesmo
+> padrão já usado em outras ações destrutivas desta base (`handleRestore` em
+> `LlmCascadeSection`/`PromptOverrideCard`).
+>
+> **Testado ao vivo, com o máximo de cuidado dado o risco real** (a tenant "Marketing Digital"
+> tem um secret de produção genuíno, `003da176-...`, nunca tocado em nenhum momento deste
+> teste): confirmado ANTES de qualquer mudança que "CRM SOZINHO" e "CRM + MENSAGERIA" têm
+> secret vazio (seguro pra testar regenerar de verdade) · clique real em "Regenerar" em
+> `/crm/config/agentes` (CRM SOZINHO) → **confirm() bloqueou o clique quando não aceito**
+> (nenhum POST disparado, confirmado por network log — a barreira funciona de verdade, não é
+> só decorativa) · `window.confirm` temporariamente sobrescrito pra `true` só pra provar o
+> caminho de aceite → clique real → `POST → 200`, secret novo confirmado por SQL · restaurado
+> `window.confirm` original · seção confirmada renderizando em `/mensageria/config` → Inboxes
+> (tenant "CRM + MENSAGERIA") via `get_page_text` real (1ª checagem via regex bateu num falso-
+> negativo de timing — mesma classe já documentada nesta sessão — corrigida relendo o DOM já
+> resolvido) · **4 provas isoladas direto no servidor**: GET só com `mensageria-config` → 200;
+> GET sem nenhuma permissão relevante → 403 com a mensagem certa; POST só com
+> `mensageria-config` → 200; POST sem permissão → 403, **sem mutar nada** (confirmado) ·
+> **regressão em Campanhas**: GET real no tenant "Marketing Digital" com token só
+> `configuracoes-campanhas` → 200, secret real retornado **idêntico** ao capturado antes de
+> qualquer mudança — nunca tocado, nem por engano. Todo dado de teste (os 2 secrets gerados
+> nos tenants de teste) restaurado a `NULL` (estado original), confirmado por SQL. `npx tsc
+> --noEmit`: **zero erros em todo o projeto**.
+>
+> **Com isso, as 3 peças do desacoplamento (achadas na investigação de 2026-09-01) estão
+> concluídas.** Pendência real restante, explicitamente adiada pelo usuário desde o início
+> desta frente: **`ClientSelector` mora em `components/marketing/`** mas é usado por CRM/
+> Mensageria/Campanhas igualmente — mesmo tipo de acoplamento das 3 peças, "depois teremos
+> que resolver a questão do ClientSelector".
+>
+> **Atualizado em:** 2026-09-02 — **Peça 2 do desacoplamento concluída: o canal de WhatsApp
+> (Evolution API) que os agentes de Campanhas, CRM e alertas de SLA da Mensageria usam pra
+> notificar agora é configurável a partir dos 3 módulos, não só de Campanhas — e um achado
+> mais sério corrigido no processo: esses 3 campos nunca tiveram NENHUM gate de permissão.**
+>
+> Continuação direta da Peça 1 (cascata de LLM) — próximo item da lista de pendências.
+> Investigação prévia confirmou que `notifyWhatsApp()` (`agentNotificador.ts`, lê `tenants.
+> evolution_api_url/api_key/instance`) é chamada por `agentDecisor.ts` (Campanhas),
+> `crm/agents/runner.ts` (CRM) **e** `mensageria/sla.ts` (alertas de SLA estourado) — os 3
+> módulos genuinamente precisam poder configurar isso, nenhum é dono exclusivo (diferente da
+> cascata de LLM da Peça 1, que era só CRM/Mensageria). Por isso a solução aqui não foi
+> "mover", foi "tornar alcançável dos 3 lugares" — o campo continua existindo em Campanhas
+> também. `numero_whatsapp` (pra onde o alerta vai) e o Threshold de Confiança do Agente
+> (só `agentDecisor.ts`/`aiInsights.ts`, Campanhas, confirmado por grep) ficaram de fora de
+> propósito — o primeiro continua curado só pelo Master via `/admin/master/tenants`, o
+> segundo é genuinamente Campanhas-only.
+>
+> **Novo componente `src/components/crm/AgentWhatsAppChannelSection.tsx`** — mesmo padrão
+> visual/estrutural de `LlmCascadeSection.tsx` (tema via prop `t`, sem `UpdateGuard` client-
+> side — a reachability da página já é o controle). Lê/grava via a MESMA rota que Campanhas
+> já usava (`GET/PUT /api/admin/campanhas/settings`), sem endpoint novo — PUT já suportava
+> update parcial. Montado em `/crm/config/agentes` (topo da aba Configuração, antes da lista
+> de agentes — é tenant-wide, não por agente) e em `/mensageria/config` → aba SLA (antes da
+> lista de políticas).
+>
+> **Achado mais sério que a UI, corrigido no mesmo passo — o servidor não tinha NENHUM gate
+> nestes 3 campos:** `PUT /api/admin/campanhas/settings` só verificava permissão
+> (`requireApiPermission(..., 'campanhasmarketingdigital', 'UPDATE')`) quando o payload
+> continha campos de Meta API (`hasMeta`) — Evolution API URL/Key/Instance, Anthropic API Key
+> e Threshold sempre passaram batido, sem checagem nenhuma além de "tem algum JWT válido pra
+> algum tenant". Ou seja: **qualquer usuário autenticado, de qualquer role, de qualquer
+> feature provisionada, sempre pôde sobrescrever a Evolution API Key de todo o tenant** — não
+> era "faltava abrir pra CRM/Mensageria", era "nunca esteve fechado pra ninguém". Corrigido
+> com o mesmo padrão do `hasMeta`: novo bloco `hasEvolution` gatilhado só pelos 3 campos de
+> Evolution, checando `requireAnyApiPermission(request, ['crm-agentes-config',
+> 'mensageria-config', 'configuracoes-campanhas'], 'UPDATE')` — implementado na Peça 1. Os
+> outros campos ungated (Anthropic Key/Threshold/Slack legado) foram deixados como estavam —
+> **achado real, mas fora do escopo desta peça**, registrado abaixo como pendência.
+>
+> **Testado ao vivo, com os mesmos tenants reais da Peça 1** ("CRM SOZINHO" via `/crm/config/
+> agentes`, "CRM + MENSAGERIA" via `/mensageria/config` → SLA): clique real em "Salvar Canal"
+> nos 2 → `PUT → 200`, valores de teste reais persistidos e confirmados por SQL (URL/Key/
+> Instance diferentes em cada teste, provando que o dado realmente grava, não só "200 vazio")
+> · **prova isolada extra, direto no servidor** (token só com `mensageria-config`, sem
+> `crm-agentes-config` nem `configuracoes-campanhas`) → `PUT → 200` · token com
+> `permissoes: {}` → `403`, mensagem lista os 3 resources · **regressão confirmada em
+> Campanhas**: PUT idempotente (mesmos valores reais) no tenant real "Marketing Digital" com
+> token só `configuracoes-campanhas` → `200`, valores reais (`http://localhost:8081`,
+> `381Nb@729`, `trafegopago-wpp`) confirmados **byte-a-byte intactos** antes/depois em toda a
+> sequência de testes — nunca tocados. Todo dado de teste das outras 2 tenants restaurado a
+> `NULL` (estado original), confirmado por SQL. `npx tsc --noEmit`: **zero erros em todo o
+> projeto**.
+>
+> **Pendência real, achada mas não atacada nesta rodada:** `anthropicApiKey`,
+> `slackWebhookUrl` (campo legado, já sem efeito desde a Peça do Slack) e
+> `agentConfidenceThreshold` continuam sem NENHUM gate de permissão em `PUT /api/admin/
+> campanhas/settings` — qualquer usuário autenticado do tenant, de qualquer role, ainda pode
+> sobrescrevê-los. Diferente do Evolution (genuinamente compartilhado, por isso corrigido
+> agora), Threshold é Campanhas-only — faria sentido gatilhar só com `configuracoes-
+> campanhas` (sem OR), no mesmo padrão do `hasMeta`. Não corrigido agora pra não expandir o
+> escopo desta peça; registrado pra uma rodada dedicada, junto com o Achado 3 (2026-09-01,
+> os ~20 outros endpoints de Campanhas com o resource fantasma `campanhasmarketingdigital`).
+>
+> **Pendências reais restantes do desacoplamento** (peças 3-4, inalteradas):
+> 1. **Peça 3 (segredo do webhook de WhatsApp, em "Mecanismos")** — explicitamente adiada
+>    pelo usuário pra uma rodada própria — é a mais arriscada das 3 achadas originalmente
+>    (é o portão de entrada real de mensagem em produção).
+> 2. **`ClientSelector` mora em `components/marketing/`** mas é usado por CRM/Mensageria/
+>    Campanhas igualmente — mesmo tipo de acoplamento, explicitamente adiado pelo usuário.
+>
+> **Atualizado em:** 2026-09-01 (continuação 2) — **Peça 1 do desacoplamento concluída: a
+> cascata de LLM (Cliente→Tenant→Segmento→Global) saiu de dentro de `/admin/campanhas/
+> configuracoes` e virou um componente próprio, agora vivendo em `/crm/config/ia` e
+> `/mensageria/config` — alcançável por tenant que só contratou CRM ou só Mensageria, sem
+> precisar nunca visitar uma tela de Campanhas.**
+>
+> Continuação direta da entrada anterior (Slack pausado) — depois de fechar aquela peça, o
+> plano seguiu pra Peça 1 (cascata de LLM), a mais simples das 3 achadas na investigação.
+>
+> **Novo componente `src/components/crm/LlmCascadeSection.tsx`** — extraído de dentro de
+> `configuracoes/page.tsx` (não só copiado: reescrito pra ser theme-aware via prop `t` — mesmo
+> padrão já usado por `PromptOverrideCard.tsx`, o "irmão" desta cascata pro TEXTO do prompt em
+> vez do MODELO — em vez do Tailwind estático light-only que a versão original tinha, herdado
+> de quando só vivia dentro de Campanhas). Vive em `components/crm/` pelo mesmo motivo do
+> `PromptOverrideCard`: CRM é a origem/dona natural desta cascata no código, e Mensageria
+> reaproveita sem problema — mesmo precedente já aceito nesta base, evita inventar uma pasta
+> `shared/` nova sem necessidade. **Sem `UpdateGuard`/`PermissionGuard` de propósito** — nem
+> `/crm/config/ia` nem `/mensageria/config` usam gate client-side fino nos próprios botões de
+> salvar (confirmado lendo as duas antes de decidir); a reachability da PÁGINA já é o controle
+> real.
+>
+> **Achado mais sério que a UI, corrigido no mesmo passo — o servidor também bloqueava:** `PUT/
+> DELETE /api/admin/campanhas/settings/llm` continuava exigindo `requireApiPermission(...,
+> 'configuracoes-campanhas', 'UPDATE')` (o fix da sessão anterior, item 1.6b — trocou só o
+> resource fantasma por um real, mas ainda hardcoded pra Campanhas). Mesmo movendo a UI, um
+> tenant CRM-only ou Mensageria-only continuaria recebendo 403 ao tentar salvar, porque nunca
+> teria `configuracoes-campanhas` no `permissoes` do JWT (nunca contrataram Campanhas). Corrigido
+> com um helper novo e reutilizável, `requireAnyApiPermission(request, resources[], action)` em
+> `src/lib/auth/apiPermissions.ts` — passa se QUALQUER um dos resources bater, decodifica o
+> token uma vez só e reaproveita `checkDecodedPermission` já existente. A rota passou a checar
+> `['crm-settings', 'mensageria-config', 'configuracoes-campanhas']` — os 3 slugs reais que já
+> apontam pra cada caminho de acesso legítimo (o 3º mantido só por retrocompatibilidade, nunca
+> mais alcançável por UI depois desta mudança, mas inofensivo deixar).
+>
+> **Testado ao vivo, com tenants REAIS de teste já existentes** (achado bônus: "CRM SOZINHO" e
+> "CRM + MENSAGERIA" já existiam de sessões anteriores — nenhum tenant novo precisou ser
+> criado): tenant "CRM SOZINHO" (`admxyz`, só `crm-settings`/`crm-ai-intelligence` no JWT, nunca
+> `configuracoes-campanhas` nem `mensageria-config`) → `/crm/config/ia` renderizou a seção
+> "MODELO DE IA (LLM)" com o provider/modelo/API key REAIS já configurados (Groq/`openai/
+> gpt-oss-120b`), clique real em "Testar Conexão" → `200 OK`, clique real em "Salvar IA" → `PUT
+> → 200 OK` (antes do fix, seria `403` — o mesmo tenant nunca teve Campanhas contratada) — valor
+> persistido confirmado por SQL, idêntico ao que já estava lá (save idempotente, nada quebrou) ·
+> tenant "CRM + MENSAGERIA" (mesmo `admxyz`, token novo escopado a este tenant, `mensageria-
+> config` presente) → `/mensageria/config` → aba Bot renderizou a mesma seção logo abaixo da
+> Persona do Bot, com o tema escuro nativo da Mensageria (não o claro de Campanhas) — clique
+> real em "Salvar IA" → `PUT → 200 OK`, linha nova confirmada e depois removida (era só prova de
+> save, tenant não tinha override antes) · **prova isolada extra, direto no servidor** (token
+> fabricado só com `mensageria-config`, sem `crm-settings` nem `configuracoes-campanhas`) → `PUT
+> → 200` — confirma que o resource de Mensageria sozinho já basta, não depende de também ter CRM
+> · token com `permissoes: {}` → `403` com a mensagem explícita listando os 3 resources
+> checados — confirma que o gate continua sendo um gate de verdade, não uma porta escancarada ·
+> **regressão confirmada nos dois lados de Campanhas** (Master via `/admin/campanhas/
+> configuracoes` e tenant real "Marketing Digital" via o mesmo caminho): seção de LLM
+> genuinamente ausente nos dois (`hasLlmSection:false`, checado via regex case-insensitive
+> direto no `innerText`, não `get_page_text` — lição já registrada nesta sessão sobre falso-
+> negativo de maiúsculas) · Identidade Meta/WhatsApp/Agentes-Alertas-IA/Threshold — todos
+> presentes e intactos nas duas views, nenhuma seção vizinha afetada pela remoção. `npx tsc
+> --noEmit`: **zero erros em todo o projeto** (1 artefato stale de `.next/types/app/admin/
+> campanhas/configuracoes/page.ts`, mesmo padrão de cache já documentado várias vezes neste
+> arquivo, removido manualmente antes do check final).
+>
+> **Limpeza:** scripts de geração de token de teste (`scratch/gen-token.ts` e afins) removidos;
+> as 2 linhas de teste em `campanhasmarketingdigital."Settings"` criadas só pra provar o save
+> (tenant "CRM + MENSAGERIA") removidas — a de "CRM SOZINHO" já existia antes do teste (save
+> idempotente, sem resíduo).
+>
+> **Pendências reais, ainda não atacadas — o resto do plano de desacoplamento** (peças 2-4 da
+> entrada anterior, renumeradas):
+> 1. **Peça 2 (Evolution API URL/Key/Instance — canal de notificação dos agentes)** — Slack já
+>    pausado (entrada anterior); falta decidir onde WhatsApp/Evolution passam a ser
+>    configuráveis também por quem só tem CRM (hoje só existe em Campanhas). Candidato natural:
+>    `/crm/config/agentes`, que já existe e já é sobre "como os agentes do CRM se comunicam".
+> 2. **Peça 3 (segredo do webhook de WhatsApp, em "Mecanismos")** — explicitamente adiada pelo
+>    usuário pra uma rodada própria, dedicada só a ela — é a mais arriscada das 3 (é o portão
+>    de entrada real de mensagem em produção).
+> 3. **`ClientSelector` mora em `components/marketing/`** mas é usado por CRM/Mensageria/
+>    Campanhas igualmente — mesmo tipo de acoplamento das peças acima, explicitamente adiado
+>    pelo usuário ("depois teremos que resolver a questão do ClientSelector"). Achado incidental
+>    nesta rodada, mesma classe: `PromptOverrideCard`/`LlmCascadeSection` moram em `components/
+>    crm/` mas Mensageria também os usa — decisão consciente de seguir o mesmo precedente já
+>    aceito, não um novo problema a resolver agora.
+>
+> **Atualizado em:** 2026-09-01 (continuação) — **Notificações Slack desativadas em todo o
+> código (comentadas, reversíveis) — passo 1 de um desacoplamento maior entre Campanhas/CRM/
+> Mensageria que ainda está em andamento.**
+>
+> Contexto: investigando por que o teste do item 1.6b tinha ido parar numa tela de Campanhas
+> (ver entrada logo abaixo), o usuário perguntou "por que isso está em `/admin/campanhas/
+> configuracoes` se é do CRM?" — a investigação (minuciosa, a pedido dele) achou 3 peças de
+> configuração genuinamente compartilhadas entre módulos, hoje presas atrás do gate de um só:
+> (1) a cascata de LLM (só CRM/Mensageria usam, presa em Campanhas); (2) canal de notificação
+> dos agentes — Slack + Evolution (Campanhas E CRM usam, `notifyWhatsApp`/`notifySlack` em
+> `agentNotificador.ts` são chamadas tanto por `agentDecisor.ts` quanto por `crm/agents/
+> runner.ts`), preso em Campanhas; (3) o segredo do webhook de WhatsApp (`tenants.
+> evolution_webhook_secret`, o portão de entrada real de toda mensagem — CRM, Mensageria E
+> Campanhas dependem dele), preso em "Mecanismos" (Campanhas). Decisão do usuário: resolver
+> **por partes**, começando pela mais simples — em vez de desenhar um componente compartilhado
+> pra 2 canais (Slack+WhatsApp) de uma vez, **pausar Slack primeiro** (comentado, não apagado)
+> e desacoplar só WhatsApp/Evolution na peça 2, quando ela for atacada.
+>
+> **Implementado — `notifySlack()` neutralizada em `src/lib/marketing/services/
+> agentNotificador.ts`:** corpo da função substituído por um `return` imediato + o código
+> original preservado comentado logo abaixo (reativar = remover o `return` e descomentar).
+> Diff cirúrgico (9 linhas, só dentro da função) — nenhum dos ~6 arquivos que chamam
+> `notifySlack()` (`agentDecisor.ts`, `agentMonitor.ts`, `crm/agents/runner.ts`, `mensageria/
+> sla.ts`, `cron/campanhas/briefing/route.ts`) precisou mudar, já que todos chamam a função
+> isoladamente — ela só virou um no-op. `notifyWhatsApp()` (mesmo arquivo) **intocada**.
+>
+> **UI — campo "Slack Webhook URL" comentado (não removido) nas 3 telas onde existia:**
+> `/admin/campanhas/configuracoes` (`MasterSettingsView` + `TenantSettingsView`, 2 SectionCards
+> "Agentes, Alertas e IA"/"Configurações de Comunicação e Agentes") e `/admin/master/tenants`
+> (formulário de criar empresa + modal de editar, mesma estrutura nos 2). Estado
+> (`settings.slackWebhookUrl`/`newTenant.slack_webhook_url`/`editingTenant.slack_webhook_url`)
+> preservado — só o `<Field>`/`<input>` ficou comentado, reversível sem perder nada. Textos de
+> descrição das 2 SectionCards e o header "Slack · WhatsApp · Agentes · IA" (nas 2 telas de
+> tenant) atualizados pra não mencionar mais Slack. `/mensageria/config` (aba SLA) e o
+> componente `AgentesAceleracaoHelp.tsx` (usado em `/crm/config/agentes` e no modal do Master
+> em `/admin/master/segments`) também tiveram o texto ajustado — a última ganhou uma nota
+> explícita ("⏸️ Nota temporária") explicando a pausa, pra ninguém achar que é bug.
+>
+> **Testado ao vivo, com prova direta de rede, não só leitura de código:** script isolado
+> (`scratch/test-slack-noop.ts`, removido ao final) sobe um servidor HTTP local, aponta
+> `tenants.slack_webhook_url` do Master pra ele (webhook real e alcançável, não um endereço
+> morto — prova que a ausência de chamada é por causa do código, não por falta de config) e
+> chama `notifySlack()` direto → **0 requisições chegaram no listener**, confirmando que a
+> função genuinamente não tenta mais nada, não é só uma falha silenciosa mascarando uma
+> tentativa real. Valor original do Master (`https://hooks.slack.com/services/...`) restaurado
+> byte a byte, confirmado por SQL. UI verificada ao vivo nas 6 superfícies (sessões reais,
+> tenant "Marketing Digital"/`admmd` e Master/`admin`): Slack ausente em todas, Evolution/
+> Anthropic (legado)/Threshold/WhatsApp intactos e funcionando normalmente em todas.
+> `npx tsc --noEmit`: **zero erros em todo o projeto**.
+>
+> **Pendências reais desta frente, não atacadas ainda — o "resto do plano de
+> desacoplamento":**
+> 1. **Peça 1 (cascata de LLM)** — ainda precisa sair de `/admin/campanhas/configuracoes` de
+>    vez e entrar em `/crm/config/ia` + `/mensageria/config`. O componente `LlmCascadeSection`
+>    já existe (extraído nesta mesma sessão, antes da discussão de desacoplamento), mas ainda
+>    mora DENTRO do arquivo de Campanhas — precisa virar um arquivo próprio num local neutro
+>    (nome da pasta ainda não decidido com o usuário: `components/shared/` vs
+>    `components/tenant-config/`, pergunta feita mas nunca respondida — o usuário pivotou pra
+>    perguntar sobre Campanhas×Mensageria antes de decidir isso).
+> 2. **Peça 2 restante (Evolution API URL/Key/Instance — canal de notificação dos agentes)** —
+>    Slack já pausado; falta decidir onde WhatsApp/Evolution passam a ser configuráveis também
+>    por quem só tem CRM (hoje só existe em Campanhas). Candidato natural: `/crm/config/
+>    agentes`, que já existe e já é sobre "como os agentes do CRM se comunicam".
+> 3. **Peça 3 (segredo do webhook de WhatsApp, em "Mecanismos")** — explicitamente adiada pelo
+>    usuário pra uma rodada própria, dedicada só a ela — é a mais arriscada das 3 (é o portão
+>    de entrada real de mensagem em produção).
+> 4. **`ClientSelector` mora em `components/marketing/`** mas é usado por CRM/Mensageria/
+>    Campanhas igualmente — mesmo tipo de acoplamento das peças acima, achado no meio da
+>    discussão, explicitamente adiado pelo usuário ("depois teremos que resolver a questão do
+>    ClientSelector").
+>
+> **Atualizado em:** 2026-09-01 — **Item 1.6b do roteiro testado ponta a ponta: 2 bugs reais
+> encontrados e corrigidos — a cascata de LLM (Cliente→Tenant→Segmento→Global) nunca existiu na
+> tela real do tenant, e a rota de salvar/restaurar tinha uma permissão impossível de satisfazer
+> por qualquer tenant admin real.**
+>
+> **Achado 1 — `LlmCascadeSection` só existia em `MasterSettingsView`.**
+> `/admin/campanhas/configuracoes` tem 2 componentes totalmente separados
+> (`MasterSettingsView`/`TenantSettingsView`, escolhidos por `isMaster` no componente raiz) — a
+> seção "Inteligência Artificial (LLM)" (ClientSelector, Provider/Modelo, Testar Conexão,
+> Restaurar herança) só tinha sido implementada dentro de `MasterSettingsView`.
+> **`TenantSettingsView` — a tela que todo admin de tenant REAL vê — nunca teve essa seção.**
+> Só era alcançável logado como Master, editando a própria linha de `Settings` do tenant Master
+> Platform — o que nunca testa de verdade a cascata por CLIENTE (Master não gerencia "clientes"
+> de negócio da forma que um tenant gerencia). Explica por que isso nunca tinha sido pego antes:
+> qualquer teste anterior feito só como Master nunca alcançaria esse componente.
+>
+> **Corrigido:** extraída pra um componente novo e compartilhado, `LlmCascadeSection()`
+> (`src/app/admin/campanhas/configuracoes/page.tsx`) — autocontido (busca os próprios dados via
+> `getLlmSettings`/`getLlmModels`, não depende do `loadAll()` do host), plugado nas 2 views
+> (`MasterSettingsView` mantém a posição original; `TenantSettingsView` ganhou a seção nova,
+> logo após "Identidade Meta" e antes de "Agentes, Alertas e IA").
+>
+> **Achado 2 — `PUT/DELETE /api/admin/campanhas/settings/llm` checava permissão contra
+> `'campanhasmarketingdigital'`, um resource que não existe como `system_features.slug` em
+> lugar nenhum do banco.** Confirmado via SQL: nenhuma linha com esse slug existe. Como
+> `requireApiPermission` lê `decoded.permissoes[resource]` **direto da claim do JWT** (não busca
+> fresco no banco), e o bypass de tenant-admin (`getUserPermissions`, role com nome ILIKE
+> `%admin%`) só popula a `permissoes` com os slugs REAIS de `tenant_feature_overrides` — essa
+> chave nunca é populada pra ninguém, exceto Master (que bypassa o check inteiro por
+> `is_system_role`). **Resultado: nenhum tenant admin real, em nenhum tenant, jamais conseguiria
+> salvar ou restaurar o próprio modelo de LLM por essa rota — sempre 403, silenciosamente
+> mascarado em qualquer teste anterior feito só com token de Master.**
+>
+> **Corrigido nesta rota** (2 ocorrências, PUT+DELETE): `'campanhasmarketingdigital'` →
+> `'configuracoes-campanhas'` — o mesmo resource que o `UpdateGuard` client-side desta MESMA
+> tela já usa, e que de fato aparece no mapa de permissões real de um tenant admin.
+>
+> **Achado 3, mais amplo, sinalizado mas NÃO corrigido nesta rodada (fora do escopo do teste de
+> hoje):** o mesmo padrão (`requireApiPermission(request, 'campanhasmarketingdigital', ...)`)
+> aparece em **~20 outras rotas** do módulo de Campanhas (`settings/whatsapp`, `settings`,
+> `settings/meta-identity`, `iniciativas/*`, `configuracoes/redes`, `campaigns/*`,
+> `google/search-terms/negate`, `insights/sync` etc.) — todas com o mesmo resource-fantasma, e
+> `campaigns/route.ts:172` até documenta isso como "fallback legado" num comentário. Se esse
+> padrão for real em produção (não só neste ambiente de dev), **nenhum tenant admin real
+> consegue usar nenhuma dessas ~20 rotas** — só Master. Vale uma investigação dedicada numa
+> sessão futura pra confirmar o alcance real e decidir se corrige em massa (provável candidato:
+> trocar todas por `'configuracoes-campanhas'` ou o slug real de cada tela específica).
+>
+> **Testado ao vivo, ponta a ponta, os 7 passos do roteiro** (tenant real "Marketing Digital",
+> usuário real `admmd`, cliente real "AutoMax Veículos", sem nenhum override prévio): label
+> "Editando modelo para" + `ClientSelector` confirmados · valor original do tenant anotado
+> (`gemini`/`gemini-flash-latest`) · trocado pra `groq`, salvo, persistência confirmada via SQL
+> direto (não só pelo toast "Salvo") · "Testar Conexão" confirmado só no escopo tenant · cliente
+> sem override → aviso âmbar + "— Sem override (herda a cascata) —" selecionado, confirmados via
+> `innerText` real do DOM · escolhido `anthropic`/`claude-sonnet-4-5` pro cliente, salvo → aviso
+> âmbar some, "Restaurar herança" aparece, confirmado no banco (linha nova com `client_id` real,
+> linha do tenant intocada) · voltado pra "Minha Empresa" → confirmado `groq`/`llama-4-scout`
+> exatos, sem nenhuma contaminação do valor do cliente · voltado pro cliente + "Restaurar
+> herança" → aviso âmbar reaparece, `DELETE` real confirmado (`count(*)=0` de overrides) ·
+> tenant restaurado ao valor original exato (`gemini`/`gemini-flash-latest`), API key real
+> preservada (nunca sobrescrita, campo sempre deixado vazio nos testes — `COALESCE` do PUT
+> funcionando). `npx tsc --noEmit`: **zero erros em todo o projeto**.
+>
 > **Atualizado em:** 2026-08-31 (continuação 5) — **`/admin/master/segments`: os 11 botões-ícone
 > da coluna "Ações" (cada um só com um `title=` de hover como documentação) viram 1 único botão
 > "Regimento do Segmento".**

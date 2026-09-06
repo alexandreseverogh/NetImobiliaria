@@ -40,6 +40,11 @@ export const SEGMENT_SEED_DEFAULTS: Record<string, { value: number; label: strin
   pressure_w_quality:    { value: 0.25, label: 'Peso Qualidade (Pressão)',  unit: 'NUM', description: 'Peso do quality_ranking no índice de pressão' },
   // FASE 1 (Google Ads) — regra IMPRESSION_SHARE_OPPORTUNITY
   is_lost_budget_scale_min: { value: 20, label: 'IS Lost Budget p/ Escalar (%)', unit: 'PCT', description: 'IS perdido por orçamento acima disso + CPL bom → oportunidade real de aumentar verba' },
+  // Tier 2 do plano "Loop do ICP" (2026-09-04) — só entra na decisão quando o segmento tem
+  // qualificação por IA ativa (crm_ia_ativa) e os leads da campanha têm score_fit real; sem
+  // dado, a regra de SCALE nunca é bloqueada por isso (nunca penaliza tenant sem CRM contratado
+  // ou sem segmento curado — ver docs/CHECKPOINT.md).
+  avg_fit_scale_min: { value: 40, label: 'Fit Médio Mín. p/ Escalar', unit: 'NUM', description: 'Média de score_fit (0-100) dos leads da campanha no período — abaixo disso, SCALE não dispara mesmo com CTR/volume bons (leads sem perfil de comprador real)' },
   // docs/PLANO_TIKTOK.md §8.5 — motor de realocação cross-rede (T4)
   realloc_min_cpl_gap_pct:      { value: 30, label: 'Vantagem Mín. p/ Realocar (%)',    unit: 'PCT', description: 'Diferença de CPL entre origem e destino, mínima pra propor realocação' },
   realloc_max_pct_of_source:    { value: 30, label: 'Teto de Retirada da Origem (%)',   unit: 'PCT', description: 'Máximo do budget da origem que pode ser realocado numa proposta' },

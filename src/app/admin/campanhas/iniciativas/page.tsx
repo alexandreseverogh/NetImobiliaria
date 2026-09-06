@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { formatCurrency } from '@/lib/marketing-utils';
 import { PlusIcon, FlagIcon, ArrowRightIcon, CalendarIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
 import { CreateGuard } from '@/components/admin/PermissionGuard';
-import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
+import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector';
 
 type InitiativeStatus = 'PLANNED' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
 

@@ -14,7 +14,7 @@ import { adminFetch } from '@/lib/auth/adminFetch'
 import DateInputPtBR from '@/components/ui/DateInputPtBR'
 import DayHourHeatmap from '@/components/marketing/charts/DayHourHeatmap'
 import HourlyVolumeBar from '@/components/marketing/charts/HourlyVolumeBar'
-import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector'
+import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector'
 
 const CTA_LABELS: Record<string, string> = {
   WHATSAPP_MESSAGE: 'WhatsApp', LEARN_MORE: 'Saiba Mais', SHOP_NOW: 'Comprar Agora',

@@ -12,7 +12,7 @@ import {
   FunnelIcon, ChatBubbleLeftRightIcon, InformationCircleIcon,
 } from '@heroicons/react/24/outline'
 import { adminFetch } from '@/lib/auth/adminFetch'
-import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector'
+import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector'
 import DateInputPtBR from '@/components/ui/DateInputPtBR'
 
 const PAGE_SIZE = 20

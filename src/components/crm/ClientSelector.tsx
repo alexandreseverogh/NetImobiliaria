@@ -1,6 +1,16 @@
 "use client";
 /**
- * ClientSelector — Seletor de contexto de cliente para o módulo de campanhas.
+ * ClientSelector — Seletor de contexto de cliente (Minha Empresa / Cliente específico / Todos
+ * do segmento). Nasceu no módulo de Campanhas, mas Peça 4 do desacoplamento (docs/
+ * CHECKPOINT.md, 2026-09-02) — genuinamente usado também por CRM (`/crm/config/ia`,
+ * `/crm/config/agentes`, `/crm/kanban`) e Mensageria (`/mensageria/config`), sem nenhum gate
+ * de permissão real por trás (o endpoint que o hook consome, `GET /api/admin/campanhas/
+ * clients`, já é acessível pra qualquer usuário autenticado do tenant) — movido de
+ * `components/marketing/` pra `components/crm/` pelo mesmo motivo/precedente de
+ * `PromptOverrideCard`/`LlmCascadeSection`/`AgentWhatsAppChannelSection`/
+ * `WhatsAppWebhookSection`: CRM é a origem/dona natural deste tipo de componente
+ * compartilhado nesta base. O endpoint em si continua sob `/api/admin/campanhas/clients` —
+ * renomear/mover a ROTA é uma decisão maior, ainda em aberto, fora do escopo desta peça.
  *
  * variant='dropdown' (padrão):
  *   Botão dropdown glassmorphism com todas as opções.

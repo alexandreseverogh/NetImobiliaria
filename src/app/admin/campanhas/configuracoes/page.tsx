@@ -4,22 +4,19 @@ import { useState, useEffect, useRef } from 'react';
 import {
   getSettings, updateSettings,
   getWhatsAppConfig, updateWhatsAppConfig,
-  getLlmSettings, updateLlmSettings, deleteLlmSettings, testLlmConnection, testWhatsAppBriefing,
-  getLlmModels,
+  testWhatsAppBriefing,
   getClientCreativePaths, updateClientCreativePath,
   getMetaIdentity, updateMetaIdentity,
-  type LlmModelOption, type LlmModelsResponse, type ClientWithCreativesPath,
+  type ClientWithCreativesPath,
   type MetaIdentitySettings,
 } from '@/lib/marketing-api';
 import {
   Cog6ToothIcon,
-  CpuChipIcon,
   ChatBubbleLeftRightIcon,
   GlobeAltIcon,
   ArrowRightIcon,
   CheckCircleIcon,
   XCircleIcon,
-  WifiIcon,
   FolderOpenIcon,
   MagnifyingGlassIcon,
   UserCircleIcon,
@@ -35,25 +32,9 @@ import {
 } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/marketing-utils';
 import { UpdateGuard } from '@/components/admin/PermissionGuard';
-import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
+import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector';
 
 // ─── Helpers compartilhados ───────────────────────────────────────────────────
-
-function Stars({ score }: { score: number }) {
-  return (
-    <span className="text-amber-400 text-sm tracking-tight">
-      {'★'.repeat(score)}{'☆'.repeat(5 - score)}
-    </span>
-  );
-}
-
-function Badge({ children, color }: { children: React.ReactNode; color: string }) {
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ${color}`}>
-      {children}
-    </span>
-  );
-}
 
 function Field({
   label, value, onChange, placeholder, type = 'text', hint,
@@ -106,20 +87,6 @@ function SectionCard({ icon: Icon, title, description, children }: {
       <div className="p-6 space-y-4">{children}</div>
     </div>
   );
-}
-
-function getKeyHint(provider: string): string {
-  const hints: Record<string, string> = {
-    anthropic:  'Obtenha em: console.anthropic.com',
-    openai:     'Obtenha em: platform.openai.com/api-keys',
-    gemini:     'Obtenha em: aistudio.google.com/app/apikey',
-    groq:       'Obtenha em: console.groq.com/keys',
-    deepseek:   'Obtenha em: platform.deepseek.com',
-    openrouter: 'Obtenha em: openrouter.ai/keys',
-    kimi:       'Obtenha em: platform.moonshot.cn',
-    qwen:       'Obtenha em: dashscope.aliyuncs.com (chave "DashScope")',
-  };
-  return hints[provider] || 'Consulte a documentação do provider para obter a API Key';
 }
 
 // ─── Seção Identidade Meta ────────────────────────────────────────────────────
@@ -399,41 +366,17 @@ function MasterSettingsView() {
     phoneNumber: '', defaultMessage: '', businessName: '',
   });
 
-  const [llmProvider,   setLlmProvider]   = useState('anthropic');
-  const [llmModel,      setLlmModel]       = useState('claude-sonnet-4-5');
-  const [llmApiKey,     setLlmApiKey]      = useState('');
-  const [llmApiKeySet,  setLlmApiKeySet]   = useState(false);
-  const [llmModels,     setLlmModels]      = useState<LlmModelsResponse | null>(null);
-  const [llmSaving,     setLlmSaving]      = useState(false);
-  const [llmSaved,      setLlmSaved]       = useState(false);
-  const [llmTesting,    setLlmTesting]     = useState(false);
-  const [llmTestResult, setLlmTestResult]  = useState<{ success: boolean; message: string } | null>(null);
-  const [llmLoading,    setLlmLoading]     = useState(false);
-  const [llmHasOverride, setLlmHasOverride] = useState(false);
-
-  // Escopo do MODELO de LLM (docs/CHECKPOINT.md, 2026-08-28) — cascata Cliente→Tenant→
-  // Segmento→Global, só CRM/Mensageria (Campanhas continua com o modelo global único do
-  // Master, de propósito). 'own' = editando a config do próprio tenant; uuid = editando o
-  // override de um cliente específico (o admin do tenant cadastra em nome dele, já que
-  // cliente nunca loga na aplicação).
-  const { clients: llmClients, loading: llmClientsLoading, clientFilter: llmClientFilter, setClientFilter: setLlmClientFilter } =
-    useClientSelector('campanhas-config-llm-cliente');
-  const llmScopeClientId = llmClientFilter === 'own' || llmClientFilter === 'segment' ? null : llmClientFilter;
-
   const [briefingTesting,    setBriefingTesting]    = useState(false);
   const [briefingTestResult, setBriefingTestResult] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
 
-  const providerModels: LlmModelOption[] = llmModels?.providers[llmProvider]?.models || [];
-  const selectedModel = providerModels.find(m => m.modelId === llmModel);
-
   useEffect(() => { loadAll(); }, []);
 
   async function loadAll() {
     try {
-      const [s, w, l, m] = await Promise.all([
-        getSettings(), getWhatsAppConfig(), getLlmSettings(), getLlmModels(),
+      const [s, w] = await Promise.all([
+        getSettings(), getWhatsAppConfig(),
       ]);
       setSettings({
         metaAppId:     s.metaAppId     || '',
@@ -454,87 +397,7 @@ function MasterSettingsView() {
         defaultMessage: w.defaultMessage || '',
         businessName:   w.businessName   || '',
       });
-      setLlmProvider(l.llmProvider || 'anthropic');
-      setLlmModel(l.llmModel       || 'claude-sonnet-4-5');
-      setLlmApiKeySet(l.llmApiKeySet);
-      setLlmHasOverride(!!(l.llmProvider || l.llmModel || l.llmApiKeySet));
-      setLlmModels(m);
     } catch { /* primeiro carregamento pode falhar */ }
-  }
-
-  // Recarrega só o bloco de LLM quando o escopo (tenant vs. cliente) muda — o restante da
-  // página (Meta, WhatsApp, caminhos de criativos) nunca depende disso.
-  async function loadLlmForScope(clientId: string | null) {
-    setLlmLoading(true);
-    setLlmTestResult(null);
-    try {
-      const l = await getLlmSettings(clientId);
-      // Sem override no nível do cliente, os 3 campos vêm null (rota já sinaliza isso) — não
-      // finge um valor herdado aqui, deixa a UI mostrar honestamente "sem override próprio".
-      setLlmProvider(l.llmProvider || (clientId ? '' : 'anthropic'));
-      setLlmModel(l.llmModel || (clientId ? '' : 'claude-sonnet-4-5'));
-      setLlmApiKeySet(l.llmApiKeySet);
-      setLlmHasOverride(!!(l.llmProvider || l.llmModel || l.llmApiKeySet));
-      setLlmApiKey('');
-    } catch { /* mantém o estado anterior visível em vez de zerar tudo */ }
-    finally { setLlmLoading(false); }
-  }
-
-  useEffect(() => {
-    // No mount, loadAll() já carrega o próprio tenant — só recarrega quando o escopo
-    // efetivamente vira um cliente específico ou volta pro tenant depois disso.
-    if (llmModels) loadLlmForScope(llmScopeClientId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [llmScopeClientId]);
-
-  function handleProviderChange(p: string) {
-    setLlmProvider(p);
-    const provModels = llmModels?.providers[p]?.models || [];
-    const recommended = provModels.find(m => m.isRecommended) || provModels[0];
-    if (recommended) setLlmModel(recommended.modelId);
-    setLlmTestResult(null);
-  }
-
-  async function handleSaveLlm() {
-    setLlmSaving(true);
-    try {
-      const payload: any = { llmProvider, llmModel, clientId: llmScopeClientId };
-      if (llmApiKey) payload.llmApiKey = llmApiKey;
-      await updateLlmSettings(payload);
-      setLlmSaved(true);
-      setLlmApiKeySet(!!llmApiKey || llmApiKeySet);
-      setLlmHasOverride(true);
-      setLlmApiKey('');
-      setTimeout(() => setLlmSaved(false), 3000);
-    } catch { alert('Erro ao salvar configuração LLM'); }
-    finally { setLlmSaving(false); }
-  }
-
-  async function handleRestoreLlm() {
-    if (!llmScopeClientId) return;
-    if (!confirm('Restaurar a herança da cascata pra este cliente, apagando o modelo próprio dele?')) return;
-    setLlmSaving(true);
-    try {
-      await deleteLlmSettings(llmScopeClientId);
-      await loadLlmForScope(llmScopeClientId);
-    } catch { alert('Erro ao restaurar configuração LLM'); }
-    finally { setLlmSaving(false); }
-  }
-
-  async function handleTestLlm() {
-    setLlmTesting(true);
-    setLlmTestResult(null);
-    try {
-      const r = await testLlmConnection();
-      setLlmTestResult({
-        success: r.success,
-        message: r.success
-          ? `Conectado — ${r.provider} / ${r.model}`
-          : (r.error || 'Falha na conexão'),
-      });
-    } catch {
-      setLlmTestResult({ success: false, message: 'Erro de conexão' });
-    } finally { setLlmTesting(false); }
   }
 
   async function handleSave() {
@@ -548,12 +411,6 @@ function MasterSettingsView() {
       alert(`Erro ao salvar configurações:\n${detail}`);
     } finally { setSaving(false); }
   }
-
-  const providerList = llmModels
-    ? Object.entries(llmModels.providers).map(([key, val]: [string, any]) => ({ key, label: val.label }))
-    : [{ key: 'anthropic', label: 'Anthropic' }];
-
-  const selectCls = "w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all";
 
   return (
     <div className="space-y-6">
@@ -597,119 +454,10 @@ function MasterSettingsView() {
       {/* ── Identidade Meta — Page ID, Pixel, Instagram, Website ─── */}
       <MetaIdentitySection />
 
-      {/* ── LLM ─── */}
-      <SectionCard icon={CpuChipIcon} title="Inteligência Artificial (LLM)"
-        description="Modelo usado pelo CRM/Mensageria — cascata Cliente → Tenant → Segmento → Global (docs/CHECKPOINT.md). Campanhas de Marketing Digital sempre usa o modelo global do Master, à parte.">
-        <div className="flex items-center justify-between flex-wrap gap-3 -mt-1 mb-1">
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Editando modelo para</p>
-          <ClientSelector
-            value={llmClientFilter}
-            onChange={setLlmClientFilter}
-            clients={llmClients}
-            loading={llmClientsLoading}
-            variant="toggle"
-            allowSegment={false}
-            storageKey="campanhas-config-llm-cliente"
-          />
-        </div>
-
-        {llmScopeClientId && !llmLoading && !llmHasOverride && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
-            Este cliente ainda não tem modelo próprio — está herdando do tenant (ou do padrão do
-            segmento, se o tenant também não tiver). Escolha um provider/modelo abaixo e salve
-            pra criar um override só pra ele.
-          </div>
-        )}
-
-        <div>
-          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Provider</label>
-          <select value={llmProvider} onChange={e => handleProviderChange(e.target.value)} className={selectCls} disabled={llmLoading}>
-            {llmScopeClientId && <option value="">— Sem override (herda a cascata) —</option>}
-            {providerList.map(p => (
-              <option key={p.key} value={p.key}>{p.label}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Modelo</label>
-          {providerModels.length > 0 ? (
-            <select value={llmModel} onChange={e => setLlmModel(e.target.value)} className={selectCls}>
-              {providerModels.map(m => (
-                <option key={m.modelId} value={m.modelId}>
-                  {m.modelLabel}{m.isRecommended ? ' ⭐' : ''}{m.isFree ? ' 🆓' : ''}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input type="text" value={llmModel} onChange={e => setLlmModel(e.target.value)}
-              placeholder="ID do modelo"
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all" />
-          )}
-        </div>
-
-        {selectedModel && (
-          <div className="bg-indigo-50 rounded-xl p-3 flex flex-wrap items-center gap-3">
-            <Stars score={selectedModel.qualityScore} />
-            {selectedModel.isFree && <Badge color="bg-emerald-100 text-emerald-700">🆓 Tier gratuito</Badge>}
-            {selectedModel.isRecommended && <Badge color="bg-blue-100 text-blue-700">⭐ Recomendado</Badge>}
-            {selectedModel.contextWindow && (
-              <Badge color="bg-violet-100 text-violet-700">
-                {selectedModel.contextWindow >= 1000000
-                  ? `${(selectedModel.contextWindow / 1000000).toFixed(1)}M tokens`
-                  : `${Math.round(selectedModel.contextWindow / 1000)}k tokens`}
-              </Badge>
-            )}
-            {selectedModel.notes && <span className="text-xs text-gray-500 w-full">{selectedModel.notes}</span>}
-          </div>
-        )}
-
-        <Field
-          label={llmApiKeySet ? 'API Key (já configurada — deixe vazio para manter)' : 'API Key'}
-          value={llmApiKey}
-          onChange={setLlmApiKey}
-          placeholder={llmApiKeySet ? '••••••••' : 'Cole sua API Key aqui'}
-          type="password"
-          hint={getKeyHint(llmProvider)}
-        />
-
-        <div className="flex items-center gap-3 flex-wrap pt-1">
-          <UpdateGuard resource="configuracoes-campanhas">
-            <button onClick={handleSaveLlm} disabled={llmSaving}
-              className="px-5 py-2.5 bg-gold-premium text-navy-dark text-xs font-black uppercase tracking-widest rounded-xl hover:bg-gold transition-colors disabled:opacity-50">
-              {llmSaving ? 'Salvando...' : 'Salvar IA'}
-            </button>
-          </UpdateGuard>
-          {!llmScopeClientId && (
-            <button onClick={handleTestLlm} disabled={llmTesting}
-              className="px-5 py-2.5 bg-gray-100 text-gray-700 text-xs font-black uppercase tracking-widest rounded-xl hover:bg-gray-200 active:scale-95 transition-all disabled:opacity-50">
-              <span className="flex items-center gap-2">
-                <WifiIcon className="h-3.5 w-3.5" />
-                {llmTesting ? 'Testando...' : 'Testar Conexão'}
-              </span>
-            </button>
-          )}
-          {llmScopeClientId && llmHasOverride && (
-            <UpdateGuard resource="configuracoes-campanhas">
-              <button onClick={handleRestoreLlm} disabled={llmSaving}
-                className="px-5 py-2.5 bg-white border border-amber-300 text-amber-600 text-xs font-black uppercase tracking-widest rounded-xl hover:bg-amber-50 transition-colors disabled:opacity-50">
-                Restaurar herança
-              </button>
-            </UpdateGuard>
-          )}
-          {llmSaved && (
-            <span className="flex items-center gap-1.5 text-xs font-black text-emerald-600">
-              <CheckCircleIcon className="h-4 w-4" /> Salvo
-            </span>
-          )}
-          {llmTestResult && (
-            <span className={`flex items-center gap-1.5 text-xs font-black ${llmTestResult.success ? 'text-emerald-600' : 'text-red-500'}`}>
-              {llmTestResult.success ? <CheckCircleIcon className="h-4 w-4" /> : <XCircleIcon className="h-4 w-4" />}
-              {llmTestResult.message}
-            </span>
-          )}
-        </div>
-      </SectionCard>
+      {/* Modelo de LLM (cascata Cliente→Tenant→Segmento→Global) removido daqui em 2026-09-01 —
+          nunca foi sobre Campanhas (que usa getLlmClientForCampaigns, sempre global, à parte);
+          serve só CRM/Mensageria, agora em /crm/config/ia e /mensageria/config
+          (LlmCascadeSection, components/crm/). Ver docs/CHECKPOINT.md. */}
 
       {/* ── WhatsApp ─── */}
       <SectionCard icon={ChatBubbleLeftRightIcon} title="WhatsApp"
@@ -766,10 +514,13 @@ function MasterSettingsView() {
       </SectionCard>
 
       {/* ── Configurações de Comunicação e Agentes (Slack, Evolution, IA) ─── */}
-      <SectionCard icon={Cog6ToothIcon} title="Configurações de Comunicação e Agentes" description="WhatsApp, Slack, IA e Threshold do Agente">
-        <Field label="Slack Webhook URL" value={settings.slackWebhookUrl}
+      <SectionCard icon={Cog6ToothIcon} title="Configurações de Comunicação e Agentes" description="WhatsApp, IA e Threshold do Agente">
+        {/* ⏸️ Slack Webhook URL — desativado junto com notifySlack() (2026-09-01), campo
+            escondido pra não sugerir uma capacidade que hoje não tem efeito nenhum. Estado
+            (settings.slackWebhookUrl) preservado — reativar só descomentando este bloco. */}
+        {/* <Field label="Slack Webhook URL" value={settings.slackWebhookUrl}
           onChange={v => setSettings(s => ({ ...s, slackWebhookUrl: v }))}
-          placeholder="https://hooks.slack.com/services/..." />
+          placeholder="https://hooks.slack.com/services/..." /> */}
         <Field label="Evolution API URL" value={settings.evolutionApiUrl}
           onChange={v => setSettings(s => ({ ...s, evolutionApiUrl: v }))}
           placeholder="http://localhost:8080" />
@@ -1219,11 +970,18 @@ function TenantSettingsView() {
       {/* ── Identidade Meta ── */}
       <MetaIdentitySection />
 
+      {/* Modelo de LLM (cascata Cliente→Tenant→Segmento→Global) removido daqui em 2026-09-01 —
+          nunca foi sobre Campanhas; serve só CRM/Mensageria, agora em /crm/config/ia e
+          /mensageria/config (LlmCascadeSection, components/crm/). Ver docs/CHECKPOINT.md. */}
+
       {/* ── Comunicação e Inteligência ── */}
-      <SectionCard icon={Cog6ToothIcon} title="Agentes, Alertas e IA" description="Configurações de notificações do WhatsApp, Slack e chaves de IA do Tenant">
-        <Field label="Slack Webhook URL" value={settings.slackWebhookUrl}
+      <SectionCard icon={Cog6ToothIcon} title="Agentes, Alertas e IA" description="Configurações de notificações do WhatsApp e chaves de IA do Tenant">
+        {/* ⏸️ Slack Webhook URL — desativado junto com notifySlack() (2026-09-01), campo
+            escondido pra não sugerir uma capacidade que hoje não tem efeito nenhum. Estado
+            (settings.slackWebhookUrl) preservado — reativar só descomentando este bloco. */}
+        {/* <Field label="Slack Webhook URL" value={settings.slackWebhookUrl}
           onChange={v => setSettings(s => ({ ...s, slackWebhookUrl: v }))}
-          placeholder="https://hooks.slack.com/services/..." />
+          placeholder="https://hooks.slack.com/services/..." /> */}
         <Field label="Evolution API URL" value={settings.evolutionApiUrl}
           onChange={v => setSettings(s => ({ ...s, evolutionApiUrl: v }))}
           placeholder="http://localhost:8080" />

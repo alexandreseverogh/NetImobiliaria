@@ -4,8 +4,15 @@ export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/cron/campanhas/sync
- * Dispara sincronização de insights Meta + decisor para todos os tenants.
- * Protegido por CRON_SECRET para uso por schedulers externos.
+ * Dispara sincronização de insights Meta + decisor + agente de negativação (A6) + motor de
+ * realocação cross-rede (T4) para todos os tenants.
+ *
+ * Este MESMO ciclo já roda sozinho, automaticamente, dentro do próprio processo do Next.js
+ * (src/lib/marketing/services/agentMonitor.ts, `startAgentMonitor()`, disparado 1x por
+ * `src/instrumentation.ts` quando o servidor sobe — AGENT_SYNC_SCHEDULE, default a cada 6h).
+ * Esta rota HTTP é o gatilho manual/externo (fallback pra scheduler externo, teste, ou forçar
+ * um ciclo fora da janela) — protegida por CRON_SECRET. Nunca agendar as duas juntas pro mesmo
+ * horário: dobraria as chamadas reais às redes de anúncio (achado real, corrigido 2026-09-03).
  */
 export async function POST(request: NextRequest) {
   const secret = request.headers.get('x-cron-secret');

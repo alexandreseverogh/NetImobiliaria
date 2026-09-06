@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/database/connection';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
-import { requireApiPermission } from '@/lib/auth/apiPermissions';
+import { requireAnyApiPermission } from '@/lib/auth/apiPermissions';
+
+// Endpoint genuinamente compartilhado (docs/CHECKPOINT.md, 2026-09-01) — mesmo mora sob
+// /api/admin/campanhas/* por herança de onde a tela original vivia, quem de fato consome a
+// cascata (getLlmClient) é CRM e Mensageria; Campanhas usa getLlmClientForCampaigns, sempre
+// global, nunca chama esta rota por clientId. Qualquer um dos 3 resources abaixo já prova que
+// o tenant chegou aqui por um caminho legítimo (/crm/config/ia, /mensageria/config, ou —
+// mantido por retrocompatibilidade — /admin/campanhas/configuracoes).
+const LLM_SETTINGS_RESOURCES = ['crm-settings', 'mensageria-config', 'configuracoes-campanhas'];
 
 export const dynamic = 'force-dynamic';
 
@@ -57,8 +65,7 @@ export async function GET(request: NextRequest) {
 // PUT /api/admin/campanhas/settings/llm — body: { llmProvider?, llmModel?, llmApiKey?, clientId? }
 export async function PUT(request: NextRequest) {
   try {
-    // Verificar permissão de edição server-side
-    const denied = await requireApiPermission(request, 'campanhasmarketingdigital', 'UPDATE');
+    const denied = await requireAnyApiPermission(request, LLM_SETTINGS_RESOURCES, 'UPDATE');
     if (denied) return denied;
 
     const payload = getTokenPayload(request);
@@ -108,7 +115,7 @@ export async function PUT(request: NextRequest) {
 // pra este cliente (apaga só a linha de override dele, nunca a do tenant).
 export async function DELETE(request: NextRequest) {
   try {
-    const denied = await requireApiPermission(request, 'campanhasmarketingdigital', 'UPDATE');
+    const denied = await requireAnyApiPermission(request, LLM_SETTINGS_RESOURCES, 'UPDATE');
     if (denied) return denied;
 
     const payload = getTokenPayload(request);

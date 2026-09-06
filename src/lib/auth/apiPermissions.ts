@@ -100,6 +100,56 @@ export async function requireApiPermission(
 }
 
 /**
+ * Variante "qualquer um destes recursos" — pra endpoints genuinamente compartilhados entre
+ * módulos contratáveis independentemente (ex.: a cascata de LLM de CRM+Mensageria, salva no
+ * mesmo endpoint que hoje mora sob /api/admin/campanhas/*). `requireApiPermission` sozinho
+ * amarraria o endpoint a UM módulo só — nenhum tenant que só contratou outro módulo jamais
+ * teria aquele resource no `permissoes` do JWT, mesmo sendo o legítimo dono do dado. Passa se
+ * QUALQUER um dos resources bater a ação exigida (Master sempre passa, como de costume).
+ *
+ * @example
+ *   const denied = await requireAnyApiPermission(request, ['crm-settings', 'mensageria-config'], 'UPDATE')
+ *   if (denied) return denied
+ */
+export async function requireAnyApiPermission(
+  request: NextRequest,
+  resources: string[],
+  action: ApiPermissionAction,
+): Promise<NextResponse | null> {
+  const token = getTokenFromRequest(request)
+
+  if (!token) {
+    return NextResponse.json(
+      { error: 'Não autenticado' },
+      { status: 401 },
+    )
+  }
+
+  const decoded = await verifyToken(token)
+
+  if (!decoded) {
+    return NextResponse.json(
+      { error: 'Token inválido ou expirado' },
+      { status: 401 },
+    )
+  }
+
+  const authorized = resources.some(resource => checkDecodedPermission(decoded, resource, action))
+
+  if (!authorized) {
+    return NextResponse.json(
+      {
+        error: 'Acesso negado',
+        detail: `Sem permissão para "${action}" em nenhum de: ${resources.join(', ')}`,
+      },
+      { status: 403 },
+    )
+  }
+
+  return null // ✅ autorizado por pelo menos um dos resources
+}
+
+/**
  * Versão síncrona para quando o token já está decodificado.
  * Útil quando a rota já chamou verifyToken para outras verificações.
  *

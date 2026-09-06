@@ -11,6 +11,7 @@ import {
   UploadResult,
   DateRange,
 } from '../types';
+import { assertGoogleInsightsRows } from '../apiSchemas';
 
 export interface GoogleCredentials {
   developer_token: string;
@@ -35,6 +36,50 @@ function firstResourceName(mutateResponse: any): string {
     throw new Error('Google Ads API não retornou resource_name na mutação');
   }
   return resourceName;
+}
+
+/**
+ * Achado da auditoria "O Loop Quebrado do ICP" (2026-09-03): `createCampaign()` sempre mandava
+ * `bidding_strategy_type: MAXIMIZE_CONVERSIONS` fixo, mesmo quando `GoogleCampaignInput.
+ * biddingStrategy` (já coletado corretamente pela UI, `GoogleAiMaxWizard.tsx`) pedia TCPA/TROAS
+ * — a escolha do usuário nunca chegava na campanha real. Nomes de campo confirmados direto do
+ * SDK (`node_modules/google-ads-api/build/src/protos/autogen/fields.d.ts`):
+ * `campaign.target_cpa.target_cpa_micros` / `campaign.target_roas.target_roas`.
+ *
+ * Unidades — `biddingTarget` do wizard reaproveita a MESMA convenção de `budget` (× 100 na UI,
+ * "centavos"), mesmo pro campo de ROAS (%), então a conversão de volta não é simétrica entre os
+ * dois tipos:
+ *   TCPA:  biddingTarget = reais × 100 (centavos)  → target_cpa_micros = biddingTarget × 10.000
+ *          (ex.: usuário digita R$50,00 → biddingTarget=5000 → 50.000.000 micros = R$50,00 real)
+ *   TROAS: biddingTarget = percentual × 100         → target_roas = biddingTarget / 10.000
+ *          (ex.: usuário digita 200% → biddingTarget=20000 → target_roas=2.0, a fração que a
+ *          API espera — 1.0 = 100% de retorno)
+ */
+export function resolveGoogleBiddingStrategy(
+  biddingStrategy: GoogleCampaignInput['biddingStrategy'],
+): Record<string, any> {
+  const { type, targetValue } = biddingStrategy;
+
+  if (type === 'TCPA' && typeof targetValue === 'number' && targetValue > 0) {
+    return {
+      bidding_strategy_type: enums.BiddingStrategyType.TARGET_CPA,
+      target_cpa: { target_cpa_micros: Math.round(targetValue * 10_000) },
+    };
+  }
+
+  if (type === 'TROAS' && typeof targetValue === 'number' && targetValue > 0) {
+    return {
+      bidding_strategy_type: enums.BiddingStrategyType.TARGET_ROAS,
+      target_roas: { target_roas: targetValue / 10_000 },
+    };
+  }
+
+  // MAXIMIZE_CONVERSIONS (default) — ou TCPA/TROAS pedido sem valor alvo válido, nunca manda
+  // um bidding_strategy_type incompatível com um sub-objeto ausente/zerado pra API real.
+  return {
+    bidding_strategy_type: enums.BiddingStrategyType.MAXIMIZE_CONVERSIONS,
+    maximize_conversions: {},
+  };
 }
 
 /** `customers/123/campaigns/456` → `456` */
@@ -126,13 +171,14 @@ export class GoogleAdsAdapter implements AdNetworkService {
       const budgetResourceName = firstResourceName(budgetResult);
 
       // 2. Create Performance Max Campaign
+      // FASE ICP Tier 1, Gap 2 — bidding strategy real do input, não mais MAXIMIZE_CONVERSIONS
+      // fixo (ver resolveGoogleBiddingStrategy acima).
       const campaignResult = await this.customer.campaigns.create([{
         name: gInput.name,
         campaign_budget: budgetResourceName,
         advertising_channel_type: enums.AdvertisingChannelType.PERFORMANCE_MAX,
         status: enums.CampaignStatus.PAUSED,
-        bidding_strategy_type: enums.BiddingStrategyType.MAXIMIZE_CONVERSIONS,
-        maximize_conversions: {},
+        ...resolveGoogleBiddingStrategy(gInput.biddingStrategy),
       }]);
       const campaignResourceName = firstResourceName(campaignResult);
       const campaignId = idFromResourceName(campaignResourceName);
@@ -312,6 +358,7 @@ export class GoogleAdsAdapter implements AdNetworkService {
           AND segments.date <= '${dateRange.until}'
       `;
       const response = await this.customer.query(query);
+      assertGoogleInsightsRows(response as unknown[]); // FASE 19.5 — antes de acessar row.metrics/row.segments
 
       const insights: NetworkInsight[] = response.map((row: any) => {
         const costCents = Math.round((row.metrics.cost_micros / 1000000) * 100);
@@ -342,8 +389,13 @@ export class GoogleAdsAdapter implements AdNetworkService {
       return insights;
     } catch (e: any) {
       console.error('[GoogleAdsAdapter] Error fetching insights:', e);
-      // Return empty array to not break the dashboard on errors, or throw depending on policy
-      return [];
+      // FASE 19.1 — relançar, não engolir: o único chamador real (agentMonitor.syncCampaignInsights,
+      // usado tanto pelo cron quanto pelo sync manual) já tem try/catch próprio e é exatamente o
+      // que agora alimenta o alerta de falha de sincronização (ver agentMonitor.ts). Engolir aqui
+      // escondia falha real da API do Google do resto da plataforma — nenhum outro consumidor
+      // depende de receber [] em caso de erro (confirmado: fetchInsights só tem esta 1 chamada em
+      // todo o projeto). Mesmo comportamento que o adapter da Meta já tem (nunca engoliu erro aqui).
+      throw e;
     }
   }
 

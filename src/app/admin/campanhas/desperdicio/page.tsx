@@ -5,7 +5,7 @@ import {
   ExclamationTriangleIcon, SparklesIcon, ChevronDownIcon, ChevronUpIcon, ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 import { ExecuteGuard } from '@/components/admin/PermissionGuard';
-import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
+import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector';
 
 interface WastedCampaign {
   id: string; name: string; wasted: number; details: string;
@@ -16,12 +16,14 @@ interface WastedCategory {
 interface WastedReport {
   totalWasted: number;
   period: { start: string; end: string };
+  crmAvailable: boolean;
   byCategory: {
     ZERO_LEADS_SPEND:   WastedCategory;
     HIGH_CPL_SPEND:     WastedCategory;
     ELEVATED_CPL_SPEND: WastedCategory;
     FATIGUED_CONTINUE:  WastedCategory;
     LEARNING_LIMITED:   WastedCategory;
+    GOOD_CPL_NO_CONVERSION: WastedCategory;
   };
   recoveryPlan: string[];
 }
@@ -65,6 +67,9 @@ const CATEGORY_META: Record<string, { label: string; icon: string; accent: strin
   ELEVATED_CPL_SPEND: { label: 'CPL Acima do Ideal',   icon: '⚠️', accent: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-100' },
   FATIGUED_CONTINUE:  { label: 'Fadiga de Audiência',  icon: '😴', accent: 'text-amber-600',  bg: 'bg-amber-50',  border: 'border-amber-100' },
   LEARNING_LIMITED:   { label: 'Aprendizado Limitado', icon: '🔄', accent: 'text-blue-600',   bg: 'bg-blue-50',   border: 'border-blue-100' },
+  // Tier 3 do plano "Loop do ICP" — sinal do CRM, não de CPL/frequência (por isso a cor
+  // diferente das outras 5): CPL bom não significa nada se o lead nunca vira negócio.
+  GOOD_CPL_NO_CONVERSION: { label: 'CPL Bom, Sem Venda', icon: '🎯', accent: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-100' },
 };
 
 const PERIOD_OPTIONS = [

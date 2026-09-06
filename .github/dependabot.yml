@@ -1,0 +1,25 @@
+# FASE 19.6 — Blindagem contra mudança de API (Meta/Google/TikTok Ads).
+#
+# Escopo deliberadamente estreito: só `google-ads-api`, a única dependência de rede versionada
+# via SDK desta plataforma (Meta é chamado via fetch cru contra META_API_BASE, sem SDK
+# versionado; TikTok ainda não tem adapter real, ver docs/PLANO_TIKTOK.md T2).
+#
+# Sem `open-pull-requests-limit` alto nem automerge — nunca há suíte de teste automatizada
+# neste projeto (sem Jest/Vitest configurado), então "gate de CI com testes" não é realista.
+# O gate real é o checklist de rollout via staging já documentado no CLAUDE.md, seção
+# "Rollout de Mudança de Versão de API (Meta/Google/TikTok) — FASE 19.4" — todo PR abaixo
+# precisa passar por ele antes de merge, nunca merge direto.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 2
+    allow:
+      - dependency-name: "google-ads-api"
+    labels:
+      - "dependencies"
+      - "google-ads-api"
+    commit-message:
+      prefix: "chore(deps)"

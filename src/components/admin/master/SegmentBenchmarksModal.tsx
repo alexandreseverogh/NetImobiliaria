@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import {
   XMarkIcon, CheckCircleIcon,
-  AdjustmentsHorizontalIcon, BoltIcon, EyeIcon, SignalIcon,
+  AdjustmentsHorizontalIcon, BoltIcon, EyeIcon, SignalIcon, SparklesIcon,
 } from '@heroicons/react/24/outline';
 
 interface Props {
@@ -33,6 +33,7 @@ const DETECTION_FIELDS: FieldDef[] = [
   { key: 'min_days_running',   label: 'Dias Mín. Rodando',            unit: 'NUM', fallback: 3,    hint: 'Dias mínimos de campanha ativa antes de qualquer avaliação.' },
   { key: 'hook_rate_critical', label: 'Hook Rate Crítico',            unit: 'PCT', fallback: 8,    hint: 'Hook rate (vídeo) abaixo disto → criativo ruim, alerta emitido.' },
   { key: 'hook_rate_min',      label: 'Hook Rate Mínimo',             unit: 'PCT', fallback: 12,   hint: 'Hook rate mínimo aceitável para vídeos neste segmento.' },
+  { key: 'avg_fit_scale_min',  label: 'Fit Médio Mín. p/ Escalar',    unit: 'NUM', fallback: 40,   hint: 'Fit médio (0-100) dos leads da campanha — abaixo disto, SCALE não dispara mesmo com CTR/volume bons. Exige CRM contratado com qualificação por IA ativa (crm_ia_ativa) — sem isso, nunca bloqueia.' },
 ];
 
 // ── Execução: como o agente age quando a condição é atendida ────────────────
@@ -84,6 +85,90 @@ function Field({ f, value, onChange }: FieldProps) {
                    focus:ring-2 focus:ring-indigo-300 focus:border-indigo-300 outline-none"
       />
       <p className="text-[10px] text-gray-400 mt-0.5 leading-tight">{f.hint}</p>
+    </div>
+  );
+}
+
+// ── Recalibração sob demanda de avg_fit_scale_min (Tier 3 do plano "Loop do ICP") ────────────
+// Nunca persiste nada sozinha — só preenche o campo local; salvar continua sendo o botão
+// "Salvar Parâmetros" que já existe, mesmo fluxo já testado.
+interface FitSuggestion {
+  available: boolean;
+  reason?: string;
+  currentValue: number;
+  suggestedValue: number | null;
+  sampleSize: number;
+  taxaConversaoAbaixo: number | null;
+  taxaConversaoAcima: number | null;
+  leadsAbaixo: number;
+  leadsAcima: number;
+}
+
+function FitRecalibrationPanel({ segmentId, onApply }: { segmentId: string; onApply: (value: number) => void }) {
+  const [loading, setLoading] = useState(false);
+  const [suggestion, setSuggestion] = useState<FitSuggestion | null>(null);
+  const [error, setError] = useState('');
+
+  async function handleCalculate() {
+    setLoading(true); setError(''); setSuggestion(null);
+    try {
+      const res = await fetch(`/api/admin/master/segments/${segmentId}/benchmarks/recalibrate-fit`, { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Falha ao calcular');
+      setSuggestion(data);
+    } catch (e: any) {
+      setError(e.message ?? 'Erro ao calcular recalibração');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="mt-2 p-2.5 bg-violet-50 border border-violet-100 rounded-lg">
+      <button
+        type="button"
+        onClick={handleCalculate}
+        disabled={loading}
+        className="flex items-center gap-1.5 text-[11px] font-bold text-violet-700 hover:text-violet-900 disabled:opacity-50"
+      >
+        <SparklesIcon className="h-3.5 w-3.5" />
+        {loading ? 'Calculando com dados reais…' : 'Recalibrar com dados reais do CRM'}
+      </button>
+
+      {error && <p className="text-[10px] text-red-600 mt-1.5">{error}</p>}
+
+      {suggestion && !suggestion.available && (
+        <p className="text-[10px] text-gray-500 mt-1.5 leading-tight">{suggestion.reason}</p>
+      )}
+
+      {suggestion?.available && suggestion.suggestedValue === null && (
+        <p className="text-[10px] text-gray-500 mt-1.5 leading-tight">
+          {suggestion.reason} (amostra: {suggestion.sampleSize} leads — {suggestion.leadsAbaixo} abaixo /
+          {' '}{suggestion.leadsAcima} acima do valor atual)
+        </p>
+      )}
+
+      {suggestion?.available && suggestion.suggestedValue !== null && (
+        <div className="mt-1.5 text-[11px] text-gray-700 leading-relaxed">
+          <p>
+            Valor atual <strong>{suggestion.currentValue}</strong> → sugerido{' '}
+            <strong className="text-violet-700">{suggestion.suggestedValue}</strong>{' '}
+            (amostra real: {suggestion.sampleSize} leads)
+          </p>
+          <p className="text-gray-500 mt-0.5">
+            Fechamento abaixo do corte: {suggestion.taxaConversaoAbaixo?.toFixed(1)}%
+            ({suggestion.leadsAbaixo} leads) · acima: {suggestion.taxaConversaoAcima?.toFixed(1)}%
+            ({suggestion.leadsAcima} leads)
+          </p>
+          <button
+            type="button"
+            onClick={() => onApply(suggestion.suggestedValue!)}
+            className="mt-1.5 px-2.5 py-1 text-[10px] font-bold text-white bg-violet-600 hover:bg-violet-700 rounded-md"
+          >
+            Usar valor sugerido ({suggestion.suggestedValue})
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -185,7 +270,15 @@ export function SegmentBenchmarksModal({ segment, onClose }: Props) {
                 </p>
                 <div className="grid grid-cols-2 gap-x-5 gap-y-4">
                   {DETECTION_FIELDS.map(f => (
-                    <Field key={f.key} f={f} value={values[f.key] ?? ''} onChange={handleChange} />
+                    <div key={f.key}>
+                      <Field f={f} value={values[f.key] ?? ''} onChange={handleChange} />
+                      {f.key === 'avg_fit_scale_min' && (
+                        <FitRecalibrationPanel
+                          segmentId={segment.id}
+                          onApply={(v) => handleChange('avg_fit_scale_min', String(v))}
+                        />
+                      )}
+                    </div>
                   ))}
                 </div>
               </section>

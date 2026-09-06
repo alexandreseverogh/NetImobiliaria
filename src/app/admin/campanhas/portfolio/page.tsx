@@ -12,7 +12,7 @@ import {
 import { adminFetch } from '@/lib/auth/adminFetch';
 import { formatCurrency, formatNumber } from '@/lib/marketing-utils';
 import type { PortfolioResponse, PortfolioClient, PortfolioClientCampaign } from '@/app/api/admin/campanhas/portfolio/route';
-import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
+import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector';
 import ClientAvatar from '@/components/admin/ClientAvatar';
 
 /* ── helpers ──────────────────────────────────────────────────────── */

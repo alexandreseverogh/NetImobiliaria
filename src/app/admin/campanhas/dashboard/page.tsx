@@ -26,7 +26,7 @@ import { CampaignLifecycleBadge } from '@/components/marketing/CampaignLifecycle
 import type { LifecycleStatus } from '@/lib/marketing/services/campaignLifecycleTypes';
 import { ExecuteGuard } from '@/components/admin/PermissionGuard';
 import { angleLabel } from '@/lib/marketing/angles';
-import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
+import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector';
 import SegmentSelector, { useSegmentSelector } from '@/components/marketing/SegmentSelector';
 import { ClientRankingTable } from '@/components/marketing/ClientRankingTable';
 import { SegmentNarrative } from '@/components/marketing/SegmentNarrative';

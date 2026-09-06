@@ -944,16 +944,18 @@ export default function MasterTenantsPage() {
                 <div className="animate-fade-in space-y-6 max-w-xl">
                   <div className="rounded-2xl p-5 text-white bg-gradient-to-r from-indigo-600 to-indigo-800">
                     <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-0.5">Comunicação e Agentes</p>
-                    <h3 className="text-base font-black">Slack · WhatsApp · Agentes · IA</h3>
+                    <h3 className="text-base font-black">WhatsApp · Agentes · IA</h3>
                   </div>
 
                   <div className="space-y-4">
-                    <div>
+                    {/* ⏸️ Slack Webhook URL — desativado junto com notifySlack() (2026-09-01).
+                        Estado (newTenant.slack_webhook_url) preservado — reativar descomentando. */}
+                    {/* <div>
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Slack Webhook URL</label>
                       <input type="text" value={newTenant.slack_webhook_url || ''} onChange={e => setNewTenant({ ...newTenant, slack_webhook_url: e.target.value })}
                         placeholder="https://hooks.slack.com/services/..."
                         className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
-                    </div>
+                    </div> */}
                     <div>
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Evolution API URL</label>
                       <input type="text" value={newTenant.evolution_api_url || ''} onChange={e => setNewTenant({ ...newTenant, evolution_api_url: e.target.value })}
@@ -1515,16 +1517,18 @@ export default function MasterTenantsPage() {
                 <div className="animate-fade-in space-y-6 max-w-xl">
                   <div className="rounded-2xl p-5 text-white bg-gradient-to-r from-indigo-600 to-indigo-800">
                     <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-0.5">Comunicação e Agentes</p>
-                    <h3 className="text-base font-black">Slack · WhatsApp · Agentes · IA</h3>
+                    <h3 className="text-base font-black">WhatsApp · Agentes · IA</h3>
                   </div>
 
                   <div className="space-y-4">
-                    <div>
+                    {/* ⏸️ Slack Webhook URL — desativado junto com notifySlack() (2026-09-01).
+                        Estado (editingTenant.slack_webhook_url) preservado — reativar descomentando. */}
+                    {/* <div>
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Slack Webhook URL</label>
                       <input type="text" value={editingTenant.slack_webhook_url || ''} onChange={e => setEditingTenant({ ...editingTenant, slack_webhook_url: e.target.value })}
                         placeholder="https://hooks.slack.com/services/..."
                         className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
-                    </div>
+                    </div> */}
                     <div>
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Evolution API URL</label>
                       <input type="text" value={editingTenant.evolution_api_url || ''} onChange={e => setEditingTenant({ ...editingTenant, evolution_api_url: e.target.value })}

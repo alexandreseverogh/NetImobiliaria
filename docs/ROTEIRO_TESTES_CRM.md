@@ -1,7 +1,11 @@
 # Roteiro de Testes — Módulo CRM
 
-> Roteiro manual, para ser executado na UI real (navegador), cobrindo o CRM em 4 blocos:
+> Roteiro manual, para ser executado na UI real (navegador), cobrindo o CRM em 5 blocos:
 > **Parte 1** — CRM sozinho (todas as telas, sem depender de Mensageria/Campanhas).
+> **Parte 1B** — Mensageria sozinha, sem CRM [novo, 2026-09-02] — confirma que os componentes
+> nascidos no CRM (cascata de LLM, canal de alerta, portão de entrada — Peças 1-3 do
+> desacoplamento, `docs/CHECKPOINT.md`) funcionam de verdade sem CRM contratado, não só sem
+> CRM na tela.
 > **Parte 2** — CRM + Mensageria (só essa integração).
 > **Parte 3** — CRM + Campanhas de Marketing Digital (só essa integração).
 > **Parte 4** — os 3 módulos juntos (CRM + Mensageria + Campanhas).
@@ -19,6 +23,12 @@
 - **Parte 1 (CRM sozinho):** qualquer tenant com CRM contratado serve — as telas do CRM não
   dependem de Mensageria/Campanhas estarem ativos. Se quiser isolamento estrito (nenhum sinal
   vindo de fora), use um tenant que **só** tenha o módulo CRM provisionado.
+- **Parte 1B (Mensageria sozinha, sem CRM):** confirmado com o usuário (2026-09-02) que é uma
+  combinação real de contratação — mas **nenhum tenant deste ambiente de dev tem hoje
+  `mensageria` provisionado sem `crm`** (conferido em `tenant_modules`). Provisione um tenant
+  novo só com "Gestão de Mensageria" antes de começar esta parte (`/admin/master/provisioning`),
+  ou desprovisione `crm` temporariamente de um tenant que já tenha `mensageria` — neste caso,
+  reprovisione `crm` de volta ao final, sem falta.
 - **Parte 2 (CRM + Mensageria):** um tenant com CRM **e** Mensageria contratados, **sem**
   Campanhas (senão você não consegue isolar se um lead chegou por causa da Mensageria ou de uma
   campanha).
@@ -266,15 +276,24 @@ verificáveis; o roteiro sinaliza onde isso importa.
    tenant). ✅ `tag_sonho`/`resumo_ia`/`score_prontidao` (e `score_fit`, se houver critério
    configurado) aparecem certos na ficha do Kanban.
 
-### 1.6b — Modelo de LLM em cascata (`/admin/campanhas/configuracoes` → "IA (LLM)") [novo, 2026-08-28]
+### 1.6b — Modelo de LLM em cascata (`/crm/config/ia` — local atualizado 2026-09-02) [novo, 2026-08-28]
 
 > Mesma cascata **Cliente → Tenant → Segmento → Global**, mas pro MODELO/provider/API key
 > usado (não o texto do prompt). Também só CRM/Mensageria — o modelo usado pelas Campanhas de
 > Marketing Digital deste mesmo tenant é 100% independente (fica em `/admin/master/ia-plataforma`,
 > global, e não muda com nada testado aqui — ver 3.6).
+>
+> **Local mudou em 2026-09-02 (Peça 1 do desacoplamento, `docs/CHECKPOINT.md`):** esta seção
+> morava dentro de `/admin/campanhas/configuracoes`, mesmo sendo só CRM/Mensageria — um tenant
+> só-CRM (sem Campanhas) nunca conseguia alcançá-la. Foi extraída pra um componente
+> compartilhado (`LlmCascadeSection`, `components/crm/`) e agora vive em `/crm/config/ia`
+> (testado abaixo) **e também** em `/mensageria/config` → aba Bot (mesmo componente, mesma
+> linha de dado — ver 1B.2 se este tenant só tiver Mensageria, ou 4.8 pra confirmar que os
+> dois caminhos leem exatamente a mesma config). Não existe mais NENHUMA seção de LLM em
+> `/admin/campanhas/configuracoes` — se você ainda ver uma lá, é regressão (ver também 3.6).
 
-1. Abrir `/admin/campanhas/configuracoes`, seção **"Inteligência Artificial (LLM)"**. ✅ Label
-   "Editando modelo para" + `ClientSelector` acima dos campos de provider/modelo/API key.
+1. Abrir `/crm/config/ia`, bloco **"Modelo de IA (LLM)"** (logo abaixo do "Prompt Mestre").
+   ✅ Label "Editando modelo para" + `ClientSelector` acima dos campos de provider/modelo/API key.
 2. Com "Minha Empresa" selecionado: anote o provider/modelo atual (o que já está configurado
    pro tenant). Trocar provider/modelo pra algo diferente de teste, salvar ("Salvar IA"). ✅
    Persiste; botão "Testar Conexão" disponível (só aparece no escopo tenant, nunca no escopo
@@ -332,6 +351,27 @@ verificáveis; o roteiro sinaliza onde isso importa.
    sem cascata de FK sensível pra um cliente sem nenhum lead/atividade vinculado).
 
 ### 1.7 — Agentes de Aceleração (`/crm/config/agentes`)
+
+**Canal de comunicação (novo, 2026-09-02 — Peças 2/3 do desacoplamento):**
+0. Abrir a tela. Acima da lista de agentes, confirme as **2 seções novas**, ambas
+   compartilhadas com Campanhas (`/admin/campanhas/mecanismos`/`configuracoes`) e Mensageria
+   (`/mensageria/config`) — mesma linha de dado, não config duplicada (ver 3.7/4.8 pro
+   equivalente já validado com o modelo de LLM):
+   - **"Canal de WhatsApp dos Agentes"** — pra onde os alertas dos agentes/SLA são enviados.
+     Edite Evolution API URL/Key/Instance de teste, salve. ✅ Persiste.
+   - **"Portão de Entrada — WhatsApp"** — a URL+secret que precisa estar colada na Evolution
+     API pra mensagens virarem lead/conversa. ✅ Mostra instância conectada, URL do webhook
+     (botão Copiar), token secreto (mascarado por padrão, olho pra revelar).
+0b. Clique **"Regenerar"** no token secreto e **cancele o diálogo de confirmação** que aparece
+   (nativo do navegador). ✅ Nada deve mudar — o secret antigo continua o mesmo (confirme
+   comparando o valor revelado antes/depois, ou que nenhuma notificação de erro de webhook
+   chegou se você tiver um canal real monitorado).
+0c. ⚠️ Só clique "Regenerar" e CONFIRME de verdade se este for um tenant de teste dedicado, ou
+   se você estiver pronto pra colar a URL nova no painel real da Evolution API imediatamente
+   depois — regenerar invalida a URL anterior NA HORA, derrubando o recebimento de mensagens
+   até a troca ser feita manualmente lá. Se confirmar: ✅ novo secret aparece, URL do webhook
+   muda, e (se você tiver acesso) confirme que o secret antigo realmente parou de autenticar
+   (`POST /api/public/evolution/webhook?token=<antigo>` deveria voltar 401 agora).
 
 **Aba principal (configuração):**
 1. Abrir a tela. ✅ Lista dos agentes disponíveis: `pendencia_atendimento` (absorveu o antigo
@@ -434,6 +474,71 @@ Só acessível como Master. Pra cada segmento, os botões de ação relevantes a
 
 🧹 Reverta qualquer mudança de configuração de segmento feita só pra teste (toggle de agente,
 regra de teste, estratégia de teste) antes de sair desta seção.
+
+---
+
+## Parte 1B — Mensageria sozinha, sem CRM [novo, 2026-09-02]
+
+> Cenário real de contratação, confirmado com o usuário (2026-09-02) — um tenant PODE
+> contratar só Mensageria, sem CRM. Nunca foi coberto por este roteiro até agora, e nenhum
+> tenant deste ambiente de dev tem essa combinação hoje (ver 0.1) — provisione um antes de
+> começar.
+>
+> Objetivo: confirmar que os componentes que nasceram no CRM (`LlmCascadeSection`,
+> `AgentWhatsAppChannelSection`, `WhatsAppWebhookSection` — todos em `components/crm/`, Peças
+> 1-3 do desacoplamento, `docs/CHECKPOINT.md`) funcionam de verdade SEM nenhuma dependência de
+> CRM contratado — não só "sem link pra CRM na tela", mas sem nenhuma rota `/crm/*` sequer
+> alcançável por este tenant.
+
+### 1B.1 — Sidebar sem nenhum item de CRM
+
+1. Logue como usuário deste tenant. ✅ Sidebar mostra "Central de Mensagens" (Inboxes/
+   Analytics/Configurações) normalmente — a categoria "CRM" **não deve aparecer em lugar
+   nenhum**.
+2. Tente acessar `/crm/kanban` ou `/crm/config/ia` diretamente pela URL. ✅ Deve bloquear/
+   redirecionar (mesmo comportamento de qualquer rota não provisionada) — nunca deve
+   renderizar o Kanban nem nenhuma tela de CRM de verdade.
+
+### 1B.2 — Cascata de LLM funciona só por Mensageria
+
+1. Abra `/mensageria/config` → aba Bot → bloco "Modelo de IA (LLM)". ✅ Renderiza
+   normalmente (mesmo componente de 1.6b), sem depender de `/crm/config/ia` existir pra este
+   tenant.
+2. Configure um provider/modelo de teste, salve. ✅ Persiste — mesma prova que já foi feita
+   isoladamente via chamada direta à API nas Peças 1/2; aqui é a confirmação pela UI real,
+   com este tenant especificamente.
+3. 🧹 Restaure ao valor original ao final.
+
+### 1B.3 — Canal de alerta e portão de entrada funcionam só por Mensageria
+
+1. Abra `/mensageria/config` → aba SLA → "Canal de WhatsApp dos Agentes". ✅ Renderiza, salva
+   Evolution API URL/Key/Instance normalmente.
+2. Abra `/mensageria/config` → aba Inboxes → "Portão de Entrada — WhatsApp". ✅ Renderiza,
+   mostra URL do webhook; teste o `confirm()` de "Regenerar" nos dois sentidos (cancelar não
+   muda nada, confirmar muda — mesmos passos de 1.7/0b-0c, mesmo cuidado sobre não regenerar
+   um tenant real sem estar pronto pra trocar a URL na Evolution API na hora).
+3. 🧹 Reverta qualquer valor de teste alterado nos 2 passos acima.
+
+### 1B.4 — Lead "invisível": mensagem de WhatsApp orgânica ainda grava em `leads_staging`
+
+> Achado documentado em sessão anterior (`docs/CHECKPOINT.md`) — `processInboundWhatsAppMessage`
+> sempre tenta criar lead no CRM, mesmo quando o tenant NÃO tem CRM contratado (infraestrutura
+> compartilhada, decisão de design deliberada: nunca perder um lead real só por config de
+> módulo pendente). Isso não é bug — mas é uma decisão de produto que vale confirmar que
+> continua vigente, já que o próprio achado original ficou registrado como "vale uma decisão
+> de produto se isso deve ficar assim", nunca resolvido.
+
+1. Mande uma mensagem real (ou via "Testar bot") pro número/inbox deste tenant.
+2. ✅ A conversa aparece normalmente na Caixa de Entrada da Mensageria.
+3. Se você tiver acesso ao banco (ou puder pedir a alguém que tenha), confirme que uma linha
+   nasceu em `leads_staging` mesmo assim — sem NENHUMA tela em `/crm/*` pra este tenant
+   visualizá-la. Não é um teste de UI (não existe UI pra isso aqui de propósito) — é só
+   confirmar que o comportamento documentado continua o mesmo, e um sinal de que talvez valha
+   revisitar essa decisão de produto algum dia (leads acumulando sem ninguém nunca vê-los).
+
+🧹 Ao final desta Parte: remova conversas/contatos/leads de teste. Se você criou um tenant
+novo só pra esta parte, decida com o time se ele fica como fixture permanente de teste
+(recomendado — nenhum existia antes desta rodada) ou deve ser removido.
 
 ---
 
@@ -644,10 +749,30 @@ configurada (1.10, passo 4) usando a tabela real de imóveis (ou entidade equiva
    GLOBAL do Master (`/admin/master/ia-plataforma`), nunca o override que você acabou de
    cadastrar pro CRM/Mensageria dele. Os dois sistemas são deliberadamente independentes.
 
+### 3.7 — Regressão: canal de WhatsApp dos agentes e portão de entrada continuam intactos em Campanhas [novo, 2026-09-02]
+
+> As Peças 2/3 do desacoplamento (`docs/CHECKPOINT.md`, 2026-09-02) extraíram esses 2 blocos
+> pra componentes compartilhados (`AgentWhatsAppChannelSection`/`WhatsAppWebhookSection`,
+> `components/crm/`), reaproveitados também em CRM/Mensageria — mas o objetivo era ADICIONAR
+> alcance, nunca tirar de Campanhas. Mesmo espírito do 3.6, só que pro canal de alerta/webhook
+> em vez do modelo de LLM.
+
+1. Como tenant (não Master), abra `/admin/campanhas/configuracoes`, seção "Agentes, Alertas e
+   IA". ✅ Evolution API URL/Key/Instance continuam lá, editáveis, salvando normalmente —
+   igual sempre foi.
+2. Abra `/admin/campanhas/mecanismos` → aba "E · WhatsApp (Evolution)". ✅ URL do webhook +
+   token secreto + botão "Regenerar" (agora pedindo confirmação antes de agir, ver 1.7/0b)
+   continuam funcionando; a explicação de `[ref:slug]`/Destino de CTA (exclusiva de
+   Campanhas, não faz parte do componente compartilhado) continua presente logo abaixo.
+3. ✅ Um valor editado em qualquer uma das 2 telas acima deve aparecer IDÊNTICO em
+   `/crm/config/agentes` pro mesmo tenant — é a mesma linha em `public.tenants`, nunca uma
+   config duplicada que pode divergir (mesma lógica já validada em 4.8 pro modelo de LLM).
+
 🧹 Ao final: reverta o valor de venda/etapa de teste (ou apague o lead de teste inteiro,
 cascata cuida do resto), remova qualquer imóvel/corretor de vínculo de teste feito só pra
-3.4, e confirme no dashboard de Campanhas que os números voltaram ao estado anterior ao teste
-(sem negócio de teste inflando CPA/ROAS reais).
+3.4, reverta qualquer valor de Evolution/webhook alterado só pra 3.7, e confirme no dashboard
+de Campanhas que os números voltaram ao estado anterior ao teste (sem negócio de teste
+inflando CPA/ROAS reais).
 
 ---
 
@@ -792,3 +917,9 @@ dashboard de Campanhas voltaram a refletir só dado real (sem negócio de teste 
       tenant daquele segmento sem override próprio, inclusive tenants reais.
 - [ ] Confirmar `npx tsc --noEmit` limpo se qualquer ajuste de código foi feito durante os
       testes (não deveria ser necessário — este roteiro é só de UI).
+- [ ] Tenant "Mensageria sozinha" (Parte 1B) — decida com o time se ele fica como fixture
+      permanente de teste (recomendado, já que nenhum existia antes desta rodada) ou se deve
+      ser removido/reprovisionado com CRM de volta. Documente a decisão, não deixe implícito.
+- [ ] Se "Regenerar" (webhook secret, 1.7/3.7/1B.3) foi confirmado DE VERDADE em algum tenant
+      que não é um fixture dedicado de teste, confirme que o painel da Evolution API já foi
+      atualizado com a NOVA URL na hora — a URL antiga já parou de receber mensagem.

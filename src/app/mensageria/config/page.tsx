@@ -8,8 +8,11 @@ import {
 } from '@heroicons/react/24/outline'
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
 import { adminFetch } from '@/lib/auth/adminFetch'
-import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector'
+import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector'
 import { PromptOverrideCard } from '@/components/crm/PromptOverrideCard'
+import { LlmCascadeSection } from '@/components/crm/LlmCascadeSection'
+import { AgentWhatsAppChannelSection } from '@/components/crm/AgentWhatsAppChannelSection'
+import { WhatsAppWebhookSection } from '@/components/crm/WhatsAppWebhookSection'
 
 type Tab = 'inboxes' | 'teams' | 'labels' | 'canned' | 'sla' | 'bot' | 'knowledge'
 
@@ -172,6 +175,14 @@ function InboxesTab() {
   if (loading) return <Card><p className="text-sm text-slate-500">Carregando...</p></Card>
 
   return (
+    <div className="space-y-4">
+      {/* Portão de entrada de WhatsApp (docs/CHECKPOINT.md, Peça 3, 2026-09-02) — URL+secret
+          que precisa estar colado na Evolution API. Sem isto, o canal WhatsApp desta lista
+          abaixo nunca recebe mensagem real, mesmo já criado. Componente compartilhado com
+          /admin/campanhas/mecanismos e /crm/config/agentes. */}
+      <WhatsAppWebhookSection
+        t={{ isDark: true, textPrimary: 'text-white', textMuted: 'text-slate-500', textSecondary: 'text-slate-300', inputBg: 'bg-[#112240] border border-white/8' }}
+      />
     <Card>
       <p className="text-xs text-slate-500 mb-3">
         Canais de entrada são criados automaticamente na primeira mensagem de cada tipo (WhatsApp, Formulário, Manual),
@@ -238,6 +249,7 @@ function InboxesTab() {
         <p className="text-xs text-amber-400/70 mt-3">Nenhum time cadastrado ainda — crie um na aba &quot;Times&quot; para poder vincular.</p>
       )}
     </Card>
+    </div>
   )
 }
 
@@ -659,9 +671,15 @@ function SlaTab() {
 
   return (
     <div className="space-y-4">
+      {/* Canal de WhatsApp dos alertas de SLA (docs/CHECKPOINT.md, 2026-09-02) — mesma Evolution
+          API que os agentes de Campanhas/CRM usam pra notificar; genuinamente compartilhado, não
+          é exclusivo de nenhum módulo. Componente compartilhado com /crm/config/agentes. */}
+      <AgentWhatsAppChannelSection
+        t={{ isDark: true, textPrimary: 'text-white', textMuted: 'text-slate-500', textSecondary: 'text-slate-300', inputBg: 'bg-[#112240] border border-white/8' }}
+      />
       <Card>
         <p className="text-xs text-slate-500 mb-3">
-          Metas de tempo de resposta/resolução. Estouro dispara alerta (WhatsApp/Slack) e badge vermelho na conversa.
+          Metas de tempo de resposta/resolução. Estouro dispara alerta (WhatsApp) e badge vermelho na conversa.
           Quando mais de uma política se aplica a uma conversa nova, vale a mais específica: <strong className="text-slate-400">Inbox &gt; Time &gt; Global</strong>.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
@@ -937,6 +955,18 @@ function BotTab() {
             clientId={personaOverrideClientId}
             label="Persona do Bot"
             t={{ isDark: true, cardBg: '', textPrimary: 'text-white', textMuted: 'text-slate-500', textSecondary: 'text-slate-300', inputBg: 'bg-[#112240] border border-white/8' }}
+          />
+        </div>
+
+        {/* Modelo de LLM em cascata (docs/CHECKPOINT.md, 2026-08-28/2026-09-01) — mesma
+            cascata Cliente → Tenant → Segmento → Global da persona acima, só que pro MODELO
+            usado pelo bot. Componente compartilhado com /crm/config/ia — até 2026-09-01 essa
+            tela só existia atrás do gate de Campanhas, inalcançável pra quem só contratou
+            Mensageria. Escopo próprio (independente do seletor da persona acima). */}
+        <div className="mb-3">
+          <LlmCascadeSection
+            t={{ isDark: true, textPrimary: 'text-white', textMuted: 'text-slate-500', textSecondary: 'text-slate-300', inputBg: 'bg-[#112240] border border-white/8' }}
+            storageKey="mensageria-bot-llm-override"
           />
         </div>
 

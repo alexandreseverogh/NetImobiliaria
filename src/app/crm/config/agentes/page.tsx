@@ -7,8 +7,11 @@ import {
   XCircleIcon, ClockIcon, PencilSquareIcon,
 } from '@heroicons/react/24/outline'
 import { useTheme } from '@/hooks/useTheme'
-import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector'
+import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector'
 import { PromptOverrideCard } from '@/components/crm/PromptOverrideCard'
+import { AgentesAceleracaoHelp } from '@/components/crm/AgentesAceleracaoHelp'
+import { AgentWhatsAppChannelSection } from '@/components/crm/AgentWhatsAppChannelSection'
+import { WhatsAppWebhookSection } from '@/components/crm/WhatsAppWebhookSection'
 
 // Nem todo agente do catálogo usa LLM (speed_to_lead/stage_stagnation são regra pura) — só os
 // 2 abaixo têm prompt sobrescrevível em cascata (docs/CHECKPOINT.md, 2026-08-28).
@@ -194,20 +197,42 @@ export default function CrmAgentesConfigPage() {
       ) : (<>
 
       {showHelp && (
-        <div className={`rounded-3xl border p-6 space-y-3 text-xs leading-relaxed ${t.isDark ? 'bg-orange-500/5 border-orange-500/20 text-gray-300' : 'bg-orange-50 border-orange-200 text-gray-700'}`}>
-          <p>
-            <span className="font-black">Herdar do segmento</span>: usa exatamente o que a equipe da plataforma
-            configurou pra {segment?.name || 'este segmento'} — o valor "Padrão do segmento" mostrado abaixo em cada
-            agente. <span className="font-black">Forçar ativado/desativado</span>: sobrepõe esse padrão só pra este
-            tenant, sem afetar nenhuma outra empresa do mesmo segmento.
-          </p>
-          <p>
-            Cada agente só reconhece parâmetros específicos (mostrados como sugestão clicável quando existirem).
-            Qualquer outra chave digitada é salva, mas nunca tem efeito. Um parâmetro configurado aqui sobrepõe o
-            mesmo parâmetro do padrão do segmento; os demais continuam vindo do padrão.
-          </p>
+        <div className={`rounded-3xl border p-6 ${t.isDark ? 'bg-orange-500/5 border-orange-500/20 text-gray-300' : 'bg-orange-50 border-orange-200 text-gray-700'}`}>
+          <AgentesAceleracaoHelp
+            catalog={catalog}
+            isDark={t.isDark}
+            intro={
+              <p>
+                O padrão de cada agente é curado pela equipe da plataforma pra{' '}
+                {segment ? segment.name : 'este segmento'} — o mesmo texto que o Master vê. Aqui
+                você só decide, agente a agente, se sua empresa segue esse padrão ou sobrepõe com
+                um comportamento próprio.
+              </p>
+            }
+          >
+            <div className="pt-3 border-t border-orange-500/20 space-y-1">
+              <p className="font-black">As 3 opções de cada agente</p>
+              <p>
+                <span className="font-black">Herdar do segmento</span>: usa exatamente o que a
+                equipe da plataforma configurou — o valor "Padrão do segmento" mostrado abaixo em
+                cada card. <span className="font-black">Forçar ativado/desativado</span>: sobrepõe
+                esse padrão só pra este tenant, sem afetar nenhuma outra empresa do mesmo
+                segmento. Um parâmetro que você preencher aqui sobrepõe só ELE — os demais
+                continuam vindo do padrão do segmento.
+              </p>
+            </div>
+          </AgentesAceleracaoHelp>
         </div>
       )}
+
+      {/* Canal de WhatsApp dos agentes (docs/CHECKPOINT.md, 2026-09-02) — tenant-wide, não é
+          por agente nem por segmento; independente de haver algum agente configurado abaixo. */}
+      <AgentWhatsAppChannelSection t={t} />
+
+      {/* Peça 3 (2026-09-02) — portão de ENTRADA de mensagem (diferente do canal de alerta
+          acima, que é SAÍDA): sem isto configurado, nenhum lead de WhatsApp orgânico chega ao
+          CRM deste tenant, com ou sem os agentes acima ativos. */}
+      <WhatsAppWebhookSection t={t} />
 
       {catalog.length === 0 ? (
         <div className={`text-center py-16 border-2 border-dashed rounded-3xl ${t.isDark ? 'border-white/5' : 'border-gray-200'}`}>

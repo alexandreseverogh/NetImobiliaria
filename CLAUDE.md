@@ -362,6 +362,38 @@ mudar.
 `inboundProcessor.ts`) além do `WHATSAPP_CLICK` — por isso o filtro de submissão exclui
 `cta_type='WHATSAPP_MESSAGE'` explicitamente, senão o mesmo lead conta 2x.
 
+### Rollout de Mudança de Versão de API (Meta/Google/TikTok) — FASE 19.4
+
+Trocar a versão de uma API de rede de anúncio (`META_API_BASE` em
+`src/lib/marketing/networks/meta/metaAdsAdapter.ts`, hoje fixo em `v21.0`; ou atualizar a
+dependência `google-ads-api` no `package.json`) **nunca vai direto pra produção** — a
+plataforma já tem staging real e isolado (`docker-compose.vps.yml`, `staging_app`/
+`staging_db`/`staging_feed`, banco/domínio próprios), então não há motivo pra pular essa etapa.
+Nenhuma tabela de "tenant canário"/rollout percentual — o volume atual da plataforma não
+justifica esse tipo de infraestrutura; o ambiente staging já cumpre esse papel sozinho.
+
+**Checklist obrigatório:**
+1. Trocar a versão numa branch própria (nunca direto em `main`).
+2. Deploy manual em `staging`: `.github/workflows/deploy.yml` (`workflow_dispatch`, ambiente
+   `staging`) → chama `scripts/vps/deploy-github.sh <branch> staging`. O próprio script já
+   bloqueia promover branch≠`main` pra `producao` (passo "Validação de segurança") — impossível
+   pular staging por engano.
+3. Confirmar `staging_app` saudável (`docker compose ps staging_app`, o script já espera até
+   90s e falha se não subir) e sem erro nos logs do 1º sync real depois do deploy.
+4. Confirmar 1 sincronização real de campanha de teste — via `GET /api/agent/tick` (heartbeat,
+   `AgentHeartbeat.success`) ou aguardando o próximo ciclo automático do `agentMonitor.ts`
+   (default 6h em staging também) e conferindo `Insight`/`AgentAction` gerados sem erro pra
+   uma campanha de teste conhecida.
+5. Só então: merge da branch pra `main` → deploy manual ambiente `producao`.
+
+Ver "Arquitetura de Cron Jobs" (seção anterior) pra entender quais crons rodam automaticamente
+em cada ambiente antes de confiar só no passo 4 — `staging_feed`/`staging_app` já sobem com os
+mesmos 2 mecanismos de `producao`.
+
+**Dependabot** (`.github/dependabot.yml`, FASE 19.6) abre PR semanal só pra `google-ads-api` —
+a única dependência de rede versionada via SDK — nunca automerged. Todo PR dele passa pelo
+mesmo checklist acima antes de merge, exatamente como uma troca manual de versão.
+
 ### Contratação de Rede por Tenant — cada rede é cobrada separadamente
 
 Modelo de negócio: uma empresa pode não ter contratado uma rede de anúncio específica (ex.:
@@ -441,7 +473,7 @@ Providers ativos (23 modelos): `anthropic`, `openai`, `gemini`, `groq`, `deepsee
 ## Agente Autônomo
 
 ```
-agentMonitor.ts (cron a cada 6h)
+agentMonitor.ts (cron a cada 6h — ver "Arquitetura de Cron Jobs" abaixo)
   → syncMetrics()              puxa métricas de todos os tenants ativos do Meta API
   → runDecisor(tenantId)       para cada tenant:
       → generateAiInsights()   regras determinísticas (sem LLM)
@@ -454,6 +486,9 @@ agentMonitor.ts (cron a cada 6h)
         → notifica WhatsApp com link + PIN de 6 dígitos (ação que aumenta gasto/risco — exige
         confirmação humana antes)
       → demais tipos (ALERT/OPTIMIZE) → NOTIFIED → só aparecem no digest, sem ação nem aprovação
+  → runNegationAgent(tenantId) para cada tenant (A6 — negativação de termo de busca do Google)
+  → runReallocationAgent(tenantId) para cada tenant (T4 — motor de realocação cross-rede,
+    docs/PLANO_TIKTOK.md §8) → digestItems → notifyDigest, quando há proposta nova
 ```
 
 `DEFENSIVE_TYPES`/`OFFENSIVE_TYPES` em `agentDecisor.ts` são as listas reais que decidem o
@@ -463,13 +498,54 @@ agentMonitor.ts (cron a cada 6h)
 
 Aprovação via links: `GET /api/agent/approve/[id]` e `GET /api/agent/reject/[id]` (sem JWT, autenticados pelo UUID da ação, retornam HTML).
 
-Cron endpoints (header `x-cron-secret`):
-- `POST /api/cron/campanhas/sync` → sync métricas + decisor para todos os tenants (inclui o
-  motor de realocação cross-rede, T4 — `runReallocationAgent` por tenant)
-- `POST /api/cron/campanhas/briefing` → gera briefing + envia WhatsApp/Slack
-- `POST /api/cron/campanhas/realloc-measure` → mede D+14 as realocações de verba `EXECUTED`
-  (grava `actual_lead_gain`/`verdict` em `BudgetReallocation`), alimenta o circuit breaker —
-  `docs/PLANO_TIKTOK.md` §8.4. Diário, 07:00.
+Cron endpoints de Campanhas (header `x-cron-secret`) — ver "Arquitetura de Cron Jobs" abaixo
+pra saber qual deles é chamado automaticamente e qual é fallback manual/externo:
+- `POST /api/cron/campanhas/sync` → **fallback manual** (o mesmo ciclo já roda sozinho, ver
+  acima); útil pra forçar um ciclo fora da janela de 6h ou testar sem esperar.
+- `POST /api/cron/campanhas/briefing` → **fallback manual** (idem — briefing matinal/fechamento
+  já roda sozinho dentro do mesmo ciclo do `agentMonitor.ts`).
+- `POST /api/cron/campanhas/realloc-measure` → **agendado**, mede D+14 as realocações de verba
+  `EXECUTED` (grava `actual_lead_gain`/`verdict` em `BudgetReallocation`), alimenta o circuit
+  breaker — docs/PLANO_TIKTOK.md §8.4. Diário, 07:00.
+
+---
+
+## Arquitetura de Cron Jobs — 2 mecanismos, nunca um 3º
+
+**Regra permanente, achada e corrigida em 2026-09-04 (nenhum deploy real de Campanhas/CRM/
+Mensageria tinha sido feito até então — corrigido antes do 1º deploy, não depois de um
+incidente):** existiam 3 mecanismos paralelos de agendamento, sem coordenação entre si — um
+deles (crontab do sistema operacional do host, configurado por `scripts/vps/deploy-github.sh`)
+já estava com 3 das 5 rotas mortas (renomeadas em sessões anteriores sem atualizar o script) e
+duplicava trabalho que os outros 2 já cobriam. Removido. **A partir de agora, só existem 2
+mecanismos legítimos — nunca adicionar um 3º sem revisar esta seção primeiro:**
+
+1. **`scripts/feed-cron-scheduler.js`** — processo Node persistente (`node-cron`), roda dentro
+   do container `prod_feed`/`staging_feed` (`docker-compose.vps.yml`). Chama rotas HTTP via
+   `fetch` com header `x-cron-secret`, contra `prod_app`/`staging_app` (endereço interno do
+   Docker network). 14 jobs hoje: feed-sync (diário 03h), transbordo (5/5min), audit-monthly
+   (1º dia do mês), audit-weekly (domingo), realloc-measure (diário 07h), organic-publish
+   (5/5min), mensageria/sla-check (5/5min), crm/agentes-scan (5/5min), crm/score-recalibration
+   (diário 04h), crm/pendencia-reconciliar (diário 03h30), network-healthcheck (hora em hora,
+   FASE 19.3), audiences-refresh (diário 07h30, Tier 3 "Loop do ICP" — mantém Custom Audience/
+   Lookalike da Meta atualizadas sem intervenção humana, nunca toca em campanha real),
+   exogenous-signals (diário 06h), agent-expire (hora em hora, 15min deslocado).
+2. **`src/instrumentation.ts` → `agentMonitor.ts` (`startAgentMonitor`)** — roda DENTRO do
+   próprio processo do Next.js (`prod_app`/`staging_app`), via `node-cron` em memória,
+   disparado 1x quando o servidor sobe (hook oficial `register()` do Next.js). Legítimo aqui
+   porque `prod_app`/`staging_app` são processos `next start` de longa duração em Docker —
+   **não** serverless (o cenário que motivou o endpoint `/api/agent/tick`, FASE 15, nunca se
+   aplicou de fato a este deploy). 3 jobs: sync completo (`AGENT_SYNC_SCHEDULE`, default 6h —
+   `syncMetrics`+`runDecisor`+`runNegationAgent`+`runReallocationAgent`+`notifyDigest`),
+   briefing matinal (`BRIEFING_MORNING_SCHEDULE`, default 08h), briefing fechamento
+   (`BRIEFING_CLOSING_SCHEDULE`, default 18h).
+
+**Ao adicionar um cron novo:** decidir entre os dois só pela pergunta "esse trabalho já vive
+dentro de um serviço que o `agentMonitor.ts` já orquestra, ou é independente (feed, CRM,
+mensageria, redes de anúncio)?" — trabalho relacionado ao ciclo de sync/decisor/negativação/
+realocação/briefing entra no mecanismo 2 (evita 2ª chamada redundante às APIs de anúncio);
+qualquer outra coisa (novo módulo, nova varredura, novo canário) entra no mecanismo 1, seguindo
+o padrão já usado pelos 13 jobs de lá — nunca crontab do sistema operacional do host.
 
 ---
 
@@ -587,3 +663,12 @@ que toda cor não-âmbar é bug).
 
 - **Sync Meta real**: validar `POST /insights/sync` com token de produção e campanhas reais
 - **Fluxo completo do CampaignWizard**: publicação no Meta após upload de criativos
+- **FASE 19 (blindagem contra mudança de API Meta/Google/TikTok) — 19.1 a 19.6 concluídas e
+  testadas** (alerta de falha, circuit breaker, canário/hora, arquitetura de cron consolidada,
+  rollout faseado documentado, Dependabot pro `google-ads-api`, validação zod na fronteira —
+  ver `docs/CHECKPOINT.md`, entradas de 2026-09-03/04). **19.0** (assinar changelogs oficiais)
+  e **19.7** (detector via MCP oficial) ficam pendentes de propósito, verificar assim que a
+  aplicação estiver em produção real: 19.7 exige OAuth contra as 3 contas de negócio reais
+  (Meta/Google/TikTok — mesmo bloqueio já documentado pro TikTok T2) e, especificamente pro
+  Google, autohospedar o servidor MCP deles (não é endpoint hospedado, diferente do Meta) —
+  decisão de custo/benefício a reavaliar então, não só falta de acesso.

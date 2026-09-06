@@ -10,7 +10,7 @@ import {
   ExclamationTriangleIcon, ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 import { adminFetch } from '@/lib/auth/adminFetch';
-import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
+import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector';
 import { DashboardHelpButton, HelpHint } from '@/components/marketing/DashboardHelpModal';
 import type { HookSaturationResult } from '@/lib/marketing/services/hookSaturationService';
 import { ANGLE_LABELS as SHARED_ANGLE_LABELS } from '@/lib/marketing/angles';

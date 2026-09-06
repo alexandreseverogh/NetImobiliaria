@@ -126,6 +126,15 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
     specialAdCategory:  'NONE',
     customEventType:    'LEAD',
     objective:          'OUTCOME_LEADS',
+    // Achado da auditoria "O Loop Quebrado do ICP" (2026-09-03): resolveSegmentNetworkDefaults()
+    // já calcula optimizationGoal/billingEvent certo pro segmento (ex. LEAD_GENERATION pro
+    // Imobiliário), mas o wizard nunca lia esses 2 campos do retorno de /segment-defaults — o
+    // servidor caía no fallback errado (LINK_CLICKS, campaigns/route.ts) e toda campanha lançada
+    // otimizava por clique, nunca por lead, mesmo o segmento pedindo o contrário. 100% automático
+    // (sem controle de UI, mesmo espírito de specialAdCategory/customEventType — não é campo que
+    // o usuário digita, é resolvido pelo segmento).
+    optimizationGoal:   'LEAD_GENERATION',
+    billingEvent:       'IMPRESSIONS',
     websiteDefault:     '',
     suggestedInterests: [] as { id: string; name: string }[],
     whatsappNumber:     '',
@@ -214,6 +223,8 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
           specialAdCategory:  segDefaults?.specialAdCategory || 'NONE',
           customEventType:    segDefaults?.customEventType   || 'LEAD',
           objective:          segDefaults?.objective         || 'OUTCOME_LEADS',
+          optimizationGoal:   segDefaults?.optimizationGoal  || 'LEAD_GENERATION',
+          billingEvent:       segDefaults?.billingEvent      || 'IMPRESSIONS',
           suggestedInterests: segDefaults?.suggestedInterests || [],
           whatsappNumber:     whatsapp?.phoneNumber    || '',
           whatsappMessage:    whatsapp?.defaultMessage || '',
@@ -322,6 +333,8 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
         specialAdCategory: form.specialAdCategory || autoFields.specialAdCategory || 'NONE',
         pixelId:           form.pixelId           || autoFields.pixelId           || undefined,
         customEventType:   form.customEventType   || autoFields.customEventType   || 'LEAD',
+        optimizationGoal:  autoFields.optimizationGoal || 'LEAD_GENERATION',
+        billingEvent:      autoFields.billingEvent     || 'IMPRESSIONS',
         declaredAngle:     form.declaredAngle || undefined,   // FASE 14
         initiativeId:      form.initiativeId || undefined,    // vínculo opcional à iniciativa
         clientId:          clientId || undefined,

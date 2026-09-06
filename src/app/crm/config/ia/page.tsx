@@ -7,8 +7,9 @@ import {
   CheckBadgeIcon, ClockIcon, ScaleIcon, ArrowTrendingUpIcon
 } from '@heroicons/react/24/outline'
 import { useTheme } from '@/hooks/useTheme'
-import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector'
+import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector'
 import { PromptOverrideCard } from '@/components/crm/PromptOverrideCard'
+import { LlmCascadeSection } from '@/components/crm/LlmCascadeSection'
 
 interface Rule {
   id: string
@@ -226,6 +227,13 @@ export default function AIConfigPage() {
           label="Prompt Mestre"
           t={t}
         />
+
+        {/* Modelo de LLM em cascata (docs/CHECKPOINT.md, 2026-08-28/2026-09-01) — mesma
+            cascata Cliente → Tenant → Segmento → Global do prompt acima, só que pro MODELO
+            usado. Vive num componente próprio, reaproveitado também em /mensageria/config —
+            até 2026-09-01 essa tela só existia atrás do gate de Campanhas, inalcançável pra
+            quem só contratou CRM. Escopo próprio (independente do seletor do prompt acima). */}
+        <LlmCascadeSection t={t} storageKey="crm-ia-llm-cliente" />
 
         <div className="space-y-4">
           <h3 className={`text-xl font-bold flex items-center ${t.textPrimary}`}>

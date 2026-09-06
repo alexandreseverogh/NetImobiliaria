@@ -13,6 +13,8 @@ interface CampaignRevenueRow {
   revenue: number;
   cpaReal: number | null;
   roasReal: number | null;
+  avgFit: number | null;
+  leadsWithFit: number;
 }
 
 interface RevenueAttributionResponse {
@@ -174,6 +176,14 @@ export function RevenueAttributionWidget({ isDark, clientId, periodDays, cardBas
                 </p>
                 {c.cpaReal != null && (
                   <p className={cn('text-[10px] mt-0.5', txMuted)}>CPA {formatCurrency(c.cpaReal)}</p>
+                )}
+                {/* Tier 3 do plano "Loop do ICP" — sinal antecipado de qualidade, mesmo antes de
+                    saber se o lead fechou negócio. Nunca substitui ROAS/CPA (que continuam sendo
+                    o critério real de decisão), só ajuda a entender POR QUE um ROAS ficou fraco. */}
+                {c.avgFit != null && (
+                  <p className={cn('text-[10px] mt-0.5', txFaint)}>
+                    fit médio {c.avgFit.toFixed(0)}/100 ({c.leadsWithFit} leads)
+                  </p>
                 )}
               </div>
             </div>

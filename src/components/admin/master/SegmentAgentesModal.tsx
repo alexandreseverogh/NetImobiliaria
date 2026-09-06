@@ -10,6 +10,7 @@
 import { useState, useEffect } from 'react';
 import { XMarkIcon, CheckCircleIcon, PlusIcon, TrashIcon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/marketing-utils';
+import { AgentesAceleracaoHelp } from '@/components/crm/AgentesAceleracaoHelp';
 
 interface ParamHint { key: string; label: string; default: string }
 interface CatalogAgent { key: string; label: string; description: string; paramHints?: ParamHint[] }
@@ -134,86 +135,30 @@ export function SegmentAgentesModal({ segment, onClose }: Props) {
           {error && <p className="text-xs text-red-600 font-medium">⚠️ {error}</p>}
 
           {showHelp && (
-            <div className="rounded-xl border border-orange-200 bg-orange-50/60 p-4 space-y-4 text-[12px] leading-relaxed text-gray-700">
-              <div>
-                <p className="font-black text-gray-900 mb-1">Como funciona esta tela</p>
-                <p>
-                  Cada agente abaixo é um comportamento fixo no código (o que ele faz não muda),
-                  mas <span className="font-semibold">se ele roda ou não, e com qual limiar,
-                  é 100% definido aqui</span> — nada disso fica fixo no código da aplicação.
-                  O que você salva aqui vale como <span className="font-semibold">padrão para
-                  todo tenant deste segmento</span> ({segment.name}).
-                </p>
-              </div>
-
-              {catalog.map((agent, i) => (
-                <div key={agent.key} className="pt-3 border-t border-orange-200/70 first:pt-0 first:border-0">
-                  <p className="font-black text-gray-900">{ORDINAL[i] ?? `${i + 1}º`} Agente — {agent.label}</p>
-                  {agent.key === 'pendencia_atendimento' && (
-                    <ul className="mt-1 space-y-1 list-disc pl-4">
-                      <li><span className="font-semibold">Quando roda:</span> verificação automática a cada 5 minutos. Diferente de tudo que existia antes, ele não olha só o primeiro contato — ele acompanha, o tempo todo, <span className="font-semibold">de quem é a bola</span>: se o lead chegou, mandou mensagem ou o atendente registrou um retorno do cliente, o lead passa a aguardar uma ação nossa e o relógio corre. Assim que alguém responde de verdade, o relógio zera. Se o cliente escrever de novo, ele reinicia — no 2º, no 3º, no 40º toque.</li>
-                      <li><span className="font-semibold">Parâmetros reconhecidos:</span> <code className="font-mono bg-white px-1 rounded">minutos_1o_contato</code> — prazo do primeiro contato, que é legitimamente mais curto (sem preencher, usa 30); <code className="font-mono bg-white px-1 rounded">minutos_continuidade</code> — prazo do 2º toque em diante, quando a conversa já está andando (sem preencher, usa 240 = 4h); <code className="font-mono bg-white px-1 rounded">fator_escalonamento</code> — quantas vezes o prazo precisa estourar para escalar ao gestor (sem preencher, usa 3); <code className="font-mono bg-white px-1 rounded">fator_reatribuicao</code> — quantas vezes o prazo precisa estourar para o lead trocar de atendente sozinho (sem preencher, usa 6).</li>
-                      <li><span className="font-semibold">Escada automática, sem fila de aprovação:</span> 1º avisa sobre o responsável → 2º escala ao gestor → 3º <span className="font-semibold">passa o lead para outro atendente automaticamente</span>, usando as mesmas regras de distribuição já configuradas para este segmento. Se o responsável estiver marcado como indisponível (férias/atestado), o lead <span className="font-semibold">pula direto para o escalonamento</span> — e, quando o lead for reatribuído, quem estava de licença <span className="font-semibold">não leva penalidade</span>: perde o lead, mas não é punido por estar doente.</li>
-                      <li><span className="font-semibold">Quem está indisponível sai da fila:</span> ninguém marcado como ausente recebe lead novo — nem na captação, nem no transbordo, nem nesta reatribuição. Isso vale inclusive para o dono da carteira e para o plantonista.</li>
-                      <li><span className="font-semibold">Onde aparece:</span> WhatsApp/Slack do tenant, em <span className="font-semibold">mensagem agrupada</span> (uma por rodada, organizada por responsável) — nunca uma mensagem por lead, o que seria inutilizável numa operação grande. Cada ocorrência fica registrada individualmente para auditoria.</li>
-                    </ul>
-                  )}
-                  {agent.key === 'stage_stagnation' && (
-                    <ul className="mt-1 space-y-1 list-disc pl-4">
-                      <li><span className="font-semibold">Quando roda:</span> mesma verificação a cada 5 minutos — olha quanto tempo cada lead está PARADO na etapa atual (sem toque humano desde que entrou nela) e compara com o prazo daquela etapa.</li>
-                      <li><span className="font-semibold">Parâmetro reconhecido:</span> nenhum. O prazo de cada etapa <span className="font-semibold">não vem daqui</span> — vem de "Personalização Kanban" (o próprio tenant configura, coluna por coluna, um campo "SLA" em horas; padrão 24h se ninguém mexer). Se adicionar um parâmetro aqui mesmo assim, ele fica salvo mas nunca é lido por este agente.</li>
-                      <li><span className="font-semibold">Onde aparece no CRM:</span> mesma limitação do 1º agente — só WhatsApp/Slack do tenant, nada visível ainda dentro do Kanban em si.</li>
-                    </ul>
-                  )}
-                  {agent.key === 'next_best_action' && (
-                    <ul className="mt-1 space-y-1 list-disc pl-4">
-                      <li><span className="font-semibold">Quando roda:</span> diferente dos outros dois — não é verificação por tempo. Dispara sozinho toda vez que o lead muda de coluna no Kanban, e também sob demanda (botão "Atualizar sugestão" na ficha do lead).</li>
-                      <li><span className="font-semibold">Parâmetro reconhecido:</span> <code className="font-mono bg-white px-1 rounded">qtd_atividades_contexto</code> — quantas das atividades mais recentes do lead a IA vê antes de sugerir a próxima ação (1 a 20). Sem preencher, usa 5.</li>
-                      <li><span className="font-semibold">Onde aparece no CRM:</span> este é o único dos três com efeito visível <span className="font-semibold">dentro do próprio CRM</span> hoje — card "Sugestão da IA" na ficha do lead (`/crm/kanban`), com botão "Registrar como Atividade". Nunca manda WhatsApp/Slack, nunca precisa de aprovação — é só uma sugestão de texto.</li>
-                    </ul>
-                  )}
-                  {agent.key === 'reactivation' && (
-                    <ul className="mt-1 space-y-1 list-disc pl-4">
-                      <li><span className="font-semibold">Quando roda:</span> mesma verificação a cada 5 minutos — olha todo lead sem NENHUM contato registrado (nem atividade) há muitos dias, e que não está numa etapa final (ganho/perdido).</li>
-                      <li><span className="font-semibold">Quando roda:</span> a cada 5 minutos, sobre leads em que <span className="font-semibold">a bola está com o cliente</span> — nós já respondemos e é ele quem sumiu. Lead que está esperando resposta NOSSA nunca entra aqui (esse é assunto do agente de Pendência de Atendimento, que escala internamente em vez de cutucar o cliente).</li>
-                      <li><span className="font-semibold">Parâmetros reconhecidos:</span> <code className="font-mono bg-white px-1 rounded">dias_inatividade</code> — quantos dias de silêncio do cliente até reativar (sem preencher, usa 7); <code className="font-mono bg-white px-1 rounded">requer_revisao_extra</code> — escreva <code className="font-mono bg-white px-1 rounded">true</code> para segmentos regulados (ex.: Saúde) onde nenhuma mensagem pode sair sem um humano ler antes.</li>
-                      <li><span className="font-semibold">Este agente FALA com o lead — e, por padrão, sozinho:</span> a IA rascunha a mensagem de reativação e o sistema <span className="font-semibold">envia automaticamente</span> pelo WhatsApp, sem fila de aprovação. O tenant é avisado depois, com o texto exato que foi enviado. É deliberado: a plataforma opera call centers grandes, e esperar aprovação humana lead a lead recria o gargalo que todo o resto elimina.</li>
-                      <li><span className="font-semibold">Como travar o envio automático:</span> preencha <code className="font-mono bg-white px-1 rounded">requer_revisao_extra</code> = <code className="font-mono bg-white px-1 rounded">true</code>. Aí sim nada sai sozinho: chega um WhatsApp pro tenant com o rascunho + PIN de 6 dígitos, e a mensagem só vai pro lead depois que um humano revisar (podendo editar o texto) e aprovar. Rejeitar descarta sem enviar nada.</li>
-                      <li><span className="font-semibold">Onde aparece no CRM:</span> com revisão extra ligada, na aba "Aprovações Pendentes" em <span className="font-mono bg-white px-1 rounded">/crm/config/agentes</span> (aprovar/rejeitar logado, sem precisar do PIN) + o link por PIN no WhatsApp. Sem ela, a notificação chega já informando o que foi enviado.</li>
-                    </ul>
-                  )}
-                  {agent.key === 'score_recalibration' && (
-                    <ul className="mt-1 space-y-1 list-disc pl-4">
-                      <li><span className="font-semibold">Quando roda:</span> uma vez por dia (04:00), não a cada 5 minutos — é o único agente que não olha leads, e sim as <span className="font-semibold">regras de qualificação</span> deste segmento. Ele compara a nota que cada regra dá com a taxa de conversão que aquela regra realmente produziu.</li>
-                      <li><span className="font-semibold">Parâmetros reconhecidos:</span> <code className="font-mono bg-white px-1 rounded">janela_dias</code> — período analisado (sem preencher, usa 90); <code className="font-mono bg-white px-1 rounded">divergencia_minima_pct</code> — o quanto a nota precisa estar distante da realidade para virar sugestão (sem preencher, usa 30); <code className="font-mono bg-white px-1 rounded">min_leads_amostra</code> — mínimo de leads para a estatística contar (sem preencher, usa 10).</li>
-                      <li><span className="font-semibold">O que ele muda sozinho e o que pede aprovação:</span> reordenar a prioridade das regras pela conversão real é automático (é só ordem interna de avaliação). Já <span className="font-semibold">mudar a nota</span> de uma regra vira uma sugestão que espera um clique seu.</li>
-                      <li><span className="font-semibold">Onde aparece:</span> junto de cada regra em "Qualificação de Lead por IA (CRM)", nesta mesma tela — e na versão do tenant em <span className="font-mono bg-white px-1 rounded">/crm/config/ia</span>. Não passa pela aba "Aprovações Pendentes".</li>
-                    </ul>
-                  )}
-                  {!['pendencia_atendimento', 'stage_stagnation', 'next_best_action', 'reactivation', 'score_recalibration'].includes(agent.key) && (
-                    <p className="mt-1 text-gray-500 italic">Documentação deste agente ainda não escrita aqui — ver docs/PLANO_AGENTES_ACELERACAO_CRM.md.</p>
-                  )}
+            <div className="rounded-xl border border-orange-200 bg-orange-50/60 p-4 text-gray-700">
+              <AgentesAceleracaoHelp
+                catalog={catalog}
+                intro={
+                  <p>
+                    Cada agente abaixo é um comportamento fixo no código (o que ele faz não muda),
+                    mas <span className="font-semibold">se ele roda ou não, e com qual limiar,
+                    é 100% definido aqui</span> — nada disso fica fixo no código da aplicação.
+                    O que você salva aqui vale como <span className="font-semibold">padrão para
+                    todo tenant deste segmento</span> ({segment.name}).
+                  </p>
+                }
+              >
+                <div className="pt-3 border-t border-orange-200/70 space-y-1">
+                  <p className="font-black text-gray-900">Sobre override por tenant</p>
+                  <p>
+                    Cada tenant deste segmento pode sobrepor o que você salvar aqui em{' '}
+                    <span className="font-mono bg-white px-1 rounded">/crm/config/agentes</span> —
+                    ele escolhe, agente a agente, entre herdar o padrão do segmento ou forçar
+                    ativado/desativado só pra empresa dele. Enquanto o tenant não mexer em nada,
+                    usa exatamente o que for salvo aqui.
+                  </p>
                 </div>
-              ))}
-
-              <div className="pt-3 border-t border-orange-200/70 space-y-1">
-                <p className="font-black text-gray-900">Se você preencher mais de um parâmetro no mesmo agente</p>
-                <ul className="space-y-1 list-disc pl-4">
-                  <li>Só as chaves que o agente reconhece (listadas acima, e sugeridas como chip clicável em cada card) têm efeito real. Qualquer outra chave digitada é salva no banco, mas nunca é lida — fica "morta", sem erro nem aviso na tela.</li>
-                  <li>Não é possível ter a <span className="font-semibold">mesma chave duas vezes</span>: o parâmetro é guardado como par chave→valor, então renomear uma linha pro nome de outra que já existe sobrescreve a anterior silenciosamente (perde o valor de antes).</li>
-                </ul>
-              </div>
-
-              <div className="pt-3 border-t border-orange-200/70 space-y-1">
-                <p className="font-black text-gray-900">Sobre override por tenant</p>
-                <p>
-                  Cada tenant deste segmento pode sobrepor o que você salvar aqui em{' '}
-                  <span className="font-mono bg-white px-1 rounded">/crm/config/agentes</span> —
-                  ele escolhe, agente a agente, entre herdar o padrão do segmento ou forçar
-                  ativado/desativado só pra empresa dele. Enquanto o tenant não mexer em nada,
-                  usa exatamente o que for salvo aqui.
-                </p>
-              </div>
+              </AgentesAceleracaoHelp>
             </div>
           )}
 

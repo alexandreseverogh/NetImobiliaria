@@ -9,6 +9,14 @@ const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || '';
 const EVOLUTION_INSTANCE = process.env.EVOLUTION_INSTANCE || 'trafegopago';
 
 export async function notifySlack(message: string, tenantId?: string | null) {
+  // ⏸️ DESATIVADO (2026-09-01) — decisão do usuário: focar o desacoplamento de módulos
+  // primeiro só em WhatsApp/Evolution; Slack fica pra uma rodada futura dedicada, com o
+  // mesmo nível de planejamento/teste. Todo caller (agentDecisor, agentMonitor,
+  // crm/agents/runner.ts, mensageria/sla.ts...) continua chamando esta função normalmente —
+  // ela só virou um no-op, nada precisou mudar nos ~6 arquivos que a chamam. Reativar:
+  // remover o `return` abaixo e o comentário de bloco.
+  return;
+  /*
   let webhook = SLACK_WEBHOOK;
   if (tenantId) {
     const config = await prisma.$queryRaw<{ slack_webhook_url: string | null }[]>`
@@ -25,6 +33,7 @@ export async function notifySlack(message: string, tenantId?: string | null) {
   } catch (err) {
     console.error('Slack notify error:', err);
   }
+  */
 }
 
 function normalizePhone(raw: string): string {
@@ -222,21 +231,23 @@ export async function notifyApprovalRequired(action: {
 }
 
 const ACTION_EMOJI: Record<string, string> = {
-  PAUSE:             '⏸️',
-  DOWNSCALE:         '📉',
-  SCALE:             '📈',
-  REFRESH_CREATIVE:  '🎨',
-  ADJUST_AUDIENCE:   '🎯',
-  REALLOCATE_BUDGET: '💰',
+  PAUSE:                 '⏸️',
+  DOWNSCALE:             '📉',
+  SCALE:                 '📈',
+  REFRESH_CREATIVE:      '🎨',
+  ADJUST_AUDIENCE:       '🎯',
+  REALLOCATE_BUDGET:     '💰',
+  USE_LOOKALIKE_AUDIENCE:'👥',
 };
 
 const ACTION_LABEL: Record<string, string> = {
-  PAUSE:             'Campanha pausada',
-  DOWNSCALE:         'Orçamento reduzido',
-  SCALE:             'Orçamento escalado',
-  REFRESH_CREATIVE:  'Criativo atualizado',
-  ADJUST_AUDIENCE:   'Público ajustado',
-  REALLOCATE_BUDGET: 'Orçamento realocado',
+  PAUSE:                 'Campanha pausada',
+  DOWNSCALE:             'Orçamento reduzido',
+  SCALE:                 'Orçamento escalado',
+  REFRESH_CREATIVE:      'Criativo atualizado',
+  ADJUST_AUDIENCE:       'Público ajustado',
+  REALLOCATE_BUDGET:     'Orçamento realocado',
+  USE_LOOKALIKE_AUDIENCE:'Audiência Lookalike aplicada',
 };
 
 export async function notifyExecuted(
@@ -352,8 +363,12 @@ export async function notifyDigest(tenantId: string, items: DigestItem[]) {
     const pauses      = group.filter(i => i.type === 'PAUSE');
     const downscales  = group.filter(i => i.type === 'DOWNSCALE');
     const reallocs    = group.filter(i => i.type === 'REALLOCATE_BUDGET');
-    const others      = group.filter(i => !['SCALE', 'PAUSE', 'DOWNSCALE', 'REALLOCATE_BUDGET'].includes(i.type));
-    if (scales.length > 0 || reallocs.length > 0) hasApprovals = true;
+    // Tier 3 "Loop do ICP" — precisa de bucket PRÓPRIO (não "others"), senão PIN/approveUrl/
+    // rejectUrl nunca chegam ao WhatsApp e a ação fica criada no banco mas inaprovável por lá —
+    // mesma classe de achado já corrigido antes pra REALLOCATE_BUDGET.
+    const lookalikes  = group.filter(i => i.type === 'USE_LOOKALIKE_AUDIENCE');
+    const others      = group.filter(i => !['SCALE', 'PAUSE', 'DOWNSCALE', 'REALLOCATE_BUDGET', 'USE_LOOKALIKE_AUDIENCE'].includes(i.type));
+    if (scales.length > 0 || reallocs.length > 0 || lookalikes.length > 0) hasApprovals = true;
 
     // Cabeçalho compacto — cada bloco é auto-contido (chega como mensagem separada)
     let b = `🤖 *Resumo do Ciclo*${tenantLine}\n`;
@@ -399,6 +414,15 @@ export async function notifyDigest(tenantId: string, items: DigestItem[]) {
       if (r.pin) b += `   🔐 PIN: *${r.pin}*\n`;
       if (r.approveUrl) b += `   ✅ ${r.approveUrl}\n`;
       if (r.rejectUrl)  b += `   ❌ ${r.rejectUrl}\n`;
+    }
+
+    // 👥 Lookalike disponível pra aplicar (precisa de aprovação — muda o público real)
+    for (const l of lookalikes) {
+      b += `👥 *${l.campaignName}*\n`;
+      if (l.description) b += `   ${l.description}\n`;
+      if (l.pin) b += `   🔐 PIN: *${l.pin}*\n`;
+      if (l.approveUrl) b += `   ✅ ${l.approveUrl}\n`;
+      if (l.rejectUrl)  b += `   ❌ ${l.rejectUrl}\n`;
     }
 
     // ⚡ Outras ações

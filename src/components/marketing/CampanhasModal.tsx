@@ -25,7 +25,7 @@ import { adminFetch } from '@/lib/auth/adminFetch';
 import { cn } from '@/lib/marketing-utils';
 import { ANGLE_OPTIONS, angleLabel } from '@/lib/marketing/angles';
 import { PencilIcon, CheckIcon } from '@heroicons/react/24/outline';
-import ClientSelector, { type ClientOption, type ClientFilterValue } from '@/components/marketing/ClientSelector';
+import ClientSelector, { type ClientOption, type ClientFilterValue } from '@/components/crm/ClientSelector';
 import DateInputPtBR from '@/components/ui/DateInputPtBR';
 
 // ── Types ─────────────────────────────────────────────────────────

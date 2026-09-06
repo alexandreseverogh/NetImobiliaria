@@ -29,6 +29,14 @@ export interface CampaignRevenueRow {
   revenue: number
   cpaReal: number | null
   roasReal: number | null
+  /** Tier 3 do plano "Loop do ICP" (2026-09-04) — fit médio dos leads identificados desta
+   *  campanha no cohort, ANTES de saber se fecharam negócio (sinal antecipado: campanha pode
+   *  trazer lead barato de fit ruim, mesmo sem dado de venda ainda). null = nenhum lead do
+   *  cohort tem score_fit real (segmento sem crm_ia_ativa, ou tenant sem CRM contratado —
+   *  nunca deveria chamar esta função sem hasCrmModule, mas o campo degrada gracioso mesmo
+   *  assim, nunca inventa número). */
+  avgFit: number | null
+  leadsWithFit: number
 }
 
 export interface RevenueAttributionTotals {
@@ -38,6 +46,8 @@ export interface RevenueAttributionTotals {
   revenue: number
   cpaReal: number | null
   roasReal: number | null
+  avgFit: number | null
+  leadsWithFit: number
 }
 
 export interface RevenueAttributionResult {
@@ -94,6 +104,8 @@ export async function getRevenueAttribution(params: {
     leads_identified: string
     deals_won: string
     revenue: string
+    avg_fit: string | null
+    leads_with_fit: string
   }>(
     `
     WITH spend AS (
@@ -115,9 +127,15 @@ export async function getRevenueAttribution(params: {
         AND me.created_at >= NOW() - ($2 || ' days')::INTERVAL
     ),
     leads AS (
-      SELECT campaign_id, COUNT(DISTINCT lead_uuid) AS leads_identified
+      -- LEFT JOIN 1:1 (lead_uuid é chave em leads_staging) — nunca causa fan-out, diferente
+      -- do JOIN com Insight (1 linha/dia) acima, que por isso vive numa CTE separada.
+      SELECT cohort.campaign_id,
+             COUNT(DISTINCT cohort.lead_uuid) AS leads_identified,
+             AVG(ls.score_fit) FILTER (WHERE ls.score_fit IS NOT NULL) AS avg_fit,
+             COUNT(DISTINCT cohort.lead_uuid) FILTER (WHERE ls.score_fit IS NOT NULL) AS leads_with_fit
       FROM cohort
-      GROUP BY campaign_id
+      LEFT JOIN public.leads_staging ls ON ls.lead_uuid = cohort.lead_uuid
+      GROUP BY cohort.campaign_id
     ),
     deals AS (
       SELECT cohort.campaign_id,
@@ -133,7 +151,9 @@ export async function getRevenueAttribution(params: {
       spend.campaign_id, spend.campaign_name, spend.client_id, spend.spend::text AS spend,
       COALESCE(leads.leads_identified, 0)::text AS leads_identified,
       COALESCE(deals.deals_won, 0)::text AS deals_won,
-      COALESCE(deals.revenue, 0)::text AS revenue
+      COALESCE(deals.revenue, 0)::text AS revenue,
+      leads.avg_fit::text AS avg_fit,
+      COALESCE(leads.leads_with_fit, 0)::text AS leads_with_fit
     FROM spend
     LEFT JOIN leads ON leads.campaign_id = spend.campaign_id
     LEFT JOIN deals ON deals.campaign_id = spend.campaign_id
@@ -157,6 +177,8 @@ export async function getRevenueAttribution(params: {
       revenue,
       cpaReal: dealsWon > 0 ? spend / dealsWon : null,
       roasReal: spend > 0 ? revenue / spend : null,
+      avgFit: r.avg_fit !== null ? parseFloat(r.avg_fit) : null,
+      leadsWithFit: parseInt(r.leads_with_fit, 10),
     }
   })
 
@@ -166,12 +188,18 @@ export async function getRevenueAttribution(params: {
       acc.leadsIdentified += c.leadsIdentified
       acc.dealsWon += c.dealsWon
       acc.revenue += c.revenue
+      if (c.avgFit !== null) {
+        acc.avgFit = (acc.avgFit ?? 0) + c.avgFit * c.leadsWithFit
+        acc.leadsWithFit += c.leadsWithFit
+      }
       return acc
     },
-    { spend: 0, leadsIdentified: 0, dealsWon: 0, revenue: 0, cpaReal: null, roasReal: null },
+    { spend: 0, leadsIdentified: 0, dealsWon: 0, revenue: 0, cpaReal: null, roasReal: null, avgFit: null, leadsWithFit: 0 },
   )
   totals.cpaReal = totals.dealsWon > 0 ? totals.spend / totals.dealsWon : null
   totals.roasReal = totals.spend > 0 ? totals.revenue / totals.spend : null
+  // acc.avgFit acumulou a SOMA ponderada até aqui — divide pelo total de leads pra virar média real.
+  totals.avgFit = totals.leadsWithFit > 0 ? (totals.avgFit as number) / totals.leadsWithFit : null
 
   return { campaigns, totals, periodDays: period }
 }

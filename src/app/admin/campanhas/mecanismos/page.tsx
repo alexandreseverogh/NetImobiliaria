@@ -7,6 +7,7 @@ import {
   ChatBubbleLeftEllipsisIcon,
 } from '@heroicons/react/24/outline'
 import { adminFetch } from '@/lib/auth/adminFetch'
+import { WhatsAppWebhookSection } from '@/components/crm/WhatsAppWebhookSection'
 
 type Tab = 'B' | 'C' | 'D' | 'WA'
 
@@ -469,54 +470,28 @@ function TabD() {
 }
 
 /* ── Tab WA: WhatsApp / Evolution API ─────────────────────────────── */
+// Portão de entrada (instância/URL/secret/regenerar) virou componente compartilhado
+// (WhatsAppWebhookSection, docs/CHECKPOINT.md 2026-09-02) — CRM/Mensageria também dependem
+// dele, então saiu daqui e passou a ser montado também em /crm/config/agentes e
+// /mensageria/config → Inboxes. Só o que é genuinamente exclusivo de Campanhas
+// (rastreamento [ref:slug] via Destino de CTA) continua só aqui.
+
+const LIGHT_THEME = {
+  isDark: false,
+  textPrimary: 'text-gray-900',
+  textMuted: 'text-gray-400',
+  textSecondary: 'text-gray-600',
+  inputBg: 'bg-white border border-gray-200 text-gray-900',
+}
 
 function TabWA() {
-  const [config, setConfig] = useState<{
-    evolution_api_url: string | null
-    evolution_instance: string | null
-    numero_whatsapp: string | null
-    evolution_webhook_secret: string | null
-    webhook_url: string | null
-  } | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [showSecret, setShowSecret] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
-  const [regenerating, setRegenerating] = useState(false)
-
-  useEffect(() => {
-    adminFetch('/api/admin/campanhas/evolution-config')
-      .then(r => r.json())
-      .then(data => { setConfig(data); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [])
 
   const copy = (text: string, id: string) => {
     navigator.clipboard.writeText(text)
     setCopied(id)
     setTimeout(() => setCopied(null), 2000)
   }
-
-  const regenerate = async () => {
-    setRegenerating(true)
-    try {
-      const res = await adminFetch('/api/admin/campanhas/evolution-config', { method: 'POST' })
-      const data = await res.json()
-      setConfig(prev => prev ? { ...prev, evolution_webhook_secret: data.evolution_webhook_secret, webhook_url: data.webhook_url } : prev)
-    } finally {
-      setRegenerating(false)
-    }
-  }
-
-  if (loading) return <p className="text-sm text-gray-400 py-8 text-center">Carregando…</p>
-
-  const webhookUrl = config?.webhook_url ?? '(secret não gerado — clique em Regenerar)'
-
-  const snippetEvolution = `// No painel da Evolution API → Instâncias → {instância} → Webhook
-// Cole a URL abaixo no campo "Webhook URL":
-${webhookUrl}
-
-// Eventos a ativar: MESSAGES_UPSERT (obrigatório)
-// Método: POST  |  Headers: nenhum adicional necessário`
 
   const snippetRef = `// A URL de WhatsApp gerada em Destinos de CTA já embute o rastreamento:
 // https://wa.me/5511999998888?text=Olá%21+Vi+o+anúncio.+[ref:meu-cta-slug]
@@ -532,83 +507,9 @@ ${webhookUrl}
         criem leads automaticamente no CRM quando contiverem a tag <code className="font-mono text-xs bg-indigo-100 px-1 rounded">[ref:slug]</code>.
       </InfoBox>
 
-      {/* Instância conectada */}
-      <Card title="Instância Evolution conectada">
-        <div className="space-y-2 text-sm">
-          {[
-            { label: 'API URL',   value: config?.evolution_api_url },
-            { label: 'Instância', value: config?.evolution_instance },
-            { label: 'Número WA', value: config?.numero_whatsapp },
-          ].map(({ label, value }) => (
-            <div key={label} className="flex items-center justify-between border-b border-gray-100 pb-1 last:border-0 last:pb-0">
-              <span className="text-gray-500 w-24 shrink-0">{label}</span>
-              <span className="font-mono text-gray-800 text-xs truncate">{value || <span className="text-gray-400 italic">não configurado</span>}</span>
-            </div>
-          ))}
-        </div>
-        <p className="mt-3 text-xs text-gray-400">
-          Para alterar a instância conectada, acesse <strong>Configurações → Integrações → Evolution API</strong>.
-        </p>
-      </Card>
+      <WhatsAppWebhookSection t={LIGHT_THEME} />
 
-      {/* Webhook URL */}
-      <Card title="URL do Webhook (cole na Evolution API)">
-        <p className="text-xs text-gray-500 mb-3">
-          Cole esta URL no campo <strong>Webhook URL</strong> da sua instância na Evolution API. O token autentica o tenant automaticamente.
-        </p>
-        <div className="flex gap-2 items-center">
-          <code className="flex-1 text-xs font-mono bg-gray-100 rounded-lg px-3 py-2 break-all text-gray-800">
-            {webhookUrl}
-          </code>
-          <button
-            onClick={() => copy(webhookUrl, 'webhook_url')}
-            className="shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-xs font-medium"
-          >
-            {copied === 'webhook_url' ? <><CheckIcon className="w-3 h-3 text-green-400" />Copiado</> : <><ClipboardDocumentIcon className="w-3 h-3" />Copiar</>}
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2 mt-4">
-          <span className="text-xs text-gray-500 w-28 shrink-0">Token secreto</span>
-          <code className="flex-1 text-xs font-mono bg-gray-100 rounded-lg px-3 py-1.5 text-gray-800">
-            {showSecret
-              ? (config?.evolution_webhook_secret ?? '—')
-              : '••••••••••••••••••••••••••••••••'}
-          </code>
-          <button onClick={() => setShowSecret(s => !s)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700">
-            {showSecret ? <EyeSlashIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
-          </button>
-          <button
-            onClick={regenerate}
-            disabled={regenerating}
-            className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg border border-rose-300 text-rose-600 hover:bg-rose-50 text-xs font-medium disabled:opacity-50"
-          >
-            {regenerating ? <ArrowPathIcon className="w-3 h-3 animate-spin" /> : <ArrowPathIcon className="w-3 h-3" />}
-            Regenerar
-          </button>
-        </div>
-        <p className="text-xs text-rose-500 mt-1">
-          Regenerar invalida a URL anterior — atualize-a na Evolution API imediatamente.
-        </p>
-      </Card>
-
-      {/* Passo a passo */}
-      <Card title="Como configurar na Evolution API">
-        <ol className="text-sm text-gray-700 space-y-2 list-decimal list-inside">
-          <li>Acesse o painel da Evolution API → <strong>Instâncias</strong> → selecione sua instância.</li>
-          <li>Vá em <strong>Configurações → Webhook</strong>.</li>
-          <li>Cole a <strong>URL do Webhook</strong> acima no campo <em>Webhook URL</em>.</li>
-          <li>Ative o evento <strong>MESSAGES_UPSERT</strong> (mensagens recebidas).</li>
-          <li>Salve. O sistema passará a criar leads automaticamente para mensagens com <code className="text-xs font-mono bg-gray-100 px-1 rounded">[ref:slug]</code>.</li>
-        </ol>
-      </Card>
-
-      {/* Snippet configuração */}
-      <Card title="Snippet de configuração">
-        <CodeBlock code={snippetEvolution} id="snip_evo" copied={copied} onCopy={copy} />
-      </Card>
-
-      {/* Como funciona o [ref:slug] */}
+      {/* Como funciona o [ref:slug] — exclusivo de Campanhas (Destino de CTA) */}
       <Card title="Como o rastreamento [ref:slug] funciona">
         <p className="text-sm text-gray-600 mb-3">
           Quando você cria um Destino de CTA do tipo <strong>WhatsApp</strong>, a URL gerada em <code className="text-xs font-mono bg-gray-100 px-1 rounded">/l/&#123;slug&#125;</code> já embute automaticamente o rastreamento na mensagem pré-preenchida do WhatsApp. Nenhuma configuração adicional é necessária.
