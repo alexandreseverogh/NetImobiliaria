@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-// last-restart: 2026-09-01 — teste 1.6b (cascata LLM em /admin/campanhas/configuracoes), bundle stale
+// last-restart: 2026-09-09 — Jest worker crash compilando rota nova next-best-action, força restart
 // Configurações baseadas no ambiente (sem TypeScript)
 const isDevelopment = process.env.NODE_ENV === 'development'
 const isProduction = process.env.NODE_ENV === 'production'

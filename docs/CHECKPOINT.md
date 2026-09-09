@@ -1,5 +1,77 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-09-09 — **`next_best_action` e `reactivation` testados de ponta a
+> ponta com dado real (item 1.7 do roteiro, seguindo "na ordem dos agentes") — 1 bug real de
+> causa raiz encontrado e corrigido no processo: inbox de WhatsApp da Mensageria ficava
+> travada com credencial vazia pra sempre, mesmo depois de configurar a credencial real.**
+>
+> **`next_best_action` (item 5) — confirmado funcionando nos 2 casos reais:** endpoint
+> `GET/POST /api/crm/leads/{uuid}/next-best-action` (escopado a 1 lead, nunca scan) testado via
+> API real: lead sem contexto (sem mensagem/atividade) → resposta honesta "não há informações
+> suficientes", sem inventar nada · lead com mensagem real ("sedan usado, R$60 mil, 48x,
+> avaliação do carro atual na entrada") + 1 atividade real registrada → sugestão específica e
+> coerente citando os dados reais ("Prepare e envie agora uma simulação de financiamento...
+> incluindo a avaliação do carro atual como entrada"). Achado no processo: a rota nunca tinha
+> sido compilada nesta sessão de dev e travou com `"Jest worker encountered 2 child process
+> exceptions"` (mesmo padrão de cache/worker do Next já documentado várias vezes neste arquivo)
+> — resolvido tocando `next.config.js` (força restart completo) + resubindo o `npm run dev`
+> (o processo anterior morreu no restart e não tinha supervisor de auto-restart). Dado de teste
+> removido, `crm_agent_actions` residual limpo.
+>
+> **Achado real, causa raiz corrigida — `mensageria.inboxes.config` nunca se re-sincronizava
+> com as credenciais reais do tenant.** Testando o caminho DEFENSIVE do `reactivation` (envio
+> automático real), o envio falhou com "Inbox sem credenciais Evolution configuradas" mesmo
+> com `tenants.evolution_api_url/api_key/instance/numero_whatsapp` genuinamente configurados e
+> já funcionando (usados por `notifyWhatsApp()` em todos os testes anteriores desta sessão).
+> Investigado até a causa raiz: `resolveWhatsAppInbox()` (`src/lib/mensageria/inboxes.ts`) só
+> preenche `config` no momento em que a inbox é criada pela PRIMEIRA vez (lazy, na 1ª
+> mensagem) — se já existe uma linha (criada, por exemplo, num teste de bot de sessão anterior,
+> antes das credenciais Evolution reais deste tenant terem sido configuradas), ela é devolvida
+> tal como está, pra sempre, mesmo depois do admin preencher a credencial real. Confirmado por
+> grep que `config` **não tem nenhum outro escritor** em todo o projeto (nenhuma UI de
+> override por inbox existe) — ou seja, o design sempre pretendeu que `config` fosse um espelho
+> fiel de `tenants`/`clientes`, nunca uma customização deliberada; a falta de
+> re-sincronização era puro descuido, não uma escolha consciente. **Corrigido:** os 2 pontos
+> de resolução (por cliente e por tenant) agora sempre fazem `UPDATE ... SET config = ...`
+> na linha já existente antes de retornar o id, além de continuar criando com o valor certo
+> quando a inbox ainda não existe — nunca mais uma inbox travada com config vazio depois da
+> credencial real ser configurada.
+>
+> **`reactivation` (item 6) — os 2 tipos (DEFENSIVE e OFFENSIVE) e os 3 caminhos de decisão
+> testados via script isolado + API HTTP real, nunca `findCandidates()`/scan:**
+> - **DEFENSIVE** (`requer_revisao_extra=false`, herdado do segmento) — `evaluate()` real
+>   (mensagem de reativação coerente, mencionando o interesse real do lead) → gravado
+>   `NOTIFIED` → `execute()` chamou `autoSendReactivation()` → **envio real confirmado**
+>   (`mensageria.messages.delivery_status='sent'`), `crm_agent_actions.status='EXECUTED'`,
+>   atividade real registrada com `origem='ia'` (badge "🤖 Agente de IA") — reproduz o fix do
+>   bug de inbox acima, confirmando que resolveu de verdade.
+> - **OFFENSIVE** (`requer_revisao_extra=true`, override local no teste, nunca tocando a
+>   tabela compartilhada) — via `POST /api/crm/agent/approve/[id]` real (mesma rota pública
+>   sem sessão, autenticada só por PIN, que o link de WhatsApp usaria):
+>   - PIN errado → `422`, "PIN incorreto", status continua `PENDING_APPROVAL` (nada mudou).
+>   - PIN certo **com o texto editado** antes de confirmar → `200`, "Reativação enviada",
+>     `crm_agent_actions.suggested_message` persistido é o **texto editado**, não o rascunho
+>     original da IA (prova que "aprovar edita e envia" funciona de verdade) — envio real
+>     confirmado (`delivery_status='sent'`).
+>   - Via `POST /api/crm/agent/reject/[id]` (também com PIN) → `status='REJECTED'`,
+>     confirmado que **nenhuma mensagem chegou a ser enviada** (nenhum contato/conversa novo
+>     criado na Mensageria pra esse lead).
+>
+> Todo dado de teste removido ao final (3 leads dedicados, atividades, ações, o contato/
+> conversa/mensagens da Mensageria criados pelos 2 envios reais), `count(*)=0` confirmado em
+> todas as tabelas tocadas. `npx tsc --noEmit`: **zero erros em todo o projeto** (mesma
+> baseline zerada desde 2026-07-31, confirmada intacta depois do fix de `inboxes.ts`).
+>
+> **Achado incidental, já resolvido em sessão anterior mesma tarefa, registrado aqui só por
+> completude:** notificação WhatsApp do `stage_stagnation` (teste anterior a este) chegou vazia
+> por causa de retry de sessão peer-to-self do Baileys (sender=destinatário=mesmo número
+> conectado à instância) — não é bug da aplicação, é limitação de ambiente de teste (self-chat).
+>
+> **Próximo passo:** seguir com `score_recalibration` (item 7, opera sobre regras — não sobre
+> leads —, roda via cron diário 04h ou pode ser conferido direto em `/crm/config/ia`), depois a
+> aba "Aprovações Pendentes" (itens 8-10 do roteiro — já cobertos funcionalmente pelo teste
+> acima via API, falta só a confirmação visual na UI se o usuário quiser).
+
 > **Atualizado em:** 2026-09-08 (continuação, teste do roteiro 1.7) — **Achado real, resolvido:
 > a notificação WhatsApp do teste do `stage_stagnation` chegou vazia — causa raiz confirmada nos
 > logs do Baileys/Evolution, não é bug da aplicação.**

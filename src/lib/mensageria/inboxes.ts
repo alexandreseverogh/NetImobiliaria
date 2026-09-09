@@ -18,12 +18,6 @@ const SCHEMA = 'mensageria'
  */
 export async function resolveWhatsAppInbox(tenantId: string, clientId?: string | null): Promise<string> {
   if (clientId) {
-    const { rows } = await pool.query(
-      `SELECT id FROM ${SCHEMA}.inboxes WHERE tenant_id = $1 AND client_id = $2 AND channel_type = 'whatsapp' LIMIT 1`,
-      [tenantId, clientId],
-    )
-    if (rows[0]) return rows[0].id
-
     const { rows: clientRows } = await pool.query(
       `SELECT evolution_api_url, evolution_api_key, evolution_instance, numero_whatsapp
          FROM public.clientes WHERE uuid = $1 AND tenant_id = $2`,
@@ -31,30 +25,37 @@ export async function resolveWhatsAppInbox(tenantId: string, clientId?: string |
     )
     const c = clientRows[0]
     if (c?.evolution_instance) {
+      // `config` não tem NENHUM outro escritor além daqui (confirmado — não existe UI de
+      // override por inbox) — é sempre um espelho de public.clientes/tenants, nunca uma
+      // customização deliberada. Por isso a linha já existente é sempre re-sincronizada, não
+      // só criada uma vez: sem isso, uma inbox criada ANTES de configurar as credenciais Evolution
+      // do cliente/tenant (ex.: 1ª mensagem chegou antes do admin preencher o formulário) fica
+      // travada pra sempre com config vazio, mesmo depois da credencial real ser configurada —
+      // achado real testando reactivation com dado vivo, não hipotético.
+      const config = JSON.stringify({
+        api_url: c.evolution_api_url ?? null,
+        api_key: c.evolution_api_key ?? null,
+        instance: c.evolution_instance ?? null,
+        number: c.numero_whatsapp ?? null,
+      })
+      const { rows: existingClientInbox } = await pool.query(
+        `SELECT id FROM ${SCHEMA}.inboxes WHERE tenant_id = $1 AND client_id = $2 AND channel_type = 'whatsapp' LIMIT 1`,
+        [tenantId, clientId],
+      )
+      if (existingClientInbox[0]) {
+        await pool.query(`UPDATE ${SCHEMA}.inboxes SET config = $1::jsonb WHERE id = $2`, [config, existingClientInbox[0].id])
+        return existingClientInbox[0].id
+      }
       const { rows: created } = await pool.query(
         `INSERT INTO ${SCHEMA}.inboxes (tenant_id, client_id, name, channel_type, provider, config)
          VALUES ($1, $2, 'WhatsApp (cliente)', 'whatsapp', 'evolution', $3::jsonb)
          RETURNING id`,
-        [
-          tenantId, clientId,
-          JSON.stringify({
-            api_url: c.evolution_api_url ?? null,
-            api_key: c.evolution_api_key ?? null,
-            instance: c.evolution_instance ?? null,
-            number: c.numero_whatsapp ?? null,
-          }),
-        ],
+        [tenantId, clientId, config],
       )
       return created[0].id
     }
     // Cliente sem número próprio configurado — cai para a inbox padrão do tenant abaixo.
   }
-
-  const { rows } = await pool.query(
-    `SELECT id FROM ${SCHEMA}.inboxes WHERE tenant_id = $1 AND client_id IS NULL AND channel_type = 'whatsapp' LIMIT 1`,
-    [tenantId],
-  )
-  if (rows[0]) return rows[0].id
 
   const { rows: tenantRows } = await pool.query(
     `SELECT evolution_api_url, evolution_api_key, evolution_instance, numero_whatsapp
@@ -62,20 +63,29 @@ export async function resolveWhatsAppInbox(tenantId: string, clientId?: string |
     [tenantId],
   )
   const t = tenantRows[0] || {}
+  const tenantConfig = JSON.stringify({
+    api_url: t.evolution_api_url ?? null,
+    api_key: t.evolution_api_key ?? null,
+    instance: t.evolution_instance ?? null,
+    number: t.numero_whatsapp ?? null,
+  })
+
+  const { rows: existingTenantInbox } = await pool.query(
+    `SELECT id FROM ${SCHEMA}.inboxes WHERE tenant_id = $1 AND client_id IS NULL AND channel_type = 'whatsapp' LIMIT 1`,
+    [tenantId],
+  )
+  if (existingTenantInbox[0]) {
+    // Mesmo raciocínio do bloco de cliente acima: re-sincroniza sempre, nunca confia num
+    // snapshot que pode ter sido gravado antes da credencial real existir.
+    await pool.query(`UPDATE ${SCHEMA}.inboxes SET config = $1::jsonb WHERE id = $2`, [tenantConfig, existingTenantInbox[0].id])
+    return existingTenantInbox[0].id
+  }
 
   const { rows: created } = await pool.query(
     `INSERT INTO ${SCHEMA}.inboxes (tenant_id, name, channel_type, provider, config)
      VALUES ($1, 'WhatsApp', 'whatsapp', 'evolution', $2::jsonb)
      RETURNING id`,
-    [
-      tenantId,
-      JSON.stringify({
-        api_url: t.evolution_api_url ?? null,
-        api_key: t.evolution_api_key ?? null,
-        instance: t.evolution_instance ?? null,
-        number: t.numero_whatsapp ?? null,
-      }),
-    ],
+    [tenantId, tenantConfig],
   )
   return created[0].id
 }
