@@ -1,5 +1,322 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-09-08 (continuação, teste do roteiro 1.7) — **Achado real, resolvido:
+> a notificação WhatsApp do teste do `stage_stagnation` chegou vazia — causa raiz confirmada nos
+> logs do Baileys/Evolution, não é bug da aplicação.**
+>
+> **Causa raiz confirmada, não suposta:** o número de destino configurado em
+> `tenants.numero_whatsapp` (tenant "CRM SOZINHO", `5581998000047`) é **o mesmo número** do
+> celular que escaneou o QR code e está conectado como a instância Evolution
+> (`ownerJid=558198000047@s.whatsapp.net`, confirmado via `GET /instance/fetchInstances`). Toda
+> mensagem enviada é, na prática, a instância mandando WhatsApp pra si mesma — dispara o
+> mecanismo de "peer session" do multi-device do WhatsApp: o celular responde com
+> `"recv retry request"` (`category:"peer"`) toda vez, e a Evolution fecha/refaz a sessão de
+> criptografia (`Closing session`/`fetching sessions` nos logs). Esse retry peer-to-self é
+> conhecido por ser instável no Baileys — a mensagem original pode não ser re-entregue com o
+> conteúdo íntegro depois do retry, resultando em corpo vazio no destino (mesmo o remetente
+> nunca vendo erro nenhum — o envio HTTP retorna sucesso normalmente).
+>
+> **Confirmado que não é bug do código:** `notifyWhatsApp()` (`agentNotificador.ts`) fez
+> exatamente o esperado — o payload enviado, visível no próprio log de saída da Evolution
+> (`ChannelStartupService`), tinha o texto completo e correto do `stage_stagnation`
+> (`"⏱️ Lead parado em \"Lead Captado\" há 1h..."`). O `test-notify-real.ts` anterior (mensagem
+> de verificação da instância) usou o MESMO número self-chat e teve sucesso ("chegou!") — prova
+> que o problema é intermitente/probabilístico do retry peer-to-self, não determinístico —
+> exatamente como o usuário já lembrava de sessões de teste anteriores ("quando o número do
+> WhatsApp era o mesmo para emissor e destinatário, isso acontecia").
+>
+> **Não bloqueia o restante do roteiro** — a lógica de notificação está correta; é uma limitação
+> de ambiente de teste (self-chat), não da plataforma. Segue-se com o teste dos agentes
+> restantes na ordem do roteiro (`next_best_action`, `reactivation`, `score_recalibration`).
+> Se o usuário quiser eliminar de vez essa flakiness em testes futuros, a solução real seria
+> configurar `numero_whatsapp` do tenant de teste com um número DIFERENTE do celular conectado
+> à instância — nunca o mesmo número dos dois lados.
+
+> **Atualizado em:** 2026-09-06 (continuação 6) — **Achado real, sério: `pendencia_atendimento`,
+> `stage_stagnation` e `reactivation` já estão ATIVOS DE VERDADE nos segmentos Imobiliário e
+> Venda de Carros — contradiz a nota anterior deste arquivo ("nada ativado em produção... todos
+> os agentes nascem desligados"), que estava desatualizada.**
+>
+> **Contexto:** investigando como testar com segurança o item 1.7 do roteiro (Agentes de
+> Aceleração), antes de considerar invocar `POST /api/cron/crm/agentes-scan` (que varre TODOS os
+> tenants da plataforma numa única chamada — mesma classe de risco já documentada pro
+> `runDecisor()` de Campanhas, que já causou um incidente real de pausa acidental de campanha),
+> confirmei via SQL direto o estado real de `crm_agentes_config_segmento`: as 6 linhas reais
+> (3 agentes × 2 segmentos — Imobiliário, Venda de Carros) têm `ativo=true`, e
+> `crm_agentes_config_tenant` está **vazio** (nenhum override de nenhum tenant desativando isso).
+>
+> **Alcance real confirmado, não hipotético:** os 3 tenants reais do segmento Imobiliário
+> (Marketing Digital, Imobiliaria XYZ, Imovitec) TÊM `evolution_api_url`/`slack_webhook_url`
+> reais configurados nos 3 — ou seja, um disparo real desses agentes enviaria notificação de
+> verdade pra esses tenants, não um teste isolado. Marketing Digital sozinho já tem 5 leads reais
+> (`bola_com='nos'` há mais de 30min) que seriam candidatos reais de `pendencia_atendimento`
+> agora mesmo, se o scan fosse chamado.
+>
+> **Ação tomada nesta atualização: só documentação, nenhum dado real tocado.** Perguntado ao
+> usuário como proceder — usuário escolheu registrar o achado aqui primeiro, antes de decidir se
+> desliga os 6 registros reais ou testa com uma estratégia que nunca invoca o scan real. Decisão
+> sobre desligar (ou não) os agentes nos segmentos reais **ainda pendente**, a ser tomada numa
+> próxima interação com o usuário — não desligado unilateralmente nesta rodada.
+>
+> **Metodologia de teste combinada para o item 1.7 (fases B/C do roteiro), pra nunca repetir
+> esse risco:** nunca chamar `POST /api/cron/crm/agentes-scan` durante o teste — nem contra o
+> tenant de teste "CRM SOZINHO", já que o endpoint sempre varre a plataforma inteira, sem escopo
+> por tenant. Em vez disso: (1) chamar `evaluate()`/`execute()` de cada agente isoladamente via
+> script, fora do runner de scan; (2) simular a fila "Aprovações Pendentes" inserindo linhas de
+> teste direto em `crm_agent_actions` via SQL, sem passar pelo `findCandidates()` global.
+>
+> **Próximo passo:** decidir com o usuário se os 6 registros reais de `crm_agentes_config_
+> segmento` (Imobiliário + Venda de Carros) devem ser desligados agora (restaurando o estado
+> "nada ativado" que a documentação anterior presumia) ou mantidos ativos como estão — e só
+> depois seguir com a execução das fases A/B/C/D do item 1.7 usando a metodologia isolada acima.
+
+> **Atualizado em:** 2026-09-06 (continuação 5) — **Item 1.6d do `docs/ROTEIRO_TESTES_CRM.md`
+> executado minuciosamente: "Copiar de outro cliente" (v1, sem IA) — os 2 cenários (com peer
+> disponível / cold-start sem nenhum peer) confirmados via API real, DB e navegador real.**
+>
+> **Cenário 1 — com peer disponível** (tenant "CRM SOZINHO", Cliente B = Old Cars, sem
+> override; Cliente A = Frank Aguiar, já tinha o override real usado em 1.6c): `GET
+> /api/crm/prompt-overrides/peers?...&excludeClientId=<Old Cars>` retornou exatamente 1 peer
+> (Frank Aguiar, conteúdo real completo). No navegador real (sessão JWT+cookie+localStorage):
+> abri "Sobrescrever para este cliente" em Old Cars → confirmado via `read_page` que o combobox
+> **"Copiar de outro cliente…"** aparece entre "Limpar" e "Cancelar", exatamente como o roteiro
+> descreve · selecionei "Frank Aguiar" via `form_input` → o `<textarea>` foi substituído na hora
+> pelo texto real dele (`length:2600`, confirmado via JS — mesmo comprimento exato do original
+> no banco, prova de cópia byte a byte) e o combobox voltou sozinho pro placeholder · **antes de
+> clicar em Salvar**, confirmei via SQL direto que `system_prompt_templates` pro `client_id` de
+> Old Cars continuava com `count(*)=0` — prova de que escolher um peer nunca salva sozinho
+> (passo 4 do roteiro) · cliquei "Cancelar", saiu do modo de edição sem persistir nada.
+>
+> **Cenário 2 — cold-start, sem nenhum peer** (tenant "Imobiliaria XYZ", real, segmento
+> Imobiliário): confirmado por SQL que, em todo o banco, o único `client_id` com prompt próprio
+> em qualquer tenant é o do Frank Aguiar (`CRM SOZINHO`) — ou seja, qualquer cliente de QUALQUER
+> outro tenant é cold-start genuíno, sem precisar fabricar o cenário. Criado 1 cliente de teste
+> dedicado (`tipo_cliente='conta_gerenciada'`, nome "TESTE 1.6d Cliente Cold Start") só pra não
+> tocar em nenhum cliente real de produção. `GET .../peers?...&excludeClientId=<teste>` retornou
+> `peers:[]`. No navegador real: abri "Sobrescrever para este cliente" nesse cliente → confirmado
+> via `read_page` que **o combobox "Copiar de outro cliente…" simplesmente não existe** entre
+> "Limpar" e "Cancelar" — cold-start honesto, sem erro nenhum, exatamente como o roteiro exige.
+> Cancelado sem salvar.
+>
+> **Limpeza confirmada:** cliente de teste removido (`DELETE FROM public.clientes`, nunca teve
+> lead/atividade vinculado, sem cascata sensível) · Old Cars confirmado com `count(*)=0` em
+> `system_prompt_templates` · **prompt real de Frank Aguiar confirmado intocado** — mesmo
+> `length=2600`/hash MD5 (`4979bcda...`) de antes de todo o teste (1.6c e 1.6d juntos).
+>
+> **Resultado: item 1.6d passa integralmente nos 2 cenários (com peer e cold-start), validado
+> via API/DB e navegador real, sem tocar em nenhum dado de produção real.**
+
+> **Atualizado em:** 2026-09-06 (continuação 4) — **Item 1.6c do `docs/ROTEIRO_TESTES_CRM.md`
+> executado minuciosamente: isolamento entre clientes do mesmo tenant, nas cascatas de PROMPT e
+> de MODELO de LLM — 0 vazamento em nenhum dos dois, testado via API real, DB e navegador.**
+>
+> **Tenant usado:** "CRM SOZINHO" (`c3fc15b7-...`, segmento Venda de Carros, `crm_ia_ativa=true`),
+> com os 2 clientes reais já existentes — Cliente A = **Frank Aguiar** (já tinha um override de
+> PROMPT real e pré-existente, nunca criado nesta rodada — texto sobre venda exclusiva de
+> USADOS) e Cliente B = **Old Cars** (nenhum override, baseline limpo). Usuário real `admxyz`.
+>
+> **Cascata de PROMPT (`GET /api/crm/prompt-overrides`):**
+> - Cliente A → `resolvedLevel:"client"`, texto real dele ("veículos USADOS...").
+> - Cliente B → `resolvedLevel:"segment"`, texto genérico do segmento ("veículos novos e
+>   usados...") — **nunca** o texto de Frank.
+> - Confirmado também visualmente no navegador (sessão real via JWT+cookie+localStorage,
+>   mesmo playbook já documentado neste arquivo): badge VERDE "Sobrescrito para este cliente"
+>   pra A, badge VERMELHO "Herdado do padrão do segmento" pra B — exatamente a cor esperada
+>   pelo roteiro nos dois casos.
+>
+> **Cascata de MODELO (`PUT/GET/DELETE /api/admin/campanhas/settings/llm`):** criado um
+> override de teste só no Cliente A (`gemini`/`gemini-flash-latest`, diferente do modelo real
+> do tenant — `groq`/`openai/gpt-oss-120b`). Confirmado: Cliente B continuou `null`/`null`
+> (herda) em nenhum momento refletiu o gemini de A; o TENANT nunca saiu de `groq`/`gpt-oss-120b`
+> durante todo o teste. Confirmado visualmente: dropdown de Provider do Cliente A mostra
+> "Google Gemini" selecionado + botão "Restaurar herança"; o MESMO seletor, trocado pra Old
+> Cars, mostra "— Sem override (herda a cascata) —" — **os 2 seletores de cliente da tela
+> (prompt e modelo) são independentes entre si**, confirmado ao vivo (trocar um não afeta o
+> outro).
+>
+> **Teste decisivo — qualificação real de lead, não só a tela de config:** criados 2 leads de
+> teste com a **mesma mensagem exata** ("Quero comprar um carro 0km, com financiamento direto
+> de fábrica da concessionária"), um pra cada cliente, via `POST /api/crm/leads` real:
+> - Cliente A (usa o prompt real de Frank, calibrado pra só usados): `tag_sonho:"🚗 Primeiro
+>   Carro"`, `score_prontidao:90`, `score_fit:null`, resumo genérico.
+> - Cliente B (usa o prompt genérico do segmento): `tag_sonho:"Financiamento"`,
+>   `score_prontidao:70`, `score_fit:50`, resumo detalhado refletindo a mensagem real (0km,
+>   financiamento de fábrica, pedido de simulação).
+>
+> Resultados completamente diferentes — prova, pelo caminho real de produção
+> (`qualifyLead`→`getLlmClient`/`resolvePromptTemplate` com `clientId`), que a qualificação do
+> Cliente B nunca herdou o comportamento/calibração específica de Frank.
+>
+> **Limpeza confirmada:** override de modelo de teste do Cliente A removido (`DELETE`,
+> restaurado a `null`/herda) · os 2 leads de teste removidos, `count(*)=0` em
+> `leads_staging`/`leads_kanban` · **prompt real de Frank Aguiar confirmado intocado**
+> (`length=2600`, mesmo hash MD5 de antes do teste) · Old Cars confirmado com 0 linhas em
+> `system_prompt_templates` e 0 em `Settings` (nunca ganhou nenhum override, nem por engano) ·
+> modelo do tenant confirmado inalterado (`groq`/`openai/gpt-oss-120b`).
+>
+> **Resultado: item 1.6c passa integralmente, nos 2 mecanismos de cascata (prompt e modelo),
+> validado em 3 camadas (API/DB, navegador real, qualificação de produção real).**
+
+> **Atualizado em:** 2026-09-06 (continuação 3) — **Tier 4: fechado o gap de persistência do
+> circuit breaker (FASE 19.2) pra tenant sem nenhuma linha em `tenant_network_credentials`.**
+>
+> **Achado original (FASE 19.2, sessão de 03/09):** `recordCircuitFailure()` fazia um `UPDATE`
+> puro em `public.tenant_network_credentials` — se o tenant nunca teve nenhuma linha pra aquela
+> rede (ex.: tenant Meta legado, credencial só nas colunas antigas de `public.tenants`), o
+> `UPDATE` afetava 0 linhas: o disjuntor funcionava certo DENTRO da mesma rodada de cron (mapa em
+> memória), mas nunca persistia entre rodadas pra esse caso específico.
+>
+> **Corrigido** (`networkCircuitBreaker.ts`, `recordCircuitFailure`): `UPDATE` puro virou
+> `INSERT ... ON CONFLICT (tenant_id, network_id) DO UPDATE`. A linha nova nasce com
+> `is_active=false`/`credentials='{}'::jsonb` de propósito — nunca `true` — por 2 motivos
+> confirmados lendo o código antes de decidir: (1) `factory.ts` (`getNetworkServiceForTenant`)
+> só lê `tenant_network_credentials` como fonte de credencial quando `is_active=true` — com
+> `false`, a linha nova é invisível pro cascade de credencial real (nunca compete com a coluna
+> legada, que continua vencendo via `t.meta_token || creds.access_token`); (2) `GET .../
+> configuracoes/redes` (a tela "Configurações → Redes") calcula `connected` só pela EXISTÊNCIA
+> de linha ativa (`tnc.id IS NOT NULL AND tnc.is_active`), **sem olhar o conteúdo real da
+> credencial** — uma linha nova com `is_active=true` mostraria "Conectado" indevidamente pra um
+> tenant cuja credencial real nunca foi migrada pra essa tabela. `resetCircuitBreaker`
+> (chamado só depois que já existe falha registrada, logo a linha já existe) continua com
+> `UPDATE` puro, sem mudança — não tem o mesmo gap.
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant de bancada "Teste RAG —
+> Multi-Segmento", confirmado via SQL como tendo ZERO linhas em `tenant_network_credentials`
+> pra qualquer rede antes do teste — cenário exato do gap): rodada a SQL real do fix 5x seguidas
+> (limiar=5) → `consecutive_failures=5`, `circuit_tripped_at` preenchido, **`is_active` nunca
+> saiu de `false`** · simulada uma "nova rodada" (mapa em memória vazio, releitura do zero via a
+> mesma query de `getCircuitState()`) → confirma os valores persistidos corretamente — a prova
+> direta de que o gap original está fechado · confirmado via a mesma query real da tela
+> "Configurações → Redes" que `connected=false` continua correto, mesmo com o disjuntor aberto
+> e a linha existindo · simulado o reset (sucesso) → `consecutive_failures=0`,
+> `circuit_tripped_at=NULL`, `is_active` continua `false`. Dado de teste removido,
+> `count(*)=0` confirmado. `npx tsc --noEmit`: zero erros em todo o projeto.
+>
+> **Com isso, o Tier 4 (reconstruído nesta sessão) está fechado no escopo pedido.** Restam só
+> 2 itens levantados na mesma investigação, nenhum atacado por decisão do usuário nesta rodada:
+> Google Ads `conversionGoal` nunca aplicado em `createCampaign()` (maior escopo, bloqueado por
+> falta de conta Google Ads real pra confirmar o shape da API) e nenhuma outra pendência técnica
+> conhecida da frente "Loop do ICP".
+
+> **Atualizado em:** 2026-09-06 (continuação 2) — **Tier 4 concluído: os 4 itens da varredura de
+> timezone fechados — 2 bugs reais corrigidos (`dashboard/funnel/route.ts` e `admin/campanhas/
+> segments/route.ts`), 1 arquivo confirmado seguro por engano meu na rodada anterior
+> (`trackingHealthService.ts` — corrigida a avaliação, sem código tocado), 1 falso alarme
+> confirmado (`login-profiles/route.ts`).**
+>
+> **Autocorreção importante, registrada com transparência:** na entrada anterior deste mesmo
+> checkpoint eu tinha classificado `trackingHealthService.ts` como o item de MAIOR prioridade
+> (mesma classe do bug real do Tier 2) e `funnel`/`segments` como "provável falso alarme". O
+> usuário pediu pra corrigir todos os 4 juntos — ao testar `trackingHealthService.ts` de verdade
+> antes de tocar no código (disciplina do projeto: nunca hipotético), o teste **contradisse minha
+> própria classificação anterior**. Isso só foi possível porque testei com dado real em vez de
+> confiar no meu próprio diagnóstico anterior — registrado aqui como lição, não escondido.
+>
+> **Causa raiz real, encontrada lendo o código-fonte dos 2 drivers** (não suposição):
+> `@prisma/adapter-pg` (`node_modules/@prisma/adapter-pg/dist/*.js`, função `formatDate`) serializa
+> `Date` sempre via `getUTCFullYear()`/`getUTCHours()`/etc. — string sem nenhum offset embutido,
+> sempre UTC. Já o pacote `pg` puro (`node_modules/pg/lib/utils.js`, função `dateToString`, usada
+> por `pool.query()` cru) serializa via `getFullYear()`/`getHours()`/etc. (getters LOCAIS) mais o
+> offset local do processo (`date.getTimezoneOffset()`) — nesta máquina, `America/Sao_Paulo`
+> (-03:00). `trackingHealthService.ts` usa `prisma.$queryRawUnsafe` (mesmo cliente com
+> `@prisma/adapter-pg`) — nunca passa pelo `dateToString` do `pg` puro, então nunca sofre o
+> deslocamento. `dashboard/funnel/route.ts` e `admin/campanhas/segments/route.ts` usam `pool` de
+> `@/lib/database/connection.ts` (`pg.Pool` puro) — passam sim.
+>
+> **Testado com metodologia corrigida** (a 1ª rodada de teste tinha uma falha real: inserir dado
+> via um `docker exec` separado e rodar a query num script `node` separado depois — o tempo real
+> decorrido entre as duas chamadas contaminava qualquer teste de boundary com margem apertada,
+> dando falso positivo/negativo dependendo de quanto tempo passou entre as duas. Corrigido: um
+> único script atômico, `nowRef` calculado 1x, insert+query no mesmo processo, sem depender do
+> `now()` do Postgres nem de gap entre chamadas de ferramenta):
+> - `marketing_eventos.created_at` (timestamptz genuína) via `pool.query()` cru + `::timestamp` →
+>   **2 linhas** (errado, incluiu uma de 24h10min atrás que devia ficar de fora); com
+>   `::timestamptz` → **1 linha** (correto). Bug real confirmado.
+> - `Insight.date` (timestamp **sem** tz genuína, mesmo assim) via `pool.query()` cru +
+>   `::timestamp` → **2 linhas** (errado, mesmo bug); com `::timestamptz` → **1 linha** (correto).
+>   Bug real confirmado — contraria minha suposição teórica anterior de que "mesmo tipo dos dois
+>   lados" seria automaticamente seguro (não é: o problema está em como o PARÂMETRO chega
+>   comparado contra a coluna, não em o tipo da coluna em si).
+> - `CtaInteraction.created_at` (timestamptz genuína) via `prisma.$queryRawUnsafe` +
+>   `::timestamp` → **1 linha** (correto); com `::timestamptz` → **1 linha** (correto, idêntico).
+>   Confirma `trackingHealthService.ts` seguro nos dois casts — nenhuma mudança necessária.
+> - `login-profiles/route.ts` — confirmado na rodada anterior: passa string crua de
+>   `searchParams.get(...)`, nunca `new Date(...)` — sem interação nenhuma com o mecanismo acima.
+>   Falso alarme, nenhuma mudança necessária.
+>
+> **Corrigido** (`dashboard/funnel/route.ts` e `admin/campanhas/segments/route.ts`): todo cast
+> `$N::timestamp` sobre os parâmetros `startDate`/`endDate` (`Date` vindo de `new Date(...)` no
+> handler) trocado por `$N::timestamptz` — nos dois pontos reais de comparação contra
+> `Insight.date` de cada arquivo, e no `IS NOT NULL` de `funnel/route.ts` que só existia pra
+> manter o binding de parâmetro válido (mesmo padrão já documentado no Tier 2).
+> `trackingHealthService.ts` foi deliberadamente **deixado intocado** — mudar um código que já
+> está correto não teria efeito prático e adicionaria risco/ruído sem necessidade.
+>
+> **Testado ao vivo contra o servidor dev real, tenant real (Marketing Digital):**
+> `GET /dashboard/funnel` e `GET /campanhas/segments` (com `startDate`/`endDate` reais) → `200`
+> nos dois, dado real coerente (2 campanhas TOF com R$22.153,98 de gasto real, 1 segmento
+> "Imobiliário" com 1 campanha ativa no período) — confirma zero regressão no caminho normal.
+> `npx tsc --noEmit`: **zero erros em todo o projeto**. Todo dado de teste (marketing_eventos,
+> Insight, CtaInteraction sintéticos) removido, `count(*)=0` confirmado nas 3 tabelas.
+>
+> **Com isso, a varredura de timezone iniciada no Tier 2 (continuação 8) está formalmente
+> fechada — os 6 arquivos originalmente flagueados** (`campaignStateMachine.ts`, já confirmado
+> seguro antes; `aiInsights.ts`, já corrigido no Tier 2; `dashboard/funnel/route.ts`,
+> `admin/campanhas/segments/route.ts`, `trackingHealthService.ts`, `admin/dashboards/
+> login-profiles/route.ts`, agora todos resolvidos nesta rodada) **têm status final conhecido,
+> nenhum pendente.**
+
+> **Atualizado em:** 2026-09-06 (continuação) — **Tier 4 do plano "Loop do ICP" iniciado: 1º
+> item concluído — `audit-actions/route.ts` referenciava uma coluna que não existe.**
+>
+> **Contexto:** o documento original da auditoria "O Loop Quebrado do ICP" (que teria definido
+> o escopo do Tier 4) não existe mais em disco — nem em `docs/`, nem em `~/.claude/plans/`
+> (sobrescrito por planos de sessões seguintes). Reconstruído o escopo a partir de 2 fontes reais:
+> (1) achados explicitamente registrados como "não atacado" durante o trabalho de Tiers 1-3;
+> (2) verificação ao vivo feita nesta sessão pra separar o que ainda é real do que já era falso
+> alarme — a varredura original de "6 arquivos com padrão de risco de timezone" (Tier 2,
+> continuação 8) nunca tinha sido auditada arquivo a arquivo.
+>
+> **Verificado, com dado real, os 5 arquivos pendentes daquela varredura:**
+> - `admin/dashboards/audit-actions/route.ts` — **bug real, mais grave que timezone**: a query
+>   referencia `created_at`, coluna que **não existe** em `audit_logs` (só existe `timestamp`,
+>   confirmado via `information_schema.columns`) — reproduzido o erro exato via SQL direto
+>   (`column "created_at" does not exist`) antes de tocar no código. Não é o mesmo bug de
+>   timezone da classe original — é um bug de referência a coluna inexistente, sempre disparado
+>   quando um filtro de data é aplicado.
+> - `lib/marketing/services/trackingHealthService.ts` — confirmado que É a mesma classe do bug já
+>   corrigido no Tier 2 (`aiInsights.ts`): `new Date(...)` via `pool.query` cru, cast `::timestamp`
+>   sem tz, comparado contra `CtaInteraction.created_at`/`CtaSubmission.created_at` — confirmado
+>   via `information_schema.columns` que são genuinamente `timestamp with time zone`. Real, ainda
+>   não corrigido (próximo item desta frente).
+> - `dashboard/funnel/route.ts` + `admin/campanhas/segments/route.ts` — comparam contra
+>   `Insight.date`, confirmado genuinamente `timestamp` **sem** tz — mesma classe de
+>   `campaignStateMachine.ts` (Tier 2, já provado seguro por autoconsistência: escrita e leitura
+>   passam pelo mesmo processo/timezone). Provável falso alarme, mas nunca testado ao vivo — fica
+>   registrado como pendência de confirmação, não atacado nesta rodada.
+> - `admin/dashboards/login-profiles/route.ts` — **falso alarme confirmado**: passa string crua
+>   de `searchParams.get(...)` direto, nunca `new Date(...)` — sem interação nenhuma com o
+>   mecanismo de serialização do driver que causa o bug de timezone. Sai da lista de pendências.
+>
+> **Corrigido** (`src/app/api/admin/dashboards/audit-actions/route.ts`): os 2 filtros de data
+> (`startDate`/`endDate`) trocaram `(created_at >= $N::timestamp OR timestamp >= $N::timestamp)`
+> por só `timestamp >= $N::timestamp` — a única coluna real da tabela. Sem risco de timezone
+> aqui: `startDate`/`endDate` chegam como string crua da query string (nunca `new Date(...)`),
+> e a coluna é `timestamp` sem tz — cast direto, sem ambiguidade de offset.
+>
+> **Testado ao vivo, ponta a ponta, contra o servidor dev real** (não hipotético): SQL direto
+> reproduziu o erro exato antes do fix (`column "created_at" does not exist`) · depois do fix,
+> a mesma query roda limpo via SQL direto · `GET /api/admin/dashboards/audit-actions` real (JWT
+> Master gerado na hora) sem filtro → 200, 6 ações reais agregadas (LOGIN_SUCCESS 529,
+> LOGOUT 223, etc.) · **com** o filtro de data que antes quebrava (`start_date=2026-01-01&
+> end_date=2026-12-31`) → 200, mesmos totais (confirma que não crasha mais) · range futuro sem
+> nenhum log real (`2030-01-01` a `2030-12-31`) → `[]` (confirma que o filtro tem efeito real,
+> não foi só silenciado). `npx tsc --noEmit`: **zero erros em todo o projeto**.
+>
+> **Próximo passo desta frente:** `trackingHealthService.ts` (item 2 do Tier 4) — mesma correção
+> já aplicada em `aiInsights.ts` no Tier 2 (`::timestamp` → `::timestamptz` nos parâmetros que
+> comparam contra coluna `timestamptz` real), testado com dado real antes/depois do fix.
+
 > **Atualizado em:** 2026-09-06 — **Automação completa do ciclo de vida da Lookalike/Custom
 > Audience (Meta), fechando o gap de UX identificado na sessão anterior: o recurso do Tier 3
 > item 5 estava construído mas só funcionava via clique manual — sem nenhum jeito de de fato
