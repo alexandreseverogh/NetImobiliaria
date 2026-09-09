@@ -67,10 +67,34 @@
 > por causa de retry de sessão peer-to-self do Baileys (sender=destinatário=mesmo número
 > conectado à instância) — não é bug da aplicação, é limitação de ambiente de teste (self-chat).
 >
-> **Próximo passo:** seguir com `score_recalibration` (item 7, opera sobre regras — não sobre
-> leads —, roda via cron diário 04h ou pode ser conferido direto em `/crm/config/ia`), depois a
-> aba "Aprovações Pendentes" (itens 8-10 do roteiro — já cobertos funcionalmente pelo teste
-> acima via API, falta só a confirmação visual na UI se o usuário quiser).
+> **`score_recalibration` (item 7) — testado de ponta a ponta, escopo TENANT (nunca o escopo
+> segmento, que é a tabela real compartilhada "Venda de Carros" com potencialmente outros
+> tenants reais — zero risco de mexer em dado alheio):** a função de orquestração
+> (`recalibrateScope`) é privada, mesma situação já documentada nesta sessão pra
+> `recordAction()`/`notifyForResult()` de `runner.ts` — replicada num script isolado
+> reaproveitando `getTenantRuleStats()` (essa sim exportada, faz o cálculo real de conversão).
+> 1 regra de teste no escopo tenant (`crm_qualificacao_regras_tenant`, nunca existia nenhuma
+> pra este tenant antes) + 10 leads reais (8 convertidos via `leads_kanban`/`is_ganho=true`) →
+> taxa observada real 80% batendo exato com o cálculo manual, divergência de 50pp contra o
+> `score_base=3` (implica 30%) disparou a sugestão (`score_sugerido=8`, `round(80/10)`).
+> **Os 3 desfechos de `decideRecalibrationSuggestion` testados via a rota real da UI**
+> (`POST /api/crm/config/ia`, `action: applyRecalibration|dismissRecalibration` — mesma que
+> `/crm/config/ia` usa): `apply` → `outcome:'applied'`, `crm_qualificacao_regras_tenant.
+> score_base` realmente atualizado pra 8, confirmado por SQL · `dismiss` → `outcome:
+> 'dismissed'`, `score_base` da regra de teste 2 permaneceu intocado (2, não sobrescrito) ·
+> `stale` (regra removida entre a sugestão nascer e ser decidida, simulando o replace-all do
+> editor do Master/tenant) → `outcome:'stale'`, mensagem explícita, sugestão marcada
+> `DISMISSED` automaticamente, nunca tenta aplicar no vazio. Todo dado de teste removido (3
+> regras tenant, 3 sugestões, 10 leads + kanban), confirmado `count(*)=0` em todas as tabelas —
+> e as **7 regras reais do segmento "Venda de Carros" confirmadas intactas** (nunca tocadas,
+> já que o teste inteiro ficou no escopo tenant). `npx tsc --noEmit`: zero erros.
+>
+> **Com isso, os 5 agentes do catálogo (`pendencia_atendimento`, `stage_stagnation`,
+> `next_best_action`, `reactivation`, `score_recalibration`) estão testados de ponta a ponta
+> nesta rodada do roteiro, na ordem pedida.** Próximo passo: aba "Aprovações Pendentes"
+> (itens 8-10 do roteiro) — já coberta funcionalmente pelo teste do `reactivation` acima
+> (aprovar/rejeitar via a mesma rota pública com PIN), falta só a confirmação visual na UI
+> `/crm/config/agentes` se o usuário quiser ver a fila renderizada de verdade no navegador.
 
 > **Atualizado em:** 2026-09-08 (continuação, teste do roteiro 1.7) — **Achado real, resolvido:
 > a notificação WhatsApp do teste do `stage_stagnation` chegou vazia — causa raiz confirmada nos
