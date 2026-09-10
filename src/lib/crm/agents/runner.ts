@@ -159,8 +159,10 @@ async function sendDigests(digestPorTenant: Map<string, DigestItem[]>): Promise<
 }
 
 /** Grava crm_agent_actions. Separado da notificação porque o digest (§4.2 do plano de
- *  pendência) precisa gravar por lead mas notificar em lote no fim da rodada. */
-async function recordAction(
+ *  pendência) precisa gravar por lead mas notificar em lote no fim da rodada.
+ *  Exportada pra reuso do painel de debug (/admin/master/crm-agentes-debug) — nunca chama o
+ *  scan real, mas reaproveita a mesma gravação pra testar 1 lead isolado. */
+export async function recordAction(
   agentKey: string,
   tenantId: string,
   leadUuid: string,
@@ -186,8 +188,9 @@ async function recordAction(
 
 /** Notificação 1:1 — usada por agentes SEM digest. OFFENSIVE (F4, reactivation) exige
  *  aprovação humana (PIN de 6 dígitos + link, mesmo mecanismo já em produção nos agentes
- *  ofensivos de Campanhas); DEFENSIVE só notifica, sem ação nenhuma a aprovar. */
-async function notifyForResult(
+ *  ofensivos de Campanhas); DEFENSIVE só notifica, sem ação nenhuma a aprovar.
+ *  Exportada pro painel de debug — mesmo motivo de recordAction() acima. */
+export async function notifyForResult(
   tenantId: string,
   leadUuid: string,
   result: CrmAgentResult,

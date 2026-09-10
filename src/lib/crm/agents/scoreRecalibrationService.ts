@@ -93,7 +93,11 @@ interface RuleRow {
   ordem: number
 }
 
-async function recalibrateScope(
+/** Exportada pro painel de debug (/admin/master/crm-agentes-debug) — SEMPRE chamar com
+ *  scope='tenant' de lá, nunca 'segmento' (que afetaria os tenants reais compartilhados do
+ *  segmento). runScoreRecalibration() abaixo continua sendo o único caminho que varre
+ *  segmento — nunca chamado pelo painel. */
+export async function recalibrateScope(
   scope: 'segmento' | 'tenant',
   targetId: string,
   janelaDias: number,
