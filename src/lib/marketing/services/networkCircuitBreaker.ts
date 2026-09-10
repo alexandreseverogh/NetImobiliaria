@@ -95,11 +95,28 @@ export async function recordCircuitFailure(
   });
 
   if (networkId) {
+    // UPSERT, não UPDATE puro — achado real da FASE 19.2: tenant que nunca teve linha em
+    // tenant_network_credentials pra esta rede (ex.: tenant Meta legado, só com credencial nas
+    // colunas antigas de public.tenants) fazia o UPDATE afetar 0 linhas — o disjuntor funcionava
+    // certo DENTRO da mesma rodada (mapa em memória), mas nunca persistia entre rodadas de cron
+    // pra esse caso. A linha nova nasce com is_active=false/credentials='{}' de propósito: é só
+    // bookkeeping do disjuntor, nunca deve fazer a UI de "Configurações → Redes" (que calcula
+    // "Conectado" só pela EXISTÊNCIA de linha ativa, não pelo conteúdo real da credencial)
+    // mostrar "Conectado" pra um tenant que na verdade só está configurado via colunas legadas
+    // — e o cascade de credencial real em factory.ts já filtra `is_active = true`, então esta
+    // linha nunca é lida como fonte de credencial, só como estado do disjuntor.
     await prisma.$executeRawUnsafe(
-      `UPDATE public.tenant_network_credentials
-       SET consecutive_failures = consecutive_failures + 1,
-           circuit_tripped_at = CASE WHEN consecutive_failures + 1 >= $3 THEN now() ELSE circuit_tripped_at END
-       WHERE tenant_id = $1::uuid AND network_id = $2::uuid`,
+      `INSERT INTO public.tenant_network_credentials
+         (tenant_id, network_id, credentials, is_active, consecutive_failures, circuit_tripped_at)
+       VALUES
+         ($1::uuid, $2::uuid, '{}'::jsonb, false, 1, CASE WHEN 1 >= $3 THEN now() ELSE NULL END)
+       ON CONFLICT (tenant_id, network_id) DO UPDATE
+       SET consecutive_failures = tenant_network_credentials.consecutive_failures + 1,
+           circuit_tripped_at = CASE
+             WHEN tenant_network_credentials.consecutive_failures + 1 >= $3
+             THEN now()
+             ELSE tenant_network_credentials.circuit_tripped_at
+           END`,
       tenantId, networkId, CIRCUIT_BREAKER_THRESHOLD,
     );
   }

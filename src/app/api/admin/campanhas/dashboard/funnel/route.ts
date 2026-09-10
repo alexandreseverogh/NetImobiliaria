@@ -113,8 +113,8 @@ export async function GET(request: NextRequest) {
       FROM campanhasmarketingdigital."Campaign" c
       LEFT JOIN campanhasmarketingdigital."Insight" i
         ON i."campaignId" = c.id
-        AND i.date >= $2::timestamp
-        AND i.date <= $3::timestamp
+        AND i.date >= $2::timestamptz
+        AND i.date <= $3::timestamptz
       LEFT JOIN public.ad_networks n ON n.id = c."network_id"
       WHERE c.tenant_id = $1::uuid
         ${whereExtra}
@@ -138,7 +138,7 @@ export async function GET(request: NextRequest) {
       FROM campanhasmarketingdigital."Campaign" c
       LEFT JOIN public.ad_networks n ON n.id = c."network_id"
       WHERE c.tenant_id = $1::uuid
-        AND $2::timestamp IS NOT NULL AND $3::timestamp IS NOT NULL
+        AND $2::timestamptz IS NOT NULL AND $3::timestamptz IS NOT NULL
         ${whereExtra}
     `, qParams);
 
