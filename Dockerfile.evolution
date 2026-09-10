@@ -1,4 +1,6 @@
-FROM atendai/evolution-api:latest
+# atendai/evolution-api não resolve mais no Docker Hub (organização migrou publicação da
+# imagem para evoapicloud) — versão fixa, confirmada resolvível antes de trocar.
+FROM evoapicloud/evolution-api:v2.3.4
 
 # Install git so npm can pull from GitHub
 RUN apk add --no-cache git
