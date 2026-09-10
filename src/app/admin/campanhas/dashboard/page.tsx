@@ -584,7 +584,11 @@ function DashboardPage() {
               <label className={`block text-[10px] font-black uppercase tracking-widest mb-1.5 ${txFaint}`}>De</label>
               <DateInputPtBR
                 value={startDate}
-                onChange={iso => { setStartDate(iso); setDateRange(''); }}
+                onChange={iso => {
+                  setStartDate(iso);
+                  setDateRange('');
+                  if (iso && !endDate) setEndDate(new Date().toISOString().split('T')[0]);
+                }}
                 onComplete={() => endDateRef.current?.focus()}
                 style={selectStyle} className={selectBase} />
             </div>
