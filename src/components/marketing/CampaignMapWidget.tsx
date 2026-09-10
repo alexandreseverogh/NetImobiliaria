@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { XMarkIcon, ArrowsPointingOutIcon } from '@heroicons/react/24/outline';
 
 interface CampaignInfo {
   id: string;
@@ -54,12 +56,124 @@ function makeCampaignIcon(count: number, isDark: boolean): string {
   return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
 }
 
+// ── Build a Leaflet map instance (tiles + markers + popups) into a container ──
+// Compartilhado pela versão compacta do widget e pela versão expandida em tela
+// cheia — mantém a lógica de marcador/popup num lugar só, nunca duplicada.
+function buildMap(
+  Lf: any,
+  container: HTMLDivElement,
+  locations: MapLocation[],
+  isDark: boolean,
+  opts: { scrollWheelZoom: boolean; onBackgroundClick?: () => void }
+) {
+  const map = Lf.map(container, {
+    center:          [-15.7801, -47.9292],
+    zoom:            4,
+    zoomControl:     true,
+    attributionControl: false,
+    scrollWheelZoom: opts.scrollWheelZoom,
+  });
+
+  Lf.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors',
+  }).addTo(map);
+
+  // Clique no fundo do mapa (tiles) — não dispara em cliques dentro de um
+  // popup aberto nem nos controles de zoom (o próprio Leaflet já desabilita
+  // a propagação desses dois casos por padrão).
+  if (opts.onBackgroundClick) {
+    map.on('click', opts.onBackgroundClick);
+  }
+
+  if (locations.length === 0) return map;
+
+  const bounds: [number, number][] = [];
+
+  for (const loc of locations) {
+    bounds.push([loc.lat, loc.lng]);
+
+    // Custom icon
+    const iconUrl = makeCampaignIcon(loc.campaigns.length, isDark);
+    const icon = Lf.icon({
+      iconUrl,
+      iconSize:   [40, 48],
+      iconAnchor: [20, 48],
+      popupAnchor: [0, -48],
+    });
+
+    const totalLeads = loc.campaigns.reduce((s, c) => s + c.leads, 0);
+    const totalSpend = loc.campaigns.reduce((s, c) => s + c.spend, 0);
+
+    const popupContent = `
+      <div style="font-family:system-ui,-apple-system,sans-serif;min-width:200px;padding:4px">
+        <p style="font-size:13px;font-weight:800;margin:0 0 8px;color:${isDark ? '#e2e8f0' : '#0f172a'}">${loc.name}</p>
+        <div style="display:flex;gap:12px;margin-bottom:10px">
+          <div>
+            <p style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Campanhas</p>
+            <p style="font-size:16px;font-weight:900;color:#818cf8;margin:0">${loc.campaigns.length}</p>
+          </div>
+          <div>
+            <p style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Leads</p>
+            <p style="font-size:16px;font-weight:900;color:#34d399;margin:0">${totalLeads}</p>
+          </div>
+          <div>
+            <p style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Gasto</p>
+            <p style="font-size:16px;font-weight:900;color:#f59e0b;margin:0">R$ ${totalSpend.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          </div>
+        </div>
+        <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:8px">
+          ${loc.campaigns.map(c => `
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+              <span style="width:7px;height:7px;border-radius:50%;background:${c.status === 'ACTIVE' ? '#34d399' : '#94a3b8'};flex-shrink:0"></span>
+              <span style="font-size:11px;font-weight:600;color:${isDark ? '#cbd5e1' : '#374151'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">${c.name}</span>
+            </div>
+          `).join('')}
+        </div>
+        ${loc.radius ? `<p style="font-size:9px;color:#94a3b8;margin:6px 0 0">Raio: ${loc.radius} km</p>` : ''}
+      </div>
+    `;
+
+    const popup = Lf.popup({
+      className: isDark ? 'leaflet-popup-dark' : '',
+      maxWidth:  240,
+    }).setContent(popupContent);
+
+    // Draw radius circle for custom_locations
+    if (loc.radius) {
+      Lf.circle([loc.lat, loc.lng], {
+        radius:      loc.radius * 1000,
+        color:       '#818cf8',
+        fillColor:   '#818cf8',
+        fillOpacity: 0.08,
+        weight:      1.5,
+        dashArray:   '4 4',
+      }).addTo(map);
+    }
+
+    Lf.marker([loc.lat, loc.lng], { icon })
+      .bindPopup(popup)
+      .addTo(map);
+  }
+
+  if (bounds.length > 0) {
+    try {
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 10 });
+    } catch (_) {}
+  }
+
+  return map;
+}
+
 export function CampaignMapWidget({ isDark, clientId, segmentId, startDate, endDate, className }: Props) {
   const [locations, setLocations] = useState<MapLocation[]>([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState<string | null>(null);
-  const mapRef    = useRef<HTMLDivElement>(null);
-  const leafletRef = useRef<any>(null);
+  const [expanded, setExpanded]   = useState(false);
+  const mapRef              = useRef<HTMLDivElement>(null);
+  const leafletRef          = useRef<any>(null);
+  const expandedMapRef      = useRef<HTMLDivElement>(null);
+  const expandedLeafletRef  = useRef<any>(null);
 
   const cardCls = isDark
     ? 'bg-[rgba(13,20,33,0.92)] backdrop-blur-sm border border-[rgba(255,255,255,0.07)] shadow-[0_2px_16px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.03)]'
@@ -94,7 +208,7 @@ export function CampaignMapWidget({ isDark, clientId, segmentId, startDate, endD
       });
   }, [clientId, segmentId, startDate, endDate]);
 
-  // ── Initialize / update Leaflet map ────────────────────────────────────────
+  // ── Initialize / update compact Leaflet map ────────────────────────────────
   useEffect(() => {
     if (loading || !mapRef.current || typeof window === 'undefined') return;
 
@@ -110,103 +224,10 @@ export function CampaignMapWidget({ isDark, clientId, segmentId, startDate, endD
 
       if (!mapRef.current) return;
 
-      // Dark tile layer
-      const tileUrl = isDark
-        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-        : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-
-      const map = Lf.map(mapRef.current, {
-        center:          [-15.7801, -47.9292],
-        zoom:            4,
-        zoomControl:     true,
-        attributionControl: false,
+      const map = buildMap(Lf, mapRef.current, locations, isDark, {
         scrollWheelZoom: false,
+        onBackgroundClick: () => setExpanded(true),
       });
-
-      Lf.tileLayer(tileUrl, {
-        maxZoom: 19,
-        attribution: '© CARTO',
-      }).addTo(map);
-
-      if (locations.length === 0) {
-        leafletRef.current = map;
-        return;
-      }
-
-      const bounds: [number, number][] = [];
-
-      for (const loc of locations) {
-        bounds.push([loc.lat, loc.lng]);
-
-        // Custom icon
-        const iconUrl = makeCampaignIcon(loc.campaigns.length, isDark);
-        const icon = Lf.icon({
-          iconUrl,
-          iconSize:   [40, 48],
-          iconAnchor: [20, 48],
-          popupAnchor: [0, -48],
-        });
-
-        const totalLeads = loc.campaigns.reduce((s, c) => s + c.leads, 0);
-        const totalSpend = loc.campaigns.reduce((s, c) => s + c.spend, 0);
-
-        const popupContent = `
-          <div style="font-family:system-ui,-apple-system,sans-serif;min-width:200px;padding:4px">
-            <p style="font-size:13px;font-weight:800;margin:0 0 8px;color:${isDark ? '#e2e8f0' : '#0f172a'}">${loc.name}</p>
-            <div style="display:flex;gap:12px;margin-bottom:10px">
-              <div>
-                <p style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Campanhas</p>
-                <p style="font-size:16px;font-weight:900;color:#818cf8;margin:0">${loc.campaigns.length}</p>
-              </div>
-              <div>
-                <p style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Leads</p>
-                <p style="font-size:16px;font-weight:900;color:#34d399;margin:0">${totalLeads}</p>
-              </div>
-              <div>
-                <p style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Gasto</p>
-                <p style="font-size:16px;font-weight:900;color:#f59e0b;margin:0">R$ ${totalSpend.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-              </div>
-            </div>
-            <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:8px">
-              ${loc.campaigns.map(c => `
-                <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-                  <span style="width:7px;height:7px;border-radius:50%;background:${c.status === 'ACTIVE' ? '#34d399' : '#94a3b8'};flex-shrink:0"></span>
-                  <span style="font-size:11px;font-weight:600;color:${isDark ? '#cbd5e1' : '#374151'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">${c.name}</span>
-                </div>
-              `).join('')}
-            </div>
-            ${loc.radius ? `<p style="font-size:9px;color:#94a3b8;margin:6px 0 0">Raio: ${loc.radius} km</p>` : ''}
-          </div>
-        `;
-
-        const popup = Lf.popup({
-          className: isDark ? 'leaflet-popup-dark' : '',
-          maxWidth:  240,
-        }).setContent(popupContent);
-
-        // Draw radius circle for custom_locations
-        if (loc.radius) {
-          Lf.circle([loc.lat, loc.lng], {
-            radius:      loc.radius * 1000,
-            color:       '#818cf8',
-            fillColor:   '#818cf8',
-            fillOpacity: 0.08,
-            weight:      1.5,
-            dashArray:   '4 4',
-          }).addTo(map);
-        }
-
-        Lf.marker([loc.lat, loc.lng], { icon })
-          .bindPopup(popup)
-          .addTo(map);
-      }
-
-      if (bounds.length > 0) {
-        try {
-          map.fitBounds(bounds, { padding: [40, 40], maxZoom: 10 });
-        } catch (_) {}
-      }
-
       leafletRef.current = map;
 
       // Invalidate size on window resize to prevent white lines
@@ -235,92 +256,187 @@ export function CampaignMapWidget({ isDark, clientId, segmentId, startDate, endD
     };
   }, [loading, locations, isDark]);
 
+  // ── Initialize expanded (full-screen) map when opened ──────────────────────
+  useEffect(() => {
+    if (!expanded || !expandedMapRef.current || typeof window === 'undefined') return;
+
+    import('leaflet').then(L => {
+      const Lf = L.default || L;
+
+      if (expandedLeafletRef.current) {
+        expandedLeafletRef.current.remove();
+        expandedLeafletRef.current = null;
+      }
+      if (!expandedMapRef.current) return;
+
+      const map = buildMap(Lf, expandedMapRef.current, locations, isDark, {
+        scrollWheelZoom: true,
+      });
+      expandedLeafletRef.current = map;
+
+      setTimeout(() => map.invalidateSize(), 50);
+    });
+
+    return () => {
+      if (expandedLeafletRef.current) {
+        expandedLeafletRef.current.remove();
+        expandedLeafletRef.current = null;
+      }
+    };
+  }, [expanded, locations, isDark]);
+
+  // ── Close expanded view on Escape ───────────────────────────────────────────
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setExpanded(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [expanded]);
+
   // ── Summary stats ───────────────────────────────────────────────────────────
   const totalCampaigns = new Set(locations.flatMap(l => l.campaigns.map(c => c.id))).size;
   const totalLocations = locations.length;
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.2 }}
-      className={`rounded-2xl p-6 flex flex-col ${cardCls} ${className || ''}`}
-    >
-      {/* ── Header ── */}
-      <div className="flex items-start justify-between gap-3 mb-4">
-        <div>
-          <h3 className={`text-sm font-black ${tx}`}>Geolocalização das Campanhas</h3>
-          <p className={`text-[10px] mt-0.5 ${txFaint}`}>Distribuição geográfica dos públicos-alvo</p>
-        </div>
-        {!loading && (
-          <div className="flex gap-2 shrink-0">
-            <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest ${
-              isDark ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
-                     : 'bg-indigo-50 text-indigo-500 border border-indigo-100'
-            }`}>
-              {totalLocations} {totalLocations === 1 ? 'região' : 'regiões'}
-            </span>
-            <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest ${
-              isDark ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                     : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-            }`}>
-              {totalCampaigns} camp.
-            </span>
-          </div>
-        )}
-      </div>
+  const canExpand = !loading && !error && locations.length > 0;
 
-      {/* ── Map or states ── */}
-      {loading ? (
-        <div className="flex-1 flex items-center justify-center" style={{ minHeight: 260 }}>
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 rounded-full border-2 border-gold-premium border-t-transparent animate-spin" />
-            <p className={`text-xs ${txFaint}`}>Carregando mapa…</p>
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className={`rounded-2xl p-6 flex flex-col ${cardCls} ${className || ''}`}
+      >
+        {/* ── Header ── */}
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h3 className={`text-sm font-black ${tx}`}>Geolocalização das Campanhas</h3>
+            <p className={`text-[10px] mt-0.5 ${txFaint}`}>Distribuição geográfica dos públicos-alvo</p>
           </div>
+          {!loading && (
+            <div className="flex gap-2 shrink-0">
+              <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest ${
+                isDark ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                       : 'bg-indigo-50 text-indigo-500 border border-indigo-100'
+              }`}>
+                {totalLocations} {totalLocations === 1 ? 'região' : 'regiões'}
+              </span>
+              <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest ${
+                isDark ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                       : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+              }`}>
+                {totalCampaigns} camp.
+              </span>
+            </div>
+          )}
         </div>
-      ) : error ? (
-        <div className="flex-1 flex items-center justify-center" style={{ minHeight: 260 }}>
-          <p className={`text-xs ${txFaint}`}>Erro ao carregar: {error}</p>
-        </div>
-      ) : locations.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-2" style={{ minHeight: 260 }}>
-          <span className="text-3xl">📍</span>
-          <p className={`text-xs ${txFaint}`}>Nenhuma localização configurada nas campanhas</p>
-        </div>
-      ) : (
-        <>
-          <div
-            ref={mapRef}
-            style={{ borderRadius: 12, overflow: 'hidden', minHeight: 260 }}
-            className={`flex-1 ${isDark ? 'leaflet-dark-map' : ''}`}
-          />
-          {/* ── Location list ── */}
-          <div className="mt-3 flex flex-col gap-1.5 max-h-28 overflow-y-auto pr-1">
-            {locations.map((loc, i) => {
-              const active = loc.campaigns.filter(c => c.status === 'ACTIVE').length;
-              return (
-                <div key={i} className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-sm shrink-0">📢</span>
-                    <span className={`text-[11px] font-semibold truncate ${tx}`}>{loc.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className={`text-[10px] font-bold ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`}>
-                      {loc.campaigns.length} camp.
-                    </span>
-                    {active > 0 && (
-                      <span className="flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                        <span className={`text-[9px] font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>{active} ativa{active > 1 ? 's' : ''}</span>
+
+        {/* ── Map or states ── */}
+        {loading ? (
+          <div className="flex-1 flex items-center justify-center" style={{ minHeight: 260 }}>
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-8 h-8 rounded-full border-2 border-gold-premium border-t-transparent animate-spin" />
+              <p className={`text-xs ${txFaint}`}>Carregando mapa…</p>
+            </div>
+          </div>
+        ) : error ? (
+          <div className="flex-1 flex items-center justify-center" style={{ minHeight: 260 }}>
+            <p className={`text-xs ${txFaint}`}>Erro ao carregar: {error}</p>
+          </div>
+        ) : locations.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-2" style={{ minHeight: 260 }}>
+            <span className="text-3xl">📍</span>
+            <p className={`text-xs ${txFaint}`}>Nenhuma localização configurada nas campanhas</p>
+          </div>
+        ) : (
+          <>
+            <div className="relative flex-1" style={{ minHeight: 260 }}>
+              <div
+                ref={mapRef}
+                style={{ borderRadius: 12, overflow: 'hidden' }}
+                className={`w-full h-full cursor-pointer ${isDark ? 'leaflet-dark-map' : ''}`}
+              />
+              {canExpand && (
+                <button
+                  type="button"
+                  onClick={() => setExpanded(true)}
+                  title="Expandir mapa"
+                  className={`absolute top-2.5 right-2.5 z-[1000] flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${
+                    isDark ? 'bg-black/55 text-slate-200 hover:bg-black/75 border border-white/10'
+                           : 'bg-white/90 text-slate-700 hover:bg-white border border-slate-200'
+                  }`}
+                >
+                  <ArrowsPointingOutIcon className="h-3 w-3" />
+                  Expandir
+                </button>
+              )}
+            </div>
+            {/* ── Location list ── */}
+            <div className="mt-3 flex flex-col gap-1.5 max-h-28 overflow-y-auto pr-1">
+              {locations.map((loc, i) => {
+                const active = loc.campaigns.filter(c => c.status === 'ACTIVE').length;
+                return (
+                  <div key={i} className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm shrink-0">📢</span>
+                      <span className={`text-[11px] font-semibold truncate ${tx}`}>{loc.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-[10px] font-bold ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`}>
+                        {loc.campaigns.length} camp.
                       </span>
-                    )}
+                      {active > 0 && (
+                        <span className="flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                          <span className={`text-[9px] font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>{active} ativa{active > 1 ? 's' : ''}</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </motion.div>
+
+      {/* ── Mapa expandido em tela cheia ── */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {expanded && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-[2000] flex flex-col bg-gray-950/95 backdrop-blur-sm"
+              onClick={(e) => { if (e.target === e.currentTarget) setExpanded(false); }}
+            >
+              <div className="flex items-center justify-between px-6 py-4 shrink-0">
+                <div>
+                  <h3 className="text-base font-black text-white">Geolocalização das Campanhas</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Distribuição geográfica dos públicos-alvo</p>
                 </div>
-              );
-            })}
-          </div>
-        </>
+                <button
+                  type="button"
+                  onClick={() => setExpanded(false)}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold bg-white/10 text-white hover:bg-white/20 transition-colors"
+                >
+                  <XMarkIcon className="h-4 w-4" />
+                  Fechar
+                </button>
+              </div>
+              <div className="flex-1 px-6 pb-6 min-h-0">
+                <div
+                  ref={expandedMapRef}
+                  className={`w-full h-full rounded-2xl overflow-hidden ${isDark ? 'leaflet-dark-map' : ''}`}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
       )}
-    </motion.div>
+    </>
   );
 }
