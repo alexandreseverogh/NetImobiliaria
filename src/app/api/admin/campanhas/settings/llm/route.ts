@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/database/connection';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { requireAnyApiPermission } from '@/lib/auth/apiPermissions';
+import { resolveSegment } from '@/lib/intelligence/segmentResolver';
 
 // Endpoint genuinamente compartilhado (docs/CHECKPOINT.md, 2026-09-01) — mesmo mora sob
 // /api/admin/campanhas/* por herança de onde a tela original vivia, quem de fato consome a
@@ -45,16 +46,59 @@ export async function GET(request: NextRequest) {
           [payload.tenantId]
         );
     const s = res.rows[0] || null;
-    const apiKey = s?.llmApiKey || '';
 
+    // Nível cliente: comportamento de sempre — sem override próprio, devolve null explícito,
+    // a UI mostra honestamente "herda a cascata" (nunca finge um valor específico aqui).
+    if (clientId) {
+      const apiKey = s?.llmApiKey || '';
+      return NextResponse.json({
+        llmProvider:     s?.llmProvider || null,
+        llmModel:        s?.llmModel    || null,
+        llmApiKeySet:    !!apiKey,
+        llmApiKeyMasked: apiKey ? `${apiKey.slice(0, 8)}...${apiKey.slice(-4)}` : '',
+      });
+    }
+
+    // Nível tenant: quando o próprio tenant não tem override, o "modelo efetivo" mostrado aqui
+    // precisa refletir a MESMA cascata que getLlmClient() de fato usa em runtime (Segmento →
+    // Global → default de código) — nunca um literal hardcoded desconectado da realidade
+    // (achado real, roteiro de testes CRM 2026-09-11: essa rota sempre devolvia "anthropic/
+    // claude-sonnet-4-6" mesmo com um default de segmento real e válido já configurado).
+    let effective = s;
+    let isTenantOverride = !!s;
+    let inheritedFrom: 'segment' | 'global' | 'default' | null = null;
+    if (!effective) {
+      try {
+        const segment = await resolveSegment(payload.tenantId, null);
+        if (segment?.id) {
+          const segRes = await pool.query(
+            `SELECT "llmProvider", "llmModel", "llmApiKey"
+             FROM campanhasmarketingdigital."Settings"
+             WHERE tenant_id IS NULL AND segment_id = $1::uuid LIMIT 1`,
+            [segment.id]
+          );
+          if (segRes.rows[0]) { effective = segRes.rows[0]; inheritedFrom = 'segment'; }
+        }
+      } catch { /* segmento não resolvido — segue pro fallback global de sempre */ }
+    }
+    if (!effective) {
+      const globalRes = await pool.query(
+        `SELECT "llmProvider", "llmModel", "llmApiKey"
+         FROM campanhasmarketingdigital."Settings"
+         WHERE tenant_id IS NULL AND segment_id IS NULL LIMIT 1`
+      );
+      if (globalRes.rows[0]) { effective = globalRes.rows[0]; inheritedFrom = 'global'; }
+    }
+    if (!effective) inheritedFrom = 'default';
+
+    const apiKey = effective?.llmApiKey || '';
     return NextResponse.json({
-      // Sem override no nível do cliente, não inventa um padrão "claude-sonnet" — deixa a UI
-      // mostrar explicitamente "herdando do tenant/segmento/global" (diferente do próprio
-      // tenant, que sempre tem um valor efetivo mostrado, mesmo que seja só o default de código).
-      llmProvider:     s?.llmProvider || (clientId ? null : 'anthropic'),
-      llmModel:        s?.llmModel    || (clientId ? null : 'claude-sonnet-4-6'),
-      llmApiKeySet:    !!apiKey,
-      llmApiKeyMasked: apiKey ? `${apiKey.slice(0, 8)}...${apiKey.slice(-4)}` : '',
+      llmProvider:      effective?.llmProvider || 'anthropic',
+      llmModel:         effective?.llmModel    || 'claude-sonnet-4-5',
+      llmApiKeySet:     !!apiKey,
+      llmApiKeyMasked:  apiKey ? `${apiKey.slice(0, 8)}...${apiKey.slice(-4)}` : '',
+      isTenantOverride,
+      inheritedFrom,
     });
   } catch (error: any) {
     console.error('GET /settings/llm error:', error);

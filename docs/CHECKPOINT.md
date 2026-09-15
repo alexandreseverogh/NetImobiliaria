@@ -1,5 +1,302 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-09-12 (continuação) — **Fix real: landing `/artemis4` não ocupava a
+> largura total em monitor 32" — `max-width` fixo do container, não bug de fundo quebrado.**
+>
+> Usuário reportou, testando a reescrita da entrega anterior num monitor de 32": a página "não
+> ocupa todo o espaço horizontal". Investigado ao vivo via `getBoundingClientRect` (não por
+> suposição) em 2560×1440 antes de mexer em qualquer CSS: as bandas de fundo (`--void`/`--deep`/
+> `--panel`) já ocupavam 100% da largura real (2545px de 2560px) — não era fundo quebrado. O
+> vazamento era o **container de conteúdo**: `.a4-wrap--wide` tinha `max-width: 1480px` fixo,
+> sobrando ~540px de vazio de cada lado num monitor QHD e ~1180px num 4K.
+>
+> **Corrigido:** `--maxw`/`--maxw-wide` viraram tokens fluidos via `clamp()` em vez de valor
+> fixo (`src/app/artemis4/artemis4.css`) — `clamp(1480px, 78vw, 1800px)` para o wrap largo.
+> Abaixo de ~1900px o clamp devolve o piso de sempre, então laptop/desktop comum fica intocado;
+> só ultra-wide ganha espaço. `--maxw-text` (68ch, largura de linha do corpo) **não muda** — é
+> regra de legibilidade independente da tela, nunca foi o que estava quebrado.
+>
+> **1ª rodada testada e aprovada nos 4 tamanhos** (1366/1920/2560/3840px) — mas o usuário
+> reportou que "o mesmo problema persiste" ao ver ao vivo num monitor 32" real. Antes de tocar
+> em CSS de novo, investigado se era cache/build stale: confirmado via `curl` direto que os
+> DOIS servidores rodando (porta 3000 do usuário, porta 3050 do teste) já entregavam o CSS
+> corrigido, byte a byte idêntico — não era cache, era o próprio valor insuficiente. Recalculado
+> o preenchimento real da 1ª rodada num 4K genuíno (3840px): só **46,9%** da tela — larga
+> margem ainda, especialmente porque "32 polegadas" hoje é tipicamente 4K, não QHD.
+>
+> **Recalibrado com teto mais alto** (`clamp(1480px, 84vw, 2400px)`), testado de novo incluindo
+> ultra-wide (3440px) — subiu pra 62,5%/69,8%/84,0% conforme a tela. **Mesmo assim o usuário
+> reportou de novo "ainda não ocupa todo o espaço horizontal"** — print real de um monitor
+> largo confirmando margem visualmente grande ainda. Corrigido o próprio *método*: as duas
+> primeiras rodadas corrigiam em incrementos pequenos e testavam contra "melhorou?" em vez de
+> mirar direto num alvo de preenchimento visual (~90%) e testar contra esse alvo.
+>
+> **3ª rodada** (`clamp(1480px, 90vw, 3200px)`) subiu pra 90% em 1920-3440px, mas **o usuário
+> reportou de novo, com print, "ainda não ocupa todo o espaço"** — e sugeriu diretamente
+> consultar `/landpaging` (página real de imóveis do projeto) como referência de como esta
+> base já resolve layout full-width.
+>
+> **Aí sim a causa raiz real apareceu:** `git show HEAD:src/app/artemis4/page.tsx` (o estado
+> anterior à minha reescrita) confirmou que os containers de seção da página ORIGINAL nunca
+> tiveram `max-w-*` nenhum — só `mx-auto px-4 sm:px-6 lg:px-8` (que sem um `max-w-*` ao lado não
+> faz nada). E `src/app/landpaging/page.tsx` confirma o mesmo padrão em produção real: linha
+> 2334 usa `w-full mx-auto` (zero teto) e linha 1963 usa `max-w-[2496px]` (teto tão largo que
+> nunca é atingido por um monitor real). **As 3 primeiras rodadas desta sessão inventaram um
+> conceito de "coluna de conteúdo com teto em pixel" que nunca existiu em lugar nenhum deste
+> projeto** — cada rodada ajustava o valor do teto, nunca questionava se deveria existir teto.
+>
+> **4ª rodada — removido o teto por completo** de `.a4-wrap--wide` (nav, hero, console, grids
+> de módulo/card/mock — `max-width: none`), mesmo padrão do `landpaging`:
+>
+> | Viewport | 1ª (teto 1800) | 2ª (teto 2400) | 3ª (teto 3200) | 4ª — sem teto |
+> |---|---|---|---|---|
+> | 1366px | idêntico | idêntico | idêntico | idêntico (gargalo é o `gutter`) |
+> | 1920px | 78,0% | 84,0% | 90,0% | **99,2%** |
+> | 2560px | 70,3% | 84,0% | 90,0% | **99,4%** |
+> | 3840px | 46,9% | 62,5% | 83,3% | **99,6%** |
+>
+> **Achado no processo, corrigido na mesma rodada:** ao remover o teto de TUDO (inclusive
+> `.a4-wrap`, usado só pela FAQ + drawer mobile), a FAQ quebrou de um jeito novo — distância
+> entre o texto da pergunta e o ícone "+" chegou a **3711px** num 4K real (medido ao vivo,
+> `icon.left - summary.left`). FAQ é pergunta/resposta, conteúdo de leitura, não estrutura de
+> grid — não deveria virar full-bleed junto com o resto. `.a4-wrap` (só FAQ + drawer) ganhou
+> teto próprio de **860px**, dimensionado pro conteúdo real (pergunta numa linha + ícone
+> próximo), não por fórmula de `vw` — mesmo espírito de `landpaging` ter estratégias de largura
+> diferentes por tipo de seção na mesma página. Reconfirmado depois do fix: gap texto→ícone
+> caiu pra 746px dentro de um container de 860px (padrão normal de qualquer acordeão FAQ real).
+>
+> Verificado nos 5 tamanhos (1366/1920/2560/3840/375px mobile): zero overflow horizontal em
+> todos, fundo full-bleed, zero elemento quebrado, CTAs do hero numa linha só, FAQ com teto
+> próprio funcionando em todos, as 26 animações de entrada intactas. `npx tsc --noEmit` zero
+> erros. Confirmado via `curl` que os dois servidores (3000 do usuário, 3050 de teste) entregam
+> a regra `.a4-wrap { max-width: 860px }` / `.a4-wrap--wide { max-width: none }` idêntica.
+> `DESIGN.md` §7 reescrito com a causa raiz e a tabela das 4 rodadas.
+>
+> **Lição registrada, mais séria que a anterior:** as 3 primeiras rodadas foram verificadas
+> contra "melhorou em relação à anterior", nunca contra "esse padrão de largura já existe em
+> algum lugar deste projeto?" — o usuário teve que apontar `/landpaging` porque eu nunca
+> questionei se o próprio conceito de container com teto fazia sentido aqui, só ajustava o
+> valor do teto 3 vezes seguidas. Antes de inventar um token de design novo (aqui, uma "coluna
+> de conteúdo"), checar primeiro se o codebase já tem convenção estabelecida pro mesmo
+> problema — `/landpaging` sempre teve a resposta certa, bastava eu ter olhado antes da 1ª
+> tentativa, não só depois da 3ª reclamação do usuário.
+
+> **Atualizado em:** 2026-09-12 — **Landing `/artemis4` reescrita do zero como superfície BRAND:
+> de simulador de reentrada espacial para página de conversão com prova concreta, autoridade
+> citada e o ciclo fechado dos 3 módulos. 1.426 linhas monolíticas → 8 arquivos; 2 bugs reais de
+> CSS e 3 de robustez encontrados e corrigidos testando ao vivo.**
+>
+> **Pedido do usuário:** tornar a página "impecável" em atratividade (fisgar o internauta num
+> piscar de olhos) e em convencimento de contratar os módulos, com mix de conteúdo de marketing
+> digital, benefícios dos módulos, **exemplos concretos das funcionalidades**, conteúdo de
+> autoridade citando fontes, a origem do nome Artemis, e um julgamento explícito sobre o vídeo
+> de reentrada que ele mesmo tinha colocado no hero.
+>
+> **Diagnóstico da versão anterior (não suposição — lida linha a linha):** o primeiro fold
+> inteiro (100dvh) era um simulador de reentrada — vídeo do YouTube + canvas em
+> `requestAnimationFrame` + HUD com Mach 22.7, temperatura de escudo ablativo, desgaste de
+> carbono e "DEEP SPACE NETWORK Recife". Zero informação decodificável por um dono de negócio,
+> ocupando os únicos segundos de atenção da página · **zero prova concreta**: nenhum screenshot,
+> nenhum dado, nenhuma tela — só adjetivo ("alta performance", "nível orbital", "latência
+> ultrabaixa") · **zero autoridade**: os dados fortes de mercado existiam, mas enterrados dentro
+> de um modal a dois cliques de distância · `uppercase italic font-black` em praticamente cada
+> elemento (nav, botão, heading, label, footer) — quando tudo grita, nada se destaca ·
+> **gradiente em texto no H1** (proibição explícita do `DESIGN.md`) · a seção "Infraestrutura de
+> Nível Orbital" era exatamente o padrão banido de 4 cards idênticos ícone+título+texto · CTAs
+> confusos ("Registrar Corporação", "Área de Testes", "Entrar" — os três indo para
+> `/admin/login`, sem nenhum caminho comercial real) · `#020617` (slate-950 genérico do Tailwind)
+> como fundo, em vez do navy-void `#020c1b` da própria marca.
+>
+> **Julgamento sobre o vídeo, entregue como pedido — boa ideia, lugar errado.** O plasma de
+> reentrada é o único ativo visual genuinamente memorável da marca e nenhum concorrente
+> brasileiro tem algo parecido; descartar seria desperdício. Mas como hero ele obrigava o
+> visitante a decodificar uma metáfora *sem legenda* antes de reconhecer o próprio problema — e
+> o HUD de nave era metáfora sobre metáfora, sem carga de negócio. **Decisão: rebaixado de hero
+> para a seção "Por que Artemis"**, onde passa a ser a PROVA da metáfora, ao lado dos fatos
+> verificados da missão. Nada foi deletado — o `ORIGIN_VIDEO_ID` segue sendo o mesmo vídeo.
+> Efeito colateral relevante: sai do hero o canvas em rAF + o player do YouTube que disputavam
+> a main thread — **causa raiz do "Entrar lento"**, issue crônico documentado neste arquivo em
+> 2026-07-11 e 2026-07-29. O fundo do hero virou CSS puro (campo de estrelas em gradiente
+> radial + horizonte de plasma), zero canvas, zero rAF.
+>
+> **Pesquisa de autoridade feita nesta sessão (nenhum número entrou sem fonte primária
+> verificada):** MIT Sloan/InsideSales (Dr. James B. Oldroyd — 3 anos, 6 empresas, +15.000
+> interessados, +100.000 tentativas): responder em 30 min em vez de 5 derruba **21×** a chance
+> de qualificar · HBR mar/2011 ("The Short Life of Online Sales Leads", auditoria de 2.241
+> empresas): tempo médio de resposta **42 horas**, **23% nunca respondem**, 7× mais chance
+> respondendo em 1h · Panorama Mobile Time/Opinion Box "WhatsApp no Brasil 2026" (1.000
+> entrevistados, jun-jul/2026, ±3pp): **98,3%** dos celulares brasileiros têm WhatsApp, **80%**
+> dos usuários conversam com empresas por lá · DataReportal "Digital 2026: Brazil" (out/2025):
+> **185 milhões** de brasileiros na internet, **86,9%** da população. **Correção de atribuição
+> importante:** o "21×" é do MIT/InsideSales, **não** da HBR — a confusão é comum e a página
+> cita cada um corretamente. **Fatos da NASA verificados** para a seção de origem: Artemis II
+> lançou 01/04/2026, sobrevoou a Lua em 06/04 e pousou 10/04/2026 a **4,7 km do alvo** (primeira
+> missão tripulada à Lua em mais de 50 anos); na reentrada a Orion atravessa uma bola de plasma
+> a **~2.760 °C** que corta todo contato por rádio. Artemis IV é a **próxima** missão — a página
+> nunca afirma que já voou.
+>
+> **Arquitetura nova** (`src/app/artemis4/`): `artemis4.css` (tokens reais do `DESIGN.md`,
+> escala tipográfica, primitivas) + `artemis4-sections.css` + `data.ts` (todo o copy e as fontes,
+> com a regra de voz herdada de `moduleContent.ts` — proibido "lead", "funil", ROAS, CTR, CPL,
+> SLA) + `components/{Chrome,Hero,Product,Story}.tsx` + `page.tsx` como orquestrador.
+> `moduleContent.ts` preservado; `ModuleDetailModal.tsx` migrado para o sistema novo (ganhou
+> Escape, trava de scroll do body, foco no diálogo e CTA para `/contato` — antes ia para
+> `/admin/login` e tinha `text-gray-500` a 11px, falha de contraste).
+>
+> **12 seções, 9 formatos distintos** (o padrão banido de "cards idênticos em grid" fica
+> impossível por construção): hero com **console de missão** exibindo telemetria de NEGÓCIO
+> (investido hoje, interessados, custo por interessado, "onde está o dinheiro" por rede e o
+> registro do que o agente fez sozinho — semente FIXA para não gerar divergência de hidratação,
+> números só andam depois do mount) · faixa de autoridade com os 4 números e a fonte linkada ·
+> diagnóstico do vazamento em 3 etapas (numerado porque É sequência real) · os 3 módulos como
+> **estágios de um ciclo** com conector e linha de entrega entre eles, não 3 produtos soltos ·
+> **tour do produto com 6 mocks de tela construídos em HTML/CSS** (Onde está o dinheiro ·
+> Verba desperdiçada, incluindo a categoria "custo baixo, zero venda" · Aprovação por WhatsApp
+> com PIN · Atendimento automático consultando cadastro real + handoff honesto · "De quem é a
+> bola" com escalonamento · Do anúncio ao caixa) — cada um conferido contra funcionalidade que
+> existe hoje, documentada neste arquivo · 8 capacidades adicionais em faixa compacta · registro
+> de decisões do agente autônomo em formato de log, com a fronteira DEFENSIVE/OFFENSIVE
+> explícita · origem da marca com o vídeo + fatos da NASA + disclaimer de não-vínculo · tabela
+> comparativa · multissegmento com troca de exemplo (Imobiliário/Veículos/Saúde/Serviços) ·
+> garantias da automação · FAQ de 7 objeções reais · CTA final com caminho comercial de verdade
+> (`/contato` primário, `/admin/login` como "já sou cliente").
+>
+> **Bugs reais encontrados testando ao vivo, todos corrigidos:**
+> 1. **Barras com `width: 0`** — `.a4-bars__track` é `<span>` e `.a4-bars__fill` é `<i>`, ambos
+>    `display: inline` por padrão, então `height`/`width` não se aplicavam e nenhuma barra
+>    renderizava. Mesmo problema nos pontos indicadores (`.a4-dot`). Só apareceu medindo
+>    `getBoundingClientRect` — a cor estava certa, o elemento é que não tinha caixa.
+> 2. **CTAs do hero quebrando linha por 6px** — 301+249+14 = 564px numa coluna de 558px.
+>    Padding do `a4-btn--lg` reduzido de 1.875rem para 1.5rem; hero inteiro passou a caber na
+>    dobra (755px de 900px).
+> 3. **Lazy do vídeo armando no topo da página** — a checagem inicial de posição rodava antes do
+>    layout assentar, o rect vinha colapsado e o iframe do YouTube carregava imediatamente,
+>    exatamente o custo que o lazy existe para evitar. Corrigido exigindo `height > 0` e
+>    deferindo a checagem por dois frames.
+> 4. **Nav estourando o viewport no mobile** — grupo direito media 470px de conteúdo em 375px.
+>    Os dois CTAs de texto foram para o drawer em largura cheia abaixo de 48rem.
+> 5. **Valor do console transbordando 3px** — célula de 111px com padding 18px deixava 75px
+>    úteis; "R$ 128,08" a 17px mede 78px. Padding e fonte reduzidos abaixo de 30rem.
+> 6. **Seções sem `scroll-margin-top`** — clicar no menu deixava o título atrás do nav fixo.
+> 7. **Copy dependente de posição** — "escolha uma **à esquerda**" estava errado no mobile, onde
+>    as abas ficam acima. Achado no screenshot mobile.
+>
+> **Achado de robustez que virou decisão de arquitetura:** um IntersectionObserver recém-criado
+> sobre um elemento **visível** não disparou neste ambiente (janela atrás de outra ⇒ o
+> renderizador para de tickar). Isso derrubaria a página inteira para `opacity: 0`, já que o
+> reveal depende de IO. Duas redes de segurança adicionadas: `.a4-rise` recebe `is-in` por
+> timeout de 1,2s de qualquer maneira, e `.a4-anim-settled` (1,5s) força o estado final das
+> animações de entrada do hero, que usam `fill: both` e ficariam presas em `opacity: 0` num
+> renderizador de preview/OG. O vídeo ganhou um segundo caminho (teste de posição no evento de
+> scroll) em vez de timer cego, para não baixar o iframe de quem nunca chegou lá.
+>
+> **Performance:** o logo era **1024×1024 / 206 KB renderizado a 26px**, acima da dobra.
+> Migrado para `next/image` — transferência real medida caiu para **300 bytes** (-99,86%).
+>
+> **Correção de design system aplicada a mim mesmo:** a primeira versão tinha label âmbar em
+> caixa alta acima das **10** seções — o mesmo eyebrow repetido como gramática, que é andaime e
+> não voz. Reduzido a **2** (só onde diz algo que o H2 não diz: o que é a faixa escura de vídeo,
+> e onde a página termina). Os H2 são específicos o bastante para abrir sozinhos.
+>
+> **Verificado:** `npx tsc --noEmit` **zero erros em todo o projeto** (baseline zerada desde
+> 2026-07-31, mantida) · `npx next lint` **zero avisos** · console do navegador limpo, **zero
+> erro e zero aviso de hidratação** (valida a semente fixa do console) · **contraste WCAG
+> calculado nos 25 pares texto/fundo realmente renderizados: zero falhas**, mínimo 4,69:1 —
+> `--ink-faint` afrouxado de `#7e8da3` para `#8695ab` para dar folga · **zero overflow
+> horizontal e zero texto estourando container em 375px, 768px e 1366px** · interações testadas
+> de verdade: 6 abas do tour trocando painel E mock, chips de segmento trocando os 3 exemplos,
+> 7 itens de FAQ, modal abrindo com 5 pilares + trava de scroll + Escape, drawer mobile com 5
+> links + 2 CTAs, setas de teclado movendo foco e seleção no tablist · lazy do vídeo confirmado
+> `0` iframes no topo e armado só ao chegar perto, com fallback de plasma sempre presente.
+>
+> **Não verificado visualmente ponta a ponta:** o painel do navegador parou de compositar frames
+> no meio da sessão (mesma limitação já registrada neste arquivo em 2026-07-28) — screenshots
+> saem em branco e `scrollTo` não commita de forma confiável. As seções capturadas antes da
+> falha (hero, console, faixa de autoridade, diagnóstico, tour com mock, origem com vídeo,
+> segmentos, mobile) conferem; o restante foi validado por medição de DOM, que cobre overflow,
+> contraste e layout com mais rigor que olho, mas não substitui ver a página inteira.
+>
+> **Pendência real registrada, não tocada:** `moduleContent.ts` (conteúdo dos modais, escrito em
+> sessão anterior) afirma "96% leem avaliação antes de escolher uma loja" e "entre 87% e 93%
+> pesquisam no Google" — **não consegui verificar essas duas em fonte primária** nesta pesquisa.
+> Não alterei copy que não é minha, mas agora que a página inteira se apoia em autoridade com
+> fonte linkada, vale conferir ou trocar por número rastreável.
+
+> **Atualizado em:** 2026-09-11 — **Teste do item "Modelo de IA Padrão do Segmento
+> (CRM/Mensageria)" do `docs/ROTEIRO_TESTES_CRM.md` (nível Segmento da cascata 1.6b) — 2 bugs
+> reais encontrados e corrigidos, testados ponta a ponta com dado real e navegador real.**
+>
+> **Bug 1 — `GET /api/admin/campanhas/settings/llm` (nível tenant, `clientId=null`, a seção
+> "Modelo de IA (LLM)" de `/crm/config/ia`) nunca consultava o default do Segmento — sempre
+> devolvia um literal hardcoded (`anthropic`/`claude-sonnet-4-6`) quando o tenant não tinha
+> override próprio, mesmo com um default de segmento real e válido já configurado.**
+> `getLlmClient()` (o motor real que qualifica lead) sempre fez a cascata completa
+> (Tenant→Segmento→Global) corretamente — só a TELA que mostra "modelo efetivo" pro tenant
+> estava desconectada da realidade, mostrando um valor que nunca é de fato usado em runtime.
+> Confirmado ao vivo, antes do fix: configurado um default de teste real no segmento "Venda de
+> Carros" (`gemini`/`gemini-flash-latest`, com chave real) via a rota do Master — o script
+> isolado `getLlmClient(tenantId, null)` resolveu corretamente o `gemini` e completou uma
+> chamada real à API do Google ("OK") — mas a tela do tenant continuou mostrando
+> `anthropic/claude-sonnet-4-6`, o mesmo de sempre.
+>
+> **Corrigido:** `GET /settings/llm` (branch sem `clientId`) agora resolve a MESMA cascata de
+> `getLlmClient` (tenant → segmento via `resolveSegment` → global → default de código) antes de
+> devolver o "modelo efetivo" — nunca mais um literal desconectado. Resposta ganhou
+> `isTenantOverride`/`inheritedFrom` (`'segment'|'global'|'default'`); `LlmCascadeSection.tsx`
+> usa isso pra mostrar um aviso âmbar honesto no escopo tenant quando o valor exibido é herdado
+> (mesmo espírito do aviso que o escopo CLIENTE já tinha) — antes, a tela nunca deixava claro
+> que aquele modelo não era "do tenant", podia sugerir configuração própria que não existia.
+>
+> **Bug 2, achado testando a limpeza do próprio teste — `SegmentLlmDefaultModal.tsx`
+> (`/admin/master/segments` → Regimento do Segmento → "Modelo de IA Padrão do Segmento") não
+> tinha jeito real de restaurar "sem default" — o botão "Salvar" com provider vazio parecia
+> limpar (a tela voltava pra "— Sem default —"), mas a linha no banco NUNCA era removida.**
+> Causa: o `PUT` faz `UPSERT ... COALESCE(EXCLUDED.llmProvider, ...)` — provider `null` no body
+> só significa "nenhum valor novo", preserva o que já estava salvo, nunca apaga. A rota nem
+> tinha `DELETE` (diferente da irmã `/api/admin/campanhas/settings/llm`, que já tem
+> `DELETE ?clientId=` pra restaurar herança no nível cliente). Reproduzido ao vivo: cliquei
+> "Salvar" com provider vazio, o SQL direto confirmou a linha intacta (`gemini/gemini-flash-
+> latest`) — não removida.
+>
+> **Corrigido:** novo `DELETE /api/admin/master/segments/[id]/llm-default` (apaga a linha
+> `tenant_id IS NULL AND segment_id = X` de verdade) + botão "Restaurar (apagar default)" no
+> modal (mesmo padrão âmbar do "Restaurar herança" de `LlmCascadeSection`), visível só quando
+> já existe uma linha salva; `confirm()` antes de agir. Texto do `<option>` vazio corrigido de
+> "— Sem default (herda a linha global) —" pra "— Selecione um provider —" (o texto antigo
+> sugeria que reselecioná-lo já limpava algo, o que nunca foi verdade nem antes nem depois do
+> fix). Botão "Salvar" passou a exigir um provider selecionado (`disabled` sem isso).
+>
+> **Testado ao vivo, ponta a ponta, com dado real e navegador real** (tenant "CRM +
+> MENSAGERIA", segmento Venda de Carros, sessão real via JWT+cookie+localStorage —
+> `admxyz`/usuário real, mesmo playbook documentado em `docs/claude-memory/
+> project_browser_auth_unlock.md`): default de segmento configurado via API real (Master) →
+> `GET /settings/llm` (tenant) refletiu corretamente `gemini/gemini-flash-latest`,
+> `inheritedFrom:'segment'` → confirmado na TELA real de `/crm/config/ia` via DOM
+> (`select.value`) — provider/modelo selecionados batem exato · **regressão confirmada nos 3
+> ramos da cascata**: tenant com override próprio continua mostrando o próprio valor
+> (`isTenantOverride:true`); tenant sem default de segmento cai corretamente no Global
+> (`inheritedFrom:'global'`, testado com o tenant "Imobiliaria XYZ", segmento Imobiliário, que
+> nunca teve nenhum default); escopo CLIENTE (`?clientId=`) continua devolvendo `null` honesto,
+> intocado · modal do Master aberto de verdade (`/admin/master/segments` → Regimento do
+> Segmento → "Modelo de IA Padrão do Segmento") confirmou os mesmos valores via DOM · botão
+> "Restaurar (apagar default)" clicado de verdade (com `window.confirm` interceptado só pra
+> esse clique) → `count(*)=0` confirmado por SQL direto → `GET /settings/llm` (tenant) voltou
+> a refletir `groq/llama-3.3-70b-versatile`/`inheritedFrom:'global'` — cascata fechando o loop
+> corretamente depois da limpeza. **Achado incidental, não é bug — foi artefato do meu próprio
+> JWT de teste**: um Master fabricado com `tenantId:null` fazia `GET .../settings/llm/models`
+> retornar 401 (rota exige `payload.tenantId`), derrubando o modal com "Object.entries(...)"
+> null — corrigido regenerando o JWT com o `tenant_id` real de membership do Master
+> (`00000000-...-000001`, "Master Platform"), que é como o login real sempre gera o token pra
+> esse usuário (`userTenants.length===1` no login), não um bug do app.
+>
+> **Limpeza confirmada:** os 2 leads de teste (criados pra validar `getLlmClient`/qualificação
+> real via Gemini, um deles pego numa sobrecarga transitória real 503 do Google — retry
+> confirmou sucesso) removidos (`leads_staging`/`leads_kanban`/`marketing_eventos`,
+> `count(*)=0` em todas) · default de segmento de teste removido via o próprio botão novo da UI
+> (não SQL direto) · script isolado (`scratch/test-segment-llm-default.ts`) removido. `npx tsc
+> --noEmit`: **zero erros em todos os 5 arquivos tocados** (mesma baseline zerada desde
+> 2026-07-31).
+
 > **Atualizado em:** 2026-09-09 — **`next_best_action` e `reactivation` testados de ponta a
 > ponta com dado real (item 1.7 do roteiro, seguindo "na ordem dos agentes") — 1 bug real de
 > causa raiz encontrado e corrigido no processo: inbox de WhatsApp da Mensageria ficava

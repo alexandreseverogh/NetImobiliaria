@@ -85,3 +85,23 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
+// DELETE /api/admin/master/segments/[id]/llm-default — apaga o default deste segmento por
+// completo (não dá pra "salvar vazio" via PUT: o UPSERT usa COALESCE pra nunca apagar sem
+// intenção explícita quando um campo vem ausente, então limpar de verdade exige DELETE mesmo
+// — achado real, roteiro de testes CRM 2026-09-11: o botão "Salvar" com provider vazio parecia
+// restaurar "sem default", mas a linha nunca era removida de fato).
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  if (!(await requireMaster(request))) {
+    return NextResponse.json({ error: 'Acesso Master requerido' }, { status: 403 });
+  }
+  try {
+    await pool.query(
+      `DELETE FROM campanhasmarketingdigital."Settings" WHERE tenant_id IS NULL AND segment_id = $1::uuid`,
+      [params.id],
+    );
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}

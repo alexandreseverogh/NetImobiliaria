@@ -14,7 +14,7 @@ export const roundRobinStrategy: DistributionStrategy = {
 
     const q = `
       SELECT
-        u.id, u.nome, u.email, u.tipo_corretor, u.is_plantonista,
+        u.id, u.nome, u.email, u.tipo_corretor, utm.is_plantonista,
         COALESCE(cs.nivel, 0) as nivel,
         COUNT(a.corretor_fk) AS total_recebidos,
         MAX(a.created_at) AS ultimo_recebimento
@@ -34,9 +34,9 @@ export const roundRobinStrategy: DistributionStrategy = {
         AND (u.indisponivel_ate IS NULL OR u.indisponivel_ate <= now())
         AND utm.tenant_id = $2
         AND ur.name = $3
-        AND COALESCE(u.is_plantonista, false) = false
+        AND COALESCE(utm.is_plantonista, false) = false
         AND (CASE WHEN array_length($1::uuid[], 1) > 0 THEN u.id != ALL($1::uuid[]) ELSE true END)
-      GROUP BY u.id, u.nome, u.email, u.tipo_corretor, u.is_plantonista, cs.nivel, u.created_at
+      GROUP BY u.id, u.nome, u.email, u.tipo_corretor, utm.is_plantonista, cs.nivel, u.created_at
       ORDER BY
         COUNT(a.corretor_fk) ASC,
         MAX(a.created_at) ASC NULLS FIRST,

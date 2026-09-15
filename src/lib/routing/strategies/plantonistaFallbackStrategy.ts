@@ -31,7 +31,7 @@ export const plantonistaFallbackStrategy: DistributionStrategy = {
     }
 
     const q = `
-      SELECT u.id, u.nome, u.email, u.tipo_corretor, u.is_plantonista
+      SELECT u.id, u.nome, u.email, u.tipo_corretor, utm.is_plantonista
       FROM public.users u
       INNER JOIN public.user_tenant_membership utm ON u.id = utm.user_id
       INNER JOIN public.user_role_assignments ura ON u.id = ura.user_id
@@ -48,9 +48,9 @@ export const plantonistaFallbackStrategy: DistributionStrategy = {
         AND (u.indisponivel_ate IS NULL OR u.indisponivel_ate <= now())
         AND utm.tenant_id = $4
         AND ur.name = $5
-        AND COALESCE(u.is_plantonista, false) = true
+        AND COALESCE(utm.is_plantonista, false) = true
         AND (CASE WHEN array_length($1::uuid[], 1) > 0 THEN u.id != ALL($1::uuid[]) ELSE true END)
-      GROUP BY u.id, u.nome, u.email, u.tipo_corretor, u.is_plantonista, u.created_at, caa."${sellerEstadoColumn}", caa."${sellerCidadeColumn}"
+      GROUP BY u.id, u.nome, u.email, u.tipo_corretor, utm.is_plantonista, u.created_at, caa."${sellerEstadoColumn}", caa."${sellerCidadeColumn}"
       ORDER BY
         (CASE WHEN caa."${sellerEstadoColumn}" = $2 AND caa."${sellerCidadeColumn}" = $3 THEN 0 ELSE 1 END) ASC,
         COUNT(a.corretor_fk) ASC,

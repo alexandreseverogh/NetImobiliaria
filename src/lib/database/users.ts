@@ -19,7 +19,6 @@ export interface User {
   url_cdn?: string | null
   ativo: boolean
   isencao?: boolean
-  is_plantonista?: boolean
   /** Ausência temporária (férias/atestado) — ver docs/PLANO_PENDENCIA_ATENDIMENTO.md §4.1.
    *  Enquanto no futuro: sai da fila de distribuição e não é punido por perder lead. */
   indisponivel_ate?: Date | string | null
@@ -49,6 +48,12 @@ export interface UserWithRole extends User {
   is_system_role?: boolean
   is_active_in_tenant?: boolean
   current_tenant_id?: string
+  /** Por vínculo (user_tenant_membership), não mais global — só true quando o role do usuário
+   *  NESTE tenant é elegivel_plantonista e ele se autoatendeu como plantonista. */
+  is_plantonista?: boolean
+  /** Se o CARGO do usuário neste tenant é elegível para plantão (user_roles.
+   *  elegivel_plantonista) — dirige se a UI oferece o controle de marcar/desmarcar. */
+  elegivel_plantonista?: boolean
 }
 
 export async function findUsersWithRoles(tenantId?: string): Promise<UserWithRole[]> {
@@ -63,7 +68,7 @@ export async function findUsersWithRoles(tenantId?: string): Promise<UserWithRol
         u.telefone,
         u.ativo,
         u.isencao,
-        u.is_plantonista,
+        utm.is_plantonista,
         u.tipo_corretor,
         u.indisponivel_ate,
         u.indisponivel_motivo,
@@ -171,7 +176,7 @@ export async function findUsersPaginated(
         u.telefone,
         u.ativo,
         u.isencao,
-        u.is_plantonista,
+        utm.is_plantonista,
         u.tipo_corretor,
         u.indisponivel_ate,
         u.indisponivel_motivo,
@@ -185,6 +190,7 @@ export async function findUsersPaginated(
         ur.name as role_name,
         ur.description as role_description,
         ur.level as role_level,
+        ur.elegivel_plantonista,
         u.require_password_change,
         utm.is_active as is_active_in_tenant,
         utm.tenant_id as current_tenant_id,
@@ -284,8 +290,8 @@ export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'upd
     const hashedPassword = await bcrypt.hash(userData.password, 10)
 
     const insertUserQuery = `
-      INSERT INTO users (username, email, password, nome, telefone, ativo, cpf, creci, foto, foto_tipo_mime, isencao, is_plantonista, tipo_corretor, require_password_change, google_refresh_token, google_calendar_authorized, metadata)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      INSERT INTO users (username, email, password, nome, telefone, ativo, cpf, creci, foto, foto_tipo_mime, isencao, tipo_corretor, require_password_change, google_refresh_token, google_calendar_authorized, metadata)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *
     `
 
@@ -301,7 +307,6 @@ export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'upd
       userData.foto || null,
       userData.foto_tipo_mime || null,
       userData.isencao || false,
-      userData.is_plantonista || false,
       userData.tipo_corretor || null,
       (userData as any).require_password_change || false,
       userData.google_refresh_token || null,
@@ -400,7 +405,6 @@ export async function updateUser(id: string, userData: Partial<Omit<User, 'id' |
     if (userData.creci !== undefined) { fields.push(`creci = $${paramCount}`); values.push(userData.creci || null); paramCount++ }
 
     if (userData.isencao !== undefined) { fields.push(`isencao = $${paramCount}`); values.push(userData.isencao); paramCount++ }
-    if (userData.is_plantonista !== undefined) { fields.push(`is_plantonista = $${paramCount}`); values.push(userData.is_plantonista); paramCount++ }
     if (userData.tipo_corretor !== undefined) { fields.push(`tipo_corretor = $${paramCount}`); values.push(userData.tipo_corretor); paramCount++ }
 
     if (userData.password) {

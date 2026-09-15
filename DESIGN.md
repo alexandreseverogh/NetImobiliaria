@@ -234,3 +234,122 @@ O componente central do produto. Toda métrica em contexto:
 - **Don't** exibir métricas nuas (número sem contexto, benchmark ou tendência). Um CPL isolado não é informação — é ruído.
 - **Don't** fazer o design do Meta Ads Manager: cinza, denso sem ritmo, hostil, sem personalidade.
 - **Don't** usar uppercase em labels por padrão — reservar para estados críticos ou identidade específica (sidebar atual tem justificativa histórica; novos componentes: sans uppercase).
+
+---
+
+## 7. Superfície BRAND — landing `/artemis4`
+
+O painel admin é **produto** (design serve a função); a landing é **brand** (design É o produto).
+Mesma identidade, tratamentos distintos — como o `PRODUCT.md` estabelece. Esta seção documenta a
+camada de tokens específica da landing, escrita em 2026-09-12 na reescrita completa da página
+(`src/app/artemis4/artemis4.css` + `artemis4-sections.css`), para que nenhuma sessão futura a
+reinvente.
+
+**Creative North Star da landing: "Console de Missão".** O mesmo vocabulário do painel — navy
+profundo, âmbar raro, elevação por tonalidade — mas a telemetria exibida é de **negócio**, nunca
+de nave espacial. Essa distinção é a correção central da reescrita: a versão anterior mostrava
+Mach, temperatura de escudo ablativo e desgaste de carbono no primeiro fold, informação
+indecodificável para o público real da página (dono de negócio).
+
+### Passos tonais adicionais
+
+A landing precisou de dois degraus intermediários que o painel não tem, para dar ritmo a uma
+página de rolagem longa (~11.000px) alternando bandas de seção:
+
+| Token | Valor | Papel |
+|---|---|---|
+| `--void` | `#020c1b` | O piso. Igual ao `navy-void` do painel. **Nunca `#020617`** — esse é o slate-950 genérico do Tailwind, não uma cor desta marca (era o fundo da versão anterior). |
+| `--deep` | `#05101f` | **Novo.** Banda intermediária entre void e panel. |
+| `--panel` | `#0a192f` | Superfície de seção. Igual ao `navy-deep`. |
+| `--raised` | `#112240` | Cards e painéis. Igual ao `navy-surface`. |
+| `--raised-2` | `#16304f` | **Novo.** Nível máximo: linha ativa, hover, aba selecionada. |
+
+### Container fluido — monitores ultra-wide (32"+)
+
+`--maxw` e `--maxw-wide` (os dois `max-width` de container, `.a4-wrap`/`.a4-wrap--wide`) são
+`clamp()`, não valor fixo — achado real reportado pelo usuário em monitor de 32": com valor
+fixo (`1480px`), um monitor QHD (2560px) ou 4K (3840px) sobrava ~540–1180px de vazio de cada
+lado, mesmo as bandas de fundo (`--void`/`--deep`/`--panel`) já sendo full-bleed.
+
+**Causa raiz real, achada só na 4ª rodada — as 3 primeiras corrigiam o problema errado.** Eu
+tinha introduzido, nesta sessão, o conceito de "coluna de conteúdo com teto em pixel" — um
+`clamp()` calibrado por `vw`, tentando achar o valor "certo". Esse conceito **nunca existiu**
+nem na versão original desta página, nem em `/landpaging` (a página real de imóveis deste
+projeto, apontada pelo usuário como referência) — lá o padrão é `w-full` sem teto nenhum
+(`landpaging/page.tsx:2334`) ou um teto tão largo que nunca é atingido na prática (`:1963`,
+`max-w-[2496px]`). As 3 primeiras rodadas de `clamp()` (tetos 1800px → 2400px → 3200px)
+melhoravam o número a cada vez mas nunca atacavam a causa: eu estava tentando adivinhar um
+"percentual de preenchimento ideal" quando a resposta certa, alinhada ao resto do código-base,
+é simplesmente **não ter teto**.
+
+| Viewport | 1ª (clamp 1800) | 2ª (clamp 2400) | 3ª (clamp 3200) | 4ª — sem teto (atual) |
+|---|---|---|---|---|
+| 1366px (notebook) | idêntico | idêntico | idêntico | idêntico (gargalo é o `gutter`) |
+| 1920px | 78,0%* | 84,0% | 90,0% | **99,2%** |
+| 2560px (32" QHD) | 70,3% | 84,0% | 90,0% | **99,4%** |
+| 3840px (32" 4K) | 46,9% | 62,5% | 83,3% | **99,6%** |
+
+\* estimado por extrapolação, não testado ao vivo na 1ª rodada.
+
+```css
+.a4-wrap--wide { max-width: none; }   /* nav, hero, console, grids — full-bleed */
+.a4-wrap       { max-width: 860px; }  /* só FAQ + drawer mobile — ver nota abaixo */
+```
+
+**Achado no processo desta 4ª rodada: FAQ precisa de teto PRÓPRIO, e por um motivo diferente.**
+Ao remover o teto de tudo (inclusive `.a4-wrap`, usado só pela FAQ), a distância entre o texto
+da pergunta e o ícone "+" chegou a **3711px** num 4K real — o acordeão de pergunta/resposta é
+conteúdo de LEITURA, não estrutura de grid, e não deveria crescer com o monitor do mesmo jeito
+que hero/console/cards crescem. `860px` foi dimensionado pro conteúdo real (pergunta numa linha
++ ícone próximo + resposta em `--maxw-text`), não por fórmula de `vw` — mesmo espírito de
+`landpaging` já ter estratégias de largura DIFERENTES por tipo de seção na mesma página, não
+uma regra única aplicada a tudo.
+
+**`--maxw-text` (68ch, largura de linha de parágrafo) nunca muda com o container** — é uma regra
+de legibilidade independente da largura da tela, não o que estava quebrado. Alargar o container
+dá mais respiro a grids/cards/consoles; o texto de corpo continua com a mesma largura de linha
+em qualquer monitor, por design.
+
+### Tinta com contraste verificado
+
+Os valores abaixo foram medidos nos pares realmente renderizados, não estimados. A versão
+anterior usava `text-gray-400`/`text-gray-500` em corpo de 11–12px, que reprova.
+
+| Token | Valor | Contraste | Uso |
+|---|---|---|---|
+| `--ink` | `#f1f5f9` | 17,6:1 sobre `--void` | Texto primário |
+| `--ink-dim` | `#a7b4c6` | 9,3:1 | Corpo e texto de suporte |
+| `--ink-faint` | `#8695ab` | 6,7:1 sobre `--void` · 5,2:1 sobre `--raised` | Metadados, fontes citadas |
+
+**A Regra do Piso de Corpo.** Nenhum texto de corpo abaixo de 15px, nenhum label abaixo de 10px.
+A versão anterior tinha corpo a 12px e labels a 9px.
+
+### Âmbar de plasma — exceção documentada
+
+`--plasma-core: #ffb020` e `--plasma-edge: #ff4d14` existem **apenas** na seção de origem da
+marca e no horizonte do hero. São o eco visual da reentrada, não um segundo acento de ação: nunca
+aparecem em botão, estado ativo ou dado. A Regra do Acento Único continua valendo — âmbar
+`--gold` (`#c5a028`) segue sendo a única cor de decisão.
+
+### Itálico e caixa alta: reservados
+
+Itálico fica **só** em H1 e H2 (identidade de velocidade, coerente com o tema). Caixa alta com
+tracking fica **só** em `.a4-label`, que representa um readout de console. A versão anterior
+aplicava `uppercase italic font-black` em nav, botão, heading, label e footer ao mesmo tempo —
+quando tudo grita, nada se destaca.
+
+**Um eyebrow por página, não por seção.** Label âmbar em caixa alta acima de cada título é
+andaime, não voz. Na landing ele sobrevive em 2 dos 10 títulos, só onde diz algo que o H2 não diz.
+
+### Motion: o default é visível
+
+Regra permanente. `.a4-rise` só recebe `opacity: 0` depois que o JS marca `data-anim="on"`, e há
+duas redes de segurança por timeout (`is-in` em 1,2s; `.a4-anim-settled` em 1,5s para as
+animações de entrada com `fill: both`). Motivo verificado ao vivo: um `IntersectionObserver` pode
+simplesmente não disparar quando a janela está atrás de outra ou num renderizador de preview/OG —
+e sem a rede a página publicaria em branco.
+
+### Imagem pesada nunca entra crua
+
+O logo era 1024×1024 / 206 KB renderizado a 26px acima da dobra. Com `next/image` a transferência
+real caiu para 300 bytes. Vale para qualquer asset acima da dobra nesta superfície.

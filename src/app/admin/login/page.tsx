@@ -220,18 +220,32 @@ function LoginContent() {
         <div className={`py-8 px-6 shadow-xl rounded-3xl transition-all duration-700 ${isCRM ? 'bg-white/5 border border-white/10 backdrop-blur-xl' : 'bg-white'
           }`}>
           {!requiresTenantSelection ? (
-            <form className="space-y-6" onSubmit={handleSubmit}>
+            // autoComplete="off" no <form> sozinho não basta — o Chrome ignora isso em campo
+            // de login reconhecido pelo padrão name/id/type. O que de fato impede é trocar o
+            // `name`/`id` por algo que o navegador não reconheça como "campo de usuário
+            // salvo" — por isso não usamos mais "username"/"password" literais aqui. Sem essa
+            // blindagem, o navegador autopreenchia silenciosamente com QUALQUER credencial já
+            // salva pra este mesmo formulário (ex.: a conta pessoal do usuário, usada bem mais
+            // vezes que a conta Master) — o campo mudava de valor sem o usuário perceber,
+            // entrando com o usuário errado sem querer.
+            <form className="space-y-6" onSubmit={handleSubmit} autoComplete="off">
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="username" className={`block text-xs font-black uppercase tracking-widest mb-2 ml-1 ${isCRM ? 'text-gray-400' : 'text-gray-700'}`}>
+                  <label htmlFor="artemis4-master-user" className={`block text-xs font-black uppercase tracking-widest mb-2 ml-1 ${isCRM ? 'text-gray-400' : 'text-gray-700'}`}>
                     Usuário Master
                   </label>
 
                   <input
-                    id="username"
-                    name="username"
+                    id="artemis4-master-user"
+                    name="artemis4-master-user"
                     type="text"
                     required
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    data-lpignore="true"
+                    data-1p-ignore="true"
                     className={`w-full px-4 py-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 ${isCRM ? 'bg-white/5 border border-white/10 text-white placeholder-gray-600' : 'border border-gray-300 text-gray-900 bg-white shadow-sm'
                       }`}
                     placeholder="Digite seu usuário"
@@ -241,15 +255,21 @@ function LoginContent() {
                   />
                 </div>
                 <div>
-                  <label htmlFor="password" className={`block text-xs font-black uppercase tracking-widest mb-2 ml-1 ${isCRM ? 'text-gray-400' : 'text-gray-700'}`}>
+                  <label htmlFor="artemis4-master-pass" className={`block text-xs font-black uppercase tracking-widest mb-2 ml-1 ${isCRM ? 'text-gray-400' : 'text-gray-700'}`}>
                     Senha de Acesso
                   </label>
                   <div className="relative">
                     <input
-                      id="password"
-                      name="password"
+                      id="artemis4-master-pass"
+                      name="artemis4-master-pass"
                       type={showPassword ? "text" : "password"}
                       required
+                      autoComplete="new-password"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      data-lpignore="true"
+                      data-1p-ignore="true"
                       className={`w-full px-4 py-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 pr-12 ${isCRM ? 'bg-white/5 border border-white/10 text-white placeholder-gray-600' : 'border border-gray-300 text-gray-900 bg-white shadow-sm'
                         }`}
                       placeholder="Digite sua senha"

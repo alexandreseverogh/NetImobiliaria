@@ -33,7 +33,7 @@ export const ownerOfAssetStrategy: DistributionStrategy = {
     if (!ownerId || ctx.excludeIds.includes(ownerId)) return null
 
     const ownerRes = await ctx.dbClient.query(
-      `SELECT u.id, u.nome, u.email, u.tipo_corretor, u.is_plantonista
+      `SELECT u.id, u.nome, u.email, u.tipo_corretor, utm.is_plantonista
          FROM public.users u
          INNER JOIN public.user_tenant_membership utm ON u.id = utm.user_id
         -- Ausência temporária (férias/atestado) tira o dono do ativo da fila: o lead cai pra

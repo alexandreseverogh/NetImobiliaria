@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback, ReactNode } from 'rea
 import { useAuth } from '@/hooks/useAuth'
 import AdminHeader from '@/components/admin/AdminHeader'
 import AdminSidebar from '@/components/admin/AdminSidebar'
+import HorizontalTabsBar from '@/components/admin/HorizontalTabsBar'
 import LoadingSpinner from '@/components/admin/LoadingSpinner'
 import ErrorBoundary from '@/components/admin/ErrorBoundary'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -131,6 +132,7 @@ export default function CRMLayoutContent({
           />
 
           <main className="w-full min-w-0 px-8" role="main" aria-label="Conteúdo principal">
+            {!crmBlocked && <HorizontalTabsBar menuItems={menuItems} theme={theme} bleedClassName="-mx-8 px-8" />}
             {crmBlocked ? (
               <div className={`flex flex-col items-center justify-center text-center py-24 px-8 rounded-3xl border-2 border-dashed ${isDark ? 'border-amber-500/20 bg-amber-500/5' : 'border-amber-300 bg-amber-50'}`}>
                 <ClockIcon className="h-12 w-12 text-amber-500 mb-4" />

@@ -32,6 +32,9 @@ export function SegmentLlmDefaultModal({ segment, onClose }: Props) {
   const [llmModel, setLlmModel] = useState('');
   const [llmApiKey, setLlmApiKey] = useState('');
   const [llmApiKeySet, setLlmApiKeySet] = useState(false);
+  // Se já existe uma linha real salva (independente do que o form mostra agora) — só assim
+  // faz sentido oferecer "Restaurar" (apagar de vez, não só limpar o form).
+  const [hasSavedDefault, setHasSavedDefault] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -42,6 +45,7 @@ export function SegmentLlmDefaultModal({ segment, onClose }: Props) {
         setLlmProvider(def.llmProvider || '');
         setLlmModel(def.llmModel || '');
         setLlmApiKeySet(!!def.llmApiKeySet);
+        setHasSavedDefault(!!(def.llmProvider || def.llmModel || def.llmApiKeySet));
         setLlmModels(models);
       })
       .catch(() => setError('Falha ao carregar'))
@@ -66,8 +70,30 @@ export function SegmentLlmDefaultModal({ segment, onClose }: Props) {
       setLlmApiKeySet(!!llmApiKey || llmApiKeySet);
       setLlmApiKey('');
       setSaveOk(true);
+      setHasSavedDefault(!!(llmProvider || llmModel || llmApiKeySet));
     } catch (e: any) {
       setError(e.message ?? 'Erro ao salvar');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Apaga a linha de verdade — diferente de "Salvar" com o provider vazio, que o backend só
+  // trata como "nenhum campo novo pra atualizar" (COALESCE preserva o que já estava salvo).
+  async function handleRestore() {
+    if (!confirm('Remover o default de LLM deste segmento? Qualquer tenant deste segmento sem modelo próprio volta a cair no modelo GLOBAL da plataforma.')) return;
+    setSaving(true); setError(''); setSaveOk(false);
+    try {
+      const res = await fetch(`/api/admin/master/segments/${segment.id}/llm-default`, {
+        method: 'DELETE', credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Falha ao restaurar');
+      setLlmProvider(''); setLlmModel(''); setLlmApiKey(''); setLlmApiKeySet(false);
+      setHasSavedDefault(false);
+      setSaveOk(true);
+    } catch (e: any) {
+      setError(e.message ?? 'Erro ao restaurar');
     } finally {
       setSaving(false);
     }
@@ -109,7 +135,7 @@ export function SegmentLlmDefaultModal({ segment, onClose }: Props) {
                   onChange={e => { setLlmProvider(e.target.value); setLlmModel(''); }}
                   className="w-full mt-1 px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-sky-400"
                 >
-                  <option value="">— Sem default (herda a linha global) —</option>
+                  <option value="">— Selecione um provider —</option>
                   {providerList.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
                 </select>
               </div>
@@ -152,13 +178,19 @@ export function SegmentLlmDefaultModal({ segment, onClose }: Props) {
               <CheckCircleIcon className="h-4 w-4" /> Salvo!
             </span>
           )}
+          {hasSavedDefault && (
+            <button onClick={handleRestore} disabled={saving || loading}
+              className="px-4 py-2 rounded-xl border border-amber-300 text-sm font-semibold text-amber-600 hover:bg-amber-50 transition-all disabled:opacity-50">
+              Restaurar (apagar default)
+            </button>
+          )}
           <button onClick={onClose}
             className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-white transition-all">
             Fechar
           </button>
-          <button onClick={handleSave} disabled={saving || loading}
+          <button onClick={handleSave} disabled={saving || loading || !llmProvider}
             className={cn('px-5 py-2 rounded-xl text-sm font-black text-white transition-all',
-              (saving || loading) ? 'bg-gray-300 cursor-not-allowed' : 'bg-sky-600 hover:bg-sky-700 shadow-sm')}>
+              (saving || loading || !llmProvider) ? 'bg-gray-300 cursor-not-allowed' : 'bg-sky-600 hover:bg-sky-700 shadow-sm')}>
             {saving ? 'Salvando...' : 'Salvar'}
           </button>
         </div>

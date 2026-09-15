@@ -23,7 +23,6 @@ interface CreateUserRequest {
   password: string
   ativo?: boolean
   isencao?: boolean
-  is_plantonista?: boolean
   tipo_corretor?: 'Interno' | 'Externo' | null
   google_refresh_token?: string | null
   google_calendar_authorized?: boolean
@@ -197,7 +196,6 @@ export async function POST(request: NextRequest) {
         password: String(formData.get('password') || ''),
         ativo: formData.get('ativo') === 'true',
         isencao: formData.get('isencao') === 'true',
-        is_plantonista: formData.get('is_plantonista') === 'true',
         tipo_corretor: formData.get('tipo_corretor') as 'Interno' | 'Externo' | null,
         google_refresh_token: String(formData.get('google_refresh_token') || '').trim() || null,
         google_calendar_authorized: formData.get('google_calendar_authorized') === 'true',
@@ -309,7 +307,6 @@ export async function POST(request: NextRequest) {
         password: createData.password,
         ativo: createData.ativo !== undefined ? createData.ativo : true,
         isencao: createData.isencao !== undefined ? createData.isencao : false,
-        is_plantonista: createData.is_plantonista !== undefined ? createData.is_plantonista : false,
         ultimo_login: null,
         tipo_corretor: createData.tipo_corretor || 'Interno',
         foto: fotoBuffer,

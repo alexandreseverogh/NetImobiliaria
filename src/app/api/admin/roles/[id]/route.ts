@@ -85,7 +85,7 @@ export async function PUT(
     }
     const roleId = parseInt(params.id)
     const data = await request.json()
-    const { name, description, level, two_fa_required, is_active, manager_role_id } = data
+    const { name, description, level, two_fa_required, is_active, manager_role_id, elegivel_plantonista } = data
 
     if (isNaN(roleId)) {
       return NextResponse.json(
@@ -186,6 +186,12 @@ export async function PUT(
     if (is_active !== undefined) {
       updates.push(`is_active = $${paramIndex}`)
       values.push(is_active)
+      paramIndex++
+    }
+
+    if (elegivel_plantonista !== undefined) {
+      updates.push(`elegivel_plantonista = $${paramIndex}`)
+      values.push(elegivel_plantonista)
       paramIndex++
     }
 

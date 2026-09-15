@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
       query = `
         SELECT 
           r.id, r.name, r.description, r.level, r.is_active, r.requires_2fa,
+          r.elegivel_plantonista,
           r.is_system_role, r.created_at, r.updated_at, COUNT(ura.user_id) as user_count,
           MAX(rh.manager_role_id) as manager_role_id
         FROM user_roles r
@@ -37,6 +38,7 @@ export async function GET(request: NextRequest) {
       query = `
         SELECT 
           r.id, r.name, r.description, r.level, r.is_active, r.requires_2fa,
+          r.elegivel_plantonista,
           r.is_system_role, r.created_at, r.updated_at, COUNT(ura.user_id) as user_count,
           MAX(rh.manager_role_id) as manager_role_id
         FROM user_roles r
@@ -83,8 +85,8 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await request.json()
-    const { name, description, level, two_fa_required = false, is_active = true, manager_role_id } = data
-    
+    const { name, description, level, two_fa_required = false, is_active = true, manager_role_id, elegivel_plantonista = false } = data
+
     // Mapear two_fa_required para requires_2fa
     const requires_2fa = two_fa_required
 
@@ -122,8 +124,8 @@ export async function POST(request: NextRequest) {
 
     // Inserir novo role associado ao tenant do criador
     const insertQuery = `
-      INSERT INTO user_roles (name, description, level, requires_2fa, is_active, created_at, updated_at, tenant_id)
-      VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), $6)
+      INSERT INTO user_roles (name, description, level, requires_2fa, is_active, elegivel_plantonista, created_at, updated_at, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW(), $7)
       RETURNING *
     `
 
@@ -133,6 +135,7 @@ export async function POST(request: NextRequest) {
       level,
       requires_2fa,
       is_active,
+      elegivel_plantonista,
       tenantId || null
     ])
 

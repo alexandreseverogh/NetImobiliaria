@@ -157,11 +157,12 @@ export async function GET(
           ur.description,
           ur.level,
           ur.is_system_role,
+          ur.elegivel_plantonista,
           COUNT(ura.user_id) as user_count
         FROM user_roles ur
         LEFT JOIN user_role_assignments ura ON ur.id = ura.role_id
         WHERE ${tenantScopeClause}
-        GROUP BY ur.id, ur.name, ur.description, ur.level, ur.is_system_role
+        GROUP BY ur.id, ur.name, ur.description, ur.level, ur.is_system_role, ur.elegivel_plantonista
       `;
 
       const perfilResult = await client.query(perfilQuery, [perfilId, decoded.tenantId || null]);
@@ -299,7 +300,7 @@ export async function PUT(
     if (isNaN(perfilId)) return NextResponse.json({ message: 'ID inválido' }, { status: 400 });
 
     const body = await request.json();
-    const { name, description, permissions, level, is_system_role, custom_fields } = body;
+    const { name, description, permissions, level, is_system_role, custom_fields, elegivel_plantonista } = body;
 
     if (!name || !description) {
       return NextResponse.json({ message: 'Nome e descrição são obrigatórios' }, { status: 400 });
@@ -360,8 +361,8 @@ export async function PUT(
         const targetIsSystem = is_system_role === true && isMasterAdmin;
 
         await client.query(
-          'UPDATE user_roles SET name = $1, description = $2, level = $3, is_system_role = $4, updated_at = NOW() WHERE id = $5',
-          [name.trim(), description.trim(), targetLevel, targetIsSystem, perfilId]
+          'UPDATE user_roles SET name = $1, description = $2, level = $3, is_system_role = $4, elegivel_plantonista = $5, updated_at = NOW() WHERE id = $6',
+          [name.trim(), description.trim(), targetLevel, targetIsSystem, elegivel_plantonista === true, perfilId]
         );
 
         await client.query('DELETE FROM role_permissions WHERE role_id = $1', [perfilId]);

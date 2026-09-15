@@ -64,6 +64,10 @@ export function LlmCascadeSection({ t, storageKey }: Props) {
   const [llmTestResult, setLlmTestResult]  = useState<{ success: boolean; message: string } | null>(null);
   const [llmLoading,    setLlmLoading]     = useState(false);
   const [llmHasOverride, setLlmHasOverride] = useState(false);
+  // Só relevante no escopo tenant (clientId=null) — se o valor exibido é próprio do tenant ou
+  // herdado da cascata (segmento curado pelo Master / global / default de código).
+  const [tenantIsOverride, setTenantIsOverride] = useState(true);
+  const [tenantInheritedFrom, setTenantInheritedFrom] = useState<'segment' | 'global' | 'default' | null>(null);
   const [showKey, setShowKey] = useState(false);
 
   const { clients, loading: clientsLoading, clientFilter, setClientFilter } = useClientSelector(storageKey);
@@ -78,6 +82,8 @@ export function LlmCascadeSection({ t, storageKey }: Props) {
       setLlmModel(l.llmModel       || 'claude-sonnet-4-5');
       setLlmApiKeySet(l.llmApiKeySet);
       setLlmHasOverride(!!(l.llmProvider || l.llmModel || l.llmApiKeySet));
+      setTenantIsOverride(l.isTenantOverride !== false);
+      setTenantInheritedFrom(l.inheritedFrom ?? null);
       setLlmModels(m);
     }).catch(() => { /* primeiro carregamento pode falhar */ });
   }, []);
@@ -96,6 +102,10 @@ export function LlmCascadeSection({ t, storageKey }: Props) {
       setLlmModel(l.llmModel || (clientId ? '' : 'claude-sonnet-4-5'));
       setLlmApiKeySet(l.llmApiKeySet);
       setLlmHasOverride(!!(l.llmProvider || l.llmModel || l.llmApiKeySet));
+      // Cliente nunca tem cascata de segmento pra exibir aqui (o "sem override" dele já é
+      // honesto por si só, ver bloco âmbar abaixo) — só o escopo tenant carrega essa info.
+      setTenantIsOverride(clientId ? true : (l.isTenantOverride !== false));
+      setTenantInheritedFrom(clientId ? null : (l.inheritedFrom ?? null));
       setLlmApiKey('');
     } catch { /* mantém o estado anterior visível em vez de zerar tudo */ }
     finally { setLlmLoading(false); }
@@ -189,6 +199,16 @@ export function LlmCascadeSection({ t, storageKey }: Props) {
           Este cliente ainda não tem modelo próprio — está herdando do tenant (ou do padrão do
           segmento, se o tenant também não tiver). Escolha um provider/modelo abaixo e salve
           pra criar um override só pra ele.
+        </div>
+      )}
+
+      {!scopeClientId && !llmLoading && !tenantIsOverride && (
+        <div className={`rounded-2xl p-3 text-xs ${t.isDark ? 'bg-amber-500/10 border border-amber-500/20 text-amber-400' : 'bg-amber-50 border border-amber-200 text-amber-700'}`}>
+          Este tenant ainda não tem modelo próprio — o que está selecionado abaixo é{' '}
+          {tenantInheritedFrom === 'segment' && 'o padrão curado pelo Master pro segmento deste tenant.'}
+          {tenantInheritedFrom === 'global' && 'o padrão global do Master (nenhum default específico pro segmento deste tenant ainda).'}
+          {(tenantInheritedFrom === 'default' || !tenantInheritedFrom) && 'o padrão de código da plataforma (nem segmento nem global foram configurados ainda).'}
+          {' '}Salve abaixo pra criar um modelo próprio só deste tenant.
         </div>
       )}
 

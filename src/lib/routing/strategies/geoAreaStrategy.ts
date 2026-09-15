@@ -60,7 +60,7 @@ async function queryBrokersByArea(
   const { sellerAreaTable, sellerAreaFk, sellerEstadoColumn, sellerCidadeColumn } = areaCfg
   const q = `
     SELECT
-      u.id, u.nome, u.email, u.tipo_corretor, u.is_plantonista,
+      u.id, u.nome, u.email, u.tipo_corretor, utm.is_plantonista,
       COALESCE(cs.nivel, 0) as nivel,
       COUNT(a.corretor_fk) AS total_recebidos,
       MAX(a.created_at) AS ultimo_recebimento
@@ -81,12 +81,12 @@ async function queryBrokersByArea(
       AND (u.indisponivel_ate IS NULL OR u.indisponivel_ate <= now())
       AND utm.tenant_id = $6
       AND ur.name = $7
-      AND COALESCE(u.is_plantonista, false) = false
+      AND COALESCE(utm.is_plantonista, false) = false
       AND u.tipo_corretor = $1
       AND caa."${sellerEstadoColumn}" = $2
       AND caa."${sellerCidadeColumn}" = $3
       AND (CASE WHEN array_length($4::uuid[], 1) > 0 THEN u.id != ALL($4::uuid[]) ELSE true END)
-    GROUP BY u.id, u.nome, u.email, u.tipo_corretor, u.is_plantonista, cs.nivel, u.created_at
+    GROUP BY u.id, u.nome, u.email, u.tipo_corretor, utm.is_plantonista, cs.nivel, u.created_at
     HAVING COUNT(a.corretor_fk) < $5
     ORDER BY
       COUNT(a.corretor_fk) ASC,

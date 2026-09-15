@@ -1,0 +1,348 @@
+/* ============================================================================
+   ARTEMIS4 — Superfície BRAND (landing)
+   ----------------------------------------------------------------------------
+   Sistema: "Console de Missão". Navy void + âmbar como acento único, elevação
+   por TONALIDADE (não sombra), conforme DESIGN.md §2/§4.
+
+   Por que um CSS dedicado e não className do Tailwind solto:
+   a versão anterior desta página tinha 76KB de utilitários inline usando
+   #020617 (slate-950 genérico do Tailwind) no lugar do navy da marca
+   (#020c1b), e "uppercase italic font-black" em praticamente cada elemento.
+   Tokens reais + classes nomeadas tornam o sistema auditável e a hierarquia
+   tipográfica possível.
+   ========================================================================== */
+
+.a4 {
+  /* ---- superfícies: elevação tonal (DESIGN.md §4) ---------------------- */
+  --void:     #020c1b;   /* o piso — navy-void */
+  --deep:     #05101f;   /* banda intermediária (passo novo) */
+  --panel:    #0a192f;   /* navy-deep — superfície de seção */
+  --raised:   #112240;   /* navy-surface — cards/painéis */
+  --raised-2: #16304f;   /* nível máximo — linha ativa/hover */
+
+  /* ---- hairlines -------------------------------------------------------- */
+  --line:      rgba(148, 163, 184, 0.13);
+  --line-warm: rgba(197, 160, 40, 0.18);
+  --line-lit:  rgba(197, 160, 40, 0.42);
+
+  /* ---- acento único (A Regra do Acento Único) --------------------------- */
+  --gold:      #c5a028;  /* 7.9:1 sobre --void — a cor de ação */
+  --gold-lit:  #d4af37;  /* hover */
+  --gold-hot:  #f0d46c;  /* texto de destaque sobre escuro */
+  --gold-wash: rgba(197, 160, 40, 0.09);
+
+  /* ---- tinta (contraste verificado sobre --void) ------------------------ */
+  --ink:       #f1f5f9;  /* 17.6:1 */
+  --ink-dim:   #a7b4c6;  /*  9.3:1 — corpo e texto de suporte */
+  /* 6.7:1 sobre --void e 5.2:1 sobre --raised. Era #7e8da3, que dava 4.69:1
+     sobre --raised — passava por 0,19 de margem; medido ao vivo e afrouxado. */
+  --ink-faint: #8695ab;
+
+  /* ---- sinais funcionais: só para dado, nunca decorativo --------------- */
+  --ok:   #34d399;
+  --warn: #fbbf24;
+  --crit: #fb7185;
+
+  /* ---- plasma: EXCLUSIVO da seção de origem da marca ------------------- */
+  --plasma-core: #ffb020;
+  --plasma-edge: #ff4d14;
+
+  /* ---- foco: fixo por DESIGN.md, não substituível ---------------------- */
+  --focus: #2563eb;
+
+  /* ---- ritmo ------------------------------------------------------------ */
+  --gutter:    clamp(1.25rem, 4vw, 3rem);
+  /* Fluidos, não fixos: monitor de 27"+ (>=1920px) e principalmente 32"
+     (2560-3840px) sobravam ~540px de vazio de cada lado do conteúdo, mesmo
+     com as bandas de fundo (--void/--deep/--panel) já ocupando 100% da
+     largura real — confirmado ao vivo via getBoundingClientRect em 2560px.
+     Abaixo de ~1900px o clamp devolve o valor mínimo de sempre (1260/1480),
+     zero mudança em laptop/desktop comum — só ultra-wide ganha espaço. */
+  /* 4ª rodada — as 3 anteriores (clamp com teto 1800/2400/3200px) atacavam o
+     problema errado: eu tinha introduzido uma "coluna de conteúdo" com teto
+     em pixel, conceito que NUNCA existiu nem na versão original desta página
+     nem em `/landpaging` (a página real de imóveis deste projeto, apontada
+     pelo usuário como referência) — lá o padrão é `w-full` sem teto nenhum
+     (`landpaging/page.tsx:2334`) ou um teto tão largo que nunca é atingido na
+     prática (`:1963`, `max-w-[2496px]`). `.a4-wrap`/`.a4-wrap--wide` abaixo
+     não usam mais estes tokens — são `max-width: none`, sem exceção. Tokens
+     mantidos comentados só pra registro histórico do que foi tentado. */
+  --maxw-text: 68ch;
+  --nav-h:     4.5rem;
+
+  /* ---- curvas: exponencial out, sem bounce ----------------------------- */
+  --ease:   cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-q: cubic-bezier(0.22, 1, 0.36, 1);
+
+  background: var(--void);
+  color: var(--ink);
+  font-family: var(--font-body), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 0.9375rem;   /* 15px — era 12–14px */
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;  /* readout de console sem fonte mono extra */
+}
+
+/* ============================================================================
+   TIPOGRAFIA — escala modular >=1.25; itálico reservado, não aplicado a tudo
+   ========================================================================== */
+
+.a4 h1, .a4 h2, .a4 h3, .a4 h4 {
+  font-family: var(--font-display), var(--font-body), sans-serif;
+  font-weight: 700;
+  text-wrap: balance;
+  margin: 0;
+}
+
+.a4-h1 {
+  /* 36 -> 56px. Testado ao vivo: a 68px o título ocupava 5 linhas num viewport
+     de 1280 e empurrava CTAs e prova social para fora da primeira dobra. */
+  font-size: clamp(2.25rem, 4.3vw, 3.5rem);
+  line-height: 1.05;
+  letter-spacing: -0.032em;                      /* piso -0.04 respeitado */
+  font-style: italic;                            /* identidade: só H1/H2 */
+}
+.a4-h2 {
+  font-size: clamp(1.75rem, 3.6vw, 2.75rem);     /* 28 -> 44px */
+  line-height: 1.08;
+  letter-spacing: -0.028em;
+  font-style: italic;
+}
+.a4-h3 {
+  font-size: clamp(1.25rem, 2.2vw, 1.625rem);    /* 20 -> 26px */
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.a4-h4 {
+  font-size: 1.0625rem;
+  line-height: 1.35;
+  letter-spacing: -0.012em;
+  font-weight: 600;
+}
+
+.a4-lead {
+  font-size: clamp(1.0625rem, 1.5vw, 1.25rem);
+  line-height: 1.6;
+  color: var(--ink-dim);
+  max-width: var(--maxw-text);
+  text-wrap: pretty;
+}
+.a4-body   { color: var(--ink-dim); max-width: var(--maxw-text); text-wrap: pretty; }
+.a4-small  { font-size: 0.8125rem; line-height: 1.6; color: var(--ink-faint); }
+.a4-strong { color: var(--ink); font-weight: 600; }
+.a4-gold   { color: var(--gold-hot); font-weight: 600; }
+.a4-num    { font-variant-numeric: tabular-nums; }
+
+/* Label de console: o ÚNICO lugar onde caps + tracking é vocabulário, não ruído */
+.a4-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  line-height: 1.3;
+}
+.a4-label--gold { color: var(--gold); }
+
+/* ============================================================================
+   LAYOUT
+   ========================================================================== */
+
+/* .a4-wrap--wide sem `max-width` de propósito — mesma decisão de
+   `landpaging/page.tsx` (`w-full mx-auto`) e da versão original desta
+   página (nunca teve `max-w-*` nos containers de seção, só o próprio
+   `mx-auto` sem efeito real). Cobre nav, hero, console, grids de módulo/
+   card/mock — conteúdo estrutural que deve preencher o monitor.
+
+   .a4-wrap (plano, sem --wide) fica com teto PRÓPRIO — usado só pela FAQ e
+   pelo drawer mobile. Diferente da 4ª rodada anterior (que tentava um único
+   valor pra tudo): FAQ é pergunta/resposta, não grid estrutural — sem teto,
+   a pergunta ficava a ~3700px de distância do ícone "+" num 4K real
+   (medido ao vivo). 860px é dimensionado pro conteúdo real da FAQ (pergunta
+   numa linha + ícone próximo + resposta em `--maxw-text`), não um chute de
+   vw — mesmo espírito de `landpaging` ter estratégias de largura diferentes
+   por tipo de seção, não uma fórmula única pra página inteira. */
+.a4-wrap {
+  width: 100%;
+  max-width: 860px;
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+.a4-wrap--wide { max-width: none; }
+
+.a4-section { padding-block: clamp(4rem, 9vw, 8rem); position: relative; }
+.a4-section--tight { padding-block: clamp(2.5rem, 5vw, 4.25rem); }
+
+/* O nav é fixo: sem isto, clicar num link do menu deixa o título da seção
+   escondido atrás da barra. Vale para qualquer elemento com id nesta página. */
+.a4 [id] { scroll-margin-top: calc(var(--nav-h) + 1.5rem); }
+
+/* Bandas tonais — ritmo por tonalidade (art direction por seção) */
+.a4-band--void  { background: var(--void); }
+.a4-band--deep  { background: var(--deep); }
+.a4-band--panel { background: var(--panel); }
+.a4-band--edge  { border-top: 1px solid var(--line); }
+
+.a4-head { margin-bottom: clamp(2.25rem, 4vw, 3.5rem); }
+.a4-head__kicker { margin-bottom: 0.875rem; display: block; }
+.a4-head__sub { margin-top: 1.125rem; }
+
+/* Cabeçalho de seção assimétrico: título à esquerda, contexto à direita */
+.a4-head--split {
+  display: grid;
+  gap: clamp(1rem, 3vw, 3.5rem);
+  align-items: end;
+}
+@media (min-width: 62rem) {
+  .a4-head--split { grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); }
+}
+
+/* ============================================================================
+   BOTÕES
+   ========================================================================== */
+
+.a4-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.5rem;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.18s var(--ease-q), border-color 0.18s var(--ease-q),
+              color 0.18s var(--ease-q);
+}
+.a4-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* Primário: âmbar sólido, texto navy. Um por contexto, no ponto de decisão. */
+.a4-btn--primary { background: var(--gold); color: var(--void); }
+.a4-btn--primary:hover { background: var(--gold-lit); }
+
+.a4-btn--ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+.a4-btn--ghost:hover { border-color: var(--line-lit); color: var(--gold-hot); }
+
+/* 1.5rem e não 1.875rem: medido ao vivo, a 1.875rem os dois CTAs do hero
+   somavam 564px numa coluna de 558px e quebravam linha por 6px. */
+.a4-btn--lg { padding: 1.0625rem 1.5rem; font-size: 0.9375rem; }
+.a4-btn--sm { padding: 0.5rem 0.875rem; font-size: 0.8125rem; }
+
+.a4-cta-row { display: flex; flex-wrap: wrap; gap: 0.875rem; align-items: center; }
+
+/* ============================================================================
+   PAINEL — flat em repouso (Regra Flat-By-Default)
+   ========================================================================== */
+
+.a4-panel {
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: clamp(1.125rem, 2vw, 1.625rem);
+}
+.a4-panel--flush { padding: 0; overflow: hidden; }
+.a4-panel--deep { background: var(--panel); }
+
+/* Fio âmbar no topo: assinatura de console. 1px — não é side-stripe. */
+.a4-panel--lit { position: relative; }
+.a4-panel--lit::before {
+  content: "";
+  position: absolute;
+  inset-inline: 1.25rem;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--line-lit), transparent);
+}
+
+/* ============================================================================
+   CHIP / BADGE
+   ========================================================================== */
+
+.a4-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  padding: 0.3125rem 0.6875rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+  background: rgba(255, 255, 255, 0.03);
+  white-space: nowrap;
+}
+.a4-chip--gold { border-color: var(--line-lit); color: var(--gold-hot); background: var(--gold-wash); }
+.a4-chip--ok   { border-color: rgba(52, 211, 153, 0.32); color: var(--ok);   background: rgba(52, 211, 153, 0.10); }
+.a4-chip--warn { border-color: rgba(251, 191, 36, 0.32); color: var(--warn); background: rgba(251, 191, 36, 0.10); }
+.a4-chip--crit { border-color: rgba(251, 113, 133, 0.32); color: var(--crit); background: rgba(251, 113, 133, 0.10); }
+
+/* display explícito: os dots são renderizados como <i>, que é inline por
+   padrão — sem isso width/height não se aplicam e o ponto não aparece. */
+.a4-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex: none;
+  background: currentColor;
+}
+
+/* ============================================================================
+   MOTION — o default é VISÍVEL. JS liga o reveal; sem JS nada desaparece.
+   ========================================================================== */
+
+@media (prefers-reduced-motion: no-preference) {
+  .a4[data-anim="on"] .a4-rise {
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 0.62s var(--ease), transform 0.62s var(--ease);
+  }
+  .a4[data-anim="on"] .a4-rise.is-in { opacity: 1; transform: none; }
+
+  .a4-enter { animation: a4-enter 0.8s var(--ease) both; }
+  .a4-enter--1 { animation-delay: 0.04s; }
+  .a4-enter--2 { animation-delay: 0.13s; }
+  .a4-enter--3 { animation-delay: 0.22s; }
+  .a4-enter--4 { animation-delay: 0.32s; }
+  .a4-enter--5 { animation-delay: 0.44s; }
+}
+
+@keyframes a4-enter {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Rede de segurança do hero. `animation ... both` deixa o elemento no estado
+   inicial (opacity 0) enquanto a animação não roda — e animação pode ficar
+   pausada indefinidamente em aba de fundo ou renderizador de preview (OG,
+   crawler). O JS aplica esta classe ~1,5s depois; se a animação já terminou
+   (0,8s + 0,44s de atraso máximo) forçar o estado final é visualmente
+   inócuo, e se nunca rodou o conteúdo aparece de qualquer maneira. */
+.a4-anim-settled .a4-enter {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+@keyframes a4-sweep {
+  from { transform: translateX(-110%); }
+  to   { transform: translateX(240%); }
+}
+@keyframes a4-breathe {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 1; }
+}
+@keyframes a4-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .a4 *, .a4 *::before, .a4 *::after {
+    animation-duration: 0.001s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001s !important;
+    scroll-behavior: auto !important;
+  }
+}

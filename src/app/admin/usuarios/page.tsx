@@ -30,6 +30,13 @@ interface User {
   ativo: boolean
   isencao?: boolean
   is_plantonista?: boolean
+  /** Se o cargo deste usuário, neste tenant, foi curado como elegível para plantão
+   *  (user_roles.elegivel_plantonista) — dirige se o admin pode marcar/desmarcar por aqui. */
+  elegivel_plantonista?: boolean
+  /** Tenant do vínculo que a lista está mostrando pra este usuário — necessário pra Master,
+   *  cuja listagem cruza tenants; admin de tenant nunca precisa disso (o servidor sempre usa
+   *  o próprio tenant da sessão, nunca confia no que vier do cliente). */
+  current_tenant_id?: string
   tipo_corretor?: 'Interno' | 'Externo' | null
   indisponivel_ate?: string | null
   indisponivel_motivo?: string | null
@@ -241,6 +248,24 @@ function UsuariosAdminInner() {
     if (!confirm(`Marcar ${user.nome} como disponível? Ele volta a receber leads novos.`)) return
     const res = await patch(`/api/admin/usuarios/${user.id}/disponibilidade`, { indisponivel_ate: null })
     if ((res as any)?.error) { alert((res as any).error); return }
+    fetchUsers()
+  }
+
+  // --- Plantonista: contraparte administrativa do autoatendimento (avatar do próprio
+  // usuário). Permite ao admin marcar/desmarcar alguém sem depender de a pessoa logar e
+  // ligar o toggle sozinha — útil pra montar a escala com antecedência. Servidor revalida a
+  // elegibilidade sempre; esta ação só aparece quando o cargo do usuário já é elegível.
+  const handleTogglePlantonista = async (user: User) => {
+    const next = !user.is_plantonista
+    if (!confirm(next
+      ? `Marcar ${user.nome} como plantonista?`
+      : `Remover ${user.nome} do plantão?`)) return
+    const res = await patch(`/api/admin/usuarios/${user.id}/plantonista`, {
+      active: next,
+      tenant_id: user.current_tenant_id,
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { alert(data.error || 'Erro ao atualizar plantão.'); return }
     fetchUsers()
   }
 
@@ -619,18 +644,19 @@ function UsuariosAdminInner() {
                                 Tipo: {user.tipo_corretor}
                               </span>
                             )}
-                            <div className="flex flex-wrap gap-1">
-                              <span className={`inline-flex px-1.5 py-0.5 text-[10px] font-semibold rounded w-fit ${user.isencao ? 'bg-amber-100 text-amber-900' : 'bg-gray-100 text-gray-700'
-                                }`}>
-                                {user.isencao ? 'Isento' : 'Não isento'}
-                              </span>
-                              {user.is_plantonista && (
-                                <span className="inline-flex px-1.5 py-0.5 text-[10px] font-bold rounded bg-red-100 text-red-600 uppercase">
-                                  Plantonista
-                                </span>
-                              )}
-                            </div>
+                            <span className={`inline-flex px-1.5 py-0.5 text-[10px] font-semibold rounded w-fit ${user.isencao ? 'bg-amber-100 text-amber-900' : 'bg-gray-100 text-gray-700'
+                              }`}>
+                              {user.isencao ? 'Isento' : 'Não isento'}
+                            </span>
                           </div>
+                        )}
+                        {/* Plantonista é elegibilidade por PERFIL (user_roles.elegivel_plantonista),
+                            não amarrado a nenhum nome de role hardcoded — funciona pra qualquer
+                            segmento de negócio, não só "Corretor" */}
+                        {user.is_plantonista && (
+                          <span className="inline-flex px-1.5 py-0.5 text-[10px] font-bold rounded bg-red-100 text-red-600 uppercase mt-1 w-fit">
+                            Plantonista
+                          </span>
                         )}
                       </div>
                     </td>
@@ -737,6 +763,28 @@ function UsuariosAdminInner() {
                             {isIndisponivel(user) ? 'Liberar' : 'Ausência'}
                           </button>
                         </PermissionGuard>
+
+                        {/* Plantonista — contraparte administrativa do autoatendimento (menu
+                            do avatar do próprio usuário). Só aparece quando o cargo dele
+                            NESTE tenant já foi curado como elegível em Perfis; o servidor
+                            revalida isso de novo antes de gravar, nunca confia só na UI. */}
+                        {user.elegivel_plantonista && (
+                          <PermissionGuard resource="usuarios" action="UPDATE">
+                            <button
+                              onClick={() => handleTogglePlantonista(user)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center border ${
+                                user.is_plantonista
+                                  ? 'text-red-700 bg-red-50 hover:bg-red-100 border-red-100'
+                                  : 'text-gray-600 bg-gray-50 hover:bg-gray-100 border-gray-100'
+                              }`}
+                              title={user.is_plantonista
+                                ? 'Remover este usuário do plantão'
+                                : 'Marcar este usuário como plantonista'}
+                            >
+                              {user.is_plantonista ? 'Tirar de Plantão' : 'Pôr de Plantão'}
+                            </button>
+                          </PermissionGuard>
+                        )}
 
                         {/* Botão Editar - Com verificação hierárquica + permissão CRUD */}
                         <PermissionGuard resource="usuarios" action="UPDATE">

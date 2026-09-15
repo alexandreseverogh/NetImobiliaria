@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, ReactNode, useMemo } from 'rea
 import { useAuth } from '@/hooks/useAuth'
 import AdminHeader from '@/components/admin/AdminHeader'
 import AdminSidebar from '@/components/admin/AdminSidebar'
+import HorizontalTabsBar from '@/components/admin/HorizontalTabsBar'
 import LoadingSpinner from '@/components/admin/LoadingSpinner'
 import ErrorBoundary from '@/components/admin/ErrorBoundary'
 import { useSidebarMenu, type SidebarMenuWithChildren } from '@/hooks/useSidebarMenu'
@@ -115,6 +116,7 @@ export default function MensageriaLayoutContent({
           />
 
           <main className="w-full min-w-0" role="main" aria-label="Conteúdo principal">
+            <HorizontalTabsBar menuItems={menuItems} theme={{ ...theme, mode: 'dark' }} />
             {children}
           </main>
         </div>

@@ -12,7 +12,6 @@ interface User {
   telefone: string
   ativo: boolean
   isencao?: boolean
-  is_plantonista?: boolean
   tipo_corretor?: 'Interno' | 'Externo' | null
   role_name?: string
   role_id?: number
@@ -45,7 +44,6 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
     telefone: '',
     ativo: true,
     isencao: false,
-    is_plantonista: false,
     tipo_corretor: null as 'Interno' | 'Externo' | null,
     password: '',
     confirmPassword: '',
@@ -72,7 +70,6 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
         telefone: user.telefone || '',
         ativo: user.ativo,
         isencao: user.isencao || false,
-        is_plantonista: user.is_plantonista || false,
         tipo_corretor: user.tipo_corretor || null,
         password: '',
         confirmPassword: '',
@@ -223,7 +220,6 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
 
       updateData.ativo = formData.ativo
       updateData.isencao = formData.isencao
-      updateData.is_plantonista = formData.is_plantonista
       updateData.tipo_corretor = formData.tipo_corretor
 
       if (formData.roleId) {
@@ -246,7 +242,6 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
 
       fd.append('ativo', String(formData.ativo))
       fd.append('isencao', String(formData.isencao))
-      fd.append('is_plantonista', String(formData.is_plantonista))
       if (formData.tipo_corretor) fd.append('tipo_corretor', formData.tipo_corretor)
 
       if (formData.roleId) fd.append('roleId', formData.roleId.toString())

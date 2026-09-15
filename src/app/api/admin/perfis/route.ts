@@ -117,6 +117,7 @@ export async function GET(request: NextRequest) {
           ur.is_system_role,
           ur.is_active,
           ur.requires_2fa,
+          ur.elegivel_plantonista,
           (
             SELECT COUNT(DISTINCT user_id)
             FROM (
@@ -183,6 +184,7 @@ export async function GET(request: NextRequest) {
             is_system_role: perfil.is_system_role,
             is_active: perfil.is_active,
             two_fa_required: perfil.requires_2fa,
+            elegivel_plantonista: perfil.elegivel_plantonista,
             userCount: parseInt(perfil.user_count),
             user_names: perfil.user_names || [],
             permissions: permissoesFinais
@@ -264,7 +266,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, permissions, level, is_system_role } = body;
+    const { name, description, permissions, level, is_system_role, elegivel_plantonista } = body;
 
     // Validação dos dados
     if (!name || !description) {
@@ -321,17 +323,18 @@ export async function POST(request: NextRequest) {
         const targetIsSystem = is_system_role === true && isMasterAdmin; // Só master cria master
 
         const createQuery = `
-          INSERT INTO user_roles (name, description, level, is_system_role, tenant_id, is_active, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, true, NOW(), NOW())
+          INSERT INTO user_roles (name, description, level, is_system_role, tenant_id, is_active, elegivel_plantonista, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, true, $6, NOW(), NOW())
           RETURNING id
         `;
-        
+
         const createResult = await client.query(createQuery, [
-          name.trim(), 
-          description.trim(), 
+          name.trim(),
+          description.trim(),
           targetLevel,
           targetIsSystem,
-          targetIsSystem ? null : (decoded.tenantId || null)
+          targetIsSystem ? null : (decoded.tenantId || null),
+          elegivel_plantonista === true
         ]);
         const perfilId = createResult.rows[0].id;
 

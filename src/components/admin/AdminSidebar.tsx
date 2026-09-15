@@ -59,7 +59,9 @@ export default function AdminSidebar({
       for (const item of items) {
         if (item.children?.length) {
           const childActive = item.children.some(
-            (c: any) => c.path && pathname.startsWith(c.path)
+            (c: any) =>
+              (c.path && pathname.startsWith(c.path)) ||
+              (Array.isArray(c.tabs) && c.tabs.some((t: any) => t.path && pathname.startsWith(t.path)))
           )
           if (childActive) activeParents.push(String(item.id))
           findActive(item.children)
@@ -151,7 +153,12 @@ export default function AdminSidebar({
   const renderMenuItem = (item: SidebarMenuWithChildren, level: number = 0) => {
     const hasChildren = item.children && item.children.length > 0
     const isExpanded = expandedMenus.includes(item.id)
-    const isActiveItem = item.path ? isActive(item.path) : false
+    // Item de Grupo (ver /admin/master/feature-groups): o `path` do node é só a aba PADRÃO —
+    // navegar pra uma aba irmã (via <HorizontalTabsBar/>) não deveria apagar o destaque do
+    // grupo na sidebar. Considera ativo também se o pathname atual bate com QUALQUER aba dele.
+    const groupTabs = (item as any).isGroup && Array.isArray((item as any).tabs) ? (item as any).tabs as { path: string }[] : null
+    const isActiveItem = (item.path ? isActive(item.path) : false) ||
+      !!(groupTabs && groupTabs.some(t => t.path === pathname))
 
     if (!item.path) {
       return (

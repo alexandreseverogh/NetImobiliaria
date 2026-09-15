@@ -260,6 +260,10 @@ export interface LlmSettings {
   llmModel: string;
   llmApiKeyMasked: string;
   llmApiKeySet: boolean;
+  /** Só presente na chamada sem clientId (nível tenant) — se o valor acima veio de uma
+   *  linha própria do tenant, ou foi herdado da cascata (segmento/global/default de código). */
+  isTenantOverride?: boolean;
+  inheritedFrom?: 'segment' | 'global' | 'default' | null;
 }
 
 export interface LlmModelOption {
