@@ -6,9 +6,16 @@ if (!dbPassword) {
   console.warn('⚠️ DB_PASSWORD não definido nas variáveis de ambiente.')
 }
 
+// Nunca lançar aqui: este módulo é importado por rotas de API que o Next.js
+// carrega estaticamente no build ("Collecting page data"), sem nenhuma variável
+// de ambiente real disponível (docker build não recebe .env — ver
+// scripts/vps/deploy-github.sh). Um throw no carregamento do módulo derruba o
+// build inteiro mesmo sem nenhuma query real acontecer (pool é lazy, min: 0).
+// Em runtime real (container rodando), DB_NAME sempre vem do .env via
+// docker-compose.vps.yml — este fallback nunca é usado fora do build.
 const dbName = process.env.DB_NAME
 if (!dbName) {
-  throw new Error('❌ ERRO CRÍTICO: DB_NAME não definido nas variáveis de ambiente. Verifique o arquivo .env.local')
+  console.warn('⚠️ DB_NAME não definido nas variáveis de ambiente. Usando fallback "net_imobiliaria".')
 }
 
 const dbHost = process.env.DB_HOST || 'localhost'
@@ -25,7 +32,7 @@ console.log('🚀 [DB CONNECTION DEBUG] Iniciando pool de conexões:', {
 const poolConfig: PoolConfig = {
   user: process.env.DB_USER || 'postgres',
   host: dbHost,
-  database: dbName,
+  database: dbName || 'net_imobiliaria',
   password: dbPassword || 'postgres',
   port: parseInt(dbPort),
 

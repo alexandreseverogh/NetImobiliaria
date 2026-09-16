@@ -8,17 +8,34 @@
 FROM node:20-bookworm-slim AS builder
 WORKDIR /app
 
-ENV NODE_ENV=production \
-    NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# Instalar dependências (inclui devDeps necessárias para o build)
+# Instalar dependências (inclui devDeps necessárias para o build — ex.: o CLI do
+# Prisma, usado logo abaixo). NODE_ENV=production só é setado DEPOIS do npm ci:
+# setá-lo antes faz o npm ci pular devDependencies silenciosamente, quebrando
+# "npx prisma generate" (achado real neste deploy — ele caía para baixar um
+# prisma@latest isolado, que não resolve prisma.config.ts corretamente).
 COPY package.json package-lock.json ./
-RUN npm ci --legacy-peer-deps && npm cache clean --force
+RUN npm ci --legacy-peer-deps --include=dev && npm cache clean --force
+
+ENV NODE_ENV=production
 
 # Copiar código fonte
 COPY . .
 
-# Compilar o Next.js (gera .next/standalone graças ao output: 'standalone' no next.config.js)
+# Gerar o Prisma Client ANTES do build — sem isso, next build quebra em qualquer
+# rota que importe @prisma/client (ex.: /api/admin/campanhas/briefings/generate),
+# porque node_modules/.prisma/client nunca chega a existir. Não existe postinstall
+# no package.json fazendo isso sozinho (localmente sempre foi rodado manualmente,
+# nunca dentro de um build de Docker de verdade até este deploy — achado real,
+# não hipotético, no primeiro deploy real deste código pra produção).
+RUN npx prisma generate --schema=prisma/schema.marketing.prisma
+
+# Compilar o Next.js (gera .next/standalone graças ao output: 'standalone' no next.config.js).
+# Heap do Node fixado explicitamente — sem isso, o build já derrubou o processo com
+# "JavaScript heap out of memory" num ambiente de teste com pouca RAM disponível pro
+# container; runners de CI comuns (ex.: GitHub Actions, 7GB) suportam esse valor com folga.
+ENV NODE_OPTIONS=--max-old-space-size=4096
 RUN npm run build
 
 # ---- Etapa 2: Runner ----
