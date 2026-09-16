@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 interface ImovelBasico {
   id: number
   tenant_id: string
+  tenant_logo?: string | null
   codigo: string
   titulo: string
   descricao: string

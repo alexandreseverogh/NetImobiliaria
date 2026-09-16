@@ -293,13 +293,24 @@ export default function ImovelDetalhes() {
           {/* Container Direito - Informações */}
           <div className="bg-white rounded-xl shadow-lg border-2 border-gray-400 p-6 overflow-y-auto" style={{ height: '420px' }}>
             {/* Linha 1 - Preço */}
-            <div className="mb-4 flex items-center bg-gray-50 p-2 rounded-lg">
-              <CurrencyDollarIcon className="w-7 h-7 mr-2 text-primary-600" />
-              <span className="text-2xl font-bold text-primary-600">
-                {Number(dadosBasicos.preco) > 0
-                  ? formatarPreco(dadosBasicos.preco)
-                  : 'Preço sob Consulta'}
-              </span>
+            <div className="mb-4 flex items-center justify-between bg-gray-50 p-2 rounded-lg">
+              <div className="flex items-center min-w-0">
+                <CurrencyDollarIcon className="w-7 h-7 mr-2 text-primary-600 flex-shrink-0" />
+                <span className="text-2xl font-bold text-primary-600 truncate">
+                  {Number(dadosBasicos.preco) > 0
+                    ? formatarPreco(dadosBasicos.preco)
+                    : 'Preço sob Consulta'}
+                </span>
+              </div>
+              {dadosBasicos.tenant_logo && (
+                <SafeImage
+                  src={dadosBasicos.tenant_logo}
+                  alt="Logo da imobiliária"
+                  width={140}
+                  height={48}
+                  className="h-10 w-auto max-w-[140px] object-contain ml-3 flex-shrink-0"
+                />
+              )}
             </div>
 
             {/* Linha 2 - Descrição */}
