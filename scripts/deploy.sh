@@ -75,6 +75,14 @@ else
       warn "O domínio não pode ser vazio."
     done
 
+    # Segundo domínio público, opcional — mesmo prod_app, só a raiz do site muda
+    # de conteúdo entre os dois (ver ops/Caddyfile). Deixe em branco se não precisar.
+    read -rp "$(echo -e "${BOLD}Segundo domínio${RESET} (opcional, mesmo app — Enter pra pular): ")" PROD_DOMAIN_ARTEMIS
+    # Sem 2º domínio real: usa um host do TLD reservado .invalid (RFC 2606) — Caddy
+    # precisa de um endereço sintaticamente válido no site block, mas este nunca
+    # resolve/recebe tráfego de verdade, então nunca emite certificado à toa.
+    PROD_DOMAIN_ARTEMIS="${PROD_DOMAIN_ARTEMIS:-unused.invalid}"
+
     # Domínio de staging
     DEFAULT_STAGING="staging.${PROD_DOMAIN#*.}"
     read -rp "$(echo -e "${BOLD}Domínio de staging${RESET} [${DEFAULT_STAGING}]: ")" STAGING_DOMAIN
@@ -127,6 +135,7 @@ else
 
 # ── Domínios ─────────────────────────────────────────────────
 PROD_DOMAIN=${PROD_DOMAIN}
+PROD_DOMAIN_ARTEMIS=${PROD_DOMAIN_ARTEMIS}
 STAGING_DOMAIN=${STAGING_DOMAIN}
 LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
 PROD_APP_URL=https://${PROD_DOMAIN}

@@ -317,6 +317,9 @@ services:
         condition: service_healthy
     environment:
       PROD_DOMAIN: ${PROD_DOMAIN}
+      # Segundo domínio público, mesmo prod_app — só muda o que a raiz ("/") redireciona
+      # (landpaging pra PROD_DOMAIN, /artemis4 pra este). Ver ops/Caddyfile.
+      PROD_DOMAIN_ARTEMIS: ${PROD_DOMAIN_ARTEMIS}
       STAGING_DOMAIN: ${STAGING_DOMAIN}
       LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
     ports:

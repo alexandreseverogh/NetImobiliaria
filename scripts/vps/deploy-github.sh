@@ -8,10 +8,13 @@ set -euo pipefail
 #
 # Ambientes: producao | staging
 #
-# Variáveis de ambiente esperadas (injetadas pelo GitHub Actions):
+# Variáveis de ambiente esperadas (injetadas pelo GitHub Actions, via Settings →
+# Secrets and variables → Actions do repositório — nunca hardcoded aqui):
 #   ANTHROPIC_API_KEY, GEMINI_API_KEY,
 #   EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE,
-#   SLACK_WEBHOOK_URL
+#   SLACK_WEBHOOK_URL,
+#   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_SERVICE_ACCOUNT_KEY,
+#   SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, SMTP_FROM_NAME
 # =============================================================
 
 BRANCH=${1:-main}
@@ -19,6 +22,7 @@ AMBIENTE=${2:-producao}
 BASE_DIR="$HOME/net-imobiliaria"
 SOURCES_DIR="$HOME/net-imobiliaria-sources"
 LOG_FILE="$BASE_DIR/deploy.log"
+COMPOSE_FILE="$BASE_DIR/docker-compose.vps.yml"
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 
 log() { echo "[$TIMESTAMP] $1" | tee -a "$LOG_FILE"; }
@@ -51,20 +55,41 @@ else
 fi
 log "   ✅ Código: $(cd "$TARGET_SOURCE" && git log -1 --pretty='%h — %s')"
 
-# Sincronizar migrations (AMBAS as pastas)
+# Sincronizar migrations (AS TRÊS pastas — ver apply-migrations.sh pro porquê de três)
 mkdir -p "$BASE_DIR/database/migrations_docker"
 rsync -a --delete "$TARGET_SOURCE/database/migrations_docker/" "$BASE_DIR/database/migrations_docker/"
 
 mkdir -p "$BASE_DIR/migrations"
 rsync -a --delete "$TARGET_SOURCE/migrations/" "$BASE_DIR/migrations/"
 
+# prisma/ tem os arquivos .sql de migration REAL do projeto (schema.prisma etc. também vêm
+# junto, sem problema — apply-migrations.sh só processa o que casa com migration-*.sql).
+mkdir -p "$BASE_DIR/prisma"
+rsync -a --delete "$TARGET_SOURCE/prisma/" "$BASE_DIR/prisma/"
+
 # Sincronizar ops/ (Caddyfile, etc.)
+CADDYFILE_CHANGED=false
 if [[ -d "$TARGET_SOURCE/ops" ]]; then
   mkdir -p "$BASE_DIR/ops"
+  if ! diff -q "$TARGET_SOURCE/ops/Caddyfile" "$BASE_DIR/ops/Caddyfile" >/dev/null 2>&1; then
+    CADDYFILE_CHANGED=true
+  fi
   rsync -a --delete "$TARGET_SOURCE/ops/" "$BASE_DIR/ops/"
 fi
 
 log "   ✅ Migrations e infra sincronizados"
+
+# Achado real (2026-09-16): nada aqui nunca recarregava o Caddy depois de sincronizar um
+# Caddyfile novo — mudança de domínio/rota só valeria a partir do PRÓXIMO restart manual do
+# container. Reload é sem downtime (caddy valida a config antes de trocar; se o container
+# ainda não existe — 1º bootstrap — o `docker compose up -d` completo do fim do script já
+# sobe com o Caddyfile certo, então o best-effort aqui nunca bloqueia nada).
+if [[ "$CADDYFILE_CHANGED" == true ]]; then
+  log "[*] Caddyfile mudou — recarregando (sem downtime)..."
+  docker compose -f "$COMPOSE_FILE" exec -T caddy caddy reload --config /etc/caddy/Caddyfile \
+    && log "   ✅ Caddy recarregado" \
+    || log "   ⚠️  Reload do Caddy falhou (container ainda não existe? confira depois de subir o stack)"
+fi
 
 # ── 2. Atualizar secrets de app no .env da VPS ───────────────
 log "[2/5] Atualizando secrets de app no .env da VPS..."
@@ -76,7 +101,11 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-# Upsert: atualiza se existe, adiciona se não existe
+# Upsert: atualiza se existe, adiciona se não existe. Valor SEMPRE entre aspas
+# simples — GOOGLE_SERVICE_ACCOUNT_KEY é um blob JSON real (espaço, aspas duplas,
+# \n literal dentro da private_key) e um `sed`/`awk` com -v quebraria nele (awk -v
+# interpreta \n como escape; sed com delimitador `|` quebraria se o valor tivesse
+# `|`). Reescrita linha a linha em bash puro, sem interpretar nada do valor.
 upsert_env() {
   local key="$1"
   local value="$2"
@@ -84,19 +113,39 @@ upsert_env() {
     log "   ⚠️  $key está vazio — mantendo valor atual (se houver)"
     return
   fi
+  local quoted="'${value//\'/\'\\\'\'}'"
   if grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
-    sed -i "s|^${key}=.*|${key}=${value}|" "$ENV_FILE"
+    local tmp_file
+    tmp_file="$(mktemp)"
+    local line
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      if [[ "$line" == "${key}="* ]]; then
+        printf '%s=%s\n' "$key" "$quoted" >> "$tmp_file"
+      else
+        printf '%s\n' "$line" >> "$tmp_file"
+      fi
+    done < "$ENV_FILE"
+    mv "$tmp_file" "$ENV_FILE"
   else
-    echo "${key}=${value}" >> "$ENV_FILE"
+    printf '%s=%s\n' "$key" "$quoted" >> "$ENV_FILE"
   fi
 }
 
-upsert_env "ANTHROPIC_API_KEY"   "${ANTHROPIC_API_KEY:-}"
-upsert_env "GEMINI_API_KEY"      "${GEMINI_API_KEY:-}"
-upsert_env "EVOLUTION_API_URL"   "${EVOLUTION_API_URL:-}"
-upsert_env "EVOLUTION_API_KEY"   "${EVOLUTION_API_KEY:-}"
-upsert_env "EVOLUTION_INSTANCE"  "${EVOLUTION_INSTANCE:-trafegopago}"
-upsert_env "SLACK_WEBHOOK_URL"   "${SLACK_WEBHOOK_URL:-}"
+upsert_env "ANTHROPIC_API_KEY"          "${ANTHROPIC_API_KEY:-}"
+upsert_env "GEMINI_API_KEY"             "${GEMINI_API_KEY:-}"
+upsert_env "EVOLUTION_API_URL"          "${EVOLUTION_API_URL:-}"
+upsert_env "EVOLUTION_API_KEY"          "${EVOLUTION_API_KEY:-}"
+upsert_env "EVOLUTION_INSTANCE"         "${EVOLUTION_INSTANCE:-trafegopago}"
+upsert_env "SLACK_WEBHOOK_URL"          "${SLACK_WEBHOOK_URL:-}"
+upsert_env "GOOGLE_CLIENT_ID"           "${GOOGLE_CLIENT_ID:-}"
+upsert_env "GOOGLE_CLIENT_SECRET"       "${GOOGLE_CLIENT_SECRET:-}"
+upsert_env "GOOGLE_SERVICE_ACCOUNT_KEY" "${GOOGLE_SERVICE_ACCOUNT_KEY:-}"
+upsert_env "SMTP_HOST"                  "${SMTP_HOST:-}"
+upsert_env "SMTP_PORT"                  "${SMTP_PORT:-}"
+upsert_env "SMTP_SECURE"                "${SMTP_SECURE:-}"
+upsert_env "SMTP_USER"                  "${SMTP_USER:-}"
+upsert_env "SMTP_PASS"                  "${SMTP_PASS:-}"
+upsert_env "SMTP_FROM_NAME"             "${SMTP_FROM_NAME:-}"
 
 log "   ✅ Secrets de app atualizados no .env"
 
@@ -178,8 +227,6 @@ fi
 
 # ── 4. Build da imagem Docker ─────────────────────────────────
 log "[4/5] Construindo imagens Docker para $AMBIENTE..."
-
-COMPOSE_FILE="$BASE_DIR/docker-compose.vps.yml"
 
 if [ "$AMBIENTE" == "producao" ]; then
   docker build -t "net-imobiliaria-prod_app:latest"  -f "$BASE_DIR/Dockerfile.prod" "$TARGET_SOURCE"

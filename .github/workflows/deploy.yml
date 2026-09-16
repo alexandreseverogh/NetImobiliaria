@@ -66,13 +66,24 @@ jobs:
           EVOLUTION_INSTANCE: ${{ secrets.EVOLUTION_INSTANCE }}
           # ── Notificações ──────────────────────────────────
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          # ── Google Calendar (OAuth Client + Service Account) ──
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+          # ── SMTP (e-mail de confirmação de agendamento) ───
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_SECURE: ${{ secrets.SMTP_SECURE }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SMTP_FROM_NAME: ${{ secrets.SMTP_FROM_NAME }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_KEY }}
           port: ${{ secrets.VPS_PORT }}
           command_timeout: 20m
-          envs: ANTHROPIC_API_KEY,GEMINI_API_KEY,EVOLUTION_API_URL,EVOLUTION_API_KEY,EVOLUTION_INSTANCE,SLACK_WEBHOOK_URL
+          envs: ANTHROPIC_API_KEY,GEMINI_API_KEY,EVOLUTION_API_URL,EVOLUTION_API_KEY,EVOLUTION_INSTANCE,SLACK_WEBHOOK_URL,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,GOOGLE_SERVICE_ACCOUNT_KEY,SMTP_HOST,SMTP_PORT,SMTP_SECURE,SMTP_USER,SMTP_PASS,SMTP_FROM_NAME
           script: |
             set -e
             BRANCH="${{ github.event.inputs.branch }}"
