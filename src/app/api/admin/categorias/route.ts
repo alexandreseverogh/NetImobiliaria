@@ -229,7 +229,7 @@ export async function PUT(request: NextRequest) {
     const authHeader = request.headers.get('authorization')
     const token = authHeader?.startsWith('Bearer ') 
       ? authHeader.replace('Bearer ', '') 
-      : request.cookies.get('accessToken')?.value
+      : request.cookies.get('admin_auth_token')?.value
     
     if (!token) {
       return NextResponse.json(

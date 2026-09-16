@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { verifyAuthOrRespond } from '@/lib/auth/authHelpers'
+import { getGoogleRedirectUri } from '@/lib/google/calendarService'
 
 /**
  * GET /api/auth/google/callback
@@ -19,6 +20,14 @@ export async function GET(request: NextRequest) {
     )
   }
 
+  const redirectUri = getGoogleRedirectUri()
+  if (!redirectUri) {
+    console.error('[Google OAuth] NEXT_PUBLIC_APP_URL não configurado — não é possível derivar o redirect_uri.')
+    return NextResponse.redirect(
+      new URL('/crm/kanban?google_auth=error', request.url)
+    )
+  }
+
   // Trocar code por tokens
   const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
@@ -27,7 +36,7 @@ export async function GET(request: NextRequest) {
       code,
       client_id:     process.env.GOOGLE_CLIENT_ID!,
       client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-      redirect_uri:  process.env.GOOGLE_REDIRECT_URI!,
+      redirect_uri:  redirectUri,
       grant_type:    'authorization_code',
     }),
   })

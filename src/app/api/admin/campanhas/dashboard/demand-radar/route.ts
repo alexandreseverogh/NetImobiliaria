@@ -21,7 +21,8 @@ export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const periodDays = Math.min(90, Math.max(7, parseInt(searchParams.get('periodDays') ?? '30')));
   const tenantId   = payload.tenantId as string;
-  const clientId   = searchParams.get('clientId')  || undefined;
+  let clientId   = searchParams.get('clientId')  || undefined;
+  if (clientId === 'segment' || clientId === 'all') clientId = undefined;
   const segmentId  = searchParams.get('segmentId') || undefined; // filtro de segmento obrigatório
 
   try {

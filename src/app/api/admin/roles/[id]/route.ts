@@ -24,7 +24,7 @@ export async function GET(
       )
     }
 
-    const token = request.cookies.get('admin_auth_token')?.value || request.cookies.get('accessToken')?.value
+    const token = request.cookies.get('admin_auth_token')?.value || request.cookies.get('admin_auth_token')?.value
     const decoded = token ? await import('@/lib/auth/jwt').then(m => m.verifyToken(token)) : null
     const tenantId = !decoded?.is_system_role ? decoded?.tenantId : undefined
 
@@ -85,7 +85,7 @@ export async function PUT(
     }
     const roleId = parseInt(params.id)
     const data = await request.json()
-    const { name, description, level, two_fa_required, is_active, manager_role_id } = data
+    const { name, description, level, two_fa_required, is_active, manager_role_id, elegivel_plantonista } = data
 
     if (isNaN(roleId)) {
       return NextResponse.json(
@@ -94,7 +94,7 @@ export async function PUT(
       )
     }
 
-    const token = request.cookies.get('admin_auth_token')?.value || request.cookies.get('accessToken')?.value
+    const token = request.cookies.get('admin_auth_token')?.value || request.cookies.get('admin_auth_token')?.value
     const decoded = token ? await import('@/lib/auth/jwt').then(m => m.verifyToken(token)) : null
     const tenantId = !decoded?.is_system_role ? decoded?.tenantId : undefined
     const isMasterAdmin = !!decoded?.is_system_role
@@ -189,6 +189,12 @@ export async function PUT(
       paramIndex++
     }
 
+    if (elegivel_plantonista !== undefined) {
+      updates.push(`elegivel_plantonista = $${paramIndex}`)
+      values.push(elegivel_plantonista)
+      paramIndex++
+    }
+
     if (updates.length === 0) {
       return NextResponse.json(
         { success: false, message: 'Nenhum campo para atualizar' },
@@ -268,7 +274,7 @@ export async function DELETE(
       )
     }
 
-    const token = request.cookies.get('admin_auth_token')?.value || request.cookies.get('accessToken')?.value
+    const token = request.cookies.get('admin_auth_token')?.value || request.cookies.get('admin_auth_token')?.value
     const decoded = token ? await import('@/lib/auth/jwt').then(m => m.verifyToken(token)) : null
     const tenantId = !decoded?.is_system_role ? decoded?.tenantId : undefined
     const isMasterAdmin = !!decoded?.is_system_role

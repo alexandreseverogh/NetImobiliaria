@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-// last-restart: 2026-06-02 — prisma generate AuditReport (clearou global.prismaMarketing)
+// last-restart: 2026-09-09 — Jest worker crash compilando rota nova next-best-action, força restart
 // Configurações baseadas no ambiente (sem TypeScript)
 const isDevelopment = process.env.NODE_ENV === 'development'
 const isProduction = process.env.NODE_ENV === 'production'
@@ -15,6 +15,20 @@ const nextConfig = {
   // Configurações de imagens
   images: {
     remotePatterns: [
+      // MinIO local (armazenamento de fotos de imóveis, ver src/lib/storage/s3-client.ts) —
+      // sem isso, o otimizador de imagem do Next bloqueia silenciosamente qualquer foto vinda
+      // de localhost:9000, deixando o card do imóvel com o espaço da imagem em branco (bug real
+      // reportado: fotos existem de verdade no MinIO e carregam via curl, só o Next as recusava).
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '9000',
+      },
+      {
+        protocol: 'http',
+        hostname: '127.0.0.1',
+        port: '9000',
+      },
       // Imagens gerais
       {
         protocol: 'https',
@@ -196,6 +210,13 @@ const nextConfig = {
   // que afeta muitas páginas admin no build de produção (Next.js 14.1+)
   experimental: {
     missingSuspenseWithCSRBailout: false,
+    // pdf-parse (baseado em pdf.js) e mammoth fazem require/import dinâmico interno que o
+    // bundler do webpack do Next quebra ao tentar empacotar (erro real observado: "Object.
+    // defineProperty called on non-object" — funcionava isolado via Node puro, só falhava
+    // dentro da API route). Tratar como pacote externo faz o Next usar o require nativo do
+    // Node em runtime em vez de tentar empacotar — padrão já documentado pra libs pdf.js em
+    // Next.js. M4.3 RAG — import de PDF/DOCX na Base de Conhecimento.
+    serverComponentsExternalPackages: ['pdf-parse', 'mammoth'],
   },
 
   // Configurações de ambiente
@@ -232,23 +253,59 @@ const nextConfig = {
 
     // Otimizações de produção
     swcMinify: true,
-
-    // Headers de segurança em produção
-    async headers() {
-      return [
-        {
-          source: '/(.*)',
-          headers: [
-            { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
-            { key: 'X-Content-Type-Options', value: 'nosniff' },
-            { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-            { key: 'X-XSS-Protection', value: '1; mode=block' },
-            { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
-          ],
-        },
-      ]
-    },
   }),
+
+  // Headers de segurança — sempre ativos (inclusive em dev, pra CSP Report-Only ser
+  // observável durante o desenvolvimento, não só depois de já estar em produção).
+  // Fase 1 do plano de hardening (docs/CHECKPOINT.md) — CSP em Report-Only: só loga
+  // violação no console, nunca bloqueia nada. Inventário real de domínios externos
+  // carregados pelo NAVEGADOR (não chamadas server-to-server, que não entram na CSP):
+  // Meta Pixel (connect.facebook.net + www.facebook.com), YouTube embed E o script da
+  // IFrame Player API em /artemis4 (www.youtube.com — carrega tanto o iframe quanto um
+  // <script src> direto na página, achado real via captura ao vivo do report-uri, ver
+  // CHECKPOINT), MinIO em dev (localhost:9000 — em produção vai via proxy Caddy
+  // /storage/*, mesma origem). Os ~30 domínios de notícias em `images.remotePatterns`
+  // acima são só pro otimizador de imagem do Next (server-side) — o navegador só vê
+  // /_next/image, mesma origem, nunca precisam entrar aqui.
+  //
+  // 'unsafe-eval' em script-src é DEV-ONLY: o Next.js usa eval() internamente pro
+  // source-map do Fast Refresh (webpack devtool 'eval-source-map', deixado automático
+  // neste projeto — ver bloco `webpack:` mais abaixo). Build de produção não usa eval()
+  // pra isso — confirmado via captura ao vivo: 81 das 83 violações reais observadas em
+  // dev eram exatamente essa, nenhuma delas faz sentido incluir permanentemente.
+  async headers() {
+    const csp = [
+      "default-src 'self'",
+      `script-src 'self' 'unsafe-inline' https://connect.facebook.net https://www.youtube.com${isDevelopment ? " 'unsafe-eval'" : ''}`,
+      "style-src 'self' 'unsafe-inline'",
+      `img-src 'self' data: blob: https://www.facebook.com${isDevelopment ? ' http://localhost:9000 http://127.0.0.1:9000' : ''}`,
+      "frame-src 'self' https://www.youtube.com",
+      "connect-src 'self' https://www.facebook.com",
+      "font-src 'self' data:",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'self'",
+      // Reporta violação automaticamente pro nosso próprio endpoint — transforma
+      // "observar por um tempo" em algo automático (logs do servidor), em vez de
+      // depender de alguém abrir o DevTools e ficar olhando o Console manualmente.
+      "report-uri /api/public/security/csp-report",
+    ].join('; ')
+
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'X-XSS-Protection', value: '1; mode=block' },
+          ...(isProduction ? [{ key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' }] : []),
+          { key: 'Content-Security-Policy-Report-Only', value: csp },
+        ],
+      },
+    ]
+  },
 
   /* 
   experimental: {

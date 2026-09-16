@@ -6,14 +6,19 @@ export const dynamic = 'force-dynamic';
 /**
  * POST /api/agent/tick
  *
- * FASE 15 — Endpoint externo que substitui o node-cron em ambientes serverless.
- * Deve ser chamado por cron externo (SO, serviço, VPS crontab) a cada 6h:
+ * FASE 15 — Endpoint externo pra rodar sync+decisor sob demanda (gatilho manual, diagnóstico,
+ * ou scheduler externo caso um dia a plataforma rode em ambiente serverless de verdade).
  *
- *   0 *\/6 * * *  curl -X POST https://seu-dominio/api/agent/tick \
- *                      -H "x-cron-secret: $CRON_SECRET"
+ * NÃO é mais chamado automaticamente por nenhum mecanismo de deploy (removido de
+ * scripts/vps/deploy-github.sh em 2026-09-04 — apontava pra um crontab do SO paralelo e
+ * duplicando o mesmo sync+decisor que `src/instrumentation.ts` → `agentMonitor.ts`
+ * (`startAgentMonitor`) já roda automaticamente, DENTRO do processo do Next.js, a cada 6h —
+ * legítimo porque prod_app/staging_app são processos `next start` de longa duração em Docker,
+ * não serverless; o cenário que motivou este endpoint nunca se aplicou de fato a este deploy).
  *
  * Protegido por CRON_SECRET idêntico ao usado nos crons de campanhas.
- * Registra AgentHeartbeat a cada execução (sucesso ou falha).
+ * Registra AgentHeartbeat a cada execução (sucesso ou falha) — útil pra checar `GET` abaixo
+ * quando quiser confirmar manualmente que um ciclo específico rodou.
  */
 export async function POST(request: NextRequest) {
   const secret = request.headers.get('x-cron-secret');

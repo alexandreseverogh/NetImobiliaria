@@ -3,6 +3,8 @@
 
 export interface ValidationRule {
   field: string;
+  /** Rótulo amigável exibido nas mensagens de erro (ex.: "Nome Completo"). Sem isso, cai no `field` cru. */
+  label?: string;
   type: 'string' | 'number' | 'email' | 'url' | 'date' | 'boolean' | 'array' | 'object';
   required?: boolean;
   minLength?: number;
@@ -40,10 +42,11 @@ export class AdvancedValidator {
 
     for (const rule of this.rules) {
       const value = data[rule.field];
-      
+      const label = rule.label || rule.field;
+
       // Verificar se campo é obrigatório
       if (rule.required && (value === undefined || value === null || value === '')) {
-        errors.push(`Campo '${rule.field}' é obrigatório`);
+        errors.push(`Campo '${label}' é obrigatório`);
         continue;
       }
 
@@ -53,7 +56,7 @@ export class AdvancedValidator {
       }
 
       // Validar tipo
-      const typeError = this.validateType(value, rule.type, rule.field);
+      const typeError = this.validateType(value, rule.type, label);
       if (typeError) {
         errors.push(typeError);
         continue;
@@ -62,33 +65,33 @@ export class AdvancedValidator {
       // Validar comprimento (para strings)
       if (rule.type === 'string' && typeof value === 'string') {
         if (rule.minLength && value.length < rule.minLength) {
-          errors.push(`Campo '${rule.field}' deve ter pelo menos ${rule.minLength} caracteres`);
+          errors.push(`Campo '${label}' deve ter pelo menos ${rule.minLength} caracteres`);
         }
         if (rule.maxLength && value.length > rule.maxLength) {
-          errors.push(`Campo '${rule.field}' deve ter no máximo ${rule.maxLength} caracteres`);
+          errors.push(`Campo '${label}' deve ter no máximo ${rule.maxLength} caracteres`);
         }
       }
 
       // Validar range (para números)
       if (rule.type === 'number' && typeof value === 'number') {
         if (rule.min !== undefined && value < rule.min) {
-          errors.push(`Campo '${rule.field}' deve ser maior ou igual a ${rule.min}`);
+          errors.push(`Campo '${label}' deve ser maior ou igual a ${rule.min}`);
         }
         if (rule.max !== undefined && value > rule.max) {
-          errors.push(`Campo '${rule.field}' deve ser menor ou igual a ${rule.max}`);
+          errors.push(`Campo '${label}' deve ser menor ou igual a ${rule.max}`);
         }
       }
 
       // Validar padrão regex
       if (rule.pattern && typeof value === 'string' && !rule.pattern.test(value)) {
-        errors.push(`Campo '${rule.field}' não atende ao padrão esperado`);
+        errors.push(`Campo '${label}' não atende ao padrão esperado`);
       }
 
       // Validação customizada
       if (rule.custom) {
         const customResult = rule.custom(value);
         if (customResult !== true) {
-          errors.push(typeof customResult === 'string' ? customResult : `Campo '${rule.field}' é inválido`);
+          errors.push(typeof customResult === 'string' ? customResult : `Campo '${label}' é inválido`);
         }
       }
 
@@ -182,6 +185,7 @@ export class AdvancedValidator {
 export const UserValidationRules: ValidationRule[] = [
   {
     field: 'email',
+    label: 'E-mail',
     type: 'email',
     required: true,
     maxLength: 255,
@@ -189,6 +193,7 @@ export const UserValidationRules: ValidationRule[] = [
   },
   {
     field: 'nome',
+    label: 'Nome Completo',
     type: 'string',
     required: true,
     minLength: 2,
@@ -198,6 +203,7 @@ export const UserValidationRules: ValidationRule[] = [
   },
   {
     field: 'ativo',
+    label: 'Usuário ativo',
     type: 'boolean',
     required: false
   }

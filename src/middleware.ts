@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { logCsrfOriginCheck } from './lib/security/csrfOriginCheck'
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const url = request.url
+
+  // Fase 2 do plano de hardening — CSRF via Origin/Referer, modo log-only (nunca
+  // bloqueia, só loga no terminal do servidor). Roda pra toda rota /api/* de método
+  // que muda estado, exceto webhooks/cron. Ver src/lib/security/csrfOriginCheck.ts.
+  logCsrfOriginCheck(request)
 
   // 1. Páginas Absolutamente Públicas
   const publicPages = [
@@ -46,6 +52,11 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    // Páginas — comportamento original intocado (redirect de sessão pra /admin, /crm).
     '/((?!api|_next/static|_next/image|favicon.ico|images).*)',
+    // Fase 2 do hardening — roda o middleware também em /api/* só pra a checagem
+    // log-only de CSRF acima; a lógica de páginas continua isolada por isProtectedRoute
+    // (que nunca casa com pathname começando em /api).
+    '/api/:path*',
   ]
 }

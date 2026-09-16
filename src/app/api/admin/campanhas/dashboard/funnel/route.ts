@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import pool from '@/lib/database/connection';
 import { resolveCampaignIdsBySegment } from '@/lib/marketing/segmentUtils';
+import { getLeadEvents, leadsByCampaign as groupLeadsByCampaign } from '@/lib/marketing/services/leadEvents';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,12 +17,14 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const startStr       = searchParams.get('startDate');
     const endStr         = searchParams.get('endDate');
-    const clientId        = searchParams.get('clientId');
+    let clientId         = searchParams.get('clientId');
+    if (clientId === 'segment' || clientId === 'all') clientId = null;
     const segmentId       = searchParams.get('segmentId');
     const campaignId      = searchParams.get('campaignId');
     const objectiveFilter = searchParams.get('objectiveFilter');
     const statusFilter   = searchParams.get('statusFilter');
     const adSetId        = searchParams.get('adSetId');
+    const network         = searchParams.get('network');
 
     const endDate   = endStr
       ? (endStr.length === 10 ? new Date(endStr + 'T23:59:59.999Z') : new Date(endStr))
@@ -81,6 +84,12 @@ export async function GET(request: NextRequest) {
       );
       qParams.push(adSetId);
     }
+    // PARTE D1 (correção) — Funil por Estágio continuava somando todas as redes mesmo com o
+    // filtro do dashboard ativo. COALESCE(n.code,'meta') = mesmo fallback de dashboard/full.
+    if (network) {
+      extraWhere.push(`AND COALESCE(n.code, 'meta') = $${pi++}`);
+      qParams.push(network);
+    }
 
     const whereExtra = extraWhere.join(' ');
 
@@ -104,37 +113,47 @@ export async function GET(request: NextRequest) {
       FROM campanhasmarketingdigital."Campaign" c
       LEFT JOIN campanhasmarketingdigital."Insight" i
         ON i."campaignId" = c.id
-        AND i.date >= $2::timestamp
-        AND i.date <= $3::timestamp
+        AND i.date >= $2::timestamptz
+        AND i.date <= $3::timestamptz
+      LEFT JOIN public.ad_networks n ON n.id = c."network_id"
       WHERE c.tenant_id = $1::uuid
         ${whereExtra}
       GROUP BY 1
     `, qParams);
 
     // ── Leads por estágio ─────────────────────────────────────────────────────
-    // Reusa os mesmos qParams mas troca as posições dos date params ($2/$3) → leads usa clickedAt
-    const leadsRaw = await pool.query(`
-      SELECT
+    // Fonte única de lead (WhatsApp + formulário + conversão real do Google) — antes só
+    // contava CtaInteraction.WHATSAPP_CLICK, subestimando MOF/BOF em campanhas de Google ou
+    // com Formulário Instantâneo do Meta. Reusa a mesma lista de campanhas no escopo (via
+    // whereExtra) só pra resolver o estágio de cada uma; leads vêm de getLeadEvents.
+    const campaignStageRaw = await pool.query(`
+      SELECT c.id,
         COALESCE(c.funnel_stage,
           CASE
             WHEN c.objective IN ('OUTCOME_AWARENESS','OUTCOME_TRAFFIC','OUTCOME_REACH') THEN 'TOF'
             WHEN c.objective IN ('OUTCOME_ENGAGEMENT')                                  THEN 'MOF'
             ELSE 'BOF'
           END
-        ) AS stage,
-        COUNT(*)::int AS total_leads
-      FROM campanhasmarketingdigital."Lead" l
-      JOIN campanhasmarketingdigital."Campaign" c ON c.id = l."campaignId"
+        ) AS stage
+      FROM campanhasmarketingdigital."Campaign" c
+      LEFT JOIN public.ad_networks n ON n.id = c."network_id"
       WHERE c.tenant_id = $1::uuid
-        AND l."clickedAt" >= $2::timestamp
-        AND l."clickedAt" <= $3::timestamp
+        AND $2::timestamptz IS NOT NULL AND $3::timestamptz IS NOT NULL
         ${whereExtra}
-      GROUP BY 1
     `, qParams);
 
+    const stageByCampaignId = new Map<string, string>(campaignStageRaw.rows.map(r => [r.id, r.stage]));
+    const scopedCampaignIds = campaignStageRaw.rows.map(r => r.id);
+    const leadEvents = scopedCampaignIds.length > 0
+      ? await getLeadEvents(payload.tenantId, { campaignIds: scopedCampaignIds, startDate, endDate })
+      : [];
+    const leadsByCampaignMap = groupLeadsByCampaign(leadEvents);
+
     const leadsMap: Record<string, number> = {};
-    for (const row of leadsRaw.rows) {
-      leadsMap[row.stage] = row.total_leads;
+    for (const [campId, count] of Array.from(leadsByCampaignMap.entries())) {
+      const stage = stageByCampaignId.get(campId);
+      if (!stage) continue;
+      leadsMap[stage] = (leadsMap[stage] ?? 0) + count;
     }
 
     // ── Montar estágios ───────────────────────────────────────────────────────

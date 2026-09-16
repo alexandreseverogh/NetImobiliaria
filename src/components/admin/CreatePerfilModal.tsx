@@ -17,6 +17,7 @@ interface CreatePerfilData {
   description: string;
   level: number;
   is_system_role: boolean;
+  elegivel_plantonista: boolean;
   permissions: Record<string, string[]>;
   custom_fields: any[];
 }
@@ -29,6 +30,7 @@ export default function CreatePerfilModal({ isOpen, onClose, onSuccess }: Create
     description: '',
     level: 1,
     is_system_role: false,
+    elegivel_plantonista: false,
     permissions: {},
     custom_fields: []
   });
@@ -96,6 +98,7 @@ export default function CreatePerfilModal({ isOpen, onClose, onSuccess }: Create
         description: '',
         level: 1,
         is_system_role: false,
+        elegivel_plantonista: false,
         permissions: {},
         custom_fields: []
       });
@@ -265,6 +268,29 @@ export default function CreatePerfilModal({ isOpen, onClose, onSuccess }: Create
                         </label>
                       </div>
                     )}
+                 </div>
+
+                 <div className="mt-6 flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                   <div>
+                     <p className="text-sm font-bold text-amber-800">Elegível para Plantão</p>
+                     <p className="text-[11px] text-amber-700">
+                       Usuários com este perfil poderão se marcar como plantonistas (autoatendimento, sem intervenção de admin).
+                     </p>
+                   </div>
+                   <div className="flex flex-col items-center gap-1">
+                     <label className="relative inline-flex items-center cursor-pointer">
+                       <input
+                         type="checkbox"
+                         className="sr-only peer"
+                         checked={formData.elegivel_plantonista}
+                         onChange={(e) => setFormData(prev => ({ ...prev, elegivel_plantonista: e.target.checked }))}
+                       />
+                       <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                     </label>
+                     <span className={`text-[10px] font-bold uppercase tracking-wide ${formData.elegivel_plantonista ? 'text-amber-700' : 'text-slate-400'}`}>
+                       {formData.elegivel_plantonista ? 'Selecionado' : 'Não selecionado'}
+                     </span>
+                   </div>
                  </div>
               </div>
 

@@ -11,13 +11,14 @@ export function formatCurrency(value: number): string {
 
 /**
  * Versão compacta para cards KPI — evita truncamento em espaços reduzidos.
- * Mantém precisão para valores pequenos; abrevia a partir de R$ 10.000.
- * Use `formatCurrency` no tooltip/hover para exibir o valor completo.
+ * Mostra o valor completo (com centavos) até R$ 1.000.000; só abrevia em "M" acima
+ * disso, faixa onde o texto ficaria longo demais pro espaço do card. Abreviar já a
+ * partir de R$1.000 escondia os centavos atrás de um tooltip (title=fullValue em
+ * KpiCard.tsx) que não existe em touch/mobile — sem hover, o valor exato ficava
+ * inacessível nesses dispositivos.
  */
 export function formatCurrencyCompact(value: number): string {
   if (value >= 1_000_000) return `R$ ${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 100_000)   return `R$ ${(value / 1_000).toFixed(0)}K`;
-  if (value >= 1_000)     return `R$ ${(value / 1_000).toFixed(1)}K`;
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
 
@@ -33,6 +34,21 @@ export function formatPercent(value: number): string {
 
 export function formatDate(date: string): string {
   return new Date(date).toLocaleDateString('pt-BR');
+}
+
+/**
+ * Rótulo de exibição por código de rede (public.ad_networks.code). Fonte única — antes
+ * `dashboard/page.tsx` e `agentNotificador.ts` mantinham cópias próprias deste mapa, e
+ * `CommandCenterView.tsx` nem usava um mapa: tinha um ternário binário
+ * (`net === 'meta' ? 'Meta Ads' : 'Google Ads'`) que rotulava QUALQUER rede que não fosse
+ * Meta como "Google Ads" — TikTok apareceria com o nome errado nos 3 KPIs de breakdown por
+ * rede (docs/PLANO_TIKTOK.md, Achado 2). `networkLabel()` sempre retorna algo sensato mesmo
+ * pra um código de rede desconhecido (capitaliza a 1ª letra), nunca finge que é outra rede.
+ */
+export const NETWORK_LABELS: Record<string, string> = { meta: 'Meta', google: 'Google', tiktok: 'TikTok', linkedin: 'LinkedIn' };
+
+export function networkLabel(code: string): string {
+  return NETWORK_LABELS[code] ?? (code.charAt(0).toUpperCase() + code.slice(1));
 }
 
 export const OBJECTIVES = [

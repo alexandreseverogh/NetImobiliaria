@@ -21,7 +21,6 @@ interface UpdateUserRequest {
   foto_tipo_mime?: string | null
   ativo?: boolean
   isencao?: boolean
-  is_plantonista?: boolean
   tipo_corretor?: 'Interno' | 'Externo' | null
   roleId?: number
   google_refresh_token?: string | null
@@ -99,6 +98,11 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Mesma classe de fix do GET de listagem (route.ts) — unifiedPermissionMiddleware sozinho
+    // é fail-open aqui (rota nunca registrada em route_permissions_config).
+    const denied = await requireApiPermission(request, 'usuarios', 'READ')
+    if (denied) return denied
+
     // Verificar permissões usando sistema unificado
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) {
@@ -115,21 +119,18 @@ export async function GET(
       )
     }
 
-    // Não retornar senha
-    const { password, ...userWithoutPassword } = user
-
-    // Converter foto Buffer para base64 se existir
-    let fotoBase64 = null
-    if (user.foto) {
-      fotoBase64 = user.foto.toString('base64')
-    }
+    // Não retornar senha nem o Buffer cru da foto (viraria {"type":"Buffer","data":[...]}
+    // no JSON) — a foto em si é servida via GET /api/admin/usuarios/[id]/foto (S3/MinIO com
+    // redirect, ou streaming do bytea como fallback), o cliente só precisa saber se existe.
+    const { password, foto, ...userWithoutPasswordOrFoto } = user
+    const hasFoto = !!(foto || user.storage_type === 's3')
 
     return NextResponse.json({
       success: true,
       user: {
-        ...userWithoutPassword,
+        ...userWithoutPasswordOrFoto,
         isencao: user.isencao,
-        foto: fotoBase64
+        has_foto: hasFoto
       }
     })
 
@@ -222,7 +223,6 @@ export async function PUT(
       if (formData.has('password')) updateData.password = formData.get('password') as string
       if (formData.has('ativo')) updateData.ativo = formData.get('ativo') === 'true'
       if (formData.has('isencao')) updateData.isencao = formData.get('isencao') === 'true'
-      if (formData.has('is_plantonista')) updateData.is_plantonista = formData.get('is_plantonista') === 'true'
       if (formData.has('tipo_corretor')) updateData.tipo_corretor = formData.get('tipo_corretor') as 'Interno' | 'Externo' | null
       if (formData.has('roleId')) updateData.roleId = parseInt(formData.get('roleId') as string)
       if (formData.has('google_refresh_token')) updateData.google_refresh_token = formData.get('google_refresh_token') as string || null
@@ -343,22 +343,17 @@ export async function PUT(
       request.ip || 'unknown'
     )
 
-    // Não retornar senha
-    const { password, ...userWithoutPassword } = updatedUser
-
-    // Converter foto Buffer para base64 para o retorno
-    let fotoBase64 = null
-    if (updatedUser.foto) {
-      fotoBase64 = updatedUser.foto.toString('base64')
-    }
+    // Não retornar senha nem o Buffer cru da foto — mesmo raciocínio do GET acima.
+    const { password, foto, ...userWithoutPasswordOrFoto } = updatedUser
+    const hasFoto = !!(foto || updatedUser.storage_type === 's3')
 
     return NextResponse.json({
       success: true,
       message: 'Usuário atualizado com sucesso',
       user: {
-        ...userWithoutPassword,
+        ...userWithoutPasswordOrFoto,
         isencao: updatedUser.isencao,
-        foto: fotoBase64
+        has_foto: hasFoto
       }
     })
 

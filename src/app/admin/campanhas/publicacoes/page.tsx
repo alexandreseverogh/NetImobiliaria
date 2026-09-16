@@ -6,7 +6,7 @@ import {
   ClockIcon, CalendarDaysIcon, PauseCircleIcon, PlayCircleIcon,
 } from '@heroicons/react/24/outline';
 import { CreateGuard } from '@/components/admin/PermissionGuard';
-import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
+import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector';
 import DateInputPtBR from '@/components/ui/DateInputPtBR';
 
 interface RecurrenceSchedule {

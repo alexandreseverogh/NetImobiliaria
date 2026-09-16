@@ -12,8 +12,8 @@ import {
   CommandLineIcon,
   SparklesIcon,
   AdjustmentsHorizontalIcon,
-  CircleStackIcon,
-  BuildingOffice2Icon,
+  CpuChipIcon,
+  BookOpenIcon,
 } from '@heroicons/react/24/outline'
 import { CreateGuard, UpdateGuard } from '@/components/admin/PermissionGuard'
 import { SegmentInterestsModal } from '@/components/admin/master/SegmentInterestsModal'
@@ -21,6 +21,13 @@ import { SegmentAnglesModal } from '@/components/admin/master/SegmentAnglesModal
 import { SegmentBenchmarksModal } from '@/components/admin/master/SegmentBenchmarksModal'
 import { SegmentDataEntitiesModal } from '@/components/admin/master/SegmentDataEntitiesModal'
 import { SegmentTenantsModal } from '@/components/admin/master/SegmentTenantsModal'
+import { SegmentDistributionModal } from '@/components/admin/master/SegmentDistributionModal'
+import { SegmentQualificationRulesModal } from '@/components/admin/master/SegmentQualificationRulesModal'
+import { SegmentAgentesModal } from '@/components/admin/master/SegmentAgentesModal'
+import { SegmentFitCriteriaModal } from '@/components/admin/master/SegmentFitCriteriaModal'
+import { SegmentAtivoConfigModal } from '@/components/admin/master/SegmentAtivoConfigModal'
+import { SegmentLlmDefaultModal } from '@/components/admin/master/SegmentLlmDefaultModal'
+import { SegmentRegimentoModal, type RegimentoKey } from '@/components/admin/master/SegmentRegimentoModal'
 
 interface Segment {
   id: string
@@ -36,6 +43,8 @@ interface Segment {
   imagens_por_ia: boolean
   tenant_count:   number
   chatbot_max_turns_default: number
+  distribution_role_name: string
+  crm_ia_ativa: boolean
 }
 
 interface Module {
@@ -56,6 +65,13 @@ export default function MasterSegmentsPage() {
   const [benchmarksSegment, setBenchmarksSegment] = useState<Segment | null>(null)
   const [dataEntitiesSegment, setDataEntitiesSegment] = useState<Segment | null>(null)
   const [tenantsSegment, setTenantsSegment] = useState<Segment | null>(null)
+  const [distributionSegment, setDistributionSegment] = useState<Segment | null>(null)
+  const [qualificationSegment, setQualificationSegment] = useState<Segment | null>(null)
+  const [agentesSegment, setAgentesSegment] = useState<Segment | null>(null)
+  const [fitCriteriaSegment, setFitCriteriaSegment] = useState<Segment | null>(null)
+  const [llmDefaultSegment, setLlmDefaultSegment] = useState<Segment | null>(null)
+  const [regimentoSegment, setRegimentoSegment] = useState<Segment | null>(null)
+  const [ativoConfigSegment, setAtivoConfigSegment] = useState<Segment | null>(null)
   
   const [formData, setFormData] = useState({
     name: '',
@@ -67,6 +83,7 @@ export default function MasterSegmentsPage() {
     module_ids: [] as string[],
     imagens_por_ia: false,
     chatbot_max_turns_default: 6,
+    distribution_role_name: 'Corretor',
   })
 
   const fetchSegments = async () => {
@@ -100,7 +117,7 @@ export default function MasterSegmentsPage() {
       if (response.ok) {
         setShowModal(false)
         setEditingSegment(null)
-        setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false, chatbot_max_turns_default: 6 })
+        setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false, chatbot_max_turns_default: 6, distribution_role_name: 'Corretor' })
         fetchSegments()
       } else {
         const err = await response.json()
@@ -123,6 +140,7 @@ export default function MasterSegmentsPage() {
       module_ids:     (segment.module_ids || []).filter(Boolean),
       imagens_por_ia: segment.imagens_por_ia ?? false,
       chatbot_max_turns_default: segment.chatbot_max_turns_default ?? 6,
+      distribution_role_name: segment.distribution_role_name || 'Corretor',
     })
     setShowModal(true)
   }
@@ -158,7 +176,7 @@ export default function MasterSegmentsPage() {
             <button
               onClick={() => {
                 setEditingSegment(null)
-                setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false, chatbot_max_turns_default: 6 })
+                setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false, chatbot_max_turns_default: 6, distribution_role_name: 'Corretor' })
                 setShowModal(true)
               }}
               className="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 transition-all hover:scale-105 active:scale-95"
@@ -195,6 +213,7 @@ export default function MasterSegmentsPage() {
                 <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">Tema</th>
                 <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">Status</th>
                 <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">IA Imagens</th>
+                <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">IA CRM</th>
                 <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">Empresas</th>
                 <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-right whitespace-nowrap">Ações</th>
               </tr>
@@ -271,6 +290,20 @@ export default function MasterSegmentsPage() {
                       </span>
                     )}
                   </td>
+                  {/* IA CRM (qualificação de lead) */}
+                  <td className="px-5 py-4 text-center whitespace-nowrap">
+                    {segment.crm_ia_ativa ? (
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-black bg-teal-100 text-teal-700 border border-teal-200">
+                        <CpuChipIcon className="h-3 w-3" />
+                        Ativa
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-black bg-gray-100 text-gray-400 border border-gray-200">
+                        <XCircleIcon className="h-3 w-3" />
+                        Aguardando
+                      </span>
+                    )}
+                  </td>
                   {/* Empresas */}
                   <td className="px-5 py-4 text-center whitespace-nowrap">
                     <span className="inline-flex items-center justify-center h-7 min-w-[1.75rem] px-2 rounded-full text-sm font-black bg-gray-100 text-gray-700">
@@ -280,40 +313,18 @@ export default function MasterSegmentsPage() {
                   {/* Ações */}
                   <td className="px-4 py-4 text-right whitespace-nowrap">
                     <div className="inline-flex items-center gap-1.5">
+                      {/* Substitui os 11 botões-ícone que existiam aqui (cada um só com um
+                          `title=` de hover como documentação) por um único ponto de entrada —
+                          pedido do usuário, 2026-08-31: "difícil entender as funcionalidades
+                          detalhadas dos 11 modais". O Regimento documenta cada um (objetivo,
+                          como preencher, exemplo, impacto) e abre o modal real de dentro dele. */}
                       <button
-                        onClick={() => setTenantsSegment(segment)}
-                        className="p-2 rounded-lg text-sky-600 bg-sky-50 hover:bg-sky-100 border border-sky-200 transition-colors"
-                        title="Empresas deste segmento"
+                        onClick={() => setRegimentoSegment(segment)}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors text-xs font-black"
+                        title="Regimento do Segmento — o que cada ferramenta faz e como preencher"
                       >
-                        <BuildingOffice2Icon className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => setAnglesSegment(segment)}
-                        className="p-2 rounded-lg text-violet-600 bg-violet-50 hover:bg-violet-100 border border-violet-200 transition-colors"
-                        title="Ângulos & Demanda (IA)"
-                      >
-                        <SparklesIcon className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => setInterestsSegment(segment)}
-                        className="p-2 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors"
-                        title="Interesses Meta"
-                      >
-                        <HashtagIcon className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => setBenchmarksSegment(segment)}
-                        className="p-2 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors"
-                        title="Parâmetros do Agente (detecção + execução)"
-                      >
-                        <AdjustmentsHorizontalIcon className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => setDataEntitiesSegment(segment)}
-                        className="p-2 rounded-lg text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors"
-                        title="Dados do Bot (tabelas/colunas que o bot pode consultar)"
-                      >
-                        <CircleStackIcon className="h-4 w-4" />
+                        <BookOpenIcon className="h-4 w-4" />
+                        Regimento do Segmento
                       </button>
                       <UpdateGuard resource="master-segments">
                         <button
@@ -465,6 +476,29 @@ export default function MasterSegmentsPage() {
                       className="w-24 px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all font-medium text-sm"
                     />
                   </div>
+
+                  {/* Distribuição de Leads — cargo do vendedor (o resto — quais estratégias
+                      rodam e em que ordem — fica no botão "Estratégias de Distribuição" da
+                      lista de segmentos, mesmo padrão de Ângulos/Interesses/Benchmarks) */}
+                  <div className="p-3.5 rounded-xl border border-dashed border-sky-200 bg-sky-50/50">
+                    <label htmlFor="distribution_role_name" className="text-sm font-black text-sky-800 flex items-center gap-1.5 mb-1">
+                      <AdjustmentsHorizontalIcon className="h-3.5 w-3.5" />
+                      Distribuição de Leads — Cargo do Vendedor
+                    </label>
+                    <p className="text-[10px] text-sky-600 mb-2 leading-relaxed">
+                      Nome do role usado pelo motor de roteamento pra filtrar quem pode receber
+                      leads deste segmento. As etapas do roteamento em si (dono do ativo, área
+                      geográfica, fila, plantonista) se configuram no botão "Estratégias de
+                      Distribuição" da lista de segmentos.
+                    </p>
+                    <input
+                      type="text" id="distribution_role_name"
+                      value={formData.distribution_role_name}
+                      onChange={e => setFormData({...formData, distribution_role_name: e.target.value})}
+                      placeholder="Corretor"
+                      className="w-48 px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-sky-500 outline-none transition-all font-medium text-sm"
+                    />
+                  </div>
                 </div>
                 {/* ╚══════════════ FIM COLUNA ESQUERDA ══════════════╝ */}
 
@@ -586,6 +620,81 @@ export default function MasterSegmentsPage() {
         <SegmentTenantsModal
           segment={tenantsSegment}
           onClose={() => setTenantsSegment(null)}
+        />
+      )}
+
+      {/* Estratégias de Distribuição de Leads */}
+      {distributionSegment && (
+        <SegmentDistributionModal
+          segment={distributionSegment}
+          onClose={() => setDistributionSegment(null)}
+        />
+      )}
+
+      {/* Qualificação de Lead por IA (CRM) */}
+      {qualificationSegment && (
+        <SegmentQualificationRulesModal
+          segment={qualificationSegment}
+          onClose={() => { setQualificationSegment(null); fetchSegments() }}
+        />
+      )}
+
+      {/* Agentes de Aceleração (CRM) */}
+      {agentesSegment && (
+        <SegmentAgentesModal
+          segment={agentesSegment}
+          onClose={() => setAgentesSegment(null)}
+        />
+      )}
+
+      {/* Critérios de Fit (ICP) */}
+      {fitCriteriaSegment && (
+        <SegmentFitCriteriaModal
+          segment={fitCriteriaSegment}
+          onClose={() => setFitCriteriaSegment(null)}
+        />
+      )}
+
+      {/* Config do Ativo (Vínculo Exato) */}
+      {ativoConfigSegment && (
+        <SegmentAtivoConfigModal
+          segment={ativoConfigSegment}
+          onClose={() => setAtivoConfigSegment(null)}
+        />
+      )}
+
+      {/* Modelo de IA Padrão do Segmento (cascata Cliente→Tenant→Segmento→Global) */}
+      {llmDefaultSegment && (
+        <SegmentLlmDefaultModal
+          segment={llmDefaultSegment}
+          onClose={() => setLlmDefaultSegment(null)}
+        />
+      )}
+
+      {/* Regimento do Segmento — índice documentado dos 11 modais acima; "Abrir" fecha o
+          Regimento e abre o modal real correspondente, exatamente como abria direto da tabela. */}
+      {regimentoSegment && (
+        <SegmentRegimentoModal
+          segment={regimentoSegment}
+          onClose={() => setRegimentoSegment(null)}
+          onOpen={(key: RegimentoKey) => {
+            const target = regimentoSegment
+            setRegimentoSegment(null)
+            const setters: Record<RegimentoKey, (s: Segment) => void> = {
+              tenants: setTenantsSegment,
+              angles: setAnglesSegment,
+              interests: setInterestsSegment,
+              benchmarks: setBenchmarksSegment,
+              dataEntities: setDataEntitiesSegment,
+              distribution: setDistributionSegment,
+              qualification: setQualificationSegment,
+              agentes: setAgentesSegment,
+              fitCriteria: setFitCriteriaSegment,
+              ativoConfig: setAtivoConfigSegment,
+              llmDefault: setLlmDefaultSegment,
+            }
+            setters[key](target)
+          }}
         />
       )}
     </div>

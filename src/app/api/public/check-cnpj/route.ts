@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ exists: false })
         }
 
-        const exists = await checkProprietarioCNPJ(cnpjStr)
+        const exists = await checkProprietarioCNPJ(cnpjStr, null)
 
         return NextResponse.json({ exists })
     } catch (error) {

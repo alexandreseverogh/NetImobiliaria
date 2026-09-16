@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import pool from '@/lib/database/connection';
 import prisma from '@/lib/marketing/prisma';
+import { getLeadEvents, sumLeads, leadsByDay } from '@/lib/marketing/services/leadEvents';
 
 export const dynamic = 'force-dynamic';
 
@@ -191,13 +192,11 @@ export async function GET(request: NextRequest) {
         },
       });
 
-      const leads = await prisma.lead.count({
-        where: {
-          tenantId,
-          campaignId: { in: campaignIds },
-          clickedAt: { gte: startDate, lte: endDate },
-        },
-      });
+      // Fonte única de lead (WhatsApp + formulário + conversão real do Google) — antes só
+      // WHATSAPP_CLICK, o que fazia cliente com campanha de Google aparecer com CPL infinito
+      // no comparativo entre clientes do segmento.
+      const leadEvents = await getLeadEvents(tenantId, { campaignIds, startDate, endDate });
+      const leads = sumLeads(leadEvents);
 
       const spend       = insights.reduce((s, i) => s + i.spend, 0);
       const clicks      = insights.reduce((s, i) => s + i.clicks, 0);
@@ -219,20 +218,8 @@ export async function GET(request: NextRequest) {
         dailyMap.set(key, ex);
       }
 
-      // Daily leads
-      const { rows: dailyLeadsRows } = await pool.query(
-        `SELECT DATE("clickedAt")::text AS date, COUNT(*)::int AS count
-         FROM ${S}."Lead"
-         WHERE tenant_id = $1::uuid
-           AND "campaignId" = ANY($2::text[])
-           AND "clickedAt" >= $3::timestamp
-           AND "clickedAt" <= $4::timestamp
-         GROUP BY DATE("clickedAt")`,
-        [payload.tenantId, campaignIds, startDate, endDate],
-      );
-      const leadsByDate = new Map<string, number>(
-        dailyLeadsRows.map(r => [r.date, r.count]),
-      );
+      // Daily leads — mesmo array de eventos já buscado acima pro total (sem query extra).
+      const leadsByDate = leadsByDay(leadEvents);
 
       // Sort dates and build daily array
       const allDates = Array.from(new Set([

@@ -16,6 +16,7 @@ import { runTrackingHealthCheck } from './trackingHealthService';
 import { resolveSegment } from '@/lib/intelligence/segmentResolver';
 import { resolveBenchmarks } from '@/lib/intelligence/benchmarkResolver';
 import { invokeForContext } from '@/lib/intelligence/llmInvoker';
+import { getLeadEvents, sumLeads } from './leadEvents';
 
 // ─────────────────────────────────────────────────────────────
 //  TIPOS PÚBLICOS
@@ -308,17 +309,18 @@ async function collectCampaignMetrics(
     const ids = campaigns.map(c => c.id);
     const activeCampaigns = campaigns.filter(c => c.status === 'ACTIVE').length;
 
-    const [insights, leads] = await Promise.all([
+    const [insights, leadEvents] = await Promise.all([
       prisma.insight.aggregate({
         where: { campaignId: { in: ids }, date: { gte: since } },
         _sum: { spend: true, clicks: true, impressions: true, videoViews3s: true },
         _avg: { ctr: true, frequency: true },
         _count: { id: true },
       }),
-      prisma.lead.count({
-        where: { campaignId: { in: ids }, clickedAt: { gte: since } },
-      }),
+      // Fonte única de lead (WhatsApp + formulário + conversão real do Google) — antes só
+      // WHATSAPP_CLICK, subestimando o CPL/leads do relatório de auditoria pra campanhas de Google.
+      getLeadEvents(tenantId, { campaignIds: ids, startDate: since, endDate: new Date() }),
     ]);
+    const leads = sumLeads(leadEvents);
 
     const totalSpend = insights._sum.spend ?? 0;
     const totalImpressions = insights._sum.impressions ?? 0;
@@ -379,9 +381,8 @@ async function collectFunnelMetrics(
         where: { campaignId: { in: ids }, date: { gte: since } },
         _sum: { impressions: true, clicks: true, spend: true },
       });
-      const leads = await prisma.lead.count({
-        where: { campaignId: { in: ids }, clickedAt: { gte: since } },
-      });
+      const leadEvents = await getLeadEvents(tenantId, { campaignIds: ids, startDate: since, endDate: new Date() });
+      const leads = sumLeads(leadEvents);
       return {
         impressions: agg._sum.impressions ?? 0,
         clicks: agg._sum.clicks ?? 0,
@@ -516,13 +517,13 @@ function scoreDimensionTracking(
   const criticalCount = issues.filter((i: any) => i.severity === 'critical').length;
 
   const detail = criticalCount > 0
-    ? `${criticalCount} problema(s) crítico(s) de tracking detectado(s).`
+    ? `${criticalCount} problema(s) crítico(s) de rastreamento detectado(s).`
     : issues.length > 0
-      ? `${issues.length} alerta(s) de tracking — score ${score}/100.`
-      : `Tracking saudável — score ${score}/100.`;
+      ? `${issues.length} alerta(s) de rastreamento — score ${score}/100.`
+      : `Rastreamento saudável — score ${score}/100.`;
 
   return {
-    id: 'tracking', label: 'Saúde do Tracking', score,
+    id: 'tracking', label: 'Saúde do Rastreamento', score,
     weight: DIMENSION_WEIGHTS.tracking,
     detail,
     status: score >= 70 ? 'ok' : score >= 45 ? 'warn' : 'critical',

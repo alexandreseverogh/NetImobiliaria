@@ -30,7 +30,6 @@ interface CreateUserForm {
   roleId: number | null
   ativo: boolean
   isencao: boolean
-  is_plantonista: boolean
   tipo_corretor: 'Interno' | 'Externo' | null
   google_refresh_token: string
   google_calendar_authorized: boolean
@@ -52,7 +51,6 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
     roleId: null,
     ativo: true,
     isencao: false,
-    is_plantonista: false,
     tipo_corretor: 'Interno',
     google_refresh_token: '',
     google_calendar_authorized: false,
@@ -98,7 +96,6 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
         roleId: null,
         ativo: true,
         isencao: false,
-        is_plantonista: false,
         tipo_corretor: 'Interno',
         google_refresh_token: '',
         google_calendar_authorized: false,
@@ -420,7 +417,6 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
       if (!existingUserId) fd.append('password', form.password)
       fd.append('ativo', String(form.ativo))
       fd.append('isencao', String(form.isencao))
-      fd.append('is_plantonista', String(form.is_plantonista))
       if (form.tipo_corretor) fd.append('tipo_corretor', form.tipo_corretor)
       fd.append('google_refresh_token', form.google_refresh_token)
       fd.append('google_calendar_authorized', String(form.google_calendar_authorized))
@@ -448,7 +444,6 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
           roleId: null,
           ativo: true,
           isencao: false,
-          is_plantonista: false,
           tipo_corretor: 'Interno',
           google_refresh_token: '',
           google_calendar_authorized: false,

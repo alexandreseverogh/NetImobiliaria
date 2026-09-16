@@ -1,9 +1,10 @@
 import prisma from '../prisma';
 import pool from '@/lib/database/connection';
 import { invokeForContext } from '../../intelligence/llmInvoker';
-import { generateAiInsights } from './aiInsights';
+import { generateAiInsights, expandEndOfDay } from './aiInsights';
 import { getAngleInsights, type AngleInsightsResult } from './angleInsightsService';
 import { getActiveSegmentsForScope } from './segmentTaxonomyService';
+import { getLeadEvents, sumLeads } from './leadEvents';
 
 const S = 'campanhasmarketingdigital';
 
@@ -106,7 +107,7 @@ export async function gatherBriefingContext(
   const startDate = opts?.startDate
     ? new Date(opts.startDate)
     : new Date(now.getTime() - periodDays * 86400000);
-  const endDateObj = opts?.endDate ? new Date(opts.endDate) : now;
+  const endDateObj = opts?.endDate ? expandEndOfDay(opts.endDate) : now;
   const effectivePeriodDays = Math.max(1,
     Math.ceil((endDateObj.getTime() - startDate.getTime()) / 86400000) + 1,
   );
@@ -143,13 +144,16 @@ export async function gatherBriefingContext(
       where: { campaignId: campaign.id, date: { gte: prevStartDate, lt: startDate } },
     });
 
-    const leads = await prisma.lead.count({
-      where: { tenantId: tenantId || undefined, campaignId: campaign.id, clickedAt: { gte: startDate, lte: endDateObj } },
-    });
+    // Fonte única de lead (WhatsApp + formulário + conversão real do Google) — antes só
+    // WHATSAPP_CLICK, fazendo o briefing estratégico subestimar (ou zerar) leads de campanhas
+    // de Google, distorcendo a narrativa gerada pelo LLM.
+    const leads = tenantId
+      ? sumLeads(await getLeadEvents(tenantId, { campaignIds: [campaign.id], startDate, endDate: endDateObj }))
+      : 0;
 
-    const prevLeadCount = await prisma.lead.count({
-      where: { tenantId: tenantId || undefined, campaignId: campaign.id, clickedAt: { gte: prevStartDate, lt: startDate } },
-    });
+    const prevLeadCount = tenantId
+      ? sumLeads(await getLeadEvents(tenantId, { campaignIds: [campaign.id], startDate: prevStartDate, endDate: startDate }))
+      : 0;
 
     if (insights.length === 0 && leads === 0) continue;
 

@@ -1,16 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/marketing/prisma';
+import { logInteraction } from '@/lib/cta/service';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/r/[trackingId]
- * Rota pública de rastreamento de leads WhatsApp.
+ * Rota pública de rastreamento de cliques em anúncio → destino real (F2/F3 de
+ * docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §6) — QUALQUER CTA da campanha passa por aqui,
+ * não só WhatsApp (generalizado nesta fase; antes só o caminho WhatsApp era rastreado).
  *
  * Fluxo:
  * 1. Usuário clica no anúncio Meta → Meta redireciona para esta URL
- * 2. Registramos o click como Lead (com UTMs, IP, user-agent)
- * 3. Redirecionamos para wa.me/[phone]?text=[mensagem]
+ * 2. Registramos o clique como CtaInteraction (fonte única de cliques/atribuição — ver
+ *    docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §9.1; a tabela "Lead" antiga foi descontinuada)
+ * 3a. CTA = WhatsApp → redireciona para wa.me/[phone]?text=[mensagem]+[ref:trackingId]
+ * 3b. Qualquer outro CTA (ex.: formulário hospedado em /l/{slug}) → redireciona para
+ *     ad.linkUrl (o destino real escolhido no wizard) com "?ref={trackingId}" anexado —
+ *     é esse "ref" que /l/[slug] (e o submit do formulário) resolvem via resolveCtaRef
+ *     pra saber a campanha/anúncio real de origem, sem depender de Mensageria.
+ *
+ * O "[ref:trackingId]"/"?ref=" é o que permite ao processador de mensagens entrantes do
+ * WhatsApp (src/lib/whatsapp/inboundProcessor.ts) OU ao endpoint de submissão de formulário
+ * reconhecerem, quando o internauta responde/submete, que aquela conversa/lead se originou
+ * desta campanha/anúncio real — fechando o loop clique → lead no CRM.
  */
 export async function GET(
   request: NextRequest,
@@ -41,13 +54,6 @@ export async function GET(
     const tenantId = campaign.tenantId;
     const clientId = campaign.clientId ?? null;
 
-    // Busca configuração WhatsApp do tenant
-    const wppConfig = tenantId
-      ? await prisma.whatsAppConfig.findFirst({
-          where: { tenantId, isDefault: true },
-        })
-      : null;
-
     // Extrai UTM params passados pelo Meta (ou presentes na URL)
     const utmSource   = searchParams.get('utm_source')   || 'meta';
     const utmMedium   = searchParams.get('utm_medium')   || 'paid';
@@ -61,25 +67,55 @@ export async function GET(
     const userAgent = request.headers.get('user-agent') || null;
     const sourceUrl = request.url;
 
-    // Registra o lead de forma assíncrona (não bloqueia o redirect)
-    const phoneClicked = wppConfig?.phoneNumber || 'unknown';
+    // ── CTA não-WhatsApp (formulário/link externo) ──────────────────────────────
+    if (ad.ctaType !== 'WHATSAPP_MESSAGE') {
+      if (!ad.linkUrl) {
+        return NextResponse.redirect(new URL('/', request.url));
+      }
 
-    prisma.lead.create({
-      data: {
-        tenantId:     tenantId ?? null,
+      if (tenantId) {
+        logInteraction({
+          tenantId,
+          clientId,
+          campaignId: campaign.id,
+          adId: ad.id,
+          ctaType: ad.ctaType,
+          eventType: 'REDIRECT',
+          utm: { source: utmSource, medium: utmMedium, campaign: utmCampaign, content: utmContent },
+          ip,
+          userAgent,
+          referrer: sourceUrl,
+        }).catch(err => console.error('CtaInteraction create error:', err));
+      }
+
+      const destUrl = new URL(ad.linkUrl, request.url);
+      destUrl.searchParams.set('ref', trackingId);
+      return NextResponse.redirect(destUrl.toString(), { status: 302 });
+    }
+
+    // ── CTA = WhatsApp ───────────────────────────────────────────────────────────
+    // Busca configuração WhatsApp do tenant
+    const wppConfig = tenantId
+      ? await prisma.whatsAppConfig.findFirst({
+          where: { tenantId, isDefault: true },
+        })
+      : null;
+
+    // Registra o clique de forma assíncrona (não bloqueia o redirect)
+    if (tenantId) {
+      logInteraction({
+        tenantId,
         clientId,
-        campaignId:   campaign.id,
-        adId:         ad.id,
-        phoneClicked,
-        sourceUrl,
-        utmSource,
-        utmMedium,
-        utmCampaign,
-        utmContent,
-        ipAddress:    ip,
+        campaignId: campaign.id,
+        adId: ad.id,
+        ctaType: 'WHATSAPP_MESSAGE',
+        eventType: 'WHATSAPP_CLICK',
+        utm: { source: utmSource, medium: utmMedium, campaign: utmCampaign, content: utmContent },
+        ip,
         userAgent,
-      },
-    }).catch(err => console.error('Lead create error:', err));
+        referrer: sourceUrl,
+      }).catch(err => console.error('CtaInteraction create error:', err));
+    }
 
     // Monta URL do WhatsApp
     if (!wppConfig?.phoneNumber) {
@@ -96,9 +132,11 @@ export async function GET(
       phone = phone.slice(0, 4) + phone.slice(5);
     }
 
-    const message = encodeURIComponent(
-      ad.body || wppConfig.defaultMessage || 'Olá! Vi seu anúncio e tenho interesse.'
-    );
+    // "[ref:trackingId]" embutido no fim da mensagem — invisível pro usuário no app do
+    // WhatsApp (aparece só quando ele confirma o envio), mas é o que fecha a atribuição
+    // quando a resposta chega no webhook (ver comentário no topo do arquivo).
+    const baseMessage = ad.body || wppConfig.defaultMessage || 'Olá! Vi seu anúncio e tenho interesse.';
+    const message = encodeURIComponent(`${baseMessage} [ref:${trackingId}]`);
 
     const whatsappUrl = `https://wa.me/${phone}?text=${message}`;
 

@@ -74,8 +74,8 @@ export async function GET(request: NextRequest) {
                SELECT 1
                FROM ${S}."Insight" i
                WHERE i."campaignId" = cam.id
-                 AND i.date >= $2::timestamp
-                 AND i.date <= $3::timestamp
+                 AND i.date >= $2::timestamptz
+                 AND i.date <= $3::timestamptz
              )
        WHERE ss.is_active = true
          AND (

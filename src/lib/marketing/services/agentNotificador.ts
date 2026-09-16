@@ -9,6 +9,14 @@ const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || '';
 const EVOLUTION_INSTANCE = process.env.EVOLUTION_INSTANCE || 'trafegopago';
 
 export async function notifySlack(message: string, tenantId?: string | null) {
+  // ⏸️ DESATIVADO (2026-09-01) — decisão do usuário: focar o desacoplamento de módulos
+  // primeiro só em WhatsApp/Evolution; Slack fica pra uma rodada futura dedicada, com o
+  // mesmo nível de planejamento/teste. Todo caller (agentDecisor, agentMonitor,
+  // crm/agents/runner.ts, mensageria/sla.ts...) continua chamando esta função normalmente —
+  // ela só virou um no-op, nada precisou mudar nos ~6 arquivos que a chamam. Reativar:
+  // remover o `return` abaixo e o comentário de bloco.
+  return;
+  /*
   let webhook = SLACK_WEBHOOK;
   if (tenantId) {
     const config = await prisma.$queryRaw<{ slack_webhook_url: string | null }[]>`
@@ -25,6 +33,7 @@ export async function notifySlack(message: string, tenantId?: string | null) {
   } catch (err) {
     console.error('Slack notify error:', err);
   }
+  */
 }
 
 function normalizePhone(raw: string): string {
@@ -222,21 +231,23 @@ export async function notifyApprovalRequired(action: {
 }
 
 const ACTION_EMOJI: Record<string, string> = {
-  PAUSE:             '⏸️',
-  DOWNSCALE:         '📉',
-  SCALE:             '📈',
-  REFRESH_CREATIVE:  '🎨',
-  ADJUST_AUDIENCE:   '🎯',
-  REALLOCATE_BUDGET: '💰',
+  PAUSE:                 '⏸️',
+  DOWNSCALE:             '📉',
+  SCALE:                 '📈',
+  REFRESH_CREATIVE:      '🎨',
+  ADJUST_AUDIENCE:       '🎯',
+  REALLOCATE_BUDGET:     '💰',
+  USE_LOOKALIKE_AUDIENCE:'👥',
 };
 
 const ACTION_LABEL: Record<string, string> = {
-  PAUSE:             'Campanha pausada',
-  DOWNSCALE:         'Orçamento reduzido',
-  SCALE:             'Orçamento escalado',
-  REFRESH_CREATIVE:  'Criativo atualizado',
-  ADJUST_AUDIENCE:   'Público ajustado',
-  REALLOCATE_BUDGET: 'Orçamento realocado',
+  PAUSE:                 'Campanha pausada',
+  DOWNSCALE:             'Orçamento reduzido',
+  SCALE:                 'Orçamento escalado',
+  REFRESH_CREATIVE:      'Criativo atualizado',
+  ADJUST_AUDIENCE:       'Público ajustado',
+  REALLOCATE_BUDGET:     'Orçamento realocado',
+  USE_LOOKALIKE_AUDIENCE:'Audiência Lookalike aplicada',
 };
 
 export async function notifyExecuted(
@@ -289,6 +300,9 @@ export interface DigestItem {
   clientName: string;
   actionId: string;
   description: string;
+  // PARTE D3 — código da rede (meta/google/tiktok...) resolvido via ad_networks pelo chamador.
+  // Só vira rótulo visível na mensagem quando o ciclo mistura mais de uma rede (ver notifyDigest).
+  network?: string | null;
   pin?: string | null;
   budget?: {
     current?: number;
@@ -304,6 +318,11 @@ export interface DigestItem {
 
 // Rótulo do grupo "sem cliente" (campanhas próprias do tenant)
 const OWN_GROUP = '__own__';
+
+// PARTE D3 — rótulo curto por rede, usado no "Resumo do Ciclo" só quando o ciclo mistura
+// mais de uma rede (ver hasMultiNetwork em notifyDigest). Sem multi-rede, nenhuma linha muda.
+const NETWORK_TAG: Record<string, string> = { meta: 'Meta', google: 'Google', tiktok: 'TikTok', linkedin: 'LinkedIn' };
+const networkTag = (network: string | null | undefined) => `[${NETWORK_TAG[network ?? 'meta'] ?? 'Meta'}] `;
 
 export async function notifyDigest(tenantId: string, items: DigestItem[]) {
   if (items.length === 0) return;
@@ -326,7 +345,13 @@ export async function notifyDigest(tenantId: string, items: DigestItem[]) {
   });
 
   const tenantLine = tenantName ? ` — ${tenantName}` : '';
-  let hasScales = false;
+  let hasApprovals = false; // SCALE ou REALLOCATE_BUDGET — qualquer ação que exija PIN/painel
+
+  // PARTE D3 — com Google (e futuramente TikTok) no ar, uma ação "escalar" do Google e uma do
+  // Meta apareciam misturadas no mesmo resumo sem dizer de qual rede — reduzia a clareza da
+  // decisão no celular. Só rotula rede quando o ciclo de fato mistura mais de uma; ciclo
+  // mono-rede (a maioria dos tenants hoje) continua idêntico a antes.
+  const hasMultiNetwork = new Set(items.map(i => i.network ?? 'meta')).size > 1;
 
   // Monta um bloco de texto por cliente. WhatsApp mobile não renderiza balões
   // muito longos (>~3000 chars somem na tela), então enviamos 1 mensagem por cliente.
@@ -334,11 +359,16 @@ export async function notifyDigest(tenantId: string, items: DigestItem[]) {
 
   for (const key of clientKeys) {
     const group = byClient.get(key)!;
-    const scales     = group.filter(i => i.type === 'SCALE');
-    const pauses     = group.filter(i => i.type === 'PAUSE');
-    const downscales = group.filter(i => i.type === 'DOWNSCALE');
-    const others     = group.filter(i => !['SCALE', 'PAUSE', 'DOWNSCALE'].includes(i.type));
-    if (scales.length > 0) hasScales = true;
+    const scales      = group.filter(i => i.type === 'SCALE');
+    const pauses      = group.filter(i => i.type === 'PAUSE');
+    const downscales  = group.filter(i => i.type === 'DOWNSCALE');
+    const reallocs    = group.filter(i => i.type === 'REALLOCATE_BUDGET');
+    // Tier 3 "Loop do ICP" — precisa de bucket PRÓPRIO (não "others"), senão PIN/approveUrl/
+    // rejectUrl nunca chegam ao WhatsApp e a ação fica criada no banco mas inaprovável por lá —
+    // mesma classe de achado já corrigido antes pra REALLOCATE_BUDGET.
+    const lookalikes  = group.filter(i => i.type === 'USE_LOOKALIKE_AUDIENCE');
+    const others      = group.filter(i => !['SCALE', 'PAUSE', 'DOWNSCALE', 'REALLOCATE_BUDGET', 'USE_LOOKALIKE_AUDIENCE'].includes(i.type));
+    if (scales.length > 0 || reallocs.length > 0 || lookalikes.length > 0) hasApprovals = true;
 
     // Cabeçalho compacto — cada bloco é auto-contido (chega como mensagem separada)
     let b = `🤖 *Resumo do Ciclo*${tenantLine}\n`;
@@ -349,7 +379,7 @@ export async function notifyDigest(tenantId: string, items: DigestItem[]) {
 
     // 📈 Escalas (precisam de aprovação)
     for (const s of scales) {
-      b += `📈 *${s.campaignName}*\n`;
+      b += `📈 ${hasMultiNetwork ? networkTag(s.network) : ''}*${s.campaignName}*\n`;
       if (s.budget?.current != null && s.budget?.proposed != null) {
         b += `   💰 ${fmtBRL(s.budget.current)} -> *${fmtBRL(s.budget.proposed)}*`;
         if (s.budget.pct != null) b += ` (+${s.budget.pct.toFixed(0)}%)`;
@@ -362,7 +392,7 @@ export async function notifyDigest(tenantId: string, items: DigestItem[]) {
 
     // ⏸️ Pausadas automaticamente
     for (const p of pauses) {
-      b += `⏸️ ${p.campaignName}`;
+      b += `⏸️ ${hasMultiNetwork ? networkTag(p.network) : ''}${p.campaignName}`;
       if (p.pauseBudget != null) b += `  (${fmtBRL(p.pauseBudget)}/dia)`;
       b += '\n';
       if (p.description) b += `   ${p.description}\n`;
@@ -370,15 +400,34 @@ export async function notifyDigest(tenantId: string, items: DigestItem[]) {
 
     // 📉 Orçamento reduzido
     for (const d of downscales) {
-      b += `📉 ${d.campaignName}\n`;
+      b += `📉 ${hasMultiNetwork ? networkTag(d.network) : ''}${d.campaignName}\n`;
       if (d.budget?.before != null && d.budget?.after != null) {
         b += `   💰 ${fmtBRL(d.budget.before)} -> ${fmtBRL(d.budget.after)}\n`;
       }
     }
 
+    // 💰 Realocações cross-rede (precisam de aprovação — docs/PLANO_TIKTOK.md §8.4). Já vem
+    // com as 2 redes rotuladas dentro de description (não cabe no networkTag de 1 rede só).
+    for (const r of reallocs) {
+      b += `💰 *${r.campaignName}*\n`;
+      if (r.description) b += `   ${r.description}\n`;
+      if (r.pin) b += `   🔐 PIN: *${r.pin}*\n`;
+      if (r.approveUrl) b += `   ✅ ${r.approveUrl}\n`;
+      if (r.rejectUrl)  b += `   ❌ ${r.rejectUrl}\n`;
+    }
+
+    // 👥 Lookalike disponível pra aplicar (precisa de aprovação — muda o público real)
+    for (const l of lookalikes) {
+      b += `👥 *${l.campaignName}*\n`;
+      if (l.description) b += `   ${l.description}\n`;
+      if (l.pin) b += `   🔐 PIN: *${l.pin}*\n`;
+      if (l.approveUrl) b += `   ✅ ${l.approveUrl}\n`;
+      if (l.rejectUrl)  b += `   ❌ ${l.rejectUrl}\n`;
+    }
+
     // ⚡ Outras ações
     for (const o of others) {
-      b += `⚡ ${o.campaignName}\n`;
+      b += `⚡ ${hasMultiNetwork ? networkTag(o.network) : ''}${o.campaignName}\n`;
       if (o.description) b += `   ${o.description}\n`;
     }
 
@@ -415,7 +464,7 @@ export async function notifyDigest(tenantId: string, items: DigestItem[]) {
     blocks.push(b);
   }
 
-  const panelLine = hasScales
+  const panelLine = hasApprovals
     ? `📲 Aprovar no painel: ${process.env.PUBLIC_DOMAIN || 'http://localhost:3001'}/admin/campanhas/aprovacoes`
     : '';
 

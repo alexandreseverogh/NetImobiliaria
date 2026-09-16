@@ -172,16 +172,16 @@ Esses dados voltam automaticamente para o Meta Ads, que usa as informações par
 3. Criar públicos de remarketing (quem visitou mas não converteu)`,
     actions: {
       do: [
-        'Confirme no Tracking Health se o pixel está disparando antes de confiar em qualquer métrica.',
+        'Confirme na Saúde do Rastreamento se o pixel está disparando antes de confiar em qualquer métrica.',
         'Garanta o pixel instalado em todas as páginas: anúncio, formulário e página de obrigado.',
       ],
       dont: [
         'Não rode campanha de conversão sem pixel — o Meta otimiza às cegas e desperdiça verba.',
-        'Não ignore um Tracking Health abaixo de 50: os números do dashboard ficam não confiáveis.',
+        'Não ignore uma Saúde do Rastreamento abaixo de 50: os números do dashboard ficam não confiáveis.',
       ],
     },
     tip: 'Sem o Pixel instalado corretamente, o Meta "voa às cegas" — não sabe se os cliques estão gerando resultados reais, e não consegue otimizar as campanhas de forma inteligente.',
-    benchmark: 'Verifique sempre o Tracking Health no dashboard — ele indica se o Pixel está funcionando. Score abaixo de 50 = dados não confiáveis.',
+    benchmark: 'Verifique sempre a Saúde do Rastreamento no dashboard — ela indica se o Pixel está funcionando. Score abaixo de 50 = dados não confiáveis.',
   },
   {
     emoji: '⚡',
@@ -196,7 +196,7 @@ Esses dados voltam automaticamente para o Meta Ads, que usa as informações par
       ],
       dont: [
         'Não trate conversões e leads como a mesma coisa — conversão é evento do pixel, lead é contato real.',
-        'Não confie nas conversões se o Tracking Health estiver crítico.',
+        'Não confie nas conversões se a Saúde do Rastreamento estiver crítica.',
       ],
     },
     tip: 'Se Conversões é muito diferente de Leads, pode haver discrepância entre o evento do pixel e a captura real de contatos.',
@@ -333,18 +333,18 @@ O gráfico mostra:
   },
   {
     emoji: '🩺',
-    term: 'Tracking Health',
+    term: 'Saúde do Rastreamento',
     subtitle: 'Score 0–100 da saúde do rastreamento',
     what: 'Pontuação automática que avalia a qualidade do rastreamento de dados da campanha — se o pixel está disparando corretamente, se os eventos estão chegando, se há inconsistências.',
     how: 'O score vai de 0 a 100 e resume vários indicadores de saúde do rastreamento numa única nota. Ele responde a pergunta: "posso confiar nos números do meu dashboard?"',
     glossary: [
-      { label: '🟢 80–100', desc: 'Tracking saudável — os dados são confiáveis para tomar decisão.' },
+      { label: '🟢 80–100', desc: 'Rastreamento saudável — os dados são confiáveis para tomar decisão.' },
       { label: '🟡 50–79', desc: 'Atenção — possíveis falhas pontuais; investigue antes de decidir grande.' },
       { label: '🔴 0–49', desc: 'Crítico — dados podem estar incompletos ou incorretos; corrija primeiro.' },
     ],
     actions: {
       do: [
-        'Corrija o tracking ANTES de otimizar campanhas — sem dado confiável, otimizar é chute.',
+        'Corrija o rastreamento ANTES de otimizar campanhas — sem dado confiável, otimizar é chute.',
         'Investigue eventos duplicados se as conversões parecerem altas demais.',
       ],
       dont: [
@@ -352,7 +352,7 @@ O gráfico mostra:
         'Não ignore alertas de token ou pixel expirando — eles derrubam a captura silenciosamente.',
       ],
     },
-    tip: 'Um Tracking Health baixo significa que as métricas do dashboard podem não refletir a realidade. Antes de otimizar campanhas, corrija o tracking.',
+    tip: 'Uma Saúde do Rastreamento baixa significa que as métricas do dashboard podem não refletir a realidade. Antes de otimizar campanhas, corrija o rastreamento.',
   },
 ];
 

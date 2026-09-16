@@ -186,10 +186,25 @@ export async function PUT(
     console.error('❌ ERRO CRÍTICO NO PUT /api/admin/proprietarios/[id]:', error)
     console.error('Stack Trace:', error.stack)
 
-    if (error.message === 'CPF já cadastrado' || error.message === 'CNPJ já cadastrado' || error.message === 'Email já cadastrado') {
+    if (
+      error.message?.startsWith('CPF já cadastrado') ||
+      error.message?.startsWith('CNPJ já cadastrado') ||
+      error.message?.startsWith('Email já cadastrado')
+    ) {
       return NextResponse.json(
         { error: error.message },
         { status: 409 }
+      )
+    }
+
+    if (
+      error.message === 'CPF Inválido' ||
+      error.message === 'CNPJ Inválido' ||
+      error.message === 'CPF ou CNPJ deve ser informado'
+    ) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
       )
     }
 

@@ -27,13 +27,13 @@ export async function GET(request: NextRequest) {
     let paramIndex = 1
 
     if (startDate) {
-      query += ` AND (created_at >= $${paramIndex}::timestamp OR timestamp >= $${paramIndex}::timestamp)`
+      query += ` AND timestamp >= $${paramIndex}::timestamp`
       params.push(startDate)
       paramIndex++
     }
 
     if (endDate) {
-      query += ` AND (created_at <= $${paramIndex}::timestamp + interval '1 day' OR timestamp <= $${paramIndex}::timestamp + interval '1 day')`
+      query += ` AND timestamp <= $${paramIndex}::timestamp + interval '1 day'`
       params.push(endDate)
       paramIndex++
     }

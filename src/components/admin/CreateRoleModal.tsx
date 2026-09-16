@@ -16,6 +16,7 @@ interface RoleFormData {
   level: number
   two_fa_required: boolean
   is_active: boolean
+  elegivel_plantonista: boolean
   manager_role_id: number | null
 }
 
@@ -26,9 +27,10 @@ export default function CreateRoleModal({ isOpen, onClose, onSuccess, roles }: C
     level: 1,
     two_fa_required: false,
     is_active: true,
+    elegivel_plantonista: false,
     manager_role_id: null
   })
-  
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
@@ -42,6 +44,7 @@ export default function CreateRoleModal({ isOpen, onClose, onSuccess, roles }: C
         level: 1,
         two_fa_required: false,
         is_active: true,
+        elegivel_plantonista: false,
         manager_role_id: null
       })
       setError(null)
@@ -317,6 +320,27 @@ export default function CreateRoleModal({ isOpen, onClose, onSuccess, roles }: C
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+              </label>
+            </div>
+
+            {/* Elegível para Plantão */}
+            <div className="flex items-center justify-between p-4 bg-amber-50 rounded-lg mt-4">
+              <div>
+                <h5 className="font-medium text-gray-900">Elegível para Plantão</h5>
+                <p className="text-sm text-gray-600">
+                  Usuários com este perfil podem se marcar como plantonistas (autoatendimento,
+                  sem precisar de um admin) — vira o critério de fallback final quando nenhum
+                  outro corretor/atendente está disponível
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.elegivel_plantonista}
+                  onChange={(e) => handleInputChange('elegivel_plantonista', e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
               </label>
             </div>
           </div>

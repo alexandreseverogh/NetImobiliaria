@@ -458,6 +458,14 @@ function AngleWidget({ period, segmentId, segmentName }: { period: string; segme
                   <p className="text-xs text-gray-500">
                     CPL {formatCurrency(data.topAngle.cpl ?? 0)} · {data.topAngle.campaigns} campanha{data.topAngle.campaigns !== 1 ? 's' : ''}
                   </p>
+                  {/* Tier 3 do plano "Loop do ICP" — fechamento real, quando o tenant tem CRM
+                      contratado; nunca substitui o critério de vencedor (que continua sendo
+                      CPL), só complementa com o resultado de negócio de verdade. */}
+                  {data.topAngle.closeRate !== null && (
+                    <p className={`text-[11px] font-semibold mt-0.5 ${data.topAngle.closeRate === 0 ? 'text-amber-600' : 'text-gray-500'}`}>
+                      Fechamento real: {data.topAngle.closeRate.toFixed(1)}% ({data.topAngle.dealsWon} negócio{data.topAngle.dealsWon !== 1 ? 's' : ''})
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -507,6 +515,11 @@ function AngleWidget({ period, segmentId, segmentName }: { period: string; segme
                       <p className="text-sm font-semibold text-gray-900 truncate">{s.label}</p>
                       {isWinner && <span className="text-[10px] font-black text-emerald-600 uppercase">✅ melhor</span>}
                       {isWorst  && <span className="text-[10px] font-black text-amber-600 uppercase">⚠️ revisar</span>}
+                      {s.closeRate !== null && (
+                        <span className="text-[10px] text-gray-400 ml-2">
+                          fechamento {s.closeRate.toFixed(0)}%
+                        </span>
+                      )}
                     </div>
                   </div>
                   <span className="text-xs text-gray-600 text-right font-medium">{s.campaigns}</span>

@@ -11,6 +11,7 @@ import { publishMensageriaEvent } from '@/lib/mensageria/realtime'
 import { autoAssignConversation } from '@/lib/mensageria/autoAssign'
 import { attachSlaPolicy, checkFirstResponseBreach } from '@/lib/mensageria/sla'
 import { maybeRunBot } from '@/lib/mensageria/botAdapter'
+import { touchPendencyByContact } from '@/lib/crm/pendencia/pendencyState'
 
 const SCHEMA = 'mensageria'
 
@@ -39,6 +40,7 @@ export interface IngestMessageInput {
   attachments?: any[]
   externalId?: string | null         // id da mensagem no provider — garante idempotência
   isPrivate?: boolean
+  botContext?: string | null         // hint textual pro bot NESTE turno (ex.: contexto de página do widget público) — nunca vira mensagem visível, só é lido pelo LLM
 }
 
 export interface IngestResult {
@@ -131,7 +133,7 @@ async function findOrCreateConversation(
  */
 export async function ingestMessage(input: IngestMessageInput): Promise<IngestResult> {
   const { tenantId, clientId = null, inboxId, contact, direction, senderType, senderId, content,
-          contentType = 'text', attachments = [], externalId = null, isPrivate = false } = input
+          contentType = 'text', attachments = [], externalId = null, isPrivate = false, botContext = null } = input
 
   if (externalId) {
     const { rows: dup } = await pool.query(
@@ -194,6 +196,14 @@ export async function ingestMessage(input: IngestMessageInput): Promise<IngestRe
     await checkFirstResponseBreach(conversationId).catch(() => {})
   }
 
+  // G0 — pendência de atendimento (docs/PLANO_PENDENCIA_ATENDIMENTO.md): toda mensagem muda
+  // de quem é a bola. Diferente de checkFirstResponseBreach acima (que só olha a 1ª resposta
+  // e depois fica cego pra sempre), este estado é contínuo — vale do 2º toque em diante.
+  // Best-effort: a reconciliação noturna corrige qualquer falha isolada aqui.
+  await touchPendencyByContact(contactId).catch((err) => {
+    console.error('[mensageria/ingest] falha ao atualizar pendência de atendimento:', err)
+  })
+
   publishMensageriaEvent(tenantId, {
     type: 'message.created',
     conversationId,
@@ -204,7 +214,7 @@ export async function ingestMessage(input: IngestMessageInput): Promise<IngestRe
   // ingestMessage() como outbound/bot, então nunca recursa infinitamente. Best-effort: uma
   // falha do bot nunca deve derrubar a ingestão da mensagem original do contato.
   if (direction === 'inbound' && senderType === 'contact') {
-    await maybeRunBot(conversationId, tenantId).catch((err) => {
+    await maybeRunBot(conversationId, tenantId, botContext).catch((err) => {
       console.error('[mensageria/ingest] falha ao rodar o bot:', err)
     })
   }

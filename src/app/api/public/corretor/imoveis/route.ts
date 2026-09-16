@@ -6,7 +6,7 @@ export const runtime = 'nodejs'
 function getToken(request: NextRequest): string | null {
   const authHeader = request.headers.get('authorization') || ''
   if (authHeader.startsWith('Bearer ')) return authHeader.slice(7)
-  const cookie = request.cookies.get('accessToken')?.value
+  const cookie = request.cookies.get('admin_auth_token')?.value
   return cookie || null
 }
 

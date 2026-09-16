@@ -10,10 +10,13 @@ import EstadoSelect from '@/components/shared/EstadoSelect'
 import ClientCampaignSettings from '@/components/admin/clientes/ClientCampaignSettings'
 import ClientAvatar from '@/components/admin/ClientAvatar'
 
+type TipoCliente = 'conta_gerenciada' | 'comprador_pj' | 'consumidor_pf'
+
 interface Cliente {
   uuid: string
   nome: string
-  cpf: string
+  cpf?: string
+  cnpj?: string
   telefone: string
   endereco?: string
   numero?: string
@@ -24,6 +27,7 @@ interface Cliente {
   cidade_fk?: string
   cep?: string
   origem_cadastro?: string
+  tipo_cliente?: TipoCliente
   logo_url?: string | null
 }
 
@@ -43,6 +47,17 @@ export default function EditarClientePage() {
   const [error, setError] = useState<string | null>(null)
   const [cliente, setCliente] = useState<Cliente | null>(null)
   const [activeTab, setActiveTab] = useState<'dados' | 'meta'>('dados')
+  // Mesmo gate do "novo cliente": aba "Config. Meta" só faz sentido pra tenant com o módulo de
+  // Campanhas contratado.
+  const [hasCampanhasModule, setHasCampanhasModule] = useState(false)
+
+  useEffect(() => {
+    get('/api/admin/clientes/tem-modulo-campanhas')
+      .then(res => res.ok ? res.json() : { hasModule: false })
+      .then(data => setHasCampanhasModule(!!data.hasModule))
+      .catch(() => setHasCampanhasModule(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Logo do cliente
   const [logoUrl, setLogoUrl]         = useState<string | null>(null)
@@ -53,6 +68,7 @@ export default function EditarClientePage() {
   const [formData, setFormData] = useState({
     nome: '',
     cpf: '',
+    cnpj: '',
     telefone: '',
     email: '',
     estado: '',
@@ -62,13 +78,17 @@ export default function EditarClientePage() {
     bairro: '',
     numero: '',
     complemento: '',
-    origem_cadastro: ''
+    origem_cadastro: '',
+    tipo_cliente: 'conta_gerenciada' as TipoCliente
   })
 
   const [errors, setErrors] = useState<ValidationErrors>({})
   const [cpfValidating, setCpfValidating] = useState(false)
   const [cpfExists, setCpfExists] = useState(false)
   const [cpfPendingValidation, setCpfPendingValidation] = useState(false)
+  const [cnpjValidating, setCnpjValidating] = useState(false)
+  const [cnpjExists, setCnpjExists] = useState(false)
+  const [cnpjPendingValidation, setCnpjPendingValidation] = useState(false)
   const [emailValidating, setEmailValidating] = useState(false)
   const [emailExists, setEmailExists] = useState(false)
   const [emailPendingValidation, setEmailPendingValidation] = useState(false)
@@ -123,6 +143,7 @@ export default function EditarClientePage() {
         setFormData({
           nome: clienteData.nome || '',
           cpf: clienteData.cpf || '',
+          cnpj: clienteData.cnpj || '',
           telefone: clienteData.telefone || '',
           email: clienteData.email || '',
           estado: '', // Será preenchido baseado no estado_fk
@@ -132,7 +153,8 @@ export default function EditarClientePage() {
           bairro: clienteData.bairro || '',
           numero: clienteData.numero || '',
           complemento: clienteData.complemento || '',
-          origem_cadastro: clienteData.origem_cadastro || 'Plataforma'
+          origem_cadastro: clienteData.origem_cadastro || 'Plataforma',
+          tipo_cliente: clienteData.tipo_cliente || 'conta_gerenciada'
         })
 
         // Guardar CEP inicial para evitar busca automática no carregamento
@@ -369,6 +391,41 @@ export default function EditarClientePage() {
     return parseInt(cleanCPF.charAt(10)) === secondDigit
   }
 
+  // Validação de CNPJ
+  const validateCNPJ = (cnpj: string): boolean => {
+    const cleanCNPJ = cnpj.replace(/\D/g, '')
+
+    if (cleanCNPJ.length !== 14) return false
+    if (/^(\d)\1{13}$/.test(cleanCNPJ)) return false
+
+    let length = cleanCNPJ.length - 2
+    let numbers = cleanCNPJ.substring(0, length)
+    const digits = cleanCNPJ.substring(length)
+    let sum = 0
+    let pos = length - 7
+
+    for (let i = length; i >= 1; i--) {
+      sum += parseInt(numbers.charAt(length - i)) * pos--
+      if (pos < 2) pos = 9
+    }
+
+    let result = sum % 11 < 2 ? 0 : 11 - (sum % 11)
+    if (result !== parseInt(digits.charAt(0))) return false
+
+    length = length + 1
+    numbers = cleanCNPJ.substring(0, length)
+    sum = 0
+    pos = length - 7
+
+    for (let i = length; i >= 1; i--) {
+      sum += parseInt(numbers.charAt(length - i)) * pos--
+      if (pos < 2) pos = 9
+    }
+
+    result = sum % 11 < 2 ? 0 : 11 - (sum % 11)
+    return result === parseInt(digits.charAt(1))
+  }
+
   // Validação de telefone
   const validateTelefone = (telefone: string): boolean => {
     const cleanTelefone = telefone.replace(/\D/g, '')
@@ -385,6 +442,12 @@ export default function EditarClientePage() {
   const formatCPF = (value: string): string => {
     const cleanValue = value.replace(/\D/g, '')
     return cleanValue.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+  }
+
+  // Formatação de CNPJ
+  const formatCNPJ = (value: string): string => {
+    const cleanValue = value.replace(/\D/g, '')
+    return cleanValue.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
   }
 
   // Formatação de telefone
@@ -426,6 +489,28 @@ export default function EditarClientePage() {
     }
   }
 
+  // Verificar se CNPJ já existe
+  const checkCNPJExists = async (cnpj: string) => {
+    if (!cnpj || !validateCNPJ(cnpj)) {
+      setCnpjPendingValidation(false)
+      return
+    }
+
+    setCnpjPendingValidation(true)
+
+    try {
+      setCnpjValidating(true)
+      const response = await post('/api/admin/clientes/verificar-cnpj', { cnpj, excludeUuid: params.id })
+      const data = await response.json()
+      setCnpjExists(data.exists)
+    } catch (error) {
+      console.error('Erro ao verificar CNPJ:', error)
+    } finally {
+      setCnpjValidating(false)
+      setCnpjPendingValidation(false)
+    }
+  }
+
   // Verificar Email com debounce usando useEffect (abaixo)
 
   // Prevenir avanço com Tab/Enter quando há erros ou duplicidade
@@ -445,7 +530,8 @@ export default function EditarClientePage() {
             return
           }
           break
-        case 'cpf':
+        case 'cpf': {
+          if (formData.cnpj) break
           const cpfLimpo = formData.cpf.replace(/\D/g, '')
           if (!formData.cpf || cpfValidating || cpfExists || cpfPendingValidation ||
             cpfLimpo.length !== 11 || !validateCPF(formData.cpf)) {
@@ -453,6 +539,17 @@ export default function EditarClientePage() {
             return
           }
           break
+        }
+        case 'cnpj': {
+          if (formData.cpf) break
+          const cnpjLimpo = formData.cnpj.replace(/\D/g, '')
+          if (!formData.cnpj || cnpjValidating || cnpjExists || cnpjPendingValidation ||
+            cnpjLimpo.length !== 14 || !validateCNPJ(formData.cnpj)) {
+            e.preventDefault()
+            return
+          }
+          break
+        }
         case 'telefone':
           if (!formData.telefone) {
             e.preventDefault()
@@ -524,6 +621,9 @@ export default function EditarClientePage() {
       case 'cpf':
         formattedValue = formatCPF(value)
         break
+      case 'cnpj':
+        formattedValue = formatCNPJ(value)
+        break
       case 'telefone':
         formattedValue = formatTelefone(value)
         break
@@ -536,7 +636,18 @@ export default function EditarClientePage() {
         return
     }
 
-    setFormData(prev => ({ ...prev, [field]: formattedValue }))
+    // CPF e CNPJ são mutuamente exclusivos — preencher um limpa o outro
+    if (field === 'cpf' && formattedValue) {
+      setFormData(prev => ({ ...prev, cpf: formattedValue, cnpj: '' }))
+      setCnpjExists(false)
+      setCnpjPendingValidation(false)
+    } else if (field === 'cnpj' && formattedValue) {
+      setFormData(prev => ({ ...prev, cnpj: formattedValue, cpf: '' }))
+      setCpfExists(false)
+      setCpfPendingValidation(false)
+    } else {
+      setFormData(prev => ({ ...prev, [field]: formattedValue }))
+    }
 
     // Validação em tempo real
     const newErrors = { ...errors }
@@ -555,9 +666,22 @@ export default function EditarClientePage() {
         } else {
           delete newErrors.cpf
         }
+        delete newErrors.cnpj
         // Verificar se CPF já existe (enviar valor FORMATADO)
         if (formattedValue && validateCPF(formattedValue)) {
           checkCPFExists(formattedValue)
+        }
+        break
+      case 'cnpj':
+        if (formattedValue && !validateCNPJ(formattedValue)) {
+          newErrors.cnpj = 'CNPJ inválido'
+        } else {
+          delete newErrors.cnpj
+        }
+        delete newErrors.cpf
+        // Verificar se CNPJ já existe (enviar valor FORMATADO)
+        if (formattedValue && validateCNPJ(formattedValue)) {
+          checkCNPJExists(formattedValue)
         }
         break
       case 'telefone':
@@ -590,8 +714,17 @@ export default function EditarClientePage() {
       finalErrors.nome = 'Nome é obrigatório'
     }
 
-    if (!formData.cpf || !validateCPF(formData.cpf)) {
-      finalErrors.cpf = 'CPF é obrigatório e deve ser válido'
+    // CPF e CNPJ são mutuamente exclusivos — exige pelo menos um dos dois, válido
+    if (formData.cpf) {
+      if (!validateCPF(formData.cpf)) {
+        finalErrors.cpf = 'CPF inválido'
+      }
+    } else if (formData.cnpj) {
+      if (!validateCNPJ(formData.cnpj)) {
+        finalErrors.cnpj = 'CNPJ inválido'
+      }
+    } else {
+      finalErrors.cpf = 'Informe o CPF ou o CNPJ do cliente'
     }
 
     if (!formData.telefone || !validateTelefone(formData.telefone)) {
@@ -630,6 +763,10 @@ export default function EditarClientePage() {
       finalErrors.cpf = 'CPF já cadastrado'
     }
 
+    if (cnpjExists) {
+      finalErrors.cnpj = 'CNPJ já cadastrado'
+    }
+
     if (emailExists) {
       finalErrors.email = 'Email já cadastrado'
     }
@@ -649,7 +786,8 @@ export default function EditarClientePage() {
         },
         body: JSON.stringify({
           nome: formData.nome,
-          cpf: formData.cpf,
+          cpf: formData.cpf || null,
+          cnpj: formData.cnpj || null,
           telefone: formData.telefone,
           email: formData.email,
           endereco: formData.endereco,
@@ -659,6 +797,7 @@ export default function EditarClientePage() {
           estado_fk: formData.estado ? estadosCidades.estados.find(e => e.id === formData.estado)?.sigla || null : null,
           cidade_fk: formData.cidade ? estadosCidades.municipios.find(m => m.id === formData.cidade)?.nome || null : null,
           cep: formData.cep,
+          tipo_cliente: formData.tipo_cliente,
           updated_by: user?.nome || 'system'
         })
       })
@@ -790,22 +929,24 @@ export default function EditarClientePage() {
           >
             👤 Dados do Cliente
           </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('meta')}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all
-              ${activeTab === 'meta'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-          >
-            📣 Config. Meta
-          </button>
+          {formData.tipo_cliente === 'conta_gerenciada' && hasCampanhasModule && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('meta')}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all
+                ${activeTab === 'meta'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+            >
+              📣 Config. Meta
+            </button>
+          )}
         </div>
       </div>
 
       {/* ── ABA: CONFIGURAÇÕES META ── */}
-      {activeTab === 'meta' && cliente && (
+      {activeTab === 'meta' && cliente && formData.tipo_cliente === 'conta_gerenciada' && hasCampanhasModule && (
         <div className="max-w-3xl">
           <ClientCampaignSettings clientId={cliente.uuid} />
         </div>
@@ -899,31 +1040,82 @@ export default function EditarClientePage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* CPF */}
-          <div>
-            <label htmlFor="cpf" className="block text-sm font-medium text-gray-700 mb-2">
-              CPF *
-            </label>
-            <input
-              type="text"
-              id="cpf"
-              value={formData.cpf}
-              onChange={(e) => handleInputChange('cpf', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.cpf || cpfExists ? 'border-red-500' : 'border-gray-300'
-                }`}
-              placeholder="000.000.000-00"
-              maxLength={14}
-            />
-            {errors.cpf && <p className="text-red-500 text-sm mt-1">{errors.cpf}</p>}
-            {cpfValidating && <p className="text-blue-500 text-sm mt-1">Verificando CPF...</p>}
-            {cpfExists && <p className="text-red-500 text-sm mt-1">CPF já cadastrado</p>}
-            {formData.cpf && !cpfValidating && !cpfExists && validateCPF(formData.cpf) && (
-              <p className="text-green-500 text-sm mt-1">✓ CPF disponível</p>
-            )}
-          </div>
+        {/* Tipo de Cliente — discriminador D2 (docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §4/§9.2) */}
+        <div>
+          <label htmlFor="tipo_cliente" className="block text-sm font-medium text-gray-700 mb-2">
+            Tipo de Cliente
+          </label>
+          <select
+            id="tipo_cliente"
+            value={formData.tipo_cliente}
+            onChange={(e) => setFormData(prev => ({ ...prev, tipo_cliente: e.target.value as TipoCliente }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="conta_gerenciada">Conta Gerenciada (empresa-cliente-da-agência)</option>
+            <option value="comprador_pj">Comprador PJ</option>
+            <option value="consumidor_pf">Consumidor PF</option>
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            Só "Conta Gerenciada" aparece nos seletores de cliente do módulo de Campanhas e ganha
+            configuração de pixel/página/WhatsApp (aba "Config. Meta").
+          </p>
+        </div>
 
-          {/* Telefone */}
+        <div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* CPF */}
+            <div>
+              <label htmlFor="cpf" className="block text-sm font-medium text-gray-700 mb-2">
+                CPF {!formData.cnpj && '*'}
+              </label>
+              <input
+                type="text"
+                id="cpf"
+                value={formData.cpf}
+                onChange={(e) => handleInputChange('cpf', e.target.value)}
+                disabled={!!formData.cnpj}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.cpf || cpfExists ? 'border-red-500' : 'border-gray-300'
+                  } ${formData.cnpj ? 'opacity-60 cursor-not-allowed bg-gray-100' : ''}`}
+                placeholder="000.000.000-00"
+                maxLength={14}
+              />
+              {errors.cpf && <p className="text-red-500 text-sm mt-1">{errors.cpf}</p>}
+              {cpfValidating && <p className="text-blue-500 text-sm mt-1">Verificando CPF...</p>}
+              {cpfExists && <p className="text-red-500 text-sm mt-1">CPF já cadastrado</p>}
+              {formData.cpf && !cpfValidating && !cpfExists && validateCPF(formData.cpf) && (
+                <p className="text-green-500 text-sm mt-1">✓ CPF disponível</p>
+              )}
+            </div>
+
+            {/* CNPJ */}
+            <div>
+              <label htmlFor="cnpj" className="block text-sm font-medium text-gray-700 mb-2">
+                CNPJ {!formData.cpf && '*'}
+              </label>
+              <input
+                type="text"
+                id="cnpj"
+                value={formData.cnpj}
+                onChange={(e) => handleInputChange('cnpj', e.target.value)}
+                disabled={!!formData.cpf}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.cnpj || cnpjExists ? 'border-red-500' : 'border-gray-300'
+                  } ${formData.cpf ? 'opacity-60 cursor-not-allowed bg-gray-100' : ''}`}
+                placeholder="00.000.000/0000-00"
+                maxLength={18}
+              />
+              {errors.cnpj && <p className="text-red-500 text-sm mt-1">{errors.cnpj}</p>}
+              {cnpjValidating && <p className="text-blue-500 text-sm mt-1">Verificando CNPJ...</p>}
+              {cnpjExists && <p className="text-red-500 text-sm mt-1">CNPJ já cadastrado</p>}
+              {formData.cnpj && !cnpjValidating && !cnpjExists && validateCNPJ(formData.cnpj) && (
+                <p className="text-green-500 text-sm mt-1">✓ CNPJ disponível</p>
+              )}
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-gray-500">Preencha o CPF (pessoa física) ou o CNPJ (pessoa jurídica) do cliente — nunca os dois.</p>
+        </div>
+
+        {/* Telefone */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label htmlFor="telefone" className="block text-sm font-medium text-gray-700 mb-2">
               Telefone *
@@ -1120,7 +1312,7 @@ export default function EditarClientePage() {
           </button>
           <button
             type="submit"
-            disabled={saving || cpfExists || emailExists}
+            disabled={saving || cpfExists || cnpjExists || emailExists}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {saving ? 'Salvando...' : 'Salvar Alterações'}

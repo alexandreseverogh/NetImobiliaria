@@ -140,7 +140,7 @@ class TwoFactorAuthService {
           // Log de login para 2FA
           const username = await this.getUsernameById(userId);
           if (username) {
-            await this.log2FAAttempt(userId, username, '2fa_required', ipAddress || 'unknown', userAgent || 'unknown', true, null, tenantId);
+            await this.log2FAAttempt(userId, username, '2fa_required', ipAddress || 'unknown', userAgent || 'unknown', true, undefined, tenantId);
           }
 
           return true;
@@ -260,7 +260,7 @@ class TwoFactorAuthService {
       // Log de login para 2FA
       const username = await this.getUsernameById(userId);
       if (username) {
-        await this.log2FAAttempt(userId, username, '2fa_success', codeRecord.ip_address || 'unknown', codeRecord.user_agent || 'unknown', true, null, tenantId);
+        await this.log2FAAttempt(userId, username, '2fa_success', codeRecord.ip_address || 'unknown', codeRecord.user_agent || 'unknown', true, undefined, tenantId);
       }
 
       return {

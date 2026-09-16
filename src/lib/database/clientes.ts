@@ -10,10 +10,17 @@ import bcrypt from 'bcryptjs'
 // INTERFACES E TIPOS
 // ========================================
 
+// D2 (docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §4/§9.2) — discriminador explícito do que hoje é
+// uma tabela sobrecarregada com 3 conceitos distintos: 'conta_gerenciada' (empresa-cliente-da-
+// agência, tem segment_id/pixel/page/whatsapp — o client_id que perpassa Campanhas/CRM),
+// 'comprador_pj' e 'consumidor_pf' (pessoa física que virou lead/comprador).
+export type TipoCliente = 'conta_gerenciada' | 'comprador_pj' | 'consumidor_pf'
+
 export interface Cliente {
   uuid: string
   nome: string
-  cpf: string
+  cpf?: string
+  cnpj?: string
   telefone: string
   endereco?: string
   numero?: string
@@ -25,6 +32,7 @@ export interface Cliente {
   cidade_fk?: string
   cep?: string
   origem_cadastro?: string
+  tipo_cliente: TipoCliente
   tenant_id: string
   created_at: Date
   created_by?: string
@@ -34,7 +42,8 @@ export interface Cliente {
 
 export interface CreateClienteData {
   nome: string
-  cpf: string
+  cpf?: string
+  cnpj?: string
   telefone: string
   endereco?: string
   numero?: string
@@ -46,13 +55,17 @@ export interface CreateClienteData {
   cidade_fk?: string
   cep?: string
   origem_cadastro?: string
-  tenant_id: string
+  tipo_cliente?: TipoCliente
+  // Ausente/null pro cadastro público auto-atendido (consumidor_pf, sem empresa gestora) —
+  // ver checkCPFExists/checkEmailExists (IS NOT DISTINCT FROM) pro tratamento null-safe.
+  tenant_id?: string | null
   created_by?: string
 }
 
 export interface UpdateClienteData {
   nome?: string
   cpf?: string
+  cnpj?: string
   telefone?: string
   endereco?: string
   numero?: string
@@ -63,6 +76,7 @@ export interface UpdateClienteData {
   estado_fk?: string
   cidade_fk?: string
   cep?: string
+  tipo_cliente?: TipoCliente
   updated_by?: string
 }
 
@@ -70,9 +84,11 @@ export interface UpdateClienteData {
 export interface ClienteFilters {
   nome?: string
   cpf?: string
+  cnpj?: string
   estado?: string
   cidade?: string
   bairro?: string
+  tipo_cliente?: TipoCliente
   tenant_id: string
 }
 
@@ -80,34 +96,79 @@ export interface ClienteFilters {
 // FUNÇÕES DE VALIDAÇÃO
 // ========================================
 
-export function validateCPF(cpf: string): boolean {
+export function validateCPF(cpf: string, allowSpecialAdminCPF: boolean = false): boolean {
   const cleanCPF = cpf.replace(/\D/g, '')
-  
+
   if (cleanCPF.length !== 11) return false
+
+  // Regra Especial: CPF com tudo 9 permitido apenas em contexto administrativo
+  if (allowSpecialAdminCPF && cleanCPF === '99999999999') {
+    return true
+  }
+
   if (/^(\d)\1{10}$/.test(cleanCPF)) return false
-  
+
   let sum = 0
   for (let i = 0; i < 9; i++) {
     sum += parseInt(cleanCPF.charAt(i)) * (10 - i)
   }
   let remainder = sum % 11
   let firstDigit = remainder < 2 ? 0 : 11 - remainder
-  
+
   if (parseInt(cleanCPF.charAt(9)) !== firstDigit) return false
-  
+
   sum = 0
   for (let i = 0; i < 10; i++) {
     sum += parseInt(cleanCPF.charAt(i)) * (11 - i)
   }
   remainder = sum % 11
   let secondDigit = remainder < 2 ? 0 : 11 - remainder
-  
+
   return parseInt(cleanCPF.charAt(10)) === secondDigit
+}
+
+export function validateCNPJ(cnpj: string): boolean {
+  const cleanCNPJ = cnpj.replace(/\D/g, '')
+
+  if (cleanCNPJ.length !== 14) return false
+  if (/^(\d)\1{13}$/.test(cleanCNPJ)) return false
+
+  let length = cleanCNPJ.length - 2
+  let numbers = cleanCNPJ.substring(0, length)
+  const digits = cleanCNPJ.substring(length)
+  let sum = 0
+  let pos = length - 7
+
+  for (let i = length; i >= 1; i--) {
+    sum += parseInt(numbers.charAt(length - i)) * pos--
+    if (pos < 2) pos = 9
+  }
+
+  let result = sum % 11 < 2 ? 0 : 11 - (sum % 11)
+  if (result !== parseInt(digits.charAt(0))) return false
+
+  length = length + 1
+  numbers = cleanCNPJ.substring(0, length)
+  sum = 0
+  pos = length - 7
+
+  for (let i = length; i >= 1; i--) {
+    sum += parseInt(numbers.charAt(length - i)) * pos--
+    if (pos < 2) pos = 9
+  }
+
+  result = sum % 11 < 2 ? 0 : 11 - (sum % 11)
+  return result === parseInt(digits.charAt(1))
 }
 
 export function formatCPF(value: string): string {
   const cleanValue = value.replace(/\D/g, '')
   return cleanValue.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+}
+
+export function formatCNPJ(value: string): string {
+  const cleanValue = value.replace(/\D/g, '')
+  return cleanValue.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
 }
 
 export function validateTelefone(telefone: string): boolean {
@@ -142,9 +203,9 @@ export function formatCEP(value: string): string {
  * Buscar clientes com paginação e filtros
  */
 export async function findClientesPaginated(
-  page: number = 1, 
-  limit: number = 10, 
-  filters: ClienteFilters = {}
+  page: number = 1,
+  limit: number = 10,
+  filters: ClienteFilters
 ): Promise<{
   clientes: Cliente[]
   total: number
@@ -180,6 +241,13 @@ export async function findClientesPaginated(
       queryParams.push(`%${cleanCPF}%`)
     }
 
+    if (filters.cnpj) {
+      paramCount++
+      const cleanCNPJ = filters.cnpj.replace(/\D/g, '')
+      whereConditions.push(`REPLACE(REPLACE(REPLACE(cnpj, '.', ''), '/', ''), '-', '') ILIKE $${paramCount}`)
+      queryParams.push(`%${cleanCNPJ}%`)
+    }
+
     if (filters.estado) {
       paramCount++
       // Buscar pelo nome do estado baseado no ID selecionado
@@ -200,21 +268,28 @@ export async function findClientesPaginated(
       queryParams.push(`%${filters.bairro}%`)
     }
 
+    if (filters.tipo_cliente) {
+      paramCount++
+      whereConditions.push(`tipo_cliente = $${paramCount}`)
+      queryParams.push(filters.tipo_cliente)
+    }
+
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''
-    
+
     // Query para contar total de clientes com filtros
     const countQuery = `
       SELECT COUNT(*) as total
       FROM clientes
       ${whereClause}
     `
-    
+
     // Query para buscar clientes com paginação e filtros
     const dataQuery = `
-      SELECT 
+      SELECT
         uuid,
         nome,
         cpf,
+        cnpj,
         telefone,
         endereco,
         numero,
@@ -225,6 +300,7 @@ export async function findClientesPaginated(
         estado_fk,
         cidade_fk,
         cep,
+        tipo_cliente,
         tenant_id,
         created_at,
         created_by,
@@ -265,6 +341,7 @@ export async function findClienteByUuid(uuid: string): Promise<Cliente | null> {
           uuid,
           nome,
           cpf,
+          cnpj,
           telefone,
           endereco,
           numero,
@@ -277,6 +354,7 @@ export async function findClienteByUuid(uuid: string): Promise<Cliente | null> {
           cep,
           tenant_id,
           origem_cadastro,
+          tipo_cliente,
           logo_url,
           created_at,
           created_by,
@@ -298,38 +376,70 @@ export async function findClienteByUuid(uuid: string): Promise<Cliente | null> {
 // Criar cliente
 export async function createCliente(data: CreateClienteData): Promise<Cliente> {
   try {
-    // Validar CPF
-    if (!validateCPF(data.cpf)) {
-      throw new Error('CPF Inválido')
+    // Validar CPF ou CNPJ (mutuamente exclusivos — mesmo padrão de proprietarios.ts)
+    if (data.cpf && data.cpf.trim() !== '') {
+      if (!validateCPF(data.cpf)) {
+        throw new Error('CPF Inválido')
+      }
+      // Se preencheu CPF, garantir que CNPJ seja nulo
+      data.cnpj = undefined
+    } else if (data.cnpj && data.cnpj.trim() !== '') {
+      if (!validateCNPJ(data.cnpj)) {
+        throw new Error('CNPJ Inválido')
+      }
+      // Se preencheu CNPJ, garantir que CPF seja nulo
+      data.cpf = undefined
+    } else {
+      throw new Error('CPF ou CNPJ deve ser informado')
     }
-    
-    // Verificar se CPF já existe no mesmo tenant
-    const existingCPF = await pool.query('SELECT 1 FROM clientes WHERE cpf = $1 AND tenant_id = $2', [data.cpf, data.tenant_id])
-    if (existingCPF.rows.length > 0) {
-      throw new Error('CPF já cadastrado nesta imobiliária')
+
+    // tenant_id normalizado pra null explícito — IS NOT DISTINCT FROM trata NULL corretamente
+    // (cadastro público/consumidor_pf não tem tenant; "=" nunca bate com NULL em SQL)
+    const tenantIdNormalizado = data.tenant_id || null
+
+    // Verificar se CPF já existe no mesmo tenant (ou no pool público, se tenant_id for null)
+    if (data.cpf) {
+      const existingCPF = await pool.query('SELECT 1 FROM clientes WHERE cpf = $1 AND tenant_id IS NOT DISTINCT FROM $2', [data.cpf, tenantIdNormalizado])
+      if (existingCPF.rows.length > 0) {
+        throw new Error('CPF já cadastrado')
+      }
     }
-    
-    // Verificar se email já existe no mesmo tenant
+
+    // Verificar se CNPJ já existe no mesmo tenant (ou no pool público, se tenant_id for null)
+    if (data.cnpj) {
+      const existingCNPJ = await pool.query('SELECT 1 FROM clientes WHERE cnpj = $1 AND tenant_id IS NOT DISTINCT FROM $2', [data.cnpj, tenantIdNormalizado])
+      if (existingCNPJ.rows.length > 0) {
+        throw new Error('CNPJ já cadastrado')
+      }
+    }
+
+    // Verificar se email já existe no mesmo tenant (ou no pool público, se tenant_id for null)
     if (data.email) {
-      const existingEmail = await pool.query('SELECT 1 FROM clientes WHERE email = $1 AND tenant_id = $2', [data.email, data.tenant_id])
+      const existingEmail = await pool.query('SELECT 1 FROM clientes WHERE email = $1 AND tenant_id IS NOT DISTINCT FROM $2', [data.email, tenantIdNormalizado])
       if (existingEmail.rows.length > 0) {
-        throw new Error('Email já cadastrado nesta imobiliária')
+        throw new Error('Email já cadastrado')
       }
     }
     
     // Hash da senha
     const hashedPassword = await bcrypt.hash(data.password || 'Net123456', 10)
     
+    // Sem tipo_cliente explícito, deriva da mesma regra do backfill (D2): 'Plataforma' é sempre
+    // conta-da-agência (o único fluxo real que hoje cria cliente por aqui), 'Publico' é consumidor.
+    const origemCadastro = data.origem_cadastro || 'Plataforma'
+    const tipoCliente = data.tipo_cliente || (origemCadastro === 'Publico' ? 'consumidor_pf' : 'conta_gerenciada')
+
     const result = await pool.query(`
       INSERT INTO clientes (
-        nome, cpf, telefone, endereco, numero, bairro, complemento,
-        password, email, estado_fk, cidade_fk, cep, 
-        origem_cadastro, created_by, tenant_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        nome, cpf, cnpj, telefone, endereco, numero, bairro, complemento,
+        password, email, estado_fk, cidade_fk, cep,
+        origem_cadastro, tipo_cliente, created_by, tenant_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING *
     `, [
       data.nome,
-      data.cpf,
+      data.cpf || null,
+      data.cnpj || null,
       data.telefone,
       data.endereco,
       data.numero,
@@ -340,9 +450,10 @@ export async function createCliente(data: CreateClienteData): Promise<Cliente> {
       data.estado_fk || null,
       data.cidade_fk || null,
       data.cep,
-      data.origem_cadastro || 'Plataforma',
+      origemCadastro,
+      tipoCliente,
       data.created_by || 'system',
-      data.tenant_id
+      tenantIdNormalizado
     ])
     
     return result.rows[0]
@@ -353,36 +464,59 @@ export async function createCliente(data: CreateClienteData): Promise<Cliente> {
 }
 
 // Atualizar cliente
-export async function updateClienteByUuid(uuid: string, tenantId: string, data: UpdateClienteData): Promise<Cliente> {
+export async function updateClienteByUuid(uuid: string, tenantId: string | null, data: UpdateClienteData): Promise<Cliente> {
   try {
     if (!uuid || typeof uuid !== 'string') {
       throw new Error('UUID inválido para atualização de cliente')
     }
 
-    // Validar CPF se fornecido
-    if (data.cpf && !validateCPF(data.cpf)) {
-      throw new Error('CPF Inválido')
+    // Validar CPF se fornecido e não vazio — se preenchido, CNPJ deve ser zerado
+    if (data.cpf && data.cpf.trim() !== '') {
+      if (!validateCPF(data.cpf)) {
+        throw new Error('CPF Inválido')
+      }
+      data.cnpj = null as any
     }
-    
-    // Verificar se CPF já existe no mesmo tenant (excluindo o próprio registro)
+
+    // Validar CNPJ se fornecido e não vazio — se preenchido, CPF deve ser zerado
+    if (data.cnpj && data.cnpj.trim() !== '') {
+      if (!validateCNPJ(data.cnpj)) {
+        throw new Error('CNPJ Inválido')
+      }
+      data.cpf = null as any
+    }
+
+    // Verificar se CPF já existe no mesmo tenant (excluindo o próprio registro) — IS NOT
+    // DISTINCT FROM trata null (cliente público, sem tenant) corretamente, "=" nunca bate com NULL
     if (data.cpf) {
       const existingCPF = await pool.query(
-        'SELECT 1 FROM clientes WHERE cpf = $1 AND tenant_id = $2 AND uuid != $3',
+        'SELECT 1 FROM clientes WHERE cpf = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND uuid != $3',
         [data.cpf, tenantId, uuid]
       )
       if (existingCPF.rows.length > 0) {
-        throw new Error('CPF já cadastrado nesta imobiliária')
+        throw new Error('CPF já cadastrado')
       }
     }
-    
+
+    // Verificar se CNPJ já existe no mesmo tenant (excluindo o próprio registro)
+    if (data.cnpj) {
+      const existingCNPJ = await pool.query(
+        'SELECT 1 FROM clientes WHERE cnpj = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND uuid != $3',
+        [data.cnpj, tenantId, uuid]
+      )
+      if (existingCNPJ.rows.length > 0) {
+        throw new Error('CNPJ já cadastrado')
+      }
+    }
+
     // Verificar se email já existe no mesmo tenant (excluindo o próprio registro)
     if (data.email) {
       const existingEmail = await pool.query(
-        'SELECT 1 FROM clientes WHERE email = $1 AND tenant_id = $2 AND uuid != $3',
+        'SELECT 1 FROM clientes WHERE email = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND uuid != $3',
         [data.email, tenantId, uuid]
       )
       if (existingEmail.rows.length > 0) {
-        throw new Error('Email já cadastrado nesta imobiliária')
+        throw new Error('Email já cadastrado')
       }
     }
     
@@ -398,9 +532,14 @@ export async function updateClienteByUuid(uuid: string, tenantId: string, data: 
     
     if (data.cpf !== undefined) {
       fields.push(`cpf = $${++paramCount}`)
-      values.push(data.cpf)
+      values.push(data.cpf || null)
     }
-    
+
+    if (data.cnpj !== undefined) {
+      fields.push(`cnpj = $${++paramCount}`)
+      values.push(data.cnpj || null)
+    }
+
     if (data.telefone !== undefined) {
       fields.push(`telefone = $${++paramCount}`)
       values.push(data.telefone)
@@ -445,7 +584,12 @@ export async function updateClienteByUuid(uuid: string, tenantId: string, data: 
       fields.push(`cep = $${++paramCount}`)
       values.push(data.cep)
     }
-    
+
+    if (data.tipo_cliente !== undefined) {
+      fields.push(`tipo_cliente = $${++paramCount}`)
+      values.push(data.tipo_cliente)
+    }
+
     if (data.password !== undefined) {
       const hashedPassword = await bcrypt.hash(data.password, 10)
       fields.push(`password = $${++paramCount}`)
@@ -462,9 +606,9 @@ export async function updateClienteByUuid(uuid: string, tenantId: string, data: 
     }
     
     const query = `
-      UPDATE clientes 
+      UPDATE clientes
       SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP
-      WHERE uuid = $${paramCount + 1} AND tenant_id = $${paramCount + 2}
+      WHERE uuid = $${paramCount + 1} AND tenant_id IS NOT DISTINCT FROM $${paramCount + 2}
       RETURNING *
     `
     
@@ -497,13 +641,13 @@ export async function deleteClienteByUuid(uuid: string, tenantId: string): Promi
   }
 }
 
-// Verificar se CPF já existe no tenant
-export async function checkCPFExists(cpf: string, tenantId: string, excludeUuid?: string): Promise<boolean> {
+// Verificar se CPF já existe no tenant (tenantId=null => pool público, sem empresa gestora)
+export async function checkCPFExists(cpf: string, tenantId: string | null, excludeUuid?: string): Promise<boolean> {
   try {
     const cpfRaw = String(cpf || '')
     const cpfDigits = cpfRaw.replace(/\D/g, '')
     let query =
-      "SELECT 1 FROM clientes WHERE (cpf = $1 OR REPLACE(REPLACE(cpf, '.', ''), '-', '') = $2) AND tenant_id = $3"
+      "SELECT 1 FROM clientes WHERE (cpf = $1 OR REPLACE(REPLACE(cpf, '.', ''), '-', '') = $2) AND tenant_id IS NOT DISTINCT FROM $3"
     const params: any[] = [cpfRaw, cpfDigits, tenantId]
     
     if (excludeUuid) {
@@ -519,10 +663,32 @@ export async function checkCPFExists(cpf: string, tenantId: string, excludeUuid?
   }
 }
 
-// Verificar se Email já existe no tenant
-export async function checkEmailExists(email: string, tenantId: string, excludeUuid?: string): Promise<boolean> {
+// Verificar se CNPJ já existe no tenant (tenantId=null => pool público, sem empresa gestora)
+export async function checkCNPJExists(cnpj: string, tenantId: string | null, excludeUuid?: string): Promise<boolean> {
   try {
-    let query = 'SELECT 1 FROM clientes WHERE LOWER(email) = LOWER($1) AND tenant_id = $2'
+    const cnpjRaw = String(cnpj || '')
+    const cnpjDigits = cnpjRaw.replace(/\D/g, '')
+    let query =
+      "SELECT 1 FROM clientes WHERE (cnpj = $1 OR REPLACE(REPLACE(REPLACE(cnpj, '.', ''), '/', ''), '-', '') = $2) AND tenant_id IS NOT DISTINCT FROM $3"
+    const params: any[] = [cnpjRaw, cnpjDigits, tenantId]
+
+    if (excludeUuid) {
+      query += ' AND uuid != $4'
+      params.push(excludeUuid)
+    }
+
+    const result = await pool.query(query, params)
+    return result.rows.length > 0
+  } catch (error) {
+    console.error('❌ Erro ao verificar CNPJ:', error)
+    throw error
+  }
+}
+
+// Verificar se Email já existe no tenant (tenantId=null => pool público, sem empresa gestora)
+export async function checkEmailExists(email: string, tenantId: string | null, excludeUuid?: string): Promise<boolean> {
+  try {
+    let query = 'SELECT 1 FROM clientes WHERE LOWER(email) = LOWER($1) AND tenant_id IS NOT DISTINCT FROM $2'
     const params: any[] = [email, tenantId]
     
     if (excludeUuid) {

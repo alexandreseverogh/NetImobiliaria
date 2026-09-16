@@ -30,7 +30,14 @@ export default function SafeImage({
 
   const isHttp = resolvedSrc.startsWith('http://') || resolvedSrc.startsWith('https://')
 
-  const shouldUnoptimize = isDataLike || (!isHttp && !resolvedSrc.startsWith('/'))
+  // /api/public/imagens/[id] redireciona (302) pro storage real (MinIO/S3) em vez de
+  // reenviar os bytes — o otimizador do Next, pra URLs relativas, chama a rota diretamente
+  // em processo (não segue o redirect como um fetch de verdade faria), então recebe uma
+  // resposta vazia e quebra ("Input Buffer is empty"). Sem otimizar, o navegador carrega a
+  // <img> direto e segue o redirect normalmente.
+  const isRedirectBasedImageRoute = resolvedSrc.startsWith('/api/public/imagens/')
+
+  const shouldUnoptimize = isDataLike || isRedirectBasedImageRoute || (!isHttp && !resolvedSrc.startsWith('/'))
 
   if (fill) {
     return (

@@ -169,7 +169,7 @@ export async function DELETE(
 
 function getUserIdFromRequest(request: NextRequest): string | null {
   try {
-    const cookie = request.cookies.get('accessToken');
+    const cookie = request.cookies.get('admin_auth_token');
     if (cookie?.value) {
       const payload = verifyTokenNode(cookie.value);
       return payload?.userId || null;

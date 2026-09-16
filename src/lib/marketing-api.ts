@@ -51,6 +51,10 @@ export interface Campaign {
   funnelStage?: string;
   createdAt: string;
   adSets: AdSet[];
+  // Filtro "vigente" do dropdown de campanhas do Dashboard — lifecycleStatus != KILLED e
+  // atividade real (Insight) ou criação dentro de AGENT_INSIGHT_RECENCY_DAYS. Não afeta
+  // nenhum cálculo — só o que aparece por padrão na lista.
+  isVigente?: boolean;
 }
 
 export interface AdSet {
@@ -172,7 +176,7 @@ export const syncInsights = () =>
 export const getAiInsights = (params?: {
   campaignId?: string; clientId?: ClientFilter; segmentId?: string;
   objectiveFilter?: string; statusFilter?: string; adSetId?: string;
-  startDate?: string; endDate?: string;
+  startDate?: string; endDate?: string; network?: string;
 }) => api.get('/insights/ai', { params }).then(r => r.data);
 
 // ─── Leads ────────────────────────────────────────────────────────────────────
@@ -256,6 +260,10 @@ export interface LlmSettings {
   llmModel: string;
   llmApiKeyMasked: string;
   llmApiKeySet: boolean;
+  /** Só presente na chamada sem clientId (nível tenant) — se o valor acima veio de uma
+   *  linha própria do tenant, ou foi herdado da cascata (segmento/global/default de código). */
+  isTenantOverride?: boolean;
+  inheritedFrom?: 'segment' | 'global' | 'default' | null;
 }
 
 export interface LlmModelOption {
@@ -277,14 +285,19 @@ export interface LlmModelsResponse {
   flat: LlmModelOption[];
 }
 
-export const getLlmSettings = () =>
-  api.get<LlmSettings>('/settings/llm').then(r => r.data);
+// clientId opcional (docs/CHECKPOINT.md, 2026-08-28) — cascata Cliente→Tenant→Segmento→Global,
+// só CRM/Mensageria. Sem clientId, opera na config do próprio tenant (comportamento de sempre).
+export const getLlmSettings = (clientId?: string | null) =>
+  api.get<LlmSettings>('/settings/llm', { params: clientId ? { clientId } : undefined }).then(r => r.data);
 
 export const getLlmModels = () =>
   api.get<LlmModelsResponse>('/settings/llm/models').then(r => r.data);
 
-export const updateLlmSettings = (data: { llmProvider?: string; llmModel?: string; llmApiKey?: string }) =>
+export const updateLlmSettings = (data: { llmProvider?: string; llmModel?: string; llmApiKey?: string; clientId?: string | null }) =>
   api.put('/settings/llm', data).then(r => r.data);
+
+export const deleteLlmSettings = (clientId: string) =>
+  api.delete('/settings/llm', { params: { clientId } }).then(r => r.data);
 
 export const testLlmConnection = () =>
   api.post<{ success: boolean; provider: string; model: string; response?: string; error?: string }>('/settings/llm/test').then(r => r.data);
@@ -356,6 +369,7 @@ export interface DashboardTotals {
   ctr: number;
   cpc: number;
   cpm: number;
+  spendByNetwork?: Record<string, number>;
 }
 
 export interface DashboardFullData {
@@ -365,6 +379,17 @@ export interface DashboardFullData {
   campaigns: Campaign[];
   adSets: { id: string; name: string; campaignId: string; campaignName: string }[];
   dailyLeads: { date: string; count: number }[];
+  leadsByNetwork?: Record<string, number>;
+  // Leads reais por campanha — alimenta "Onde está o Dinheiro?" (antes lia c.spend/c.leads,
+  // campos que nunca existiram no model Campaign — sempre mostrava R$ 0,00 / 0 leads)
+  leadsByCampaign?: Record<string, number>;
+  // FASE 1 (Google Ads) A7 — comparativo CPL por rede (meta/google/...)
+  cplByNetwork?: Record<string, { spend: number; leads: number; cpl: number | null }>;
+  // PARTE D1 — redes com dado real no escopo atual (antes do filtro de rede), alimenta o seletor
+  availableNetworks?: string[];
+  // Subconjunto de availableNetworks que NÃO está mais contratado pelo tenant agora — dado
+  // histórico continua contando nos cálculos (nunca escondido retroativamente), só avisa.
+  discontinuedNetworks?: string[];
   funnelData: FunnelData;
 }
 
@@ -431,6 +456,7 @@ export interface FunnelData7 {
 export const getFunnelData = (params?: {
   startDate?: string; endDate?: string; clientId?: ClientFilter; segmentId?: string;
   campaignId?: string; objectiveFilter?: string; statusFilter?: string; adSetId?: string;
+  network?: string;
 }) => api.get<FunnelData7>('/dashboard/funnel', { params }).then(r => r.data);
 
 export const generateFunnelDiagnosis = (body: {
@@ -453,13 +479,24 @@ export const getDashboardFull = (params?: {
   objectiveFilter?: string;
   statusFilter?: string;
   adSetId?: string;
+  network?: string;
 }) => api.get<DashboardFullData>('/dashboard/full', { params }).then(r => r.data);
 
 export const getDashboardPredictions = (params?: {
   campaignId?: string; clientId?: ClientFilter; segmentId?: string; days?: number;
   objectiveFilter?: string; statusFilter?: string; adSetId?: string;
-  startDate?: string; endDate?: string;
+  startDate?: string; endDate?: string; network?: string;
 }) => api.get<PredictionData>('/dashboard/predictions', { params }).then(r => r.data);
+
+export interface CplTimelinePoint { date: string; spend: number; leads: number; cpl: number }
+export interface CplTimelineData {
+  data: CplTimelinePoint[];
+  totals: { spend: number; leads: number; cpl: number };
+}
+
+export const getCplTimeline = (params?: {
+  startDate?: string; endDate?: string; clientId?: ClientFilter; segmentId?: string; campaignId?: string;
+}) => api.get<CplTimelineData>('/dashboard/cpl', { params }).then(r => r.data);
 
 /* ──────────────────────────────────────────────────────────────
    FASE 8 — Tracking Health Monitor
@@ -578,6 +615,7 @@ export const getAnticipation = (params?: {
   clientId?: ClientFilter;
   segmentId?: string;
   campaignId?: string;
+  network?: string;
 }) => api.get<AnticipationResult[]>('/dashboard/anticipation', { params }).then(r => r.data);
 
 export const getCalibrationInsights = (params?: {
@@ -662,5 +700,38 @@ export const getCrossInsights = (params?: { period?: number }) =>
 
 export const generateCrossInsightsNarrative = (params?: { period?: number }) =>
   api.post<CrossInsightsData>('/campanhas/portfolio/cross-insights', params ?? {}).then(r => r.data);
+
+/* ──────────────────────────────────────────────────────────────
+   FASE 1 (Google Ads) A7 — drill-down de Search Terms
+────────────────────────────────────────────────────────────── */
+
+export interface GoogleSearchTermRow {
+  campaignId: string;
+  searchTerm: string;
+  matchType: string;
+  status: string;
+  impressions: number;
+  clicks: number;
+  cost: number;
+  conversions: number;
+}
+
+export interface GoogleCampaignSummary {
+  id: string;
+  name: string;
+  avgSearchBudgetLostIs: number;
+  roas: number | null;
+}
+
+export interface GoogleSearchTermsData {
+  campaigns: GoogleCampaignSummary[];
+  terms: GoogleSearchTermRow[];
+}
+
+export const getGoogleSearchTerms = (params?: { campaignId?: string; status?: string; windowDays?: number }) =>
+  api.get<GoogleSearchTermsData>('/google/search-terms', { params }).then(r => r.data);
+
+export const negateGoogleSearchTerm = (data: { campaignId: string; searchTerm: string; matchType: string }) =>
+  api.post<{ ok: boolean }>('/google/search-terms/negate', data).then(r => r.data);
 
 export default api;

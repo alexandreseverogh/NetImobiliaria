@@ -218,10 +218,28 @@ export async function POST(request: NextRequest) {
     console.error('❌ ERRO CRÍTICO NO POST /api/admin/proprietarios:', error)
     console.error('Stack Trace:', error.stack)
 
-    if (error.message === 'CPF já cadastrado' || error.message === 'CNPJ já cadastrado' || error.message === 'Email já cadastrado') {
+    // startsWith em vez de === — mesmo bug já corrigido em /api/admin/clientes: comparar a
+    // mensagem exata é frágil (bastou o texto de createProprietario mudar levemente pra essa
+    // checagem parar de bater e o erro, foreseeable, cair sempre no 500 genérico abaixo).
+    if (
+      error.message?.startsWith('CPF já cadastrado') ||
+      error.message?.startsWith('CNPJ já cadastrado') ||
+      error.message?.startsWith('Email já cadastrado')
+    ) {
       return NextResponse.json(
         { error: error.message },
         { status: 409 }
+      )
+    }
+
+    if (
+      error.message === 'CPF Inválido' ||
+      error.message === 'CNPJ Inválido' ||
+      error.message === 'CPF ou CNPJ deve ser informado'
+    ) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
       )
     }
 

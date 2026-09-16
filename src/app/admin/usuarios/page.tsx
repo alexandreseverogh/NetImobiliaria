@@ -12,6 +12,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { Eye, EyeOff } from 'lucide-react'
 import { formatCPF, validateCPF } from '@/lib/utils/formatters'
 import Pagination from '@/components/admin/Pagination'
+import DateInputPtBR from '@/components/ui/DateInputPtBR'
 
 interface User {
   id: string
@@ -19,6 +20,9 @@ interface User {
   email: string
   nome: string
   telefone: string
+  /** Se true, existe foto real — servida via GET /api/admin/usuarios/{id}/foto (S3/MinIO
+   *  com redirect 302, ou streaming do bytea legado). Nunca embutida no payload da lista. */
+  has_foto?: boolean
 
   role_name?: string
   role_description?: string
@@ -26,13 +30,28 @@ interface User {
   ativo: boolean
   isencao?: boolean
   is_plantonista?: boolean
+  /** Se o cargo deste usuário, neste tenant, foi curado como elegível para plantão
+   *  (user_roles.elegivel_plantonista) — dirige se o admin pode marcar/desmarcar por aqui. */
+  elegivel_plantonista?: boolean
+  /** Tenant do vínculo que a lista está mostrando pra este usuário — necessário pra Master,
+   *  cuja listagem cruza tenants; admin de tenant nunca precisa disso (o servidor sempre usa
+   *  o próprio tenant da sessão, nunca confia no que vier do cliente). */
+  current_tenant_id?: string
   tipo_corretor?: 'Interno' | 'Externo' | null
+  indisponivel_ate?: string | null
+  indisponivel_motivo?: string | null
   ultimo_login: string | null
   created_at: string
   two_factor_enabled?: boolean
   two_factor_method?: string
   is_active_in_tenant?: boolean
   google_calendar_authorized?: boolean
+}
+
+/** Ausência vale só enquanto a data de retorno está no futuro — expirou, a pessoa volta
+ *  sozinha à fila, sem ninguém precisar lembrar de "desmarcar". */
+function isIndisponivel(u: { indisponivel_ate?: string | null }): boolean {
+  return !!u.indisponivel_ate && new Date(u.indisponivel_ate).getTime() > Date.now()
 }
 
 interface UserRole {
@@ -62,6 +81,8 @@ function UsuariosAdminInner() {
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [showEditForm, setShowEditForm] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [ausenciaUser, setAusenciaUser] = useState<User | null>(null)
+  const [salvandoAusencia, setSalvandoAusencia] = useState(false)
   const [userPermissions, setUserPermissions] = useState<any>(null)
 
   // Estados de paginação
@@ -204,6 +225,48 @@ function UsuariosAdminInner() {
       setEditingUser(user)
       setShowEditForm(true)
     }
+  }
+
+  // --- Disponibilidade do atendente (docs/PLANO_PENDENCIA_ATENDIMENTO.md §4.1) ---
+
+  const salvarAusencia = async (ate: string, motivo: string) => {
+    if (!ausenciaUser) return
+    setSalvandoAusencia(true)
+    try {
+      const res = await patch(`/api/admin/usuarios/${ausenciaUser.id}/disponibilidade`, {
+        indisponivel_ate: ate, motivo,
+      })
+      if ((res as any)?.error) { alert((res as any).error); return }
+      setAusenciaUser(null)
+      fetchUsers()
+    } finally {
+      setSalvandoAusencia(false)
+    }
+  }
+
+  const handleLiberarDisponibilidade = async (user: User) => {
+    if (!confirm(`Marcar ${user.nome} como disponível? Ele volta a receber leads novos.`)) return
+    const res = await patch(`/api/admin/usuarios/${user.id}/disponibilidade`, { indisponivel_ate: null })
+    if ((res as any)?.error) { alert((res as any).error); return }
+    fetchUsers()
+  }
+
+  // --- Plantonista: contraparte administrativa do autoatendimento (avatar do próprio
+  // usuário). Permite ao admin marcar/desmarcar alguém sem depender de a pessoa logar e
+  // ligar o toggle sozinha — útil pra montar a escala com antecedência. Servidor revalida a
+  // elegibilidade sempre; esta ação só aparece quando o cargo do usuário já é elegível.
+  const handleTogglePlantonista = async (user: User) => {
+    const next = !user.is_plantonista
+    if (!confirm(next
+      ? `Marcar ${user.nome} como plantonista?`
+      : `Remover ${user.nome} do plantão?`)) return
+    const res = await patch(`/api/admin/usuarios/${user.id}/plantonista`, {
+      active: next,
+      tenant_id: user.current_tenant_id,
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { alert(data.error || 'Erro ao atualizar plantão.'); return }
+    fetchUsers()
   }
 
   const handleToggleStatus = async (userId: string, currentStatus: boolean) => {
@@ -526,11 +589,19 @@ function UsuariosAdminInner() {
                     <td className="px-6 py-4">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-8 w-8">
-                          <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
-                            <span className="text-xs font-medium text-blue-600">
-                              {user.nome?.charAt(0)?.toUpperCase() || user.username?.charAt(0)?.toUpperCase() || 'U'}
-                            </span>
-                          </div>
+                          {user.has_foto ? (
+                            <img
+                              src={`/api/admin/usuarios/${user.id}/foto`}
+                              alt={user.nome}
+                              className="h-8 w-8 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
+                              <span className="text-xs font-medium text-blue-600">
+                                {user.nome?.charAt(0)?.toUpperCase() || user.username?.charAt(0)?.toUpperCase() || 'U'}
+                              </span>
+                            </div>
+                          )}
                         </div>
                         <div className="ml-3">
                           <div className="text-sm font-medium text-gray-900 truncate">
@@ -553,6 +624,19 @@ function UsuariosAdminInner() {
                         <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 w-fit">
                           {user.role_name || 'Sem perfil'}
                         </span>
+                        {/* Ausência vale para QUALQUER cargo, não só "Corretor": o cargo usado
+                            pela distribuição é configurável por segmento
+                            (system_segments.distribution_role_name). Prender este badge a um
+                            nome de cargo fixo seria a mesma suposição por vertical que o resto
+                            da plataforma já removeu. */}
+                        {isIndisponivel(user) && (
+                          <span
+                            className="inline-flex px-1.5 py-0.5 text-[10px] font-bold rounded bg-orange-100 text-orange-700 uppercase w-fit"
+                            title={`Não recebe leads novos até ${new Date(user.indisponivel_ate!).toLocaleDateString('pt-BR')}${user.indisponivel_motivo ? ` — ${user.indisponivel_motivo}` : ''}`}
+                          >
+                            Ausente
+                          </span>
+                        )}
                         {user.role_name === 'Corretor' && (
                           <div className="flex flex-col gap-1 mt-1 border-t border-gray-100 pt-1">
                             {user.tipo_corretor && (
@@ -560,18 +644,19 @@ function UsuariosAdminInner() {
                                 Tipo: {user.tipo_corretor}
                               </span>
                             )}
-                            <div className="flex flex-wrap gap-1">
-                              <span className={`inline-flex px-1.5 py-0.5 text-[10px] font-semibold rounded w-fit ${user.isencao ? 'bg-amber-100 text-amber-900' : 'bg-gray-100 text-gray-700'
-                                }`}>
-                                {user.isencao ? 'Isento' : 'Não isento'}
-                              </span>
-                              {user.is_plantonista && (
-                                <span className="inline-flex px-1.5 py-0.5 text-[10px] font-bold rounded bg-red-100 text-red-600 uppercase">
-                                  Plantonista
-                                </span>
-                              )}
-                            </div>
+                            <span className={`inline-flex px-1.5 py-0.5 text-[10px] font-semibold rounded w-fit ${user.isencao ? 'bg-amber-100 text-amber-900' : 'bg-gray-100 text-gray-700'
+                              }`}>
+                              {user.isencao ? 'Isento' : 'Não isento'}
+                            </span>
                           </div>
+                        )}
+                        {/* Plantonista é elegibilidade por PERFIL (user_roles.elegivel_plantonista),
+                            não amarrado a nenhum nome de role hardcoded — funciona pra qualquer
+                            segmento de negócio, não só "Corretor" */}
+                        {user.is_plantonista && (
+                          <span className="inline-flex px-1.5 py-0.5 text-[10px] font-bold rounded bg-red-100 text-red-600 uppercase mt-1 w-fit">
+                            Plantonista
+                          </span>
                         )}
                       </div>
                     </td>
@@ -659,6 +744,48 @@ function UsuariosAdminInner() {
 
                     <td className="px-6 py-4 text-right whitespace-nowrap text-sm font-medium">
                       <div className="flex justify-end items-center gap-2">
+                        {/* Disponibilidade — ação operacional do dia a dia (atestado/férias),
+                            separada da edição de cadastro. Enquanto ausente, o atendente sai da
+                            fila de distribuição e não é punido por perder lead reatribuído.
+                            Ver docs/PLANO_PENDENCIA_ATENDIMENTO.md §4.1. */}
+                        <PermissionGuard resource="usuarios" action="UPDATE">
+                          <button
+                            onClick={() => isIndisponivel(user) ? handleLiberarDisponibilidade(user) : setAusenciaUser(user)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center border ${
+                              isIndisponivel(user)
+                                ? 'text-orange-700 bg-orange-50 hover:bg-orange-100 border-orange-100'
+                                : 'text-gray-600 bg-gray-50 hover:bg-gray-100 border-gray-100'
+                            }`}
+                            title={isIndisponivel(user)
+                              ? 'Marcar como disponível — volta a receber leads'
+                              : 'Marcar ausência temporária (férias/atestado) — para de receber leads novos'}
+                          >
+                            {isIndisponivel(user) ? 'Liberar' : 'Ausência'}
+                          </button>
+                        </PermissionGuard>
+
+                        {/* Plantonista — contraparte administrativa do autoatendimento (menu
+                            do avatar do próprio usuário). Só aparece quando o cargo dele
+                            NESTE tenant já foi curado como elegível em Perfis; o servidor
+                            revalida isso de novo antes de gravar, nunca confia só na UI. */}
+                        {user.elegivel_plantonista && (
+                          <PermissionGuard resource="usuarios" action="UPDATE">
+                            <button
+                              onClick={() => handleTogglePlantonista(user)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center border ${
+                                user.is_plantonista
+                                  ? 'text-red-700 bg-red-50 hover:bg-red-100 border-red-100'
+                                  : 'text-gray-600 bg-gray-50 hover:bg-gray-100 border-gray-100'
+                              }`}
+                              title={user.is_plantonista
+                                ? 'Remover este usuário do plantão'
+                                : 'Marcar este usuário como plantonista'}
+                            >
+                              {user.is_plantonista ? 'Tirar de Plantão' : 'Pôr de Plantão'}
+                            </button>
+                          </PermissionGuard>
+                        )}
+
                         {/* Botão Editar - Com verificação hierárquica + permissão CRUD */}
                         <PermissionGuard resource="usuarios" action="UPDATE">
                           {canEditUser(user) ? (
@@ -779,6 +906,94 @@ function UsuariosAdminInner() {
         user={editingUser}
         roles={roles.filter(r => (loggedUser?.is_system_role) || (r.level < (loggedUser?.role_level || 0)))}
       />
+
+      {ausenciaUser && (
+        <AusenciaModal
+          user={ausenciaUser}
+          saving={salvandoAusencia}
+          onClose={() => setAusenciaUser(null)}
+          onSave={salvarAusencia}
+        />
+      )}
+    </div>
+  )
+}
+
+/**
+ * Ausência temporária do atendente (docs/PLANO_PENDENCIA_ATENDIMENTO.md §4.1).
+ * Exige data de retorno em vez de um booleano "ausente": um toggle sem prazo depende de
+ * alguém lembrar de desmarcar, e quem esquece deixa o atendente fora da fila indefinidamente.
+ * Com data, a pessoa volta sozinha.
+ */
+function AusenciaModal({
+  user, saving, onClose, onSave,
+}: {
+  user: { id: string; nome: string }
+  saving: boolean
+  onClose: () => void
+  onSave: (ate: string, motivo: string) => void
+}) {
+  const [ate, setAte] = useState('')
+  const [motivo, setMotivo] = useState('')
+
+  // DateInputPtBR não expõe `min` — a validação de "precisa ser no futuro" (o backend já
+  // recusa retroativo/hoje) fica aqui, como mensagem inline, em vez de um atributo do input.
+  const amanha = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+  const dataInvalida = ate !== '' && ate < amanha
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6">
+        <h3 className="text-lg font-bold text-gray-900">Marcar ausência</h3>
+        <p className="mt-1 text-sm text-gray-600">
+          <span className="font-semibold">{user.nome}</span> deixa de receber leads novos até a
+          data de retorno. Os leads que já estão com ele passam direto para a etapa de
+          escalonamento e, se ninguém agir, são reatribuídos automaticamente — <span className="font-semibold">sem
+          penalidade para ele</span>.
+        </p>
+
+        <div className="mt-5 space-y-4">
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wide text-gray-500 mb-1">
+              Retorna em
+            </label>
+            <DateInputPtBR
+              value={ate}
+              onChange={setAte}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {dataInvalida && (
+              <p className="mt-1 text-xs font-medium text-red-600">A data de retorno precisa ser no futuro.</p>
+            )}
+          </div>
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wide text-gray-500 mb-1">
+              Motivo (opcional)
+            </label>
+            <input
+              type="text"
+              value={motivo}
+              onChange={e => setMotivo(e.target.value)}
+              placeholder="Ex.: Atestado médico, Férias"
+              maxLength={120}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+
+        <div className="mt-6 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900">
+            Cancelar
+          </button>
+          <button
+            onClick={() => onSave(ate, motivo)}
+            disabled={!ate || dataInvalida || saving}
+            className="px-4 py-2 text-sm font-bold text-white bg-orange-600 hover:bg-orange-500 disabled:opacity-50 rounded-lg"
+          >
+            {saving ? 'Salvando...' : 'Marcar ausência'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

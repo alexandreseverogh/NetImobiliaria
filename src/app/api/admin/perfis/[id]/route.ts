@@ -100,7 +100,7 @@ export async function GET(
     console.log('🔍 DEBUG - API /perfis/[id] chamada para perfil ID:', params.id);
     
     // Verificar autenticação - buscar token dos cookies ou header
-    const token = request.cookies.get('accessToken')?.value || 
+    const token = request.cookies.get('admin_auth_token')?.value || 
                   request.headers.get('authorization')?.replace('Bearer ', '');
     
     if (!token) {
@@ -144,19 +144,25 @@ export async function GET(
     const client = await pool.connect();
 
     try {
-      // Buscar perfil
+      // Buscar perfil — perfil global (tenant_id IS NULL, ex.: "Master Platform") só é
+      // acessível por ID quando quem pede é o próprio Master; pra qualquer outro tenant,
+      // o mesmo comportamento de "perfil não encontrado" que já vale pra ID inexistente.
+      const tenantScopeClause = isMasterAdmin
+        ? 'ur.id = $1 AND (ur.tenant_id = $2 OR ur.tenant_id IS NULL)'
+        : 'ur.id = $1 AND ur.tenant_id = $2'
       const perfilQuery = `
-        SELECT 
+        SELECT
           ur.id,
           ur.name,
           ur.description,
           ur.level,
           ur.is_system_role,
+          ur.elegivel_plantonista,
           COUNT(ura.user_id) as user_count
         FROM user_roles ur
         LEFT JOIN user_role_assignments ura ON ur.id = ura.role_id
-        WHERE ur.id = $1 AND (ur.tenant_id = $2 OR ur.tenant_id IS NULL)
-        GROUP BY ur.id, ur.name, ur.description, ur.level, ur.is_system_role
+        WHERE ${tenantScopeClause}
+        GROUP BY ur.id, ur.name, ur.description, ur.level, ur.is_system_role, ur.elegivel_plantonista
       `;
 
       const perfilResult = await client.query(perfilQuery, [perfilId, decoded.tenantId || null]);
@@ -279,10 +285,10 @@ export async function PUT(
 ) {
   try {
     // Verificar permissão de edição server-side
-    const denied = await requireApiPermission(request, 'perfis', 'UPDATE')
+    const denied = await requireApiPermission(request, 'gestao-perfis', 'UPDATE')
     if (denied) return denied
 
-    const token = request.cookies.get('accessToken')?.value ||
+    const token = request.cookies.get('admin_auth_token')?.value ||
                   request.headers.get('authorization')?.replace('Bearer ', '');
 
     if (!token) return NextResponse.json({ message: 'Não autorizado' }, { status: 401 });
@@ -294,7 +300,7 @@ export async function PUT(
     if (isNaN(perfilId)) return NextResponse.json({ message: 'ID inválido' }, { status: 400 });
 
     const body = await request.json();
-    const { name, description, permissions, level, is_system_role, custom_fields } = body;
+    const { name, description, permissions, level, is_system_role, custom_fields, elegivel_plantonista } = body;
 
     if (!name || !description) {
       return NextResponse.json({ message: 'Nome e descrição são obrigatórios' }, { status: 400 });
@@ -355,8 +361,8 @@ export async function PUT(
         const targetIsSystem = is_system_role === true && isMasterAdmin;
 
         await client.query(
-          'UPDATE user_roles SET name = $1, description = $2, level = $3, is_system_role = $4, updated_at = NOW() WHERE id = $5',
-          [name.trim(), description.trim(), targetLevel, targetIsSystem, perfilId]
+          'UPDATE user_roles SET name = $1, description = $2, level = $3, is_system_role = $4, elegivel_plantonista = $5, updated_at = NOW() WHERE id = $6',
+          [name.trim(), description.trim(), targetLevel, targetIsSystem, elegivel_plantonista === true, perfilId]
         );
 
         await client.query('DELETE FROM role_permissions WHERE role_id = $1', [perfilId]);
@@ -406,11 +412,11 @@ export async function DELETE(
 ) {
   try {
     // Verificar permissão de exclusão server-side
-    const denied = await requireApiPermission(request, 'perfis', 'DELETE')
+    const denied = await requireApiPermission(request, 'gestao-perfis', 'DELETE')
     if (denied) return denied
 
     // Verificar autenticação - buscar token dos cookies ou header
-    const token = request.cookies.get('accessToken')?.value ||
+    const token = request.cookies.get('admin_auth_token')?.value ||
                   request.headers.get('authorization')?.replace('Bearer ', '');
 
     if (!token) {

@@ -569,6 +569,7 @@ export async function POST(request: NextRequest) {
           WHEN p.action = 'admin' THEN 'ADMIN'
           WHEN p.action = 'delete' THEN 'DELETE'
           WHEN p.action = 'update' THEN 'UPDATE'
+          WHEN p.action = 'write' THEN 'UPDATE'
           WHEN p.action = 'create' THEN 'CREATE'
           WHEN p.action = 'execute' THEN 'EXECUTE'
           WHEN p.action = 'read' OR p.action = 'list' THEN 'READ'
@@ -612,18 +613,18 @@ export async function POST(request: NextRequest) {
       console.log('🔍 DEBUG LOGIN - Mapa de permissões:', permissionsMap);
       console.log('🔍 DEBUG LOGIN - Permissão para usuários:', permissionsMap['usuarios']);
 
-      // 7.1 BYPASS DE SISTEMA NO MAPA DE PERMISSÕES
-      // Se o usuário possui role de sistema (Global Master), ele ganha 'ADMIN' em TODAS as features ativas
+      // 7.1 BYPASS DE SISTEMA — Master nunca precisa do mapa de permissões no JWT: toda checagem
+      // real (requireApiPermission/checkDecodedPermission, e os 2 pontos em perfis/route.ts que
+      // leem decoded.permissoes diretamente) já verifica `is_system_role === true` ANTES de tocar
+      // em `permissoes`, e o frontend nunca lê `permissoes` do JWT (só do payload de /auth/me,
+      // recalculado fresco). Popular aqui com TODAS as features ativas (hoje 88, sempre
+      // crescendo) já causou um bug real e sério: o JSON.stringify(jwtPayload) passou de 4096
+      // bytes — o limite de tamanho de um cookie em qualquer navegador — fazendo o cookie de
+      // sessão do Master ser silenciosamente descartado (login retorna 200, mas a sessão nunca
+      // se estabelece; toda navegação seguinte bate no middleware sem cookie válido e volta pro
+      // login com os campos vazios). Deixar vazio aqui é sempre seguro e nunca mais escala com o
+      // catálogo de features da plataforma.
       const isSystemAdmin = user.is_system_role === true;
-
-      if (isSystemAdmin) {
-        console.log('🛡️ MASTER BYPASS - Populando mapa de permissões total via System Role');
-        const allFeaturesQuery = 'SELECT slug FROM system_features WHERE is_active = true';
-        const allFeaturesResult = await pool.query(allFeaturesQuery);
-        allFeaturesResult.rows.forEach((f: any) => {
-          permissionsMap[f.slug] = 'ADMIN';
-        });
-      }
 
       // 7.2 BYPASS DE TENANT ADMIN — role.name contém 'admin': ADMIN em todas as features provisionadas
       // Bypassa role_permissions mas RESPEITA tenant_feature_overrides (soberania do Master)

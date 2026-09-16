@@ -22,9 +22,9 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    const exists = userType === 'cliente' 
-      ? await checkClienteCPF(cpfStr)
-      : await checkProprietarioCPF(cpfStr)
+    const exists = userType === 'cliente'
+      ? await checkClienteCPF(cpfStr, null)
+      : await checkProprietarioCPF(cpfStr, null)
     
     return NextResponse.json({ exists })
   } catch (error) {

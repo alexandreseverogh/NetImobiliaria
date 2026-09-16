@@ -125,6 +125,27 @@ export function generateS3Key(
 }
 
 /**
+ * Gera a chave S3 para a foto de um usuário
+ * Formato: users/{userId}/{timestamp}_{hash}.{ext}
+ * Sem prefixo de tenant (diferente de imóvel): usuário pode não ter tenantId confiável em
+ * todo call site de escrita (ex.: PUT de edição), e a política do bucket já é pública de
+ * leitura pro bucket inteiro — o isolamento por tenant não depende do path aqui.
+ */
+export function generateUserPhotoS3Key(
+  userId: string,
+  contentType: string,
+  buffer: Buffer
+): string {
+  const hash = createHash('md5').update(buffer).digest('hex').substring(0, 8)
+  const timestamp = Date.now()
+  const ext = contentType === 'image/png' ? 'png'
+    : contentType === 'image/webp' ? 'webp'
+    : 'jpg'
+
+  return `users/${userId}/${timestamp}_${hash}.${ext}`
+}
+
+/**
  * Upload de arquivo para S3/MinIO
  * Retorna null se S3 não estiver configurado (fallback para BYTEA)
  */

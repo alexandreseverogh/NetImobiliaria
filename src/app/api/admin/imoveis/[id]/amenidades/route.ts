@@ -17,7 +17,7 @@ export async function GET(
 ) {
   try {
     // Verificar autenticação
-    const token = request.cookies.get('accessToken')?.value
+    const token = request.cookies.get('admin_auth_token')?.value
     if (!token) {
       return NextResponse.json(
         { error: 'Token de autenticação não fornecido' },
@@ -88,7 +88,7 @@ export async function PUT(
     if (denied) return denied
 
     // Verificar autenticação
-    const token = request.cookies.get('accessToken')?.value
+    const token = request.cookies.get('admin_auth_token')?.value
     if (!token) {
       return NextResponse.json(
         { error: 'Token de autenticação não fornecido' },
@@ -179,7 +179,7 @@ export async function POST(
     if (denied) return denied
 
     // Verificar autenticação
-    const token = request.cookies.get('accessToken')?.value
+    const token = request.cookies.get('admin_auth_token')?.value
     if (!token) {
       return NextResponse.json(
         { error: 'Token de autenticação não fornecido' },
@@ -252,7 +252,7 @@ export async function DELETE(
     if (denied) return denied
 
     // Verificar autenticação
-    const token = request.cookies.get('accessToken')?.value
+    const token = request.cookies.get('admin_auth_token')?.value
     if (!token) {
       return NextResponse.json(
         { error: 'Token de autenticação não fornecido' },

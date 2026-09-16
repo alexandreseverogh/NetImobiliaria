@@ -59,7 +59,9 @@ export default function AdminSidebar({
       for (const item of items) {
         if (item.children?.length) {
           const childActive = item.children.some(
-            (c: any) => c.path && pathname.startsWith(c.path)
+            (c: any) =>
+              (c.path && pathname.startsWith(c.path)) ||
+              (Array.isArray(c.tabs) && c.tabs.some((t: any) => t.path && pathname.startsWith(t.path)))
           )
           if (childActive) activeParents.push(String(item.id))
           findActive(item.children)
@@ -89,12 +91,30 @@ export default function AdminSidebar({
     )
   }
 
+  // Achata todos os `path` reais cadastrados no menu (categorias têm path null, só folhas
+  // navegam) — usado por isActive() pra decidir qual item é o match MAIS ESPECÍFICO pro
+  // pathname atual, evitando 2 itens acesos ao mesmo tempo quando um caminho curto (ex.
+  // "/crm") é prefixo real de outro item também cadastrado (ex. "/crm/config/kanban").
+  const allMenuPaths: string[] = []
+  const collectPaths = (items: any[]) => {
+    for (const item of items) {
+      if (item.path) allMenuPaths.push(item.path)
+      if (item.children?.length) collectPaths(item.children)
+    }
+  }
+  collectPaths(menuItems || [])
+
   const isActive = (href: string | null) => {
     if (!href) return false
-    if (href === '/admin') {
-      return pathname === '/admin'
-    }
-    return pathname.startsWith(href)
+    if (pathname === href) return true
+    // Não é a própria página — só conta como "ancestral ativo" (ex.: lista destacada
+    // enquanto se edita um registro dinâmico dela, tipo /admin/imoveis/42/edicao) se
+    // NENHUM outro item do menu casar de forma mais específica com o pathname atual.
+    if (!pathname.startsWith(href + '/')) return false
+    const moreSpecificMatchExists = allMenuPaths.some(
+      p => p !== href && p.length > href.length && (pathname === p || pathname.startsWith(p + '/'))
+    )
+    return !moreSpecificMatchExists
   }
 
   const toggleMenu = (menuId: string) => {
@@ -133,7 +153,12 @@ export default function AdminSidebar({
   const renderMenuItem = (item: SidebarMenuWithChildren, level: number = 0) => {
     const hasChildren = item.children && item.children.length > 0
     const isExpanded = expandedMenus.includes(item.id)
-    const isActiveItem = item.path ? isActive(item.path) : false
+    // Item de Grupo (ver /admin/master/feature-groups): o `path` do node é só a aba PADRÃO —
+    // navegar pra uma aba irmã (via <HorizontalTabsBar/>) não deveria apagar o destaque do
+    // grupo na sidebar. Considera ativo também se o pathname atual bate com QUALQUER aba dele.
+    const groupTabs = (item as any).isGroup && Array.isArray((item as any).tabs) ? (item as any).tabs as { path: string }[] : null
+    const isActiveItem = (item.path ? isActive(item.path) : false) ||
+      !!(groupTabs && groupTabs.some(t => t.path === pathname))
 
     if (!item.path) {
       return (

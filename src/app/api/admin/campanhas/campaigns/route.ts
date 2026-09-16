@@ -5,6 +5,11 @@ import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { getNetworkServiceForTenant } from '@/lib/marketing/networks/factory';
 import type { NetworkCode } from '@/lib/marketing/networks/types';
 import { normalizeAngle } from '@/lib/marketing/angles';
+import { getLeadEvents, leadsByCampaign } from '@/lib/marketing/services/leadEvents';
+
+// Início "de sempre" pra métrica cumulativa (sem filtro de período) — mesmo padrão de
+// EPOCH_START já usado em hookSaturationService.ts.
+const METRICS_EPOCH_START = new Date('2000-01-01T00:00:00Z');
 
 export const dynamic = 'force-dynamic';
 
@@ -73,9 +78,65 @@ export async function GET(request: NextRequest) {
       } catch { /* non-critical */ }
     }
 
+    // Indicadores cumulativos por campanha (mesmo conjunto da Visão Executiva do dashboard,
+    // adaptado pra escopo de 1 campanha: Gasto Total, Leads, CPL Médio, CTR/Hook Rate) — sem
+    // filtro de período, acumulado desde sempre até agora. "Campanhas Ativas" fica de fora
+    // (é métrica de portfólio, não faz sentido por campanha individual).
+    const campaignIds = campaigns.map(c => c.id);
+    const metricsMap: Record<string, {
+      spend: number; leads: number; cpl: number | null;
+      ctr: number | null; hookRate: number | null;
+    }> = {};
+
+    if (campaignIds.length > 0) {
+      try {
+        const [spendAgg, leadEvents] = await Promise.all([
+          prisma.insight.groupBy({
+            by: ['campaignId'],
+            where: { campaignId: { in: campaignIds } },
+            _sum: { spend: true, impressions: true, clicks: true, videoViews3s: true },
+          }),
+          getLeadEvents(payload.tenantId, {
+            campaignIds,
+            startDate: METRICS_EPOCH_START,
+            endDate: new Date(),
+          }),
+        ]);
+        const leadsMap = leadsByCampaign(leadEvents);
+
+        for (const row of spendAgg) {
+          const spend = row._sum.spend ?? 0;
+          const impressions = row._sum.impressions ?? 0;
+          const clicks = row._sum.clicks ?? 0;
+          const videoViews3s = row._sum.videoViews3s ?? 0;
+          const leads = leadsMap.get(row.campaignId) ?? 0;
+
+          metricsMap[row.campaignId] = {
+            spend,
+            leads,
+            cpl: leads > 0 ? spend / leads : null,
+            ctr: impressions > 0 ? (clicks / impressions) * 100 : null,
+            hookRate: impressions > 0 && videoViews3s > 0 ? (videoViews3s / impressions) * 100 : null,
+          };
+        }
+        // Campanhas sem nenhum Insight ainda (recém-criadas) — garante leads=0 explícito em vez
+        // de omitir o campo, já que getLeadEvents pode achar lead mesmo sem Insight sincronizado.
+        for (const cid of campaignIds) {
+          if (!metricsMap[cid]) {
+            const leads = leadsMap.get(cid) ?? 0;
+            metricsMap[cid] = { spend: 0, leads, cpl: null, ctr: null, hookRate: null };
+          }
+        }
+      } catch (metricsError) {
+        console.error('Erro ao agregar métricas cumulativas por campanha:', metricsError);
+        // Não bloquear a listagem por falha nas métricas — cards renderizam sem essa seção.
+      }
+    }
+
     const enriched = campaigns.map(c => ({
       ...c,
       angleSource: angleSourceMap[c.id] ?? null,
+      metrics: metricsMap[c.id] ?? null,
       adSets: c.adSets.map(as => ({
         ...as,
         ads: as.ads.map(ad => ({
@@ -159,6 +220,15 @@ export async function POST(request: NextRequest) {
       validInitiativeId = initiativeId;
     }
 
+    // Resolve network_id (tabela genérica public.ad_networks) — fecha um gap pré-existente:
+    // toda campanha criada até aqui ficava com network_id NULL, quebrando silenciosamente a
+    // agregação "Distribuição por Rede" do dashboard. Ver docs/PLANO_GOOGLE_TIKTOK.md.
+    const networkRes = await pool.query(
+      `SELECT id FROM public.ad_networks WHERE code = $1 LIMIT 1`,
+      [networkCode],
+    );
+    const resolvedNetworkId = networkRes.rows[0]?.id || null;
+
     // 1. Criar campanha
     const campaign = await prisma.campaign.create({
       data: {
@@ -170,6 +240,7 @@ export async function POST(request: NextRequest) {
         status: 'PAUSED',
         declaredAngle: normalizeAngle(declaredAngle),  // FASE 14
         initiativeId: validInitiativeId,               // vínculo opcional à iniciativa
+        networkId: resolvedNetworkId,
       },
     });
 
@@ -195,14 +266,16 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // 3. Tracking link
+    // 3. Tracking link — TODO CTA (WhatsApp ou formulário/URL) passa por /api/r/{trackingId}
+    // antes de chegar no destino real. Isso é o que fecha a atribuição campanha→lead
+    // (docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §6 F2/F3): sem isso, um clique num anúncio
+    // com CTA de formulário ia direto pro destino sem gerar CtaInteraction nenhuma nem
+    // carregar o trackingId real do Ad — o lead resultante nunca sabia de qual campanha veio.
+    // ad.linkUrl (no banco) guarda o destino REAL (usado pelo /api/r pra saber pra onde
+    // mandar); o que é enviado ao Meta como link do criativo é SEMPRE a URL rastreada.
     const trackingId = `${campaign.id.slice(0, 8)}-${Date.now().toString(36)}`;
-    let finalLinkUrl = linkUrl;
-    if (ctaType === 'WHATSAPP_MESSAGE' && whatsappNumber) {
-      const msg = encodeURIComponent(whatsappMessage || '');
-      const publicDomain = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-      finalLinkUrl = `${publicDomain}/api/r/${trackingId}`;
-    }
+    const publicDomain = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const trackedLinkUrl = `${publicDomain}/api/r/${trackingId}`;
 
     // 4. Criar ad
     const ad = await prisma.ad.create({
@@ -214,7 +287,7 @@ export async function POST(request: NextRequest) {
         images: images || [],
         body: adBody || '',
         headline,
-        linkUrl: finalLinkUrl,
+        linkUrl: linkUrl || '',
         ctaType: ctaType || 'LEARN_MORE',
         trackingId,
       },
@@ -260,8 +333,8 @@ export async function POST(request: NextRequest) {
           ageMin: adSet.ageMin,
           ageMax: adSet.ageMax,
           genders: adSet.genders || [],
-          locations: adSet.locations,
-          interests: adSet.interests || [],
+          locations: adSet.locations as Record<string, any>,
+          interests: (adSet.interests || []) as any[],
           scheduleDays: adSet.scheduleDays || [],
           scheduleStartHour: adSet.scheduleStartHour || undefined,
           scheduleEndHour: adSet.scheduleEndHour || undefined,
@@ -273,7 +346,7 @@ export async function POST(request: NextRequest) {
           images: ad.images || [],
           body: ad.body,
           headline: ad.headline || undefined,
-          linkUrl: ad.linkUrl || '',
+          linkUrl: trackedLinkUrl,
           ctaType: ad.ctaType,
         },
         whatsappNumber,

@@ -109,6 +109,11 @@ model Campaign {
   funnelStage         String    @default("TOF") @map("funnel_stage") @db.VarChar(20)
   // FASE 14 — ângulo de comunicação declarado no lançamento (opcional; taxonomia compartilhada)
   declaredAngle       String?   @map("declared_angle") @db.VarChar(50)
+  // Multi-rede (Meta/Google/LinkedIn/TikTok) — FK para public.ad_networks; ambas as colunas já
+  // existiam no banco sem estar mapeadas aqui (schema drift). network_metadata continua via
+  // raw SQL (pool.query), sem necessidade de mexer agora.
+  networkId           String?   @map("network_id") @db.Uuid
+  externalId           String?  @map("external_id") @db.VarChar(100)
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
@@ -213,10 +218,58 @@ model Insight {
   learningConversions    Int?     @map("learning_conversions")
   firstImpressionRatio   Float?   @map("first_impression_ratio")
   breakdowns       Json?
+  // FASE 1 (Google Ads) — Impression Share + ROAS (grão campanha-dia)
+  searchImpressionShare  Float    @default(0) @map("search_impression_share")
+  searchBudgetLostIs     Float    @default(0) @map("search_budget_lost_is")
+  searchRankLostIs       Float    @default(0) @map("search_rank_lost_is")
+  conversionsValue       Float    @default(0) @map("conversions_value")
   createdAt        DateTime @default(now())
 
   @@index([campaignId, date])
   @@index([tenantId])
+}
+
+// FASE 1 (Google Ads) — grão termo de busca (não cabe em Insight, que é campanha-dia)
+model GoogleSearchTerm {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  campaignId  String   @map("campaign_id")
+  adNetwork   String   @default("google") @map("ad_network") @db.VarChar(20)
+
+  searchTerm  String   @map("search_term") @db.VarChar(255)
+  matchType   String   @map("match_type") @db.VarChar(20)
+
+  date        DateTime @db.Date
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  cost        Float    @default(0)
+  conversions Int      @default(0)
+
+  status      String   @default("none") @db.VarChar(20)  // 'none' | 'negated' | 'added_as_keyword'
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([tenantId, campaignId, searchTerm, date])
+  @@index([campaignId, date])
+  @@index([tenantId])
+  @@map("GoogleSearchTerm")
+}
+
+// FASE 1 (Google Ads) — memória do que já foi negativado (evita o agente propor 2x)
+model GoogleNegativeKeyword {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  campaignId String   @map("campaign_id")
+
+  term       String   @db.VarChar(255)
+  matchType  String   @map("match_type") @db.VarChar(20)
+  addedBy    String   @map("added_by") @db.VarChar(20)  // 'agent' | 'human'
+  addedAt    DateTime @default(now()) @map("added_at")
+
+  @@unique([tenantId, campaignId, term])
+  @@index([campaignId])
+  @@map("GoogleNegativeKeyword")
 }
 
 // FASE 8.5 — Snapshot de calibração (cache do painel + auditoria)
@@ -250,25 +303,34 @@ model WhatsAppConfig {
   @@index([tenantId])
 }
 
-model Lead {
-  id           String   @id @default(uuid())
-  tenantId     String?  @map("tenant_id") @db.Uuid
-  clientId     String?  @map("client_id") @db.Uuid
-  campaignId   String?
-  adId         String?
-  phoneClicked String
-  sourceUrl    String?
-  utmSource    String?
-  utmMedium    String?
-  utmCampaign  String?
-  utmContent   String?
-  ipAddress    String?
-  userAgent    String?
-  clickedAt    DateTime @default(now())
+/// Fonte única de cliques/atribuição de CTA (substitui o antigo model "Lead", que só cobria
+/// cliques em anúncios lançados por esta plataforma, sem atribuição real na resposta do
+/// WhatsApp). Populada por /api/r/[trackingId] (clique em anúncio) e pelo processador de
+/// mensagens WhatsApp entrantes (resposta atribuída via "[ref:...]"). "Lead" de verdade
+/// (fonte canônica multi-módulo) continua sendo public.leads_staging — ver
+/// docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §9.1.
+model CtaInteraction {
+  id            String   @id @default(uuid())
+  tenantId      String   @map("tenant_id") @db.Uuid
+  clientId      String?  @map("client_id") @db.Uuid
+  destinationId String?  @map("destination_id") @db.Uuid
+  campaignId    String?  @map("campaign_id")
+  adId          String?  @map("ad_id")
+  ctaType       String?  @map("cta_type")
+  eventType     String   @default("VIEW") @map("event_type")
+  utmSource     String?  @map("utm_source")
+  utmMedium     String?  @map("utm_medium")
+  utmCampaign   String?  @map("utm_campaign")
+  utmContent    String?  @map("utm_content")
+  ipAddress     String?  @map("ip_address")
+  userAgent     String?  @map("user_agent")
+  referrer      String?
+  createdAt     DateTime @default(now()) @map("created_at")
 
-  @@index([campaignId, clickedAt])
-  @@index([tenantId])
-  @@index([clientId])
+  @@index([campaignId, createdAt])
+  @@index([tenantId, createdAt])
+  @@index([destinationId, createdAt])
+  @@map("CtaInteraction")
 }
 
 model AiInsight {
@@ -303,9 +365,63 @@ model AgentAction {
   @@index([tenantId])
 }
 
+// docs/PLANO_TIKTOK.md §5.2/§8 — motor de realocação cross-rede (T4). AgentAction modela só
+// 1 campanha; esta tabela carrega o detalhe bilateral (origem + destino) de uma proposta de
+// realocação, vinculada a uma AgentAction (agentActionId) que serve de anchor de aprovação/PIN.
+model BudgetReallocation {
+  id                  String    @id @default(uuid())
+  tenantId            String    @map("tenant_id") @db.Uuid
+  clientId            String?   @map("client_id") @db.Uuid
+  segmentId           String?   @map("segment_id") @db.Uuid
+
+  sourceCampaignId    String    @map("source_campaign_id")
+  sourceCampaignName  String    @map("source_campaign_name")
+  sourceNetwork       String    @map("source_network") @db.VarChar(20)
+  sourceCplBefore     Float     @map("source_cpl_before")
+  sourceBudgetBefore  Int       @map("source_budget_before")
+  sourceBudgetAfter   Int?      @map("source_budget_after")
+
+  targetCampaignId    String    @map("target_campaign_id")
+  targetCampaignName  String    @map("target_campaign_name")
+  targetNetwork       String    @map("target_network") @db.VarChar(20)
+  targetCplBefore     Float     @map("target_cpl_before")
+  targetBudgetBefore  Int       @map("target_budget_before")
+  targetBudgetAfter   Int?      @map("target_budget_after")
+
+  amountCents         Int       @map("amount_cents")
+  gapPct              Float     @map("gap_pct")
+  projectedLeadGain   Float     @map("projected_lead_gain")
+  confidence          Float
+
+  status              String    @default("PROPOSED")
+  agentActionId       String?   @map("agent_action_id")
+
+  measuredAt          DateTime? @map("measured_at")
+  actualLeadGain      Float?    @map("actual_lead_gain")
+  verdict             String?
+
+  createdAt           DateTime  @default(now()) @map("created_at")
+  executedAt          DateTime? @map("executed_at")
+
+  @@index([tenantId, createdAt])
+  @@index([sourceCampaignId, targetCampaignId, createdAt])
+  @@index([agentActionId])
+  @@map("BudgetReallocation")
+}
+
+// Cascata Client -> Tenant -> Segmento(Master) -> Global(Master) (2026-08-28, CRM/Mensageria).
+// tenant_id + client_id ambos NULL = linha global do Master (fallback final);
+// tenant_id NULL + segment_id preenchido = default do Master pro segmento;
+// tenant_id preenchido + client_id NULL = linha do próprio tenant;
+// tenant_id + client_id preenchidos = override de um cliente específico (cadastrado pelo
+// admin do tenant em nome dele, já que cliente nunca loga na aplicação).
+// Índices únicos parciais reais ficam só na migração SQL (raw SQL obrigatório pra esta
+// tabela, ver CLAUDE.md — nunca lida/escrita via Prisma Client em runtime, só tipagem aqui).
 model Settings {
   id              String  @id @default(uuid())
-  tenantId        String? @unique @map("tenant_id") @db.Uuid
+  tenantId        String? @map("tenant_id") @db.Uuid
+  clientId        String? @map("client_id") @db.Uuid
+  segmentId       String? @map("segment_id") @db.Uuid
   creativesPath   String?
   publicDomain    String?
   llmProvider     String  @default("anthropic")
@@ -513,3 +629,7 @@ model CreativeGenerationJob {
   @@index([sourceAssetId])
   @@map("CreativeGenerationJob")
 }
+
+// Credenciais do Google Ads (e demais redes) vivem em public.tenant_network_credentials
+// (mesmo padrão já usado pelo Meta) — ver docs/PLANO_GOOGLE_TIKTOK.md, decisão de consolidação
+// 2026-07-19. Não há model dedicado para isso; acesso via pool.query (schema public).

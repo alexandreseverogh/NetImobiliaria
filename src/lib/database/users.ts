@@ -12,9 +12,17 @@ export interface User {
   creci?: string | null
   foto?: Buffer | null
   foto_tipo_mime?: string | null
+  /** Mesmo padrão dual-writer já usado em imovel_imagens: 'database' (bytea, legado/fallback)
+   *  ou 's3' (MinIO real — s3_key/url_cdn preenchidos). */
+  storage_type?: string | null
+  s3_key?: string | null
+  url_cdn?: string | null
   ativo: boolean
   isencao?: boolean
-  is_plantonista?: boolean
+  /** Ausência temporária (férias/atestado) — ver docs/PLANO_PENDENCIA_ATENDIMENTO.md §4.1.
+   *  Enquanto no futuro: sai da fila de distribuição e não é punido por perder lead. */
+  indisponivel_ate?: Date | string | null
+  indisponivel_motivo?: string | null
   is_active?: boolean // Alias para ativo
   ultimo_login: Date | null
   created_at: Date
@@ -40,6 +48,12 @@ export interface UserWithRole extends User {
   is_system_role?: boolean
   is_active_in_tenant?: boolean
   current_tenant_id?: string
+  /** Por vínculo (user_tenant_membership), não mais global — só true quando o role do usuário
+   *  NESTE tenant é elegivel_plantonista e ele se autoatendeu como plantonista. */
+  is_plantonista?: boolean
+  /** Se o CARGO do usuário neste tenant é elegível para plantão (user_roles.
+   *  elegivel_plantonista) — dirige se a UI oferece o controle de marcar/desmarcar. */
+  elegivel_plantonista?: boolean
 }
 
 export async function findUsersWithRoles(tenantId?: string): Promise<UserWithRole[]> {
@@ -54,8 +68,10 @@ export async function findUsersWithRoles(tenantId?: string): Promise<UserWithRol
         u.telefone,
         u.ativo,
         u.isencao,
-        u.is_plantonista,
+        utm.is_plantonista,
         u.tipo_corretor,
+        u.indisponivel_ate,
+        u.indisponivel_motivo,
         u.google_refresh_token,
         u.google_calendar_authorized,
         u.ultimo_login,
@@ -160,10 +176,13 @@ export async function findUsersPaginated(
         u.telefone,
         u.ativo,
         u.isencao,
-        u.is_plantonista,
+        utm.is_plantonista,
         u.tipo_corretor,
+        u.indisponivel_ate,
+        u.indisponivel_motivo,
         u.google_refresh_token,
         u.google_calendar_authorized,
+        (u.foto IS NOT NULL OR u.storage_type = 's3') as has_foto,
         u.ultimo_login,
         u.created_at,
         u.updated_at,
@@ -171,6 +190,7 @@ export async function findUsersPaginated(
         ur.name as role_name,
         ur.description as role_description,
         ur.level as role_level,
+        ur.elegivel_plantonista,
         u.require_password_change,
         utm.is_active as is_active_in_tenant,
         utm.tenant_id as current_tenant_id,
@@ -270,8 +290,8 @@ export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'upd
     const hashedPassword = await bcrypt.hash(userData.password, 10)
 
     const insertUserQuery = `
-      INSERT INTO users (username, email, password, nome, telefone, ativo, cpf, creci, foto, foto_tipo_mime, isencao, is_plantonista, tipo_corretor, require_password_change, google_refresh_token, google_calendar_authorized, metadata)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      INSERT INTO users (username, email, password, nome, telefone, ativo, cpf, creci, foto, foto_tipo_mime, isencao, tipo_corretor, require_password_change, google_refresh_token, google_calendar_authorized, metadata)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *
     `
 
@@ -287,7 +307,6 @@ export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'upd
       userData.foto || null,
       userData.foto_tipo_mime || null,
       userData.isencao || false,
-      userData.is_plantonista || false,
       userData.tipo_corretor || null,
       (userData as any).require_password_change || false,
       userData.google_refresh_token || null,
@@ -298,6 +317,34 @@ export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'upd
     console.log('Executando inserção do usuário...')
     const userResult = await pool.query(insertUserQuery, userValues)
     const user = userResult.rows[0]
+
+    // DUAL-WRITER: mesmo padrão de insertImovelImagem — tenta S3/MinIO depois de saber o id
+    // real do usuário (gerado pelo Postgres no INSERT acima); o bytea gravado na hora do
+    // INSERT continua como fallback durante a transição, nunca é removido daqui.
+    if (userData.foto) {
+      try {
+        const { isS3Configured, generateUserPhotoS3Key, uploadToS3, getS3Url } = await import('@/lib/storage/s3-client')
+        if (isS3Configured()) {
+          const contentType = userData.foto_tipo_mime || 'image/jpeg'
+          const key = generateUserPhotoS3Key(user.id, contentType, userData.foto)
+          const result = await uploadToS3(key, userData.foto, contentType)
+          if (result) {
+            const urlCdn = getS3Url(result.s3Key) || result.url
+            await pool.query(
+              'UPDATE users SET storage_type = $1, s3_key = $2, url_cdn = $3 WHERE id = $4',
+              ['s3', result.s3Key, urlCdn, user.id]
+            )
+            user.storage_type = 's3'
+            user.s3_key = result.s3Key
+            user.url_cdn = urlCdn
+            console.log(`✅ [DUAL-WRITE] Foto de usuário salva no S3: ${result.s3Key}`)
+          }
+        }
+      } catch (s3Error) {
+        // Falha no S3 não é fatal — o usuário já foi criado com a foto em bytea
+        console.warn('⚠️ [DUAL-WRITE] Falha no S3 pra foto de usuário, usando fallback BYTEA:', s3Error)
+      }
+    }
 
     if (userData.roleId) {
       console.log(`Atribuindo role ${userData.roleId} para usuário ${user.id} no tenant ${userData.tenantId}...`)
@@ -358,7 +405,6 @@ export async function updateUser(id: string, userData: Partial<Omit<User, 'id' |
     if (userData.creci !== undefined) { fields.push(`creci = $${paramCount}`); values.push(userData.creci || null); paramCount++ }
 
     if (userData.isencao !== undefined) { fields.push(`isencao = $${paramCount}`); values.push(userData.isencao); paramCount++ }
-    if (userData.is_plantonista !== undefined) { fields.push(`is_plantonista = $${paramCount}`); values.push(userData.is_plantonista); paramCount++ }
     if (userData.tipo_corretor !== undefined) { fields.push(`tipo_corretor = $${paramCount}`); values.push(userData.tipo_corretor); paramCount++ }
 
     if (userData.password) {
@@ -370,6 +416,61 @@ export async function updateUser(id: string, userData: Partial<Omit<User, 'id' |
 
     if (userData.foto !== undefined) { fields.push(`foto = $${paramCount}`); values.push(userData.foto); paramCount++ }
     if (userData.foto_tipo_mime !== undefined) { fields.push(`foto_tipo_mime = $${paramCount}`); values.push(userData.foto_tipo_mime); paramCount++ }
+
+    // DUAL-WRITER: mesmo padrão de insertImovelImagem — só entra em jogo quando a foto está
+    // de fato sendo trocada (userData.foto !== undefined); o bytea acima continua sendo
+    // gravado sempre, como fallback. Ao trocar/remover a foto, sempre reseta storage_type/
+    // s3_key/url_cdn — nunca deixa um s3_key de uma foto ANTERIOR sobrevivendo junto de um
+    // bytea NOVO (inconsistência real que apontaria pro arquivo errado no MinIO).
+    if (userData.foto !== undefined) {
+      let storageType = 'database'
+      let s3Key: string | null = null
+      let urlCdn: string | null = null
+
+      // Foto antiga (se houver) precisa ser removida do MinIO — diferente de imovel_imagens
+      // (cada imagem é sua própria linha), a foto do usuário é um campo único e mutável: toda
+      // troca sem essa limpeza deixaria o arquivo anterior órfão no bucket pra sempre.
+      const oldMetaResult = await pool.query(
+        'SELECT storage_type, s3_key FROM users WHERE id = $1',
+        [id]
+      )
+      const oldMeta = oldMetaResult.rows[0]
+
+      if (userData.foto) {
+        try {
+          const { isS3Configured, generateUserPhotoS3Key, uploadToS3, getS3Url } = await import('@/lib/storage/s3-client')
+          if (isS3Configured()) {
+            const contentType = userData.foto_tipo_mime || 'image/jpeg'
+            const key = generateUserPhotoS3Key(id, contentType, userData.foto)
+            const result = await uploadToS3(key, userData.foto, contentType)
+            if (result) {
+              storageType = 's3'
+              s3Key = result.s3Key
+              urlCdn = getS3Url(result.s3Key) || result.url
+              console.log(`✅ [DUAL-WRITE] Foto de usuário salva no S3: ${s3Key}`)
+            }
+          }
+        } catch (s3Error) {
+          console.warn('⚠️ [DUAL-WRITE] Falha no S3 pra foto de usuário, usando fallback BYTEA:', s3Error)
+        }
+      }
+
+      if (oldMeta?.storage_type === 's3' && oldMeta.s3_key && oldMeta.s3_key !== s3Key) {
+        try {
+          const { deleteFromS3 } = await import('@/lib/storage/s3-client')
+          await deleteFromS3(oldMeta.s3_key)
+          console.log(`✅ [S3] Foto antiga de usuário removida: ${oldMeta.s3_key}`)
+        } catch (delError) {
+          // Não bloqueia a atualização — arquivo órfão no bucket é limpável depois, mas
+          // nunca deve impedir o usuário de trocar a própria foto.
+          console.warn('⚠️ [S3] Falha ao remover foto antiga (não bloqueante):', delError)
+        }
+      }
+
+      fields.push(`storage_type = $${paramCount}`); values.push(storageType); paramCount++
+      fields.push(`s3_key = $${paramCount}`); values.push(s3Key); paramCount++
+      fields.push(`url_cdn = $${paramCount}`); values.push(urlCdn); paramCount++
+    }
 
     if (userData.google_refresh_token !== undefined) { fields.push(`google_refresh_token = $${paramCount}`); values.push(userData.google_refresh_token); paramCount++ }
     if (userData.google_calendar_authorized !== undefined) { fields.push(`google_calendar_authorized = $${paramCount}`); values.push(userData.google_calendar_authorized); paramCount++ }
@@ -412,12 +513,27 @@ export async function updateUser(id: string, userData: Partial<Omit<User, 'id' |
         }
 
         const role = roleCheckResult.rows[0]
-        const removeRolesQuery = 'DELETE FROM user_role_assignments WHERE user_id = $1 AND (tenant_id = $2 OR tenant_id IS NULL)'
-        await pool.query(removeRolesQuery, [id, (userData as any).tenantId || null])
 
+        // Remove qualquer OUTRO perfil que o usuário já tivesse (nunca mais de um perfil
+        // ativo por vez). Não filtra por tenant_id aqui de propósito: este caller (PUT
+        // /api/admin/usuarios/[id]) nunca passa userData.tenantId, então o filtro antigo
+        // "(tenant_id = $2 OR tenant_id IS NULL)" com $2=null só batia em linhas com
+        // tenant_id já NULL — a linha real do tenant nunca era removida.
+        const removeOtherRolesQuery = 'DELETE FROM user_role_assignments WHERE user_id = $1 AND role_id != $2'
+        await pool.query(removeOtherRolesQuery, [id, userData.roleId])
+
+        // Upsert do perfil alvo — se a edição não trocou o perfil (roleId igual ao já
+        // atribuído), a linha antiga sobrevive ao DELETE acima (role_id = $2, não != $2) e
+        // o INSERT bateria na constraint UNIQUE(user_id, role_id); ON CONFLICT evita o 500 e
+        // só atualiza quem atribuiu/quando. tenant_id preserva o valor real já gravado
+        // quando o caller não informa um novo (nunca reduz um perfil tenant-scoped a global).
         const assignRoleQuery = `
           INSERT INTO user_role_assignments (user_id, role_id, assigned_by, tenant_id)
           VALUES ($1, $2, $1, $3)
+          ON CONFLICT (user_id, role_id) DO UPDATE SET
+            assigned_by = EXCLUDED.assigned_by,
+            assigned_at = CURRENT_TIMESTAMP,
+            tenant_id = COALESCE(EXCLUDED.tenant_id, user_role_assignments.tenant_id)
         `
 
         await pool.query(assignRoleQuery, [id, userData.roleId, (userData as any).tenantId || null])
@@ -443,11 +559,19 @@ export async function updateUser(id: string, userData: Partial<Omit<User, 'id' |
 
 export async function deleteUser(id: string): Promise<boolean> {
   try {
+    // Metadados S3 antes de deletar do banco (mesmo padrão de deleteImovelImagem) — sem isso,
+    // a foto do usuário fica órfã no MinIO pra sempre.
+    const photoMetaResult = await pool.query(
+      'SELECT storage_type, s3_key FROM users WHERE id = $1',
+      [id]
+    )
+    const photoMeta = photoMetaResult.rows[0]
+
     await pool.query('BEGIN')
 
     try {
       await pool.query('DELETE FROM corretor_scores WHERE user_id = $1', [id])
-      await pool.query('DELETE FROM corretor_areas_atuacao WHERE corretor_fk = $1', [id])
+      await pool.query('DELETE FROM atendente_area_atuacao WHERE corretor_fk = $1', [id])
       await pool.query('DELETE FROM user_sessions WHERE user_id = $1', [id])
       await pool.query('DELETE FROM login_logs WHERE user_id = $1', [id])
       await pool.query('DELETE FROM audit_2fa_logs WHERE user_id = $1', [id])
@@ -460,6 +584,17 @@ export async function deleteUser(id: string): Promise<boolean> {
 
       const result = await pool.query('DELETE FROM users WHERE id = $1', [id])
       await pool.query('COMMIT')
+
+      if (photoMeta?.storage_type === 's3' && photoMeta.s3_key) {
+        try {
+          const { deleteFromS3 } = await import('@/lib/storage/s3-client')
+          await deleteFromS3(photoMeta.s3_key)
+          console.log(`✅ [S3] Foto do usuário excluído removida: ${photoMeta.s3_key}`)
+        } catch (s3Error) {
+          // Não bloqueia a exclusão do usuário — arquivo órfão é limpável depois
+          console.warn('⚠️ [S3] Falha ao remover foto do usuário excluído (não bloqueante):', s3Error)
+        }
+      }
 
       return (result.rowCount ?? 0) > 0
     } catch (error) {

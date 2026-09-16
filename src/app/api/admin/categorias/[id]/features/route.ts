@@ -138,7 +138,7 @@ export async function POST(
     const authHeader = request.headers.get('authorization')
     const bearerToken = authHeader?.startsWith('Bearer ')
       ? authHeader.slice(7)
-      : request.cookies.get('accessToken')?.value
+      : request.cookies.get('admin_auth_token')?.value
 
     const decoded = bearerToken ? await verifyToken(bearerToken) : null
     const userId = decoded?.userId

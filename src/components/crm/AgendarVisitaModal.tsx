@@ -39,6 +39,9 @@ interface Props {
     empresa_configurada: boolean
     google_calendar_authorized: boolean
     has_google_token: boolean
+    /** E-mail cadastrado do atendente LOGADO (users.email) — não é o e-mail do Google
+     *  conectado via OAuth, é o e-mail de cadastro da conta dele na plataforma. */
+    user_email?: string | null
   }
 }
 
@@ -69,22 +72,38 @@ export default function AgendarVisitaModal({ isOpen, onClose, onSuccess, lead, t
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [agendamentoId, setAgendamentoId] = useState('')
+  const [personalBannerDismissed, setPersonalBannerDismissed] = useState(false)
+  // Convite do cliente por e-mail (Google Calendar nativo, via attendee — não exige nenhuma
+  // conexão OAuth do lado do cliente). Pré-preenchido com o e-mail já capturado no lead;
+  // editável aqui pra cobrir tanto "lead sem e-mail ainda" quanto "e-mail errado/desatualizado".
+  const [clienteEmail, setClienteEmail] = useState('')
+  const [convidarCliente, setConvidarCliente] = useState(true)
 
   // Calendário visual — mês atual
   const today = new Date()
   const [calMonth, setCalMonth] = useState({ year: today.getFullYear(), month: today.getMonth() })
 
+  // Calendário da EMPRESA (configurado na tela de tenants) já é suficiente pra agendar — a
+  // conexão pessoal do atendente com o próprio Google Calendar é só um reforço opcional
+  // (aparece no calendário dele também, quando conectado), nunca um bloqueio. O passo
+  // "connect" só aparece no caso raro de a empresa também não ter calendário configurado.
+  const hasPersonalCalendar = tenantConfig.google_calendar_authorized && tenantConfig.has_google_token
+  const canSchedule = tenantConfig.empresa_configurada || hasPersonalCalendar
+
   useEffect(() => {
     if (isOpen) {
-      const isConfigured = tenantConfig.google_calendar_authorized && tenantConfig.has_google_token
-      setStep(isConfigured ? 'date' : 'connect')
+      setStep(canSchedule ? 'date' : 'connect')
       setSelectedDate('')
       setSlots([])
       setSelectedSlot(null)
       setObservacoes('')
       setError('')
+      setPersonalBannerDismissed(false)
+      setClienteEmail(lead.email || '')
+      setConvidarCliente(true)
     }
-  }, [isOpen, tenantConfig.google_calendar_authorized, tenantConfig.has_google_token])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, canSchedule])
 
   // ── Calendário ─────────────────────────────────────────────
 
@@ -157,6 +176,8 @@ export default function AgendarVisitaModal({ isOpen, onClose, onSuccess, lead, t
           tenant_id: tenantId,
           data_hora_inicio: selectedSlot.inicio,
           observacoes: observacoes || undefined,
+          cliente_email: clienteEmail.trim() || undefined,
+          convidar_cliente: convidarCliente,
         }),
       })
       const data = await res.json()
@@ -248,6 +269,45 @@ export default function AgendarVisitaModal({ isOpen, onClose, onSuccess, lead, t
             </div>
           )}
 
+          {/* Aviso não-bloqueante: calendário pessoal do atendente não conectado — o
+              agendamento funciona normalmente (calendário da empresa já cobre), mas ele não
+              recebe o evento no próprio Google Calendar sem isso. */}
+          {!hasPersonalCalendar && !personalBannerDismissed && (step === 'date' || step === 'slot') && (
+            <div className={`mb-4 flex items-start gap-3 p-4 rounded-2xl border ${t.isDark ? 'bg-amber-500/5 border-amber-500/20' : 'bg-amber-50 border-amber-200'}`}>
+              <CalendarDaysIcon className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className={`text-xs font-bold ${t.isDark ? 'text-amber-400' : 'text-amber-700'}`}>
+                  Seu Google Calendar pessoal não está conectado
+                </p>
+                <p className={`text-[11px] mt-1 leading-relaxed ${t.textSecondary}`}>
+                  Você pode agendar normalmente — o evento vai pro calendário da empresa. Só não
+                  vai aparecer no seu Google Calendar pessoal (sem lembrete automático) até você
+                  conectar.
+                </p>
+                <p className={`text-[11px] mt-1.5 ${t.textMuted}`}>
+                  E-mail cadastrado:{' '}
+                  <span className={`font-bold ${tenantConfig.user_email ? t.textSecondary : 'italic'}`}>
+                    {tenantConfig.user_email || 'Nenhum e-mail cadastrado'}
+                  </span>
+                </p>
+                <a
+                  href={`/api/auth/google/authorize?returnUrl=${encodeURIComponent('/crm/kanban')}`}
+                  className="inline-flex items-center gap-1 mt-2 text-[11px] font-bold text-amber-600 hover:text-amber-500 transition-colors"
+                >
+                  <LinkIcon className="h-3 w-3" />
+                  Conectar agora
+                </a>
+              </div>
+              <button
+                onClick={() => setPersonalBannerDismissed(true)}
+                title="Dispensar"
+                className={`flex-shrink-0 p-1 rounded-lg transition-all ${t.isDark ? 'text-white/30 hover:text-white/60 hover:bg-white/10' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+              >
+                <XMarkIcon className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
           {/* ── Step: Conectar Google ── */}
           {step === 'connect' && (
             <div className="text-center py-4 space-y-6">
@@ -255,10 +315,12 @@ export default function AgendarVisitaModal({ isOpen, onClose, onSuccess, lead, t
                 <CalendarDaysIcon className="h-10 w-10 text-blue-500" />
               </div>
               <div>
-                <h3 className={`text-lg font-black ${t.textPrimary}`}>Conectar Google Calendar</h3>
+                <h3 className={`text-lg font-black ${t.textPrimary}`}>Google Calendar não configurado</h3>
                 <p className={`text-sm mt-2 leading-relaxed ${t.textSecondary}`}>
-                  Para agendar visitas é necessário autorizar o acesso ao seu Google Calendar.
-                  Isso permite verificar sua disponibilidade e criar os eventos automaticamente.
+                  Esta empresa ainda não tem um calendário Google configurado — peça a um
+                  administrador para configurar em Configurações da Empresa. Como alternativa,
+                  você pode conectar sua própria conta Google abaixo para agendar usando o seu
+                  calendário pessoal enquanto isso.
                 </p>
               </div>
               <a
@@ -401,6 +463,36 @@ export default function AgendarVisitaModal({ isOpen, onClose, onSuccess, lead, t
                 ))}
               </div>
 
+              {/* Convite do cliente */}
+              <div>
+                <label className={`block text-[10px] font-black uppercase tracking-widest mb-2 ${t.textMuted}`}>
+                  E-mail do cliente
+                </label>
+                <input
+                  type="email"
+                  value={clienteEmail}
+                  onChange={e => setClienteEmail(e.target.value)}
+                  placeholder="cliente@email.com"
+                  className={`w-full rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/50 transition-all ${t.inputBg}`}
+                />
+                <label className="flex items-center space-x-2 mt-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={convidarCliente}
+                    onChange={e => setConvidarCliente(e.target.checked)}
+                    className="h-4 w-4 rounded accent-blue-600"
+                  />
+                  <span className={`text-[11px] font-medium ${t.textSecondary}`}>
+                    Convidar o cliente por e-mail (Google Calendar)
+                  </span>
+                </label>
+                {convidarCliente && !clienteEmail.trim() && (
+                  <p className="text-[10px] mt-1 text-amber-500">
+                    Sem e-mail informado, o cliente não será convidado.
+                  </p>
+                )}
+              </div>
+
               {/* Observações */}
               <div>
                 <label className={`block text-[10px] font-black uppercase tracking-widest mb-2 ${t.textMuted}`}>
@@ -418,8 +510,15 @@ export default function AgendarVisitaModal({ isOpen, onClose, onSuccess, lead, t
               <div className={`flex items-start space-x-2 p-3 rounded-xl ${t.isDark ? 'bg-blue-500/5 border border-blue-500/15' : 'bg-blue-50 border border-blue-100'}`}>
                 <CalendarDaysIcon className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
                 <p className={`text-[10px] leading-relaxed ${t.textSecondary}`}>
-                  Um evento será criado no seu Google Calendar e no calendário da empresa.
-                  E-mails de confirmação serão enviados para você e para o cliente.
+                  {hasPersonalCalendar
+                    ? 'Um evento será criado no seu Google Calendar e no calendário da empresa.'
+                    : 'Um evento será criado no calendário da empresa.'}
+                  {' '}
+                  {convidarCliente && clienteEmail.trim()
+                    ? hasPersonalCalendar
+                      ? `O cliente recebe um convite do Google Calendar e um e-mail de confirmação em ${clienteEmail.trim()}.`
+                      : `O cliente recebe um e-mail de confirmação em ${clienteEmail.trim()} (sem convite do Google Calendar — só o calendário da empresa cria evento, e ele não pode convidar ninguém; conecte seu calendário pessoal pra isso funcionar).`
+                    : 'Nenhum convite será enviado ao cliente por e-mail.'}
                 </p>
               </div>
             </div>

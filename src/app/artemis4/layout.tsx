@@ -21,8 +21,17 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Artemis4 - Plataforma de Alta Performance para Negócios',
-  description: 'Artemis4 é a plataforma definitiva de gestão, CRM de vendas e aceleração de marketing para múltiplos segmentos de mercado.',
+  title: 'Artemis4 — Saiba qual anúncio virou venda de verdade',
+  description:
+    'Plataforma brasileira que une Marketing Digital, CRM e Mensageria num ciclo fechado: o interessado chega identificado com a campanha que o trouxe, é respondido em segundos e o negócio fechado volta para o anúncio de origem.',
+  openGraph: {
+    title: 'Artemis4 — Saiba qual anúncio virou venda de verdade',
+    description:
+      'Marketing Digital, CRM e Mensageria num ciclo fechado. Instagram, Google e TikTok num painel só, atendimento em segundos e retorno medido pelo seu caixa — não pela estimativa da rede social.',
+    type: 'website',
+    locale: 'pt_BR',
+    siteName: 'Artemis4',
+  },
 };
 
 /* UUID do tenant master — dono das credenciais Meta para as páginas Artemis4 */
@@ -37,7 +46,7 @@ export default async function Artemis4Layout({
   const pixelId = await getMetaPixelId(MASTER_TENANT_ID);
 
   return (
-    <div className={`${spaceGrotesk.variable} ${inter.variable} min-h-screen bg-[#020617] text-white overflow-x-hidden antialiased font-[family-name:var(--font-body)]`}>
+    <div className={`${spaceGrotesk.variable} ${inter.variable} min-h-screen bg-[#020c1b] text-white overflow-x-hidden antialiased font-[family-name:var(--font-body)]`}>
       {/* Meta Pixel — só renderiza se pixelId estiver configurado */}
       {pixelId && (
         <Suspense fallback={null}>

@@ -29,7 +29,8 @@ export function usePermissions() {
       canExecute: () => false,
       isAdmin: () => false,
       hasPermission: () => false,
-      userPermissions: null
+      userPermissions: null,
+      auditConfigs: {}
     }
   }
   

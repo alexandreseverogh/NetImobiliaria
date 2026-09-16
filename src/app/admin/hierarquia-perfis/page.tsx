@@ -374,9 +374,9 @@ export default function HierarchyPage() {
         onSuccess={fetchRoles}
         perfil={selectedRole ? {
           id: selectedRole.id,
-          nome: selectedRole.name,
-          descricao: selectedRole.description,
-          nivel: selectedRole.level,
+          name: selectedRole.name,
+          description: selectedRole.description,
+          level: selectedRole.level,
           is_system_role: selectedRole.is_system_role,
           user_count: selectedRole.user_count
         } : null}

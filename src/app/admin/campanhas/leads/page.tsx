@@ -1,18 +1,18 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, Cell,
 } from 'recharts'
 import {
   UsersIcon, ChartBarIcon, ArrowTrendingUpIcon,
   ChevronLeftIcon, ChevronRightIcon,
   ChevronDoubleLeftIcon, ChevronDoubleRightIcon,
-  FunnelIcon,
+  FunnelIcon, ChatBubbleLeftRightIcon, InformationCircleIcon,
 } from '@heroicons/react/24/outline'
 import { adminFetch } from '@/lib/auth/adminFetch'
-import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector'
+import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector'
 import DateInputPtBR from '@/components/ui/DateInputPtBR'
 
 const PAGE_SIZE = 20
@@ -20,25 +20,29 @@ const PAGE_SIZE = 20
 const BAR_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899']
 
 const ORIGEM_LABEL: Record<string, string> = {
-  cta_app_form:      'Formulário',
-  cta:               'Formulário CTA',
-  cta_whatsapp:      'WhatsApp CTA',
-  cta_api:           'Webhook Externo',
-  whatsapp_organico: 'WhatsApp Orgânico',
-  meta_lead_ads:     'Meta Lead Ads',
-  api_webhook:       'API / Webhook',
-  direto:            'Direto',
+  cta_app_form:          'Formulário',
+  cta:                   'Formulário CTA',
+  cta_whatsapp:          'WhatsApp CTA',
+  cta_api:               'Webhook Externo',
+  whatsapp_organico:     'WhatsApp Orgânico',
+  meta_lead_ads:         'Meta Lead Ads',
+  google_lead_form:      'Google Lead Form',
+  google_lead_form_test: 'Google Lead Form (teste)',
+  api_webhook:           'API / Webhook',
+  direto:                'Direto',
 }
 
 const ORIGEM_COLOR: Record<string, string> = {
-  cta_app_form:      'bg-blue-100 text-blue-700',
-  cta:               'bg-blue-100 text-blue-700',
-  cta_whatsapp:      'bg-emerald-100 text-emerald-700',
-  cta_api:           'bg-violet-100 text-violet-700',
-  whatsapp_organico: 'bg-green-100 text-green-700',
-  meta_lead_ads:     'bg-indigo-100 text-indigo-700',
-  api_webhook:       'bg-violet-100 text-violet-700',
-  direto:            'bg-gray-100 text-gray-600',
+  cta_app_form:          'bg-blue-100 text-blue-700',
+  cta:                   'bg-blue-100 text-blue-700',
+  cta_whatsapp:          'bg-emerald-100 text-emerald-700',
+  cta_api:               'bg-violet-100 text-violet-700',
+  whatsapp_organico:     'bg-green-100 text-green-700',
+  meta_lead_ads:         'bg-indigo-100 text-indigo-700',
+  google_lead_form:      'bg-amber-100 text-amber-700',
+  google_lead_form_test: 'bg-amber-50 text-amber-500',
+  api_webhook:           'bg-violet-100 text-violet-700',
+  direto:                'bg-gray-100 text-gray-600',
 }
 
 const TOOLTIP_STYLE = {
@@ -69,6 +73,13 @@ export default function LeadsCapturadosPage() {
   const { clients, loading: clientsLoading, clientFilter, setClientFilter } =
     useClientSelector('leads')
 
+  // Guarda contra corrida entre requisições: clientFilter assenta em 2-3 valores logo no mount
+  // (useClientSelector troca 'own'→'segment' assim que resolve isOwnSegment) e cada troca dispara
+  // um novo loadAll() em paralelo — sem essa proteção, uma resposta MAIS ANTIGA (ex.: sem filtro
+  // de origem) que demore mais pra resolver pode sobrescrever o estado de uma resposta mais nova
+  // (ex.: já com origem aplicada), dando a falsa impressão de que o filtro "não fez efeito".
+  const requestIdRef = useRef(0)
+
   const buildQs = useCallback((extra: Record<string, any> = {}) => {
     const p: Record<string, string> = {
       startDate: filters.startDate,
@@ -80,7 +91,7 @@ export default function LeadsCapturadosPage() {
     return new URLSearchParams(p).toString()
   }, [filters, clientFilter, origemFilter])
 
-  const EMPTY_STATS = { totalLeads: 0, leadsHoje: 0, mediaDia: '0.0', leadsByDay: [], leadsByOrigem: [] }
+  const EMPTY_STATS = { totalLeads: 0, leadsHoje: 0, todayDate: null, mediaDia: '0.0', leadsByDay: [], leadsByOrigem: [], sinalInteresseMeta: 0, sinalByDay: [] }
 
   const loadAll = useCallback(async () => {
     // Validação: data início não pode ser posterior à data fim
@@ -94,6 +105,7 @@ export default function LeadsCapturadosPage() {
     }
     setDateError('')
     setLoading(true)
+    const myRequestId = ++requestIdRef.current
     try {
       const [leadsRes, statsRes] = await Promise.all([
         adminFetch(`/api/admin/campanhas/leads?${buildQs({ page: '1', limit: String(PAGE_SIZE) })}`).then(async r => {
@@ -107,17 +119,21 @@ export default function LeadsCapturadosPage() {
           return data
         }),
       ])
+      // Descarta resposta desatualizada — outra chamada mais recente a loadAll() já foi disparada
+      // enquanto esta estava em voo (ex.: clientFilter assentando + troca de filtro quase junto).
+      if (myRequestId !== requestIdRef.current) return
       setLeads(leadsRes.leads ?? [])
       setTotal(leadsRes.total ?? 0)
       setStats(statsRes)
       setPage(1)
     } catch (err: any) {
+      if (myRequestId !== requestIdRef.current) return
       console.error('[leads page] loadAll erro:', err)
       setLeads([])
       setTotal(0)
       setStats(EMPTY_STATS)
     } finally {
-      setLoading(false)
+      if (myRequestId === requestIdRef.current) setLoading(false)
     }
   }, [buildQs, filters.startDate, filters.endDate])
 
@@ -126,12 +142,14 @@ export default function LeadsCapturadosPage() {
   const goToPage = async (p: number) => {
     setPage(p)
     setTableLoading(true)
+    const myRequestId = ++requestIdRef.current
     try {
       const res = await adminFetch(`/api/admin/campanhas/leads?${buildQs({ page: String(p), limit: String(PAGE_SIZE) })}`).then(r => r.json())
+      if (myRequestId !== requestIdRef.current) return
       setLeads(res.leads ?? [])
       setTotal(res.total ?? 0)
     } finally {
-      setTableLoading(false)
+      if (myRequestId === requestIdRef.current) setTableLoading(false)
     }
   }
 
@@ -139,9 +157,17 @@ export default function LeadsCapturadosPage() {
   const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
   const rangeEnd   = Math.min(page * PAGE_SIZE, total)
 
-  const dailyData = [...(stats.leadsByDay ?? [])].reverse().map((d: any) => ({
-    date:  new Date(d.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-    leads: d.count,
+  // Combina "Total Leads" (contato confirmado) e "Sinal de Interesse" (Meta) por dia, pra
+  // visualizar o funil sinal→contato dia a dia — um gap grande num dia específico (ex.: muito
+  // sinal, poucos leads) é um indício de possível ineficiência no atendimento (ou, alternativa
+  // igualmente válida, de leads que nunca responderam de volta).
+  const leadsByDayMap = new Map((stats.leadsByDay ?? []).map((d: any) => [d.date, d.count]))
+  const sinalByDayMap = new Map((stats.sinalByDay ?? []).map((d: any) => [d.date, d.count]))
+  const allDates = Array.from(new Set([...Array.from(leadsByDayMap.keys()), ...Array.from(sinalByDayMap.keys())])).sort()
+  const dailyData = allDates.map((date: any) => ({
+    date:  new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+    leads: leadsByDayMap.get(date) ?? 0,
+    sinal: sinalByDayMap.get(date) ?? 0,
   }))
 
   const origemData = (stats.leadsByOrigem ?? []).map((o: any) => ({
@@ -152,9 +178,18 @@ export default function LeadsCapturadosPage() {
 
   const topOrigem = stats.leadsByOrigem?.[0]
   const topOrigemLabel = topOrigem ? (ORIGEM_LABEL[topOrigem.origem] ?? topOrigem.origem) : '—'
+  // "Maior Origem" é sempre a 1ª barra de "Leads por Origem" (mesmo array, mesma ordenação por
+  // count DESC) — usa a MESMA cor (BAR_COLORS[0]) pra não parecer duas origens diferentes.
+  const topOrigemColorHex = BAR_COLORS[0]
 
-  const selectCls = 'bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500'
-  const inputCls  = 'bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500'
+  // "Leads Hoje" é sempre a data-calendário real (independe do período filtrado no seletor de
+  // datas acima) — o rótulo explicita a data pra não parecer estar preso ao filtro.
+  const todayLabel = stats.todayDate
+    ? new Date(stats.todayDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+    : ''
+
+  const selectCls = 'bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600'
+  const inputCls  = 'bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600'
 
   return (
     <div className="px-4 py-6 bg-gray-50 min-h-screen">
@@ -177,6 +212,29 @@ export default function LeadsCapturadosPage() {
             storageKey="leads"
             variant="toggle"
           />
+        </div>
+
+        {/* Explicação — como interpretar os números */}
+        <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 mb-6 flex gap-3">
+          <InformationCircleIcon className="h-5 w-5 text-sky-600 shrink-0 mt-0.5" />
+          <div className="text-xs text-sky-900 leading-relaxed space-y-1">
+            <p>
+              <strong>Total Leads</strong> conta <strong>contatos reais confirmados no CRM</strong>
+              {' '}(nome, telefone ou e-mail) — de qualquer origem (WhatsApp, formulário, API, etc.).
+              É o número que importa para o follow-up comercial.
+            </p>
+            <p>
+              <strong>Sinal de Interesse (Meta)</strong> conta o <strong>evento bruto de engajamento</strong> em
+              anúncios do Meta (Facebook/Instagram) no mesmo período — clique de WhatsApp ou formulário
+              preenchido — mesmo quando esse clique ainda não virou uma resposta/contato confirmado. Por isso
+              pode ser <strong>maior</strong> que "Total Leads": nem todo clique vira um contato real.
+            </p>
+            <p>
+              As conversões do <strong>Google Ads</strong> não entram nesta página — o Google reporta apenas um
+              número agregado de conversões pela própria API, sem identificar cada pessoa individualmente, então
+              não existe um "contato" para listar aqui. Elas continuam entrando no CPL do Dashboard/Portfolio.
+            </p>
+          </div>
         </div>
 
         {/* Filtros */}
@@ -208,27 +266,33 @@ export default function LeadsCapturadosPage() {
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
           {[
+            { icon: ChatBubbleLeftRightIcon, label: 'Sinal de Interesse (Meta)', value: stats.sinalInteresseMeta ?? 0, color: 'text-sky-600', bg: 'bg-sky-50' },
             { icon: UsersIcon,          label: 'Total Leads',    value: stats.totalLeads ?? 0,   color: 'text-indigo-600',  bg: 'bg-indigo-50' },
-            { icon: ArrowTrendingUpIcon, label: 'Leads Hoje',    value: stats.leadsHoje ?? 0,    color: 'text-emerald-600', bg: 'bg-emerald-50' },
+            { icon: ArrowTrendingUpIcon, label: todayLabel ? `Leads Hoje (${todayLabel})` : 'Leads Hoje', value: stats.leadsHoje ?? 0, color: 'text-emerald-600', bg: 'bg-emerald-50' },
             { icon: ChartBarIcon,        label: 'Média/Dia',     value: stats.mediaDia ?? '0',   color: 'text-violet-600',  bg: 'bg-violet-50' },
-            { icon: FunnelIcon,          label: 'Maior Origem',  value: topOrigemLabel,          color: 'text-amber-600',   bg: 'bg-amber-50' },
+            { icon: FunnelIcon,          label: 'Maior Origem',  value: topOrigemLabel,          color: '',                 bg: '', hex: topOrigemColorHex },
           ].map(k => (
             <div key={k.label} className={`${CARD} p-5`}>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{k.label}</p>
-                <div className={`p-2 rounded-xl ${k.bg}`}>
-                  <k.icon className={`h-4 w-4 ${k.color}`} />
+                <div className={`p-2 rounded-xl ${k.bg}`} style={k.hex ? { backgroundColor: `${k.hex}1A` } : undefined}>
+                  <k.icon className={`h-4 w-4 ${k.color}`} style={k.hex ? { color: k.hex } : undefined} />
                 </div>
               </div>
               {loading
                 ? <div className="h-8 w-20 bg-gray-200 rounded animate-pulse" />
-                : <p className={`text-3xl font-black ${k.color} truncate`}>{k.value}</p>
+                : <p className={`text-3xl font-black ${k.color} truncate`} style={k.hex ? { color: k.hex } : undefined}>{k.value}</p>
               }
             </div>
           ))}
         </div>
+        <p className="text-[11px] text-gray-400 -mt-4 mb-6 px-1">
+          "Leads Hoje" usa sempre a data-calendário real de hoje — independe do período "De/Até"
+          selecionado acima. "Maior Origem" usa a mesma cor da barra correspondente em "Leads por
+          Origem", abaixo.
+        </p>
 
         {loading ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -239,14 +303,23 @@ export default function LeadsCapturadosPage() {
             {/* Gráficos */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               <div className={`${CARD} p-6`}>
-                <h3 className="text-sm font-black text-gray-900 mb-5">Leads por Dia</h3>
+                <h3 className="text-sm font-black text-gray-900">Sinal de Interesse × Total Leads por Dia</h3>
+                <p className="text-[11px] text-gray-400 mb-4">
+                  Um gap grande num dia (muito sinal, poucos leads confirmados) pode indicar
+                  atraso no atendimento — mas também pode ser lead que nunca respondeu de volta.
+                  Sinal só cobre Meta; Total Leads inclui todas as origens (WhatsApp orgânico,
+                  formulário, API), então a comparação é mais precisa quando a maior parte dos
+                  leads vem de campanhas Meta.
+                </p>
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={dailyData} margin={{ top: 4, right: 8, left: -4, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
                     <XAxis dataKey="date" stroke="#6b7280" fontSize={11} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} interval="preserveStartEnd" />
                     <YAxis stroke="#6b7280" fontSize={11} tickLine={false} axisLine={false} width={30} allowDecimals={false} />
                     <Tooltip {...TOOLTIP_STYLE} />
-                    <Line type="monotone" dataKey="leads" stroke="#10b981" strokeWidth={2.5} dot={{ fill: '#10b981', r: 3, strokeWidth: 0 }} name="Leads" />
+                    <Legend wrapperStyle={{ fontSize: '11px' }} />
+                    <Line type="monotone" dataKey="sinal" stroke="#0ea5e9" strokeWidth={2} dot={{ fill: '#0ea5e9', r: 2.5, strokeWidth: 0 }} name="Sinal de Interesse (Meta)" />
+                    <Line type="monotone" dataKey="leads" stroke="#6366f1" strokeWidth={2.5} dot={{ fill: '#6366f1', r: 3, strokeWidth: 0 }} name="Total Leads" />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -288,7 +361,7 @@ export default function LeadsCapturadosPage() {
                   </thead>
                   <tbody className={`divide-y divide-gray-100 transition-opacity ${tableLoading ? 'opacity-50' : ''}`}>
                     {leads.map((lead: any) => (
-                      <tr key={lead.id} className="hover:bg-indigo-50/30 transition-colors">
+                      <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 text-xs font-mono text-gray-500 whitespace-nowrap">
                           {new Date(lead.created_at).toLocaleString('pt-BR')}
                         </td>
@@ -336,7 +409,7 @@ export default function LeadsCapturadosPage() {
                         ? <span key={`e${idx}`} className="px-1 text-xs text-gray-400">…</span>
                         : (
                           <button key={item} onClick={() => goToPage(item as number)} disabled={tableLoading}
-                            className={`min-w-[30px] h-8 rounded-lg text-xs font-bold transition-all disabled:cursor-not-allowed ${item === page ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-200'}`}>
+                            className={`min-w-[30px] h-8 rounded-lg text-xs font-bold transition-colors disabled:cursor-not-allowed ${item === page ? 'bg-gold-premium text-navy-dark' : 'text-gray-600 hover:bg-gray-200'}`}>
                             {item}
                           </button>
                         )

@@ -115,11 +115,29 @@ export async function POST(request: NextRequest) {
       const email = fields['email'] || null
       const phone = fields['phone_number'] || fields['phone'] || fields['telefone'] || null
 
+      // 4b. Resolve campaign_id real a partir do ad_id externo da Meta (achado 2026-07-21:
+      // sem isso, leads de Formulário Instantâneo entravam no CRM mas ficavam invisíveis em
+      // TODA métrica de campanha — CPL, funil, IA — que sempre filtra por campaign_id).
+      let resolvedCampaignId: string | null = null
+      if (val.ad_id) {
+        const adRes = await pool.query(
+          `SELECT ads."campaignId" AS campaign_id
+             FROM ${SCHEMA}."Ad" a
+             JOIN ${SCHEMA}."AdSet" ads ON ads.id = a."adSetId"
+             JOIN ${SCHEMA}."Campaign" c ON c.id = ads."campaignId"
+            WHERE a."metaAdId" = $1 AND c.tenant_id = $2
+            LIMIT 1`,
+          [String(val.ad_id), tenant.id],
+        )
+        resolvedCampaignId = adRes.rows[0]?.campaign_id ?? null
+      }
+
       // 5. Logar + submissão + lead CRM
       const interactionId = await logInteraction({
         tenantId: tenant.id,
         clientId: dest?.client_id ?? null,
         destinationId: dest?.id ?? null,
+        campaignId: resolvedCampaignId,
         adId: val.ad_id ? String(val.ad_id) : null,
         ctaType: dest?.cta_type ?? 'META_LEAD_ADS',
         eventType: 'SUBMIT',
@@ -131,6 +149,7 @@ export async function POST(request: NextRequest) {
         clientId: dest?.client_id ?? null,
         destinationId: dest?.id ?? null,
         interactionId,
+        campaignId: resolvedCampaignId,
         ctaType: dest?.cta_type ?? 'META_LEAD_ADS',
         payload: { ...fields, leadgen_id: val.leadgen_id, form_id: val.form_id, page_id: pageId },
         name,
@@ -147,6 +166,7 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({
             tenant_id: tenant.id,
             client_id: dest?.client_id ?? null,
+            campaign_id: resolvedCampaignId,
             nome: name ?? 'Lead Meta',
             email,
             telefone: phone,

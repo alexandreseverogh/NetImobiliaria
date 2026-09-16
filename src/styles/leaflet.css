@@ -8,6 +8,13 @@
   border-radius: 0.5rem;
 }
 
+/* Dark map — inverte só a camada de tiles (OpenStreetMap não tem variante
+   escura gratuita); marcadores/popups ficam de fora do seletor de propósito,
+   senão o filtro também os inverteria. */
+.leaflet-dark-map .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
+}
+
 /* Dark popup */
 .leaflet-popup-dark .leaflet-popup-content-wrapper {
   background: #0d1421;

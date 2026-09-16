@@ -92,7 +92,7 @@ export default function ExecutiveDashboard({ data: externalData, config }: any) 
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Fluxo de Receita e Leads</h2>
             <select className="bg-transparent text-sm font-medium text-slate-500 border-none focus:ring-0 cursor-pointer">
-              <last-7-days>Últimos 6 meses</last-7-days>
+              <option>Últimos 6 meses</option>
             </select>
           </div>
           <div className="h-[350px] w-full">

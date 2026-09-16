@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { createCampaign, getMetaIdentity, getWhatsAppConfig, type Creative } from '@/lib/marketing-api';
-import { cn, OBJECTIVES, CTA_TYPES, DAYS_OF_WEEK, formatCurrency } from '@/lib/marketing-utils';
+import { cn, OBJECTIVES, CTA_TYPES, DAYS_OF_WEEK, formatCurrency, networkLabel } from '@/lib/marketing-utils';
 import { LocationPicker, type LocationEntry } from './LocationPicker';
 import { ANGLE_OPTIONS, angleLabel } from '@/lib/marketing/angles';
 import {
@@ -14,9 +14,15 @@ import {
 /* ── shared input class ──────────────────────────────────── */
 const inputCls =
   'px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-900 ' +
-  'placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all disabled:opacity-60';
+  'placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all disabled:opacity-60';
 
 /* ── types ───────────────────────────────────────────────── */
+interface NetworkOption {
+  id: string; code: string; name: string; icon: string; color: string;
+  network_active: boolean; capabilities: { supported?: boolean }; connected?: boolean;
+  contracted?: boolean;
+}
+
 interface Props {
   selectedImages?: Creative[];
   onClose: () => void;
@@ -34,10 +40,30 @@ interface Props {
    * Popula os campos de texto antes do usuário chegar ao step 2.
    */
   initialValues?: {
-    body?:     string;
-    headline?: string;
-    hookText?: string;  // exibido como dica no step 2
+    body?:        string;
+    headline?:    string;
+    hookText?:    string;  // exibido como dica no step 2
+    /** Pré-seleciona a rede no step 0 — vem do botão específico clicado em /nova (Meta/TikTok). */
+    networkCode?: string;
   };
+  /**
+   * Status de rede já resolvido por /nova (GET /configuracoes/redes) — repassado pra
+   * StepNetwork evitar refazer a mesma chamada do zero (achado real: a etapa "Rede" sempre
+   * recarregava e reexibia o próprio skeleton, mesmo a rede já tendo sido escolhida no botão
+   * clicado em /nova, um dos fatores da demora extrema reportada ao abrir o wizard).
+   * Ausente/vazio → StepNetwork busca sozinha (uso standalone continua funcionando).
+   */
+  networks?: NetworkOption[];
+  /**
+   * Google Ads (Performance Max) não é suportado neste wizard genérico — tem estrutura
+   * fundamentalmente diferente (asset groups, não adSet/ad) e por isso vive num componente
+   * próprio (GoogleAiMaxWizard). Sem esse callback, um usuário que já está dentro deste
+   * wizard e decide que quer Google não tem NENHUM caminho de volta — precisaria descobrir
+   * sozinho que tem que fechar o wizard e clicar no botão separado em /nova. Quando presente,
+   * StepNetwork oferece um atalho real: fecha este wizard e abre o do Google diretamente,
+   * reaproveitando os mesmos criativos já selecionados.
+   */
+  onSwitchToGoogle?: () => void;
 }
 
 /* ── AutoChip ────────────────────────────────────────────── */
@@ -83,7 +109,7 @@ function Label({ children, className }: { children: React.ReactNode; className?:
 /* ══════════════════════════════════════════════════════════
    MAIN WIZARD COMPONENT — FASE 2 (configuração da campanha)
 ══════════════════════════════════════════════════════════ */
-export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, onSuccess, clientId, getAssetIds, initialValues }: Props) {
+export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, onSuccess, clientId, getAssetIds, initialValues, networks, onSwitchToGoogle }: Props) {
   const selectedImages = selectedImagesProp ?? [];
   const [step, setStep]             = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -100,6 +126,15 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
     specialAdCategory:  'NONE',
     customEventType:    'LEAD',
     objective:          'OUTCOME_LEADS',
+    // Achado da auditoria "O Loop Quebrado do ICP" (2026-09-03): resolveSegmentNetworkDefaults()
+    // já calcula optimizationGoal/billingEvent certo pro segmento (ex. LEAD_GENERATION pro
+    // Imobiliário), mas o wizard nunca lia esses 2 campos do retorno de /segment-defaults — o
+    // servidor caía no fallback errado (LINK_CLICKS, campaigns/route.ts) e toda campanha lançada
+    // otimizava por clique, nunca por lead, mesmo o segmento pedindo o contrário. 100% automático
+    // (sem controle de UI, mesmo espírito de specialAdCategory/customEventType — não é campo que
+    // o usuário digita, é resolvido pelo segmento).
+    optimizationGoal:   'LEAD_GENERATION',
+    billingEvent:       'IMPRESSIONS',
     websiteDefault:     '',
     suggestedInterests: [] as { id: string; name: string }[],
     whatsappNumber:     '',
@@ -110,7 +145,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
   });
 
   const [form, setForm] = useState({
-    networkCode:  'meta',
+    networkCode:  initialValues?.networkCode || 'meta',
     creativeType: selectedImages.length === 1 ? 'SINGLE_IMAGE' : '',
     name:         '',
     body:         initialValues?.body     || '',
@@ -188,6 +223,8 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
           specialAdCategory:  segDefaults?.specialAdCategory || 'NONE',
           customEventType:    segDefaults?.customEventType   || 'LEAD',
           objective:          segDefaults?.objective         || 'OUTCOME_LEADS',
+          optimizationGoal:   segDefaults?.optimizationGoal  || 'LEAD_GENERATION',
+          billingEvent:       segDefaults?.billingEvent      || 'IMPRESSIONS',
           suggestedInterests: segDefaults?.suggestedInterests || [],
           whatsappNumber:     whatsapp?.phoneNumber    || '',
           whatsappMessage:    whatsapp?.defaultMessage || '',
@@ -296,6 +333,8 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
         specialAdCategory: form.specialAdCategory || autoFields.specialAdCategory || 'NONE',
         pixelId:           form.pixelId           || autoFields.pixelId           || undefined,
         customEventType:   form.customEventType   || autoFields.customEventType   || 'LEAD',
+        optimizationGoal:  autoFields.optimizationGoal || 'LEAD_GENERATION',
+        billingEvent:      autoFields.billingEvent     || 'IMPRESSIONS',
         declaredAngle:     form.declaredAngle || undefined,   // FASE 14
         initiativeId:      form.initiativeId || undefined,    // vínculo opcional à iniciativa
         clientId:          clientId || undefined,
@@ -338,16 +377,16 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
               key={s.key}
               onClick={() => setStep(i)}
               className={cn(
-                'w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3',
-                i === step   ? 'bg-indigo-50 border border-indigo-100' :
+                'w-full text-left px-4 py-3 rounded-xl transition-colors flex items-center gap-3',
+                i === step   ? 'bg-gold-premium/10 border border-gold-premium/30' :
                 i < step     ? 'hover:bg-gray-50 cursor-pointer' :
                                'opacity-40 cursor-default'
               )}
             >
               <div className={cn(
                 'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
-                i === step   ? 'bg-indigo-600 text-white' :
-                i < step     ? 'bg-indigo-100 text-indigo-600' :
+                i === step   ? 'bg-gold-premium text-navy-dark' :
+                i < step     ? 'bg-emerald-100 text-emerald-600' :
                                'bg-gray-100 text-gray-400'
               )}>
                 {i < step ? (
@@ -402,8 +441,8 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
               transition={{ duration: 0.2 }}
               className="max-w-4xl"
             >
-              {step === 0 && <StepNetwork   form={form} updateForm={updateForm} />}
-              {step === 1 && <StepType      form={form} updateForm={updateForm} selectedImages={selectedImages} hookAlert={hookAlert} />}
+              {step === 0 && <StepNetwork   form={form} updateForm={updateForm} networks={networks} onSwitchToGoogle={onSwitchToGoogle} />}
+              {step === 1 && <StepType      form={form} updateForm={updateForm} selectedImages={selectedImages} hookAlert={hookAlert} clientId={clientId} />}
               {step === 2 && <StepTextCta   form={form} updateForm={updateForm} autoFields={autoFields} hookTextHint={initialValues?.hookText} isPrefilled={!!(initialValues?.body || initialValues?.headline)} />}
               {step === 3 && <StepTargeting form={form} updateForm={updateForm} clientId={clientId} suggestedInterests={autoFields.suggestedInterests} />}
               {step === 4 && <StepBudget    form={form} updateForm={updateForm} />}
@@ -425,8 +464,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
           {step < STEPS.length - 1 ? (
             <button
               onClick={() => setStep(step + 1)}
-              className="px-8 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
-              style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)' }}
+              className="px-8 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-navy-dark bg-gold-premium hover:bg-gold transition-colors"
             >
               Próximo →
             </button>
@@ -434,8 +472,10 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
             <button
               onClick={handleSubmit}
               disabled={submitting}
-              className="inline-flex items-center gap-2 px-8 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-500/20 transition-all active:scale-95 disabled:opacity-60"
-              style={{ background: submitting ? '#94a3b8' : 'linear-gradient(135deg, #6366f1, #4f46e5)' }}
+              className={cn(
+                'inline-flex items-center gap-2 px-8 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest transition-colors disabled:opacity-60',
+                submitting ? 'bg-slate-400 text-white' : 'bg-gold-premium text-navy-dark hover:bg-gold',
+              )}
             >
               {submitting ? (
                 <>
@@ -460,16 +500,16 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
    STEP 0 — REDE
 ══════════════════════════════════════════════════════════ */
 
-interface NetworkOption {
-  id: string; code: string; name: string; icon: string; color: string;
-  network_active: boolean; capabilities: { supported?: boolean }; connected?: boolean;
-}
-
-function StepNetwork({ form, updateForm }: any) {
-  const [networks, setNetworks] = useState<NetworkOption[]>([]);
-  const [loading, setLoading]   = useState(true);
+function StepNetwork({ form, updateForm, networks: networksProp, onSwitchToGoogle }: any) {
+  // /nova já buscou o status de rede pra habilitar os botões macro (Meta/TikTok/Google) —
+  // se ele repassou a lista aqui, reaproveita direto: sem refetch, sem skeleton próprio.
+  // Só busca sozinha se usada sem esse prop (fallback, uso standalone).
+  const hasPreloaded = Array.isArray(networksProp) && networksProp.length > 0;
+  const [networks, setNetworks] = useState<NetworkOption[]>(hasPreloaded ? networksProp : []);
+  const [loading, setLoading]   = useState(!hasPreloaded);
 
   useEffect(() => {
+    if (hasPreloaded) return;
     axios.get('/api/admin/campanhas/configuracoes/redes')
       .then(r => setNetworks(r.data.networks || []))
       .catch(() => {
@@ -479,7 +519,8 @@ function StepNetwork({ form, updateForm }: any) {
         }]);
       })
       .finally(() => setLoading(false));
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasPreloaded]);
 
   const ICONS: Record<string, string> = { meta: '𝕗', google: 'G', linkedin: 'in', tiktok: '♪' };
 
@@ -502,18 +543,30 @@ function StepNetwork({ form, updateForm }: any) {
         </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {networks.map(net => {
-            const isSupported = net.capabilities?.supported !== false;
-            const isSelected  = form.networkCode === net.code;
+            const isSupported  = net.capabilities?.supported !== false;
+            // Contratação (modelo de negócio: cada rede é cobrada separadamente) tem
+            // prioridade sobre "conectado" — sem contratar, nem adianta ter credencial.
+            const isContracted = net.contracted !== false;
+            const isSelected   = form.networkCode === net.code;
+            // Google Ads (Performance Max) nunca é "isSupported" AQUI de propósito — não é
+            // que falte configurar, é que o formato é estruturalmente diferente (asset
+            // groups, não adSet/ad) e vive num wizard próprio. Em vez de deixar o usuário
+            // sem nenhum caminho de volta, oferece o atalho real pra trocar de wizard.
+            const isGoogleSwitch = net.code === 'google' && !isSupported && typeof onSwitchToGoogle === 'function';
+            const isClickable  = (isSupported && isContracted && net.connected) || isGoogleSwitch;
             return (
               <button
                 key={net.code}
-                disabled={!isSupported || !net.connected}
-                onClick={() => isSupported && net.connected && updateForm({ networkCode: net.code })}
+                disabled={!isClickable}
+                onClick={() => {
+                  if (isGoogleSwitch) return onSwitchToGoogle();
+                  if (isSupported && isContracted && net.connected) updateForm({ networkCode: net.code });
+                }}
                 className={cn(
-                  'bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-center transition-all relative',
-                  isSelected && 'ring-2 ring-indigo-500 bg-indigo-50 border-indigo-200',
-                  (!isSupported || !net.connected) && 'opacity-50 cursor-not-allowed',
-                  isSupported && net.connected && !isSelected && 'hover:bg-gray-50 cursor-pointer',
+                  'bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-center transition-colors relative',
+                  isSelected && 'ring-2 ring-gold-premium bg-amber-50 border-gold-premium/40',
+                  !isClickable && 'opacity-50 cursor-not-allowed',
+                  isClickable && !isSelected && 'hover:bg-gray-50 cursor-pointer',
                 )}
               >
                 <div
@@ -523,16 +576,20 @@ function StepNetwork({ form, updateForm }: any) {
                   {ICONS[net.code] || net.code.slice(0, 2).toUpperCase()}
                 </div>
                 <p className="text-sm font-semibold text-gray-900">{net.name}</p>
-                {net.connected ? (
-                  <p className="text-xs text-emerald-600 mt-1 font-medium">Conectado</p>
-                ) : isSupported ? (
-                  <p className="text-xs text-amber-500 mt-1">Não conectado</p>
-                ) : (
+                {isGoogleSwitch ? (
+                  <p className="text-xs text-indigo-600 mt-1 font-semibold">Abrir assistente próprio →</p>
+                ) : !isSupported ? (
                   <p className="text-xs text-gray-400 mt-1">Em breve</p>
+                ) : !isContracted ? (
+                  <p className="text-xs text-gray-400 mt-1">Não contratado</p>
+                ) : net.connected ? (
+                  <p className="text-xs text-emerald-600 mt-1 font-medium">Conectado</p>
+                ) : (
+                  <p className="text-xs text-amber-500 mt-1">Não conectado</p>
                 )}
                 {isSelected && (
-                  <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-indigo-600 flex items-center justify-center">
-                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-gold-premium flex items-center justify-center">
+                    <svg className="w-3 h-3 text-navy-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                     </svg>
                   </div>
@@ -541,7 +598,7 @@ function StepNetwork({ form, updateForm }: any) {
             );
           })}
         </div>
-        {networks.some(n => n.capabilities?.supported !== false && !n.connected) && (
+        {networks.some(n => n.capabilities?.supported !== false && n.contracted !== false && !n.connected) && (
           <p className="text-xs text-gray-400 mt-3">
             Redes com "Não conectado" precisam de credenciais em{' '}
             <a href="/admin/campanhas/configuracoes/redes" target="_blank" className="text-indigo-600 underline">
@@ -554,28 +611,128 @@ function StepNetwork({ form, updateForm }: any) {
   );
 }
 
+/* ── Hook Alert + sugestão concreta ─────────────────────────
+ * Caminho A ("com histórico"): reaproveita o padrão vencedor real do tenant (CTR/CPL).
+ * Caminho B ("sem histórico"): ancorado só na cena real de criativos já analisados —
+ * nunca Prova Social/Urgência-de-estoque, nunca número/fato inventado. Decisão de produto
+ * fechada em conversa com o usuário (ver docs/CHECKPOINT.md, sessão 2026-07-30). */
+
+interface HookConceptA {
+  format: string; scene: string; hook_text: string; body: string;
+  headline: string; cta: string; why_it_works: string;
+}
+interface HookSuggestionB {
+  hookType: string; sceneAssetId: string | null; hookText: string; why: string;
+}
+interface HookSuggestResponse {
+  path: 'history' | 'coldstart';
+  basedOn: { hookType: string; label: string; leads: number; daysRunning: number } | null;
+  concepts?: HookConceptA[];
+  suggestions?: HookSuggestionB[];
+  message?: string;
+}
+
+function HookAlertPanel({ hookAlert, clientId }: { hookAlert: any; clientId?: string | null }) {
+  const [state, setState] = useState<{
+    status: 'idle' | 'loading' | 'done' | 'error';
+    result?: HookSuggestResponse;
+    error?: string;
+  }>({ status: 'idle' });
+
+  async function loadSuggestions() {
+    setState({ status: 'loading' });
+    try {
+      const res = await axios.post('/api/admin/campanhas/criativos/hook-suggestions', { clientId: clientId || undefined });
+      setState({ status: 'done', result: res.data });
+    } catch (err: any) {
+      setState({ status: 'error', error: err?.response?.data?.error || 'Erro ao gerar sugestões.' });
+    }
+  }
+
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">
+      <div className="flex items-start gap-3">
+        <span className="text-lg shrink-0">⚠️</span>
+        <div className="flex-1">
+          <p className="text-sm font-black text-amber-800">
+            Portfólio saturado com hook "{hookAlert.dominantLabel}" ({hookAlert.dominantShare}%)
+          </p>
+          {hookAlert.suggestion && (
+            <p className="text-xs text-amber-700 mt-0.5">{hookAlert.suggestion} para maior alcance.</p>
+          )}
+        </div>
+        {state.status !== 'done' && (
+          <button
+            onClick={loadSuggestions}
+            disabled={state.status === 'loading'}
+            className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-black bg-amber-800 text-amber-50 hover:bg-amber-900 transition-colors disabled:opacity-50"
+          >
+            {state.status === 'loading' ? 'Gerando…' : 'Ver sugestões de hook'}
+          </button>
+        )}
+      </div>
+
+      {state.status === 'error' && (
+        <p className="text-xs text-red-600">{state.error}</p>
+      )}
+
+      {state.status === 'done' && state.result && (
+        <div className="pt-1 border-t border-amber-200/60 space-y-2.5">
+          <p className="text-[11px] font-bold text-amber-700 uppercase tracking-wide">
+            {state.result.path === 'history' && state.result.basedOn
+              ? `Baseado no seu histórico real — hook "${state.result.basedOn.label}" (${state.result.basedOn.leads} leads em ${state.result.basedOn.daysRunning} dias)`
+              : 'Sem histórico maduro ainda — sugestões geradas só a partir das fotos reais dos seus criativos, sem inventar dado'}
+          </p>
+
+          {state.result.message && (
+            <p className="text-xs text-amber-700">{state.result.message}</p>
+          )}
+
+          {/* Caminho A — conceitos completos */}
+          {state.result.concepts?.map((c, i) => (
+            <div key={i} className="bg-white border border-amber-100 rounded-xl p-3">
+              <p className="text-sm font-bold text-gray-900">{c.headline}</p>
+              <p className="text-xs text-gray-600 mt-0.5">{c.hook_text}</p>
+              <p className="text-xs text-gray-500 mt-1">{c.body}</p>
+              <p className="text-[10px] text-amber-600 mt-1.5 italic">{c.why_it_works}</p>
+            </div>
+          ))}
+
+          {/* Caminho B — sugestões ancoradas em cena real */}
+          {state.result.suggestions?.map((s, i) => (
+            <div key={i} className="bg-white border border-amber-100 rounded-xl p-3">
+              <span className="inline-block text-[9px] font-black text-amber-600 uppercase tracking-wider mb-1">
+                {HOOK_LABELS_PT[s.hookType] ?? s.hookType}
+              </span>
+              <p className="text-sm font-bold text-gray-900">{s.hookText}</p>
+              <p className="text-[10px] text-gray-500 mt-1 italic">{s.why}</p>
+            </div>
+          ))}
+
+          {(!state.result.concepts?.length && !state.result.suggestions?.length && !state.result.message) && (
+            <p className="text-xs text-amber-700">Nenhuma sugestão gerada — tente novamente.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const HOOK_LABELS_PT: Record<string, string> = {
+  urgency: 'Urgência', curiosity: 'Curiosidade', social_proof: 'Prova Social',
+  benefit: 'Benefício', story: 'História', problem: 'Problema', other: 'Outro',
+};
+
 /* ══════════════════════════════════════════════════════════
    STEP 1 — TIPO
 ══════════════════════════════════════════════════════════ */
 
-function StepType({ form, updateForm, selectedImages, hookAlert }: any) {
+function StepType({ form, updateForm, selectedImages, hookAlert, clientId }: any) {
   /* Single image: show preview + name field */
   if (selectedImages.length === 1) {
     return (
       <div className="space-y-8">
-        {hookAlert && (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
-            <span className="text-lg shrink-0">⚠️</span>
-            <div>
-              <p className="text-sm font-black text-amber-800">
-                Portfólio saturado com hook "{hookAlert.dominantLabel}" ({hookAlert.dominantShare}%)
-              </p>
-              {hookAlert.suggestion && (
-                <p className="text-xs text-amber-700 mt-0.5">{hookAlert.suggestion} para maior alcance.</p>
-              )}
-            </div>
-          </div>
-        )}
+        {hookAlert && <HookAlertPanel hookAlert={hookAlert} clientId={clientId} />}
         <Section title="Criativo Selecionado">
           <div className="flex items-start gap-8">
             <div className="w-56 h-56 rounded-2xl overflow-hidden border border-gray-200 shrink-0">
@@ -611,7 +768,7 @@ function StepType({ form, updateForm, selectedImages, hookAlert }: any) {
           <div>
             <p className="text-sm font-bold text-amber-800">Nenhum criativo selecionado</p>
             <p className="text-sm text-amber-700 mt-1">
-              A campanha será criada sem imagem. Você poderá adicionar criativos diretamente no Meta Ads Manager após o lançamento.
+              A campanha será criada sem imagem. Você poderá adicionar criativos diretamente no {networkLabel(form.networkCode)} Ads Manager após o lançamento.
             </p>
           </div>
         </div>
@@ -645,9 +802,9 @@ function StepType({ form, updateForm, selectedImages, hookAlert }: any) {
               key={opt.value}
               onClick={() => updateForm({ creativeType: opt.value })}
               className={cn(
-                'bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-center transition-all',
+                'bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-center transition-colors',
                 form.creativeType === opt.value
-                  ? 'ring-2 ring-indigo-500 bg-indigo-50 border-indigo-200'
+                  ? 'ring-2 ring-gold-premium bg-amber-50 border-gold-premium/40'
                   : 'hover:bg-gray-50'
               )}
             >
@@ -697,11 +854,11 @@ function StepTextCta({ form, updateForm, autoFields, hookTextHint, isPrefilled }
 
       {/* Banner: texto pré-preenchido pela IA */}
       {isPrefilled && (
-        <div className="flex items-start gap-3 bg-indigo-50 border border-indigo-200 rounded-2xl px-5 py-4">
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4">
           <span className="text-lg shrink-0">✨</span>
           <div>
-            <p className="text-sm font-bold text-indigo-800">Texto gerado pela IA</p>
-            <p className="text-xs text-indigo-600 mt-0.5">
+            <p className="text-sm font-bold text-amber-800">Texto gerado pela IA</p>
+            <p className="text-xs text-amber-700 mt-0.5">
               Headline e copy foram pré-preenchidos a partir do conceito que você escolheu em <strong>Padrões Vencedores</strong>.
               Edite à vontade antes de lançar.
             </p>
@@ -872,9 +1029,9 @@ function StepTargeting({ form, updateForm, clientId, suggestedInterests }: any) 
                 { value: [2], label: 'Feminino' },
               ].map(opt => (
                 <button key={opt.label} onClick={() => updateForm({ genders: opt.value })}
-                  className={cn('px-5 py-2.5 rounded-xl border transition-all text-sm font-medium',
+                  className={cn('px-5 py-2.5 rounded-xl border transition-colors text-sm font-medium',
                     JSON.stringify(form.genders) === JSON.stringify(opt.value)
-                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                      ? 'border-gold-premium bg-amber-50 text-[#8a6f1c]'
                       : 'border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300'
                   )}>
                   {opt.label}
@@ -1290,10 +1447,10 @@ function StepBudget({ form, updateForm }: any) {
           <button
             onClick={() => updateForm({ scheduleMode: 'uniform' })}
             className={cn(
-              'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all',
+              'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors',
               scheduleMode === 'uniform'
-                ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                : 'border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600'
+                ? 'bg-gold-premium text-navy-dark border-gold-premium'
+                : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-900'
             )}
           >
             🗓️ Mesmo horário todos os dias
@@ -1301,10 +1458,10 @@ function StepBudget({ form, updateForm }: any) {
           <button
             onClick={switchToPerDay}
             className={cn(
-              'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all',
+              'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors',
               scheduleMode === 'perday'
-                ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                : 'border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600'
+                ? 'bg-gold-premium text-navy-dark border-gold-premium'
+                : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-900'
             )}
           >
             ⚙️ Personalizar por dia
@@ -1318,9 +1475,9 @@ function StepBudget({ form, updateForm }: any) {
               <div className="flex gap-2 flex-wrap">
                 {DAYS_OF_WEEK.map(day => (
                   <button key={day.value} onClick={() => toggleDay(day.value)}
-                    className={cn('w-11 h-11 rounded-xl text-sm font-semibold transition-all',
+                    className={cn('w-11 h-11 rounded-xl text-sm font-semibold transition-colors',
                       form.scheduleDays.includes(day.value)
-                        ? 'bg-indigo-600 text-white shadow-sm'
+                        ? 'bg-gold-premium text-navy-dark'
                         : 'bg-gray-100 text-gray-600 border border-gray-200 hover:border-gray-300'
                     )}>
                     {day.label}
@@ -1369,14 +1526,14 @@ function StepBudget({ form, updateForm }: any) {
               const slot = perDaySlots[day.value] || { start: 6, end: 23 };
               return (
                 <div key={day.value} className={cn(
-                  'flex items-center gap-4 px-4 py-3 rounded-xl border transition-all',
-                  isActive ? 'border-indigo-200 bg-indigo-50/40' : 'border-gray-100 bg-gray-50 opacity-50'
+                  'flex items-center gap-4 px-4 py-3 rounded-xl border transition-colors',
+                  isActive ? 'border-gold-premium/30 bg-amber-50/40' : 'border-gray-100 bg-gray-50 opacity-50'
                 )}>
                   <button
                     onClick={() => toggleDay(day.value)}
                     className={cn(
-                      'w-12 h-10 rounded-xl text-sm font-bold shrink-0 transition-all',
-                      isActive ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-200 text-gray-400'
+                      'w-12 h-10 rounded-xl text-sm font-bold shrink-0 transition-colors',
+                      isActive ? 'bg-gold-premium text-navy-dark' : 'bg-gray-200 text-gray-400'
                     )}>
                     {day.label}
                   </button>
@@ -1437,8 +1594,8 @@ function StepObjective({ form, updateForm, autoFields, initiatives = [] }: any) 
         <div className="grid grid-cols-2 gap-4">
           {OBJECTIVES.map(obj => (
             <button key={obj.value} onClick={() => updateForm({ objective: obj.value })}
-              className={cn('bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-left transition-all flex items-center gap-4',
-                form.objective === obj.value ? 'ring-2 ring-indigo-500 bg-indigo-50 border-indigo-200' : 'hover:bg-gray-50'
+              className={cn('bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-left transition-colors flex items-center gap-4',
+                form.objective === obj.value ? 'ring-2 ring-gold-premium bg-amber-50 border-gold-premium/40' : 'hover:bg-gray-50'
               )}>
               <span className="text-3xl shrink-0">{obj.icon}</span>
               <div>
@@ -1582,13 +1739,13 @@ function StepReview({ form, selectedImages, autoFields, initiatives = [] }: any)
           <Row label="Iniciativa"  value={initiativeName} />
         </div>
       </Section>
-      <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 flex items-center gap-3">
-        <svg className="w-5 h-5 text-indigo-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
+        <svg className="w-5 h-5 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <p className="text-sm text-indigo-700">
+        <p className="text-sm text-amber-800">
           A campanha será criada com status <span className="font-bold">PAUSADA</span>.
-          Ative manualmente após revisar no Meta Ads Manager.
+          Ative manualmente após revisar no {networkLabel(form.networkCode)} Ads Manager.
         </p>
       </div>
     </div>

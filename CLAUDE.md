@@ -20,27 +20,49 @@ ao fim de cada sessão — mas depende de Claude ter atualizado o arquivo durant
 
 ---
 
-## ⚠️ Regra Obrigatória — Coordenação com outros agentes de IA (`docs/AI_SYNC.md`)
+## ⚠️ Regra Obrigatória — Manutenção da Documentação Viva (Docsify)
 
-Este repositório pode ter **mais de um agente de IA trabalhando em paralelo** (Claude, Antigravity,
-etc.), possivelmente cada um numa branch/diretório de trabalho diferente.
+Ao criar novas funcionalidades, alterar rotas de API, adicionar modelos no Prisma ou alterar fluxos do sistema, **atualize obrigatoriamente**:
+1. A documentação técnica (`docs/01_...` a `docs/10_...` ou `docs/15_...` a `docs/17_...`).
+2. O manual operacional do usuário (`docs/20_...` a `docs/26_...`).
+3. Registre um novo arquivo em `docs/adr/` se for uma decisão de arquitetura relevante.
+
+---
+
+## ⚠️ Regra Obrigatória — Múltiplas Frentes em Paralelo (Worktrees)
+
+**Encerrada em 2026-07-19 a colaboração com o agente Antigravity** — que trabalhava em paralelo
+neste repositório. Todo o trabalho dele em `feature/ag-cockpit-camadas` foi puxado (commitado +
+WIP não commitado) para um worktree isolado, auditado, corrigido (vários bugs reais encontrados)
+e incorporado à implementação do plano Google Ads/TikTok. O diretório principal foi limpo de
+qualquer resquício não commitado dele. Detalhe completo em `docs/CHECKPOINT.md` e no histórico
+de `docs/AI_SYNC.md` (mantido só como registro histórico — não é mais lido no início da sessão).
+
+Isso **não elimina a necessidade de cuidado com múltiplas frentes** — o projeto continua com
+várias frentes de trabalho em paralelo, cada uma em seu próprio `git worktree`, e é fácil uma
+sessão nova perder o contexto de qual branch/worktree é o certo pra continuar uma tarefa.
 
 **No início de TODA sessão**, antes de qualquer edição de código:
-1. Ler `docs/AI_SYNC.md` por completo — ele registra qual agente está ativo, em qual branch, e
-   quais arquivos/áreas do código estão sendo mexidos por outro agente naquele momento.
-2. Rodar `git branch --show-current` e `git status --short` — nunca assumir que a branch/estado
-   atual é o mesmo do início da sessão anterior; a branch pode ter sido trocada por outro agente
-   ou pelo usuário fora desta sessão.
-3. Se `AI_SYNC.md` indicar que outro agente está ativo numa área do código, evitar tocar nela —
-   e, se for inevitável, avisar o usuário antes de prosseguir.
-4. Ao concluir uma tarefa relevante pra coordenação (nova branch criada, área do código que passa
-   a estar "livre"), atualizar `docs/AI_SYNC.md` com um novo registro de atividade, no mesmo
-   formato dos registros existentes.
+1. Rodar `git branch --show-current` e `git status --short` no diretório atual — nunca assumir
+   que a branch/estado é o mesmo do início da sessão anterior.
+2. Rodar `git worktree list` para ver todas as frentes ativas (a tabela abaixo é um snapshot —
+   pode estar desatualizada; o comando é a fonte de verdade).
+3. Confirmar que está no worktree/branch certo pra tarefa pedida antes de editar código.
+
+**Worktrees ativos (snapshot 2026-07-19):**
+
+| Diretório | Branch | Frente |
+|-----------|--------|--------|
+| `net-imobiliaria` (este) | `feature/ag-cockpit-camadas` | Diretório principal — histórico geral do projeto |
+| `netimob-google` | `feature/google-ads-implementation` | Google Ads + TikTok — plano em `docs/PLANO_GOOGLE_TIKTOK.md` |
+| `netimob-cherrypick` | `feature/mensageria-rag` | Mensageria M4.3 (RAG/Base de Conhecimento) — plano em `docs/PLANO_MENSAGERIA.md` |
+| `netimob-imgfix` | `fix/next-image-minio-localhost` | Fix pontual — fotos de imóveis via MinIO |
 
 **Nunca** trocar de branch (`git checkout`/`git switch`) nem rodar operações destrutivas
-(`reset --hard`, `clean`, force-push) num diretório onde outro agente possa ter alterações não
-commitadas — preferir um `git worktree` separado pra qualquer operação que precise de uma branch
-diferente da que já está checked-out no diretório atual.
+(`reset --hard`, `clean`, force-push) num diretório que tenha alterações não commitadas de
+outra frente em andamento — preferir um `git worktree` separado pra qualquer trabalho que
+precise de uma branch diferente da que já está checked-out no diretório atual.
+>>>>>>> feature/ag-cockpit-camadas
 
 ---
 
@@ -135,6 +157,10 @@ AGENT_CONFIDENCE_THRESHOLD=0.85
 AGENT_SYNC_SCHEDULE=0 */6 * * *
 BRIEFING_MORNING_SCHEDULE=0 8 * * *
 BRIEFING_CLOSING_SCHEDULE=0 18 * * *
+# Piso de recência (dias) pra generateAiInsights() quando chamada sem período explícito
+# (agentDecisor.ts, strategicBriefing.ts — rodam em background, sem UI por trás). Evita
+# avaliar/narrar campanha morta há semanas como se fosse performance de agora.
+AGENT_INSIGHT_RECENCY_DAYS=30
 ```
 
 ---
@@ -277,6 +303,7 @@ leads/stats               GET
 
 dashboard/full            GET      → totais, insights, leads, campanhas, funil
 dashboard/predictions     GET      → série temporal + previsões lineares
+dashboard/cpl             GET      → CPL por dia (spend/leads agregados por data), reutilizável
 
 briefings                 GET/POST
 briefings/latest          GET
@@ -302,6 +329,96 @@ O `POST /campaigns` espera **corpo plano** (não nested):
 }
 ```
 
+### Métricas Compartilhadas — checar aqui antes de reimplementar um cálculo
+
+Serviços de cálculo reutilizáveis do módulo, em `src/lib/marketing/services/`:
+
+| Serviço | O que calcula | Consumido por |
+|---|---|---|
+| `cplTimelineService.ts` | CPL por dia (spend/leads agregados por data, ciente de rede) | `GET /dashboard/cpl` |
+| `revenueAttributionService.ts` | CPA/ROAS real (negócio fechado no CRM ↔ campanha) | Visão 4 do dashboard |
+| `wastedSpendService.ts` | Desperdício de verba (campanhas gastando sem retorno) | página Desperdício |
+
+Nenhum desses tem descoberta automática — depende de olhar essa tabela antes de escrever um
+cálculo novo. Ver seção "Multi-Rede" abaixo pra entender por que "lead" não é o mesmo sinal em
+toda rede, algo que `cplTimelineService` já resolve e qualquer novo consumidor deve reaproveitar.
+
+### Multi-Rede — "Lead" não é o mesmo sinal em toda rede
+
+Cada rede de anúncio suportada tem seu próprio adapter (`src/lib/marketing/networks/factory.ts`,
+`buildNetworkService`): `meta` e `google` estão implementados; `linkedin`/`tiktok` são stub
+(FASE 11). YouTube não é uma rede separada — roda sob o mesmo adapter/credenciais do `google`.
+
+Meta usa `cta_engagement` — clique de WhatsApp (`CtaInteraction.event_type='WHATSAPP_CLICK'`)
+**ou** submissão de formulário (`CtaSubmission.lead_uuid IS NOT NULL AND cta_type !=
+'WHATSAPP_MESSAGE'` — o CTA de um anúncio nem sempre é WhatsApp, pode redirecionar pra
+`/l/{slug}`); Google Ads já retorna conversão real da própria API (`Insight.conversions`), sem
+depender de nenhum dos dois. O mapeamento fica em
+`src/lib/marketing/services/networkLeadSource.ts` (`LEAD_SOURCE_BY_NETWORK`) — **ao implementar
+o adapter real de uma rede nova (LinkedIn/TikTok, FASE 11), adicionar 1 linha lá com o método
+correto de lead daquela rede**; nenhum consumidor (CPL, dashboard, futuros relatórios) precisa
+mudar.
+
+**Cuidado ao estender:** uma resposta real de WhatsApp também grava `CtaSubmission` (via
+`inboundProcessor.ts`) além do `WHATSAPP_CLICK` — por isso o filtro de submissão exclui
+`cta_type='WHATSAPP_MESSAGE'` explicitamente, senão o mesmo lead conta 2x.
+
+### Rollout de Mudança de Versão de API (Meta/Google/TikTok) — FASE 19.4
+
+Trocar a versão de uma API de rede de anúncio (`META_API_BASE` em
+`src/lib/marketing/networks/meta/metaAdsAdapter.ts`, hoje fixo em `v21.0`; ou atualizar a
+dependência `google-ads-api` no `package.json`) **nunca vai direto pra produção** — a
+plataforma já tem staging real e isolado (`docker-compose.vps.yml`, `staging_app`/
+`staging_db`/`staging_feed`, banco/domínio próprios), então não há motivo pra pular essa etapa.
+Nenhuma tabela de "tenant canário"/rollout percentual — o volume atual da plataforma não
+justifica esse tipo de infraestrutura; o ambiente staging já cumpre esse papel sozinho.
+
+**Checklist obrigatório:**
+1. Trocar a versão numa branch própria (nunca direto em `main`).
+2. Deploy manual em `staging`: `.github/workflows/deploy.yml` (`workflow_dispatch`, ambiente
+   `staging`) → chama `scripts/vps/deploy-github.sh <branch> staging`. O próprio script já
+   bloqueia promover branch≠`main` pra `producao` (passo "Validação de segurança") — impossível
+   pular staging por engano.
+3. Confirmar `staging_app` saudável (`docker compose ps staging_app`, o script já espera até
+   90s e falha se não subir) e sem erro nos logs do 1º sync real depois do deploy.
+4. Confirmar 1 sincronização real de campanha de teste — via `GET /api/agent/tick` (heartbeat,
+   `AgentHeartbeat.success`) ou aguardando o próximo ciclo automático do `agentMonitor.ts`
+   (default 6h em staging também) e conferindo `Insight`/`AgentAction` gerados sem erro pra
+   uma campanha de teste conhecida.
+5. Só então: merge da branch pra `main` → deploy manual ambiente `producao`.
+
+Ver "Arquitetura de Cron Jobs" (seção anterior) pra entender quais crons rodam automaticamente
+em cada ambiente antes de confiar só no passo 4 — `staging_feed`/`staging_app` já sobem com os
+mesmos 2 mecanismos de `producao`.
+
+**Dependabot** (`.github/dependabot.yml`, FASE 19.6) abre PR semanal só pra `google-ads-api` —
+a única dependência de rede versionada via SDK — nunca automerged. Todo PR dele passa pelo
+mesmo checklist acima antes de merge, exatamente como uma troca manual de versão.
+
+### Contratação de Rede por Tenant — cada rede é cobrada separadamente
+
+Modelo de negócio: uma empresa pode não ter contratado uma rede de anúncio específica (ex.:
+contratou só Meta, não TikTok). Isso é distinto de "conectado" (tem credencial configurada) —
+uma empresa pode ter contratado mas não ter conectado ainda, ou (antes desta feature) estar
+vendo redes que nunca pagou.
+
+Reaproveita o sistema genérico de provisionamento já usado por todo o resto da plataforma
+(`system_features` + `tenant_feature_overrides`, ver `docs/ACCESS_CONTROL.md`) em vez de colunas
+soltas em `tenants` — decisão deliberada pra não duplicar o mecanismo. 3 features sem `url`
+própria (não são página, são toggle de capacidade): `campanhas-rede-meta`,
+`campanhas-rede-google`, `campanhas-rede-tiktok` — habilitadas por tenant em
+`/admin/master/provisioning`, dentro do módulo "Gestão de Campanhas de Marketing Digital".
+Master (`is_system_role`) bypassa o gate (vê tudo como contratado, mesmo padrão de
+`get_sidebar_menu_for_user`).
+
+`GET /api/admin/campanhas/configuracoes/redes` calcula `contracted` por rede via
+`LEFT JOIN tenant_feature_overrides` (slug = `'campanhas-rede-' || code`) e é o único ponto de
+verdade — tanto a tela de Configurações → Redes quanto o step "Rede de Anúncios" do
+`CampaignWizard.tsx` e os 2 botões de rede em `/admin/campanhas/nova` (Meta/TikTok separados,
+mais o botão dedicado do Google AI Max) leem esse mesmo campo. Prioridade de estado num card:
+`!supported` ("Em breve") → `!contracted` ("Não contratado") → `!connected` ("Não conectado") →
+"Conectado". Ver `prisma/migration-2026-07-28-network-provisioning.sql`.
+
 ---
 
 ## Multi-Tenant e Filtro de Clientes
@@ -317,12 +434,14 @@ O tenant gerencia campanhas **próprias** e de seus **clientes**. O parâmetro `
 
 Implementado nas APIs: `campaigns`, `insights`, `leads`, `leads/stats`, `dashboard/full`, `dashboard/predictions`, `insights/ai`, `briefings`. O tipo `ClientFilter = string | 'own' | undefined` está em `marketing-api.ts`.
 
-### ⚠️ TODO — Seletor de Cliente nas UIs (PENDENTE — ALTA PRIORIDADE)
+### Seletor de Cliente nas UIs — ✅ concluído
 
-As interfaces ainda **não expõem o seletor de cliente**. Todas as páginas do módulo precisam:
-1. Dropdown "Todas as campanhas / Próprias / <nome do cliente>" usando `GET /clients`
-2. Passar `clientId` em todos os `loadData()` e chamadas de `marketing-api.ts`
-3. Persistir seleção no estado local de cada página
+Todas as páginas do módulo com dado por-cliente já usam `ClientSelector`/`useClientSelector`
+(`src/components/marketing/ClientSelector.tsx`): `dashboard`, `leads`, `criativos`,
+`criativos/padroes`, `iniciativas`, `desperdicio`, `portfolio`, `auditoria`, `publicacoes`,
+`cta-analytics`. Páginas sem seletor são assim por design (config global/tenant, fila de
+aprovação já agrupada por cliente, comparação cross-cliente por segmento, ou o picker
+próprio do `CampaignWizard` pra escolher o destino de uma campanha nova).
 
 ---
 
@@ -355,22 +474,79 @@ Providers ativos (23 modelos): `anthropic`, `openai`, `gemini`, `groq`, `deepsee
 ## Agente Autônomo
 
 ```
-agentMonitor.ts (cron a cada 6h)
+agentMonitor.ts (cron a cada 6h — ver "Arquitetura de Cron Jobs" abaixo)
   → syncMetrics()              puxa métricas de todos os tenants ativos do Meta API
   → runDecisor(tenantId)       para cada tenant:
       → generateAiInsights()   regras determinísticas (sem LLM)
       → confidence >= 0.85?    filtra
       → enrichWithClaude()     melhora descrição com LLM
       → cria AgentAction
-      → PAUSE/ALERT            → PENDING_APPROVAL → notifica WhatsApp com link
-      → SCALE/OPTIMIZE         → PENDING_EXECUTION → executa direto
+      → DEFENSIVE (PAUSE/DOWNSCALE/ADD_NEGATIVE_KEYWORD) → PENDING_EXECUTION → executa direto,
+        sem aprovação (ação que reduz risco/gasto — protege primeiro, notifica depois no digest)
+      → OFFENSIVE (SCALE/REFRESH_CREATIVE/ADJUST_AUDIENCE/REALLOCATE_BUDGET) → PENDING_APPROVAL
+        → notifica WhatsApp com link + PIN de 6 dígitos (ação que aumenta gasto/risco — exige
+        confirmação humana antes)
+      → demais tipos (ALERT/OPTIMIZE) → NOTIFIED → só aparecem no digest, sem ação nem aprovação
+  → runNegationAgent(tenantId) para cada tenant (A6 — negativação de termo de busca do Google)
+  → runReallocationAgent(tenantId) para cada tenant (T4 — motor de realocação cross-rede,
+    docs/PLANO_TIKTOK.md §8) → digestItems → notifyDigest, quando há proposta nova
 ```
+
+`DEFENSIVE_TYPES`/`OFFENSIVE_TYPES` em `agentDecisor.ts` são as listas reais que decidem o
+`status` inicial da `AgentAction` — confirmado ao vivo em 2026-07-27 (Trilha C, ver
+`docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`): PAUSE virou `EXECUTED` na hora, SCALE ficou
+`PENDING_APPROVAL` com PIN.
 
 Aprovação via links: `GET /api/agent/approve/[id]` e `GET /api/agent/reject/[id]` (sem JWT, autenticados pelo UUID da ação, retornam HTML).
 
-Cron endpoints (header `x-cron-secret`):
-- `POST /api/cron/campanhas/sync` → sync métricas + decisor para todos os tenants
-- `POST /api/cron/campanhas/briefing` → gera briefing + envia WhatsApp/Slack
+Cron endpoints de Campanhas (header `x-cron-secret`) — ver "Arquitetura de Cron Jobs" abaixo
+pra saber qual deles é chamado automaticamente e qual é fallback manual/externo:
+- `POST /api/cron/campanhas/sync` → **fallback manual** (o mesmo ciclo já roda sozinho, ver
+  acima); útil pra forçar um ciclo fora da janela de 6h ou testar sem esperar.
+- `POST /api/cron/campanhas/briefing` → **fallback manual** (idem — briefing matinal/fechamento
+  já roda sozinho dentro do mesmo ciclo do `agentMonitor.ts`).
+- `POST /api/cron/campanhas/realloc-measure` → **agendado**, mede D+14 as realocações de verba
+  `EXECUTED` (grava `actual_lead_gain`/`verdict` em `BudgetReallocation`), alimenta o circuit
+  breaker — docs/PLANO_TIKTOK.md §8.4. Diário, 07:00.
+
+---
+
+## Arquitetura de Cron Jobs — 2 mecanismos, nunca um 3º
+
+**Regra permanente, achada e corrigida em 2026-09-04 (nenhum deploy real de Campanhas/CRM/
+Mensageria tinha sido feito até então — corrigido antes do 1º deploy, não depois de um
+incidente):** existiam 3 mecanismos paralelos de agendamento, sem coordenação entre si — um
+deles (crontab do sistema operacional do host, configurado por `scripts/vps/deploy-github.sh`)
+já estava com 3 das 5 rotas mortas (renomeadas em sessões anteriores sem atualizar o script) e
+duplicava trabalho que os outros 2 já cobriam. Removido. **A partir de agora, só existem 2
+mecanismos legítimos — nunca adicionar um 3º sem revisar esta seção primeiro:**
+
+1. **`scripts/feed-cron-scheduler.js`** — processo Node persistente (`node-cron`), roda dentro
+   do container `prod_feed`/`staging_feed` (`docker-compose.vps.yml`). Chama rotas HTTP via
+   `fetch` com header `x-cron-secret`, contra `prod_app`/`staging_app` (endereço interno do
+   Docker network). 14 jobs hoje: feed-sync (diário 03h), transbordo (5/5min), audit-monthly
+   (1º dia do mês), audit-weekly (domingo), realloc-measure (diário 07h), organic-publish
+   (5/5min), mensageria/sla-check (5/5min), crm/agentes-scan (5/5min), crm/score-recalibration
+   (diário 04h), crm/pendencia-reconciliar (diário 03h30), network-healthcheck (hora em hora,
+   FASE 19.3), audiences-refresh (diário 07h30, Tier 3 "Loop do ICP" — mantém Custom Audience/
+   Lookalike da Meta atualizadas sem intervenção humana, nunca toca em campanha real),
+   exogenous-signals (diário 06h), agent-expire (hora em hora, 15min deslocado).
+2. **`src/instrumentation.ts` → `agentMonitor.ts` (`startAgentMonitor`)** — roda DENTRO do
+   próprio processo do Next.js (`prod_app`/`staging_app`), via `node-cron` em memória,
+   disparado 1x quando o servidor sobe (hook oficial `register()` do Next.js). Legítimo aqui
+   porque `prod_app`/`staging_app` são processos `next start` de longa duração em Docker —
+   **não** serverless (o cenário que motivou o endpoint `/api/agent/tick`, FASE 15, nunca se
+   aplicou de fato a este deploy). 3 jobs: sync completo (`AGENT_SYNC_SCHEDULE`, default 6h —
+   `syncMetrics`+`runDecisor`+`runNegationAgent`+`runReallocationAgent`+`notifyDigest`),
+   briefing matinal (`BRIEFING_MORNING_SCHEDULE`, default 08h), briefing fechamento
+   (`BRIEFING_CLOSING_SCHEDULE`, default 18h).
+
+**Ao adicionar um cron novo:** decidir entre os dois só pela pergunta "esse trabalho já vive
+dentro de um serviço que o `agentMonitor.ts` já orquestra, ou é independente (feed, CRM,
+mensageria, redes de anúncio)?" — trabalho relacionado ao ciclo de sync/decisor/negativação/
+realocação/briefing entra no mecanismo 2 (evita 2ª chamada redundante às APIs de anúncio);
+qualquer outra coisa (novo módulo, nova varredura, novo canário) entra no mecanismo 1, seguindo
+o padrão já usado pelos 13 jobs de lá — nunca crontab do sistema operacional do host.
 
 ---
 
@@ -437,24 +613,63 @@ VALUES ('Nova Página', 'IconName', '/admin/campanhas/nova', 110, 5, true);
 
 ## Pendências e Próximos Passos
 
-### 1. Seletor de Cliente nas UIs (ALTA PRIORIDADE)
+### 1. Redesign Premium — Ativar skill `impeccable` — ✅ concluído no escopo já pedido (2026-07-28)
 
-O backend já filtra por `clientId` em todos os endpoints. As interfaces precisam de:
-- Componente `ClientSelector` compartilhado (dropdown: "Todas / Próprias / <nome>")
-- Integração em `dashboard/page.tsx`, `leads/page.tsx`
-- Passagem de `clientId` como parâmetro nas chamadas `marketing-api.ts`
+`dashboard/page.tsx`, `configuracoes/page.tsx`, `CampaignWizard.tsx`, `criativos/page.tsx` e
+`leads/page.tsx` — mais os componentes efetivamente compartilhados entre essas telas
+(`ClientSelector.tsx`, `SegmentSelector.tsx`, `CampanhasModal.tsx`, `LocationPicker.tsx`,
+`WinningAngleChip.tsx`, `KpiCard.tsx`, `StageFunnelWidget.tsx`, `TrackingHealthWidget.tsx`,
+`CampaignMapWidget.tsx`) — tiveram o sistema de cor corrigido (indigo-600 genérico → acento
+âmbar `#c5a028`/`#020c1b` do `PRODUCT.md`/`DESIGN.md` deste projeto, anel de foco fixo
+`#2563eb`, ambos hoje via tokens nomeados `gold-premium`/`navy-dark`/`blue-600` do
+`tailwind.config.js`) — passe estreito, uma checkpoint por tela/grupo com aprovação do usuário.
+`DashboardHelpModal.tsx` foi avaliado e mantido intocado de propósito (identidade visual
+própria e coerente do recurso de Ajuda, não indigo-por-omissão). Detalhe completo em
+`docs/CHECKPOINT.md`.
 
-### 2. Redesign Premium — Ativar skill `impeccable`
+**Ainda pendente, só se pedido:** as ~13 páginas do módulo que nunca entraram no escopo desta
+frente (`aprovacoes`, `auditoria`, `desperdicio`, `destinos`, `iniciativas` — 3 arquivos —,
+`mecanismos`, `portfolio` — 2 arquivos —, `publicacoes`, `configuracoes/redes`) — ainda com
+indigo genérico, nunca avaliadas.
 
-As interfaces atuais são funcionais mas convencionais. Para elevar o nível visual:
-```
-/impeccable
-```
-Revisar com foco em: `dashboard/page.tsx`, `leads/page.tsx`, `criativos/page.tsx`, `configuracoes/page.tsx`, `src/components/marketing/` (charts + CampaignWizard).
+### 1b. Redesign Premium — módulo de CRM — 📋 planejado, aguardando avanço de funcionalidades
 
-### 3. Outras Pendências
+O Redesign Premium (sistema "Painel de Missão" — âmbar `#c5a028`/navy `#020c1b`, anel de foco
+fixo `#2563eb`, tokens `gold-premium`/`navy-dark`/`blue-600`) **nunca foi aplicado ao módulo de
+CRM** — só cobriu Campanhas de Marketing Digital até aqui. Levantamento real feito em
+2026-08-03 (`docs/CHECKPOINT.md`), confirmando 14 telas/componentes, **0 já migrados**:
+
+| Arquivo | Situação |
+|---|---|
+| `src/app/crm/page.tsx` | indigo genérico (1 ocorrência) |
+| `src/app/crm/kanban/page.tsx` | indigo genérico — a mais suja, 11 ocorrências, misturado com blue/amber/rose/emerald sem lógica de marca |
+| `src/app/crm/leads/page.tsx` | indigo genérico (2) |
+| `src/app/crm/config/ia/page.tsx`, `config/kanban/page.tsx`, `config/marketing/page.tsx`, `config/segmentos/page.tsx`, `dashboards/ciclos/page.tsx` | sem indigo explícito, mas sem nenhum token do design system — paleta ad-hoc blue/emerald/purple/amber |
+| `src/components/crm/AgendarVisitaModal.tsx`, `NovoLeadModal.tsx` | indigo genérico (1 cada) |
+| `src/components/crm/AgendamentosLead.tsx`, `EnrichedLeadData.tsx`, `MarketingCampaignModal.tsx`, `CRMLayoutContent.tsx`, `crm/layout.tsx` | sem cor de marca definida |
+
+**Diferente do `DashboardHelpModal.tsx`** (que tem justificativa registrada pra manter
+identidade própria em Campanhas), não há sinal de paleta deliberada no CRM — é a mistura
+padrão de mercado que a "Regra do Acento Único" do projeto já classifica como a evitar. Sem
+identidade visual a preservar; é só um módulo que nunca entrou nessa frente.
+
+**Decisão do usuário (2026-08-03):** documentar o plano agora, mas **não iniciar ainda** —
+prioridade é avançar funcionalidades novas do CRM primeiro (ex.: Atividades por lead, ver
+seção própria abaixo), redesign fica pra uma rodada futura, mesmo padrão de execução já
+comprovado em Campanhas (passe estreito, uma checkpoint por tela/grupo, aprovação do usuário
+antes de seguir pra próxima, `DashboardHelpModal`-like: avaliar caso a caso antes de assumir
+que toda cor não-âmbar é bug).
+
+### 2. Outras Pendências
 
 - **Sync Meta real**: validar `POST /insights/sync` com token de produção e campanhas reais
 - **Fluxo completo do CampaignWizard**: publicação no Meta após upload de criativos
-- **Alerta de token Meta expirando**: `meta_token_expires_at` existe no tenant, falta notificação na UI
-- **Endpoint CPL por período**: não existe — agregar `spend / count(leads)` por intervalo de datas
+- **FASE 19 (blindagem contra mudança de API Meta/Google/TikTok) — 19.1 a 19.6 concluídas e
+  testadas** (alerta de falha, circuit breaker, canário/hora, arquitetura de cron consolidada,
+  rollout faseado documentado, Dependabot pro `google-ads-api`, validação zod na fronteira —
+  ver `docs/CHECKPOINT.md`, entradas de 2026-09-03/04). **19.0** (assinar changelogs oficiais)
+  e **19.7** (detector via MCP oficial) ficam pendentes de propósito, verificar assim que a
+  aplicação estiver em produção real: 19.7 exige OAuth contra as 3 contas de negócio reais
+  (Meta/Google/TikTok — mesmo bloqueio já documentado pro TikTok T2) e, especificamente pro
+  Google, autohospedar o servidor MCP deles (não é endpoint hospedado, diferente do Meta) —
+  decisão de custo/benefício a reavaliar então, não só falta de acesso.

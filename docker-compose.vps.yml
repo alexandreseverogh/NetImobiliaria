@@ -111,6 +111,19 @@ services:
       EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-}
       EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-trafegopago}
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      # Google Calendar — mesmo valor pra prod e staging (mesmo Client OAuth/Service
+      # Account); GOOGLE_REDIRECT_URI não existe aqui de propósito, é derivado em runtime
+      # de NEXT_PUBLIC_APP_URL (já correto por instância, ver linha acima)
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_SERVICE_ACCOUNT_KEY: ${GOOGLE_SERVICE_ACCOUNT_KEY:-}
+      # SMTP / E-mail de confirmação de agendamento
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-}
     expose:
       - "3000"
     healthcheck:
@@ -228,6 +241,19 @@ services:
       EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-}
       EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-trafegopago}
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      # Google Calendar — mesmo valor pra prod e staging (mesmo Client OAuth/Service
+      # Account); GOOGLE_REDIRECT_URI não existe aqui de propósito, é derivado em runtime
+      # de NEXT_PUBLIC_APP_URL (já correto por instância, ver linha acima)
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_SERVICE_ACCOUNT_KEY: ${GOOGLE_SERVICE_ACCOUNT_KEY:-}
+      # SMTP / E-mail de confirmação de agendamento
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-}
     expose:
       - "3000"
     healthcheck:
@@ -284,13 +310,20 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    # Depende só de prod_app — staging_app é opcional (nem sempre está no ar; hoje mesmo
+    # esta VPS não tem staging provisionado). Achado real: com os dois como
+    # `condition: service_healthy`, o Caddy inteiro (inclusive imovtec.com.br/
+    # artemis9.com.br) travaria pra sempre esperando um staging_app que nunca sobe.
+    # Sem staging_app, o próprio Caddy sobe normal — só o bloco de STAGING_DOMAIN no
+    # Caddyfile devolve erro de upstream até staging_app existir, sem afetar os demais.
     depends_on:
       prod_app:
         condition: service_healthy
-      staging_app:
-        condition: service_healthy
     environment:
       PROD_DOMAIN: ${PROD_DOMAIN}
+      # Segundo domínio público, mesmo prod_app — só muda o que a raiz ("/") redireciona
+      # (landpaging pra PROD_DOMAIN, /artemis4 pra este). Ver ops/Caddyfile.
+      PROD_DOMAIN_ARTEMIS: ${PROD_DOMAIN_ARTEMIS}
       STAGING_DOMAIN: ${STAGING_DOMAIN}
       LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
     ports:

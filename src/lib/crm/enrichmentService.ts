@@ -1,49 +1,57 @@
 import pool from '@/lib/database/connection'
+import { resolveAtivoConfig, IDENT_RE } from '@/lib/crm/resolveAtivoConfig'
 
 /**
  * ENRICHMENT SERVICE (CRM AGNÓSTICO)
- * Este serviço é o motor Metadata-Driven que enriquece os leads com dados 
+ * Este serviço é o motor Metadata-Driven que enriquece os leads com dados
  * de qualquer segmento (Imóveis, Saúde, etc) sem hardcoding.
+ *
+ * A config vem de resolveAtivoConfig(tenantId) — override do tenant, senão padrão do
+ * segmento (docs/CHECKPOINT.md, 2026-08-14). target_table/target_fk_column já chegam
+ * validados contra IDENT_RE por esse resolver, mas revalidamos aqui também (defesa em
+ * profundidade, já que este serviço interpola esses valores direto em SQL cru).
  */
 export class EnrichmentService {
   /**
-   * Enriquece um lead com um "snapshot" de dados configurados para o segmento.
+   * Enriquece um lead com um "snapshot" de dados configurados para o segmento/tenant.
    */
-  static async enrichLead(leadUuid: string, domainId: number, sourceId: number | string) {
+  static async enrichLead(leadUuid: string, tenantId: string, sourceId: number | string | null) {
     try {
-      console.log(`[EnrichmentService] 🔎 Iniciando enriquecimento do lead ${leadUuid} (Domínio: ${domainId})`)
+      const config = await resolveAtivoConfig(tenantId)
 
-      // 1. Buscar a configuração de layout para este segmento/domínio
-      const configRes = await pool.query(
-        'SELECT target_table, target_fk_column, layout_json, form_schema_json FROM crm_segmentos_config WHERE domain_id = $1 AND is_active = true',
-        [domainId]
-      )
-
-      if (configRes.rows.length === 0) {
-        console.warn(`[EnrichmentService] ⚠️ Nenhuma configuração ativa para o domínio ${domainId}.`)
+      if (!config) {
+        console.warn(`[EnrichmentService] ⚠️ Nenhuma config de ativo pro tenant ${tenantId} (segmento sem padrão configurado ainda).`)
         return false
       }
 
-      const { target_table, layout_json, form_schema_json } = configRes.rows[0]
-      const layout = layout_json as any
+      const { targetTable, targetNameColumn, layoutJson, formSchemaJson } = config
 
-      // 2. Se não houver vínculo exato (sourceId nulo), processa o formulário de busca genérica
+      // 2. Se não houver vínculo exato (sourceId nulo), processa o formulário de busca
+      // genérica — nunca depende de target_table (Perfil de Interesse existe mesmo em
+      // segmentos sem nenhuma tabela de inventário digitalizada ainda).
       if (!sourceId) {
-         return await this.enrichGenericLead(leadUuid, form_schema_json)
+        return await this.enrichGenericLead(leadUuid, formSchemaJson)
       }
 
-      // 3. Buscar os dados na tabela alvo (ex: imoveis, consultas, etc)
+      // 3. Vínculo Exato pedido (sourceId presente) — aqui sim exige uma tabela real válida.
+      if (!targetTable || !targetNameColumn || !IDENT_RE.test(targetTable) || !IDENT_RE.test(targetNameColumn)) {
+        console.error('[EnrichmentService] ❌ Vínculo Exato pedido mas o tenant/segmento não tem target_table configurado:', config)
+        return false
+      }
+
+      // 4. Buscar os dados na tabela alvo (ex: imoveis, veiculos, etc)
       const dataRes = await pool.query(
-        `SELECT * FROM ${target_table} WHERE id = $1`,
+        `SELECT * FROM ${targetTable} WHERE id = $1`,
         [sourceId]
       )
 
       if (dataRes.rows.length === 0) {
-        console.warn(`[EnrichmentService] ⚠️ Dados não encontrados na tabela ${target_table} para o ID ${sourceId}.`)
+        console.warn(`[EnrichmentService] ⚠️ Dados não encontrados na tabela ${targetTable} para o ID ${sourceId}.`)
         return false
       }
 
       const row = dataRes.rows[0]
+      const layout = layoutJson || {}
       const enrichedSnapshot: any = {
         title: layout.title_template || '',
         subtitle: layout.subtitle_template || '',
@@ -62,7 +70,7 @@ export class EnrichmentService {
         enrichedSnapshot.badges = layout.badges.map((b: any) => {
           let rawValue = row[b.campo]
           let formattedValue = rawValue
-          
+
           // Formatação básica (Agnóstica por TIPO DE ÍCONE)
           if (rawValue !== null && rawValue !== undefined) {
              if (b.icone === 'dollar-sign' && !isNaN(Number(rawValue))) {
@@ -96,7 +104,7 @@ export class EnrichmentService {
         [JSON.stringify(enrichedSnapshot), leadUuid]
       )
 
-      console.log(`✅ [EnrichmentService] Lead ${leadUuid} enriquecido com sucesso para o segmento ${target_table}.`)
+      console.log(`✅ [EnrichmentService] Lead ${leadUuid} enriquecido com sucesso para a tabela ${targetTable}.`)
       return true
     } catch (error) {
       console.error('[EnrichmentService] ❌ Erro crítico no enriquecimento:', error)
@@ -105,42 +113,36 @@ export class EnrichmentService {
   }
 
   /**
-   * Re-processa todo o lote de leads de um segmento para aplicar retroativamente um novo Segment Builder Layout.
+   * Re-processa todos os leads de um tenant pra aplicar retroativamente um novo layout do
+   * Segment Builder (tenant override ou padrão do segmento que acabou de mudar).
    */
-  static async reEnrichAllLeads(domainId: number) {
+  static async reEnrichAllLeads(tenantId: string) {
     try {
-      console.log(`[EnrichmentService] 🔄 Iniciando re-enriquecimento global para domínio ${domainId}...`)
-      // Busca a config para achar a coluna alvo (fk). Atualmente hardcoded para imovel_id, 
-      // mas mantemos flexível chamando de fk_col no DB caso evolua.
-      const configRes = await pool.query(
-        'SELECT target_fk_column FROM crm_segmentos_config WHERE domain_id = $1 AND is_active = true',
-        [domainId]
-      )
-      
-      if (configRes.rows.length === 0) return 0;
-      
-      // Como o DB staging atual mantém a FK como 'imovel_id' para a fase 1, validamos e usamos:
-      const fk_col = configRes.rows[0].target_fk_column || 'imovel_id';
-      
-      // Usar if(fk_col === 'imovel_id') por segurança pro schema atual
-      if (fk_col !== 'imovel_id') {
-         console.warn(`A coluna FK ${fk_col} ainda não foi normalizada na staging. Usando fallback para imovel_id.`)
+      const config = await resolveAtivoConfig(tenantId)
+      if (!config) return 0
+
+      // Sem tabela de Vínculo Exato configurada, não há nenhum lead com sourceId pra
+      // reprocessar por essa via — só Perfil de Interesse existe, e esse é resolvido no
+      // momento da criação do lead (enrichGenericLead), não em lote aqui.
+      const fkCol = config.targetFkColumn
+      if (!fkCol || !IDENT_RE.test(fkCol)) {
+        return 0
       }
 
-      // Processar todos os leads baseados no domainId
       const leadsRes = await pool.query(
-        `SELECT lead_uuid, ${fk_col} as source_id FROM leads_staging WHERE ${fk_col} IS NOT NULL`
+        `SELECT lead_uuid, ${fkCol} as source_id FROM leads_staging WHERE tenant_id = $1::uuid AND ${fkCol} IS NOT NULL`,
+        [tenantId]
       )
 
       let successes = 0
       for (const lead of leadsRes.rows) {
-        const ok = await this.enrichLead(lead.lead_uuid, domainId, lead.source_id)
+        const ok = await this.enrichLead(lead.lead_uuid, tenantId, lead.source_id)
         if (ok) successes++
       }
 
-      console.log(`[EnrichmentService] 🔄 Lote de ${successes} leads atualizado retroativamente com sucesso.`)
+      console.log(`[EnrichmentService] 🔄 Lote de ${successes} leads do tenant ${tenantId} atualizado retroativamente com sucesso.`)
       return successes
-    } catch(err) {
+    } catch (err) {
       console.error('[EnrichmentService] ❌ Falha no re-enriquecimento global:', err)
       return 0
     }
@@ -165,7 +167,7 @@ export class EnrichmentService {
           if (rawJson[field.name]) {
               let valorRaw = rawJson[field.name];
               let valorIcon = field.type === 'currency' ? 'dollar-sign' : 'map-pin'
-              
+
               if (field.type === 'currency') {
                  // Limpa valor (se já veio mascarado com R$, ou se é numérico)
                  const limpo = String(valorRaw).replace(/[^\d.,]/g, '').replace(/\./g, '').replace(',', '.')
@@ -173,7 +175,7 @@ export class EnrichmentService {
                      valorRaw = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(limpo))
                  }
               }
-              
+
               badges.push({
                  label: field.label || field.name,
                  icone: valorIcon,

@@ -5,14 +5,16 @@ import { getTokenPayload } from '@/lib/auth/jwt-node'
 export const dynamic = 'force-dynamic'
 
 const ORIGEM_LABEL: Record<string, string> = {
-  cta_app_form:        'Formulário',
-  cta:                 'Formulário CTA',
-  cta_whatsapp:        'WhatsApp CTA',
-  cta_api:             'Webhook Externo',
-  whatsapp_organico:   'WhatsApp Orgânico',
-  meta_lead_ads:       'Meta Lead Ads',
-  api_webhook:         'API / Webhook',
-  direto:              'Direto',
+  cta_app_form:          'Formulário',
+  cta:                   'Formulário CTA',
+  cta_whatsapp:          'WhatsApp CTA',
+  cta_api:               'Webhook Externo',
+  whatsapp_organico:     'WhatsApp Orgânico',
+  meta_lead_ads:         'Meta Lead Ads',
+  google_lead_form:      'Google Lead Form',
+  google_lead_form_test: 'Google Lead Form (teste)',
+  api_webhook:           'API / Webhook',
+  direto:                'Direto',
 }
 
 export async function GET(request: NextRequest) {
@@ -23,6 +25,7 @@ export async function GET(request: NextRequest) {
   const clientId  = sp.get('clientId')
   const startDate = sp.get('startDate')
   const endDate   = sp.get('endDate')
+  const origem    = sp.get('origem')
 
   const conditions: string[] = ['ls.tenant_id = $1']
   const params: unknown[] = [payload.tenantId]
@@ -41,6 +44,10 @@ export async function GET(request: NextRequest) {
     params.push(new Date(endDate + 'T23:59:59'))
     conditions.push(`ls.created_at <= $${params.length}`)
   }
+  if (origem && origem !== 'all') {
+    params.push(origem)
+    conditions.push(`COALESCE(me.plataforma, 'direto') = $${params.length}`)
+  }
 
   const where = conditions.join(' AND ')
   const joinBase = `
@@ -49,13 +56,66 @@ export async function GET(request: NextRequest) {
     WHERE ${where}
   `
 
+  // "Sinal de Interesse (Meta)" — mesmo escopo (tenant/cliente/data), mas contando o EVENTO de
+  // engajamento (clique de WhatsApp + formulário preenchido) em vez do contato confirmado no
+  // CRM. CtaInteraction/CtaSubmission só existem pro Meta (Google não grava nessas tabelas — a
+  // conversão dele é só um número agregado da própria API, sem evento individual pra contar
+  // aqui) — por isso este número é implicitamente "só Meta", sem precisar filtrar rede.
+  const S = 'campanhasmarketingdigital'
+  const buildScopeCondition = (alias: string) => {
+    const cond: string[] = [`${alias}.tenant_id = $1`]
+    const p: unknown[] = [payload.tenantId]
+    if (clientId === 'own') {
+      cond.push(`${alias}.client_id IS NULL`)
+    } else if (clientId && clientId !== 'all') {
+      p.push(clientId)
+      cond.push(`${alias}.client_id = $${p.length}::uuid`)
+    }
+    if (startDate) {
+      p.push(new Date(startDate))
+      cond.push(`${alias}.created_at >= $${p.length}`)
+    }
+    if (endDate) {
+      p.push(new Date(endDate + 'T23:59:59'))
+      cond.push(`${alias}.created_at <= $${p.length}`)
+    }
+    return { where: cond.join(' AND '), params: p }
+  }
+  const ciScope = buildScopeCondition('ci')
+  const csScope = buildScopeCondition('cs')
+
   const today = new Date().toISOString().split('T')[0]
 
-  try {
-    const [totalRes, todayRes, byDayRes, byOrigemRes] = await Promise.all([
-      pool.query(`SELECT COUNT(DISTINCT ls.lead_uuid)::int AS total ${joinBase}`, params),
-      pool.query(`SELECT COUNT(DISTINCT ls.lead_uuid)::int AS total ${joinBase} AND DATE(ls.created_at AT TIME ZONE 'America/Sao_Paulo') = '${today}'`, params),
-      pool.query(`
+  // "Leads por Dia" / "Média por Dia" — a query original só retornava dias com PELO MENOS 1
+  // lead (sem zero-fill) e limitava a 30 linhas. Num período longo e esparso (ex.: 112 dias com
+  // só 2 dias reais de lead), isso produz um gráfico enganoso: o LineChart conecta os 2 pontos
+  // reais espalhando-os por toda a largura do eixo (categoria, não escala de tempo real),
+  // parecendo um "declínio contínuo" que nunca existiu — e a "Média/Dia" saía inflada porque
+  // dividia pelo Nº DE DIAS COM DADO (2), não pelo Nº DE DIAS DO PERÍODO SELECIONADO (112).
+  // Zero-preenchemos o período pedido (com generate_series) pra o gráfico refletir a realidade:
+  // reto em zero, com picos só nos dias reais. Cap de segurança pra não gerar séries enormes.
+  const MAX_ZERO_FILL_DAYS = 200
+  let periodDaySpan: number | null = null
+  if (startDate && endDate) {
+    const spanMs = new Date(endDate + 'T00:00:00').getTime() - new Date(startDate + 'T00:00:00').getTime()
+    periodDaySpan = Math.round(spanMs / 86400000) + 1
+  }
+  const useZeroFill = periodDaySpan !== null && periodDaySpan > 0 && periodDaySpan <= MAX_ZERO_FILL_DAYS
+
+  const byDayQuery = useZeroFill
+    ? `
+        SELECT gs::date AS date, COALESCE(cnt.count, 0)::int AS count
+        FROM generate_series($${params.length + 1}::date, $${params.length + 2}::date, '1 day') AS gs
+        LEFT JOIN (
+          SELECT
+            DATE(ls.created_at AT TIME ZONE 'America/Sao_Paulo') AS date,
+            COUNT(DISTINCT ls.lead_uuid)::int AS count
+          ${joinBase}
+          GROUP BY DATE(ls.created_at AT TIME ZONE 'America/Sao_Paulo')
+        ) cnt ON cnt.date = gs::date
+        ORDER BY gs DESC
+      `
+    : `
         SELECT
           DATE(ls.created_at AT TIME ZONE 'America/Sao_Paulo') AS date,
           COUNT(DISTINCT ls.lead_uuid)::int AS count
@@ -63,7 +123,48 @@ export async function GET(request: NextRequest) {
         GROUP BY DATE(ls.created_at AT TIME ZONE 'America/Sao_Paulo')
         ORDER BY date DESC
         LIMIT 30
-      `, params),
+      `
+  const byDayParams = useZeroFill ? [...params, startDate, endDate] : params
+
+  // "Sinal de Interesse" por dia — mesmo zero-fill de "Leads por Dia", pra viabilizar o gráfico
+  // combinado (Sinal × Total Leads) que mostra o funil sinal→contato dia a dia. 2 queries
+  // separadas (CtaInteraction/CtaSubmission), cada uma reaproveitando o scope já calculado
+  // (ciScope/csScope) + zero-fill próprio; somadas em JS por data (mesma técnica de
+  // "leadEvents.ts" pra evitar reescrever os 2 filtros de escopo numa query só).
+  const buildDayQuery = (
+    alias: string, table: string, extraFilter: string, scope: { where: string; params: unknown[] },
+  ) => {
+    const query = useZeroFill
+      ? `
+          SELECT gs::date AS date, COALESCE(cnt.count, 0)::int AS count
+          FROM generate_series($${scope.params.length + 1}::date, $${scope.params.length + 2}::date, '1 day') AS gs
+          LEFT JOIN (
+            SELECT DATE(${alias}.created_at AT TIME ZONE 'America/Sao_Paulo') AS date, COUNT(*)::int AS count
+            FROM ${S}."${table}" ${alias}
+            WHERE ${scope.where} AND ${extraFilter}
+            GROUP BY 1
+          ) cnt ON cnt.date = gs::date
+          ORDER BY gs DESC
+        `
+      : `
+          SELECT DATE(${alias}.created_at AT TIME ZONE 'America/Sao_Paulo') AS date, COUNT(*)::int AS count
+          FROM ${S}."${table}" ${alias}
+          WHERE ${scope.where} AND ${extraFilter}
+          GROUP BY 1
+          ORDER BY date DESC
+          LIMIT 30
+        `
+    const queryParams = useZeroFill ? [...scope.params, startDate, endDate] : scope.params
+    return { query, params: queryParams }
+  }
+  const ciDayQ = buildDayQuery('ci', 'CtaInteraction', `ci.event_type = 'WHATSAPP_CLICK'`, ciScope)
+  const csDayQ = buildDayQuery('cs', 'CtaSubmission', `cs.lead_uuid IS NOT NULL AND cs.cta_type != 'WHATSAPP_MESSAGE'`, csScope)
+
+  try {
+    const [totalRes, todayRes, byDayRes, byOrigemRes, ciCountRes, csCountRes, ciDayRes, csDayRes] = await Promise.all([
+      pool.query(`SELECT COUNT(DISTINCT ls.lead_uuid)::int AS total ${joinBase}`, params),
+      pool.query(`SELECT COUNT(DISTINCT ls.lead_uuid)::int AS total ${joinBase} AND DATE(ls.created_at AT TIME ZONE 'America/Sao_Paulo') = '${today}'`, params),
+      pool.query(byDayQuery, byDayParams),
       pool.query(`
         SELECT
           COALESCE(me.plataforma, 'direto') AS origem,
@@ -72,11 +173,35 @@ export async function GET(request: NextRequest) {
         GROUP BY COALESCE(me.plataforma, 'direto')
         ORDER BY count DESC
       `, params),
+      pool.query(
+        `SELECT COUNT(*)::int AS total FROM ${S}."CtaInteraction" ci
+          WHERE ${ciScope.where} AND ci.event_type = 'WHATSAPP_CLICK'`,
+        ciScope.params,
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS total FROM ${S}."CtaSubmission" cs
+          WHERE ${csScope.where} AND cs.lead_uuid IS NOT NULL AND cs.cta_type != 'WHATSAPP_MESSAGE'`,
+        csScope.params,
+      ),
+      pool.query(ciDayQ.query, ciDayQ.params),
+      pool.query(csDayQ.query, csDayQ.params),
     ])
 
     const leadsByDay = byDayRes.rows.map((r) => ({
       date:  r.date instanceof Date ? r.date.toISOString().split('T')[0] : String(r.date),
       count: Number(r.count),
+    }))
+
+    const toDayMap = (rows: any[]) => new Map(rows.map(r => [
+      r.date instanceof Date ? r.date.toISOString().split('T')[0] : String(r.date),
+      Number(r.count),
+    ]))
+    const ciDayMap = toDayMap(ciDayRes.rows)
+    const csDayMap = toDayMap(csDayRes.rows)
+    const sinalDates = new Set([...Array.from(ciDayMap.keys()), ...Array.from(csDayMap.keys())])
+    const sinalByDay = Array.from(sinalDates).sort((a, b) => b.localeCompare(a)).map(date => ({
+      date,
+      count: (ciDayMap.get(date) ?? 0) + (csDayMap.get(date) ?? 0),
     }))
 
     const leadsByOrigem = byOrigemRes.rows.map((r) => ({
@@ -86,14 +211,23 @@ export async function GET(request: NextRequest) {
     }))
 
     const totalLeads = totalRes.rows[0]?.total ?? 0
-    const days = leadsByDay.length || 1
+    // Média/dia: divide pelo Nº DE DIAS DO PERÍODO SELECIONADO, nunca pelo Nº de dias com dado
+    // (leadsByDay.length) — senão um período longo e esparso infla a média artificialmente.
+    const days = periodDaySpan ?? (leadsByDay.length || 1)
+    const sinalInteresseMeta = (ciCountRes.rows[0]?.total ?? 0) + (csCountRes.rows[0]?.total ?? 0)
 
     return NextResponse.json({
       totalLeads,
       leadsHoje:    todayRes.rows[0]?.total ?? 0,
+      // Data real de "hoje" (America/Sao_Paulo) usada na query acima — independe do período
+      // selecionado no filtro. O frontend usa isso pra deixar o rótulo do card inequívoco
+      // (ex.: "Leads Hoje (25/07)"), já que "hoje" pode estar fora do range filtrado.
+      todayDate:    today,
       mediaDia:     (totalLeads / days).toFixed(1),
       leadsByDay,
       leadsByOrigem,
+      sinalInteresseMeta,
+      sinalByDay,
     })
   } catch (err: any) {
     console.error('[leads/stats] erro:', err)

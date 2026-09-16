@@ -4,11 +4,17 @@ import { useEffect, useRef, useState } from 'react'
 import {
   InboxStackIcon, UsersIcon, TagIcon, ChatBubbleBottomCenterTextIcon,
   ClockIcon, PlusIcon, TrashIcon, CheckCircleIcon, XCircleIcon, StarIcon, CpuChipIcon,
+  BookOpenIcon, PencilIcon, XMarkIcon, ChevronDownIcon,
 } from '@heroicons/react/24/outline'
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
 import { adminFetch } from '@/lib/auth/adminFetch'
+import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector'
+import { PromptOverrideCard } from '@/components/crm/PromptOverrideCard'
+import { LlmCascadeSection } from '@/components/crm/LlmCascadeSection'
+import { AgentWhatsAppChannelSection } from '@/components/crm/AgentWhatsAppChannelSection'
+import { WhatsAppWebhookSection } from '@/components/crm/WhatsAppWebhookSection'
 
-type Tab = 'inboxes' | 'teams' | 'labels' | 'canned' | 'sla' | 'bot'
+type Tab = 'inboxes' | 'teams' | 'labels' | 'canned' | 'sla' | 'bot' | 'knowledge'
 
 const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: 'inboxes', label: 'Inboxes', icon: InboxStackIcon },
@@ -17,6 +23,7 @@ const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: st
   { id: 'canned', label: 'Respostas Rápidas', icon: ChatBubbleBottomCenterTextIcon },
   { id: 'sla', label: 'SLA', icon: ClockIcon },
   { id: 'bot', label: 'Bot', icon: CpuChipIcon },
+  { id: 'knowledge', label: 'Base de Conhecimento', icon: BookOpenIcon },
 ]
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -66,6 +73,7 @@ export default function MensageriaConfigPage() {
         {tab === 'canned' && <CannedTab />}
         {tab === 'sla' && <SlaTab />}
         {tab === 'bot' && <BotTab />}
+        {tab === 'knowledge' && <KnowledgeTab />}
       </div>
     </div>
   )
@@ -167,6 +175,14 @@ function InboxesTab() {
   if (loading) return <Card><p className="text-sm text-slate-500">Carregando...</p></Card>
 
   return (
+    <div className="space-y-4">
+      {/* Portão de entrada de WhatsApp (docs/CHECKPOINT.md, Peça 3, 2026-09-02) — URL+secret
+          que precisa estar colado na Evolution API. Sem isto, o canal WhatsApp desta lista
+          abaixo nunca recebe mensagem real, mesmo já criado. Componente compartilhado com
+          /admin/campanhas/mecanismos e /crm/config/agentes. */}
+      <WhatsAppWebhookSection
+        t={{ isDark: true, textPrimary: 'text-white', textMuted: 'text-slate-500', textSecondary: 'text-slate-300', inputBg: 'bg-[#112240] border border-white/8' }}
+      />
     <Card>
       <p className="text-xs text-slate-500 mb-3">
         Canais de entrada são criados automaticamente na primeira mensagem de cada tipo (WhatsApp, Formulário, Manual),
@@ -233,6 +249,7 @@ function InboxesTab() {
         <p className="text-xs text-amber-400/70 mt-3">Nenhum time cadastrado ainda — crie um na aba &quot;Times&quot; para poder vincular.</p>
       )}
     </Card>
+    </div>
   )
 }
 
@@ -654,9 +671,15 @@ function SlaTab() {
 
   return (
     <div className="space-y-4">
+      {/* Canal de WhatsApp dos alertas de SLA (docs/CHECKPOINT.md, 2026-09-02) — mesma Evolution
+          API que os agentes de Campanhas/CRM usam pra notificar; genuinamente compartilhado, não
+          é exclusivo de nenhum módulo. Componente compartilhado com /crm/config/agentes. */}
+      <AgentWhatsAppChannelSection
+        t={{ isDark: true, textPrimary: 'text-white', textMuted: 'text-slate-500', textSecondary: 'text-slate-300', inputBg: 'bg-[#112240] border border-white/8' }}
+      />
       <Card>
         <p className="text-xs text-slate-500 mb-3">
-          Metas de tempo de resposta/resolução. Estouro dispara alerta (WhatsApp/Slack) e badge vermelho na conversa.
+          Metas de tempo de resposta/resolução. Estouro dispara alerta (WhatsApp) e badge vermelho na conversa.
           Quando mais de uma política se aplica a uma conversa nova, vale a mais específica: <strong className="text-slate-400">Inbox &gt; Time &gt; Global</strong>.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
@@ -767,6 +790,13 @@ function BotTab() {
   const [botSessionActive, setBotSessionActive] = useState<boolean | null>(null)
   const [testError, setTestError] = useState('')
   const testScrollRef = useRef<HTMLDivElement>(null)
+
+  // Sobrescrita de persona em cascata (docs/CHECKPOINT.md, 2026-08-28) — 'own' = override do
+  // próprio tenant; uuid = override de um cliente específico (o admin do tenant cadastra em
+  // nome dele, já que cliente nunca loga na aplicação).
+  const { clients: personaClients, loading: personaClientsLoading, clientFilter: personaClientFilter, setClientFilter: setPersonaClientFilter } =
+    useClientSelector('mensageria-bot-persona-override')
+  const personaOverrideClientId = personaClientFilter === 'own' || personaClientFilter === 'segment' ? null : personaClientFilter
 
   async function load() {
     setLoading(true)
@@ -899,11 +929,45 @@ function BotTab() {
         <div className="rounded-lg bg-[#112240] border border-white/8 px-3.5 py-2.5 mb-3">
           <p className="text-xs text-slate-400">
             <span className="text-[#d4af37] font-medium">Persona &amp; conhecimento:</span> a personalidade e as
-            instruções do bot são definidas por <strong>segmento de negócio</strong> pelo Master, na página{' '}
-            <span className="font-mono text-slate-300">Editor de Prompts</span> (template{' '}
-            <span className="font-mono text-slate-300">mensageria_bot_persona</span>). Cada segmento tem seu próprio
-            prompt; sem um específico, vale o global de fallback.
+            instruções do bot partem do padrão curado pelo Master por <strong>segmento de negócio</strong> (template{' '}
+            <span className="font-mono text-slate-300">mensageria_bot_persona</span>, editado em{' '}
+            <span className="font-mono text-slate-300">/admin/master/prompts</span>) — você pode sobrescrever pro seu
+            tenant ou pra um cliente específico logo abaixo. Regras/políticas/FAQ ficam na aba{' '}
+            <span className="font-mono text-slate-300">Base de Conhecimento</span>, ao lado.
           </p>
+        </div>
+
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Editando persona para</p>
+          <ClientSelector
+            value={personaClientFilter}
+            onChange={setPersonaClientFilter}
+            clients={personaClients}
+            loading={personaClientsLoading}
+            variant="toggle"
+            allowSegment={false}
+            storageKey="mensageria-bot-persona-override"
+          />
+        </div>
+        <div className="mb-3">
+          <PromptOverrideCard
+            templateKey="mensageria_bot_persona"
+            clientId={personaOverrideClientId}
+            label="Persona do Bot"
+            t={{ isDark: true, cardBg: '', textPrimary: 'text-white', textMuted: 'text-slate-500', textSecondary: 'text-slate-300', inputBg: 'bg-[#112240] border border-white/8' }}
+          />
+        </div>
+
+        {/* Modelo de LLM em cascata (docs/CHECKPOINT.md, 2026-08-28/2026-09-01) — mesma
+            cascata Cliente → Tenant → Segmento → Global da persona acima, só que pro MODELO
+            usado pelo bot. Componente compartilhado com /crm/config/ia — até 2026-09-01 essa
+            tela só existia atrás do gate de Campanhas, inalcançável pra quem só contratou
+            Mensageria. Escopo próprio (independente do seletor da persona acima). */}
+        <div className="mb-3">
+          <LlmCascadeSection
+            t={{ isDark: true, textPrimary: 'text-white', textMuted: 'text-slate-500', textSecondary: 'text-slate-300', inputBg: 'bg-[#112240] border border-white/8' }}
+            storageKey="mensageria-bot-llm-override"
+          />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
@@ -1040,6 +1104,359 @@ function BotTab() {
             {testing ? 'Enviando...' : 'Enviar'}
           </PrimaryButton>
         </div>
+      </Card>
+    </div>
+  )
+}
+
+// ============================================================================
+// Base de Conhecimento (M4.3 — RAG) — políticas/FAQ/condições comerciais em markdown,
+// consultadas pelo bot via busca híbrida (ferramenta buscar_conhecimento).
+// ============================================================================
+
+interface KnowledgeDoc {
+  id: string; clientId: string | null; clientName: string | null; title: string
+  sourceType: string; originalFilename: string | null; isActive: boolean; updatedAt: string
+  chunkCount: number
+}
+interface KnowledgeDocDetail {
+  id: string; clientId: string | null; title: string; sourceType: string
+  rawMarkdown: string; originalFilename: string | null; isActive: boolean; updatedAt: string
+}
+interface ClienteOption { id: string; nome: string }
+interface KnowledgeChunk { chunkIndex: number; headingPath: string | null; chunkText: string }
+
+function KnowledgeTab() {
+  const [docs, setDocs] = useState<KnowledgeDoc[]>([])
+  const [loading, setLoading] = useState(true)
+  const [editingId, setEditingId] = useState<string | 'new' | null>(null)
+
+  const [title, setTitle] = useState('')
+  const [rawMarkdown, setRawMarkdown] = useState('')
+  const [isActive, setIsActive] = useState(true)
+  const [clientId, setClientId] = useState<string | null>(null)
+  const [clientName, setClientName] = useState<string | null>(null)
+  const [allClients, setAllClients] = useState<ClienteOption[]>([])
+  const [clientQuery, setClientQuery] = useState('')
+  const [clientDropdownOpen, setClientDropdownOpen] = useState(false)
+
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [saveWarning, setSaveWarning] = useState('')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const [expandedChunksId, setExpandedChunksId] = useState<string | null>(null)
+  const [chunksByDoc, setChunksByDoc] = useState<Record<string, KnowledgeChunk[]>>({})
+  const [chunksLoadingId, setChunksLoadingId] = useState<string | null>(null)
+
+  async function load() {
+    setLoading(true)
+    try {
+      const [docsRes, clientsRes] = await Promise.all([
+        adminFetch('/api/admin/mensageria/knowledge'),
+        adminFetch('/api/admin/campanhas/clients?limit=200'),
+      ])
+      setDocs((await docsRes.json()).documents || [])
+      const clientsData = await clientsRes.json()
+      // /campanhas/clients já devolve ORDER BY nome ASC — lista pronta pro dropdown.
+      setAllClients((Array.isArray(clientsData) ? clientsData : []).map((c: any) => ({ id: c.id, nome: c.name })))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, [])
+
+  // Range Unicode dos diacríticos combinantes (0x0300-0x036f) montado via charCode pra evitar
+  // caracteres literais de acento na fonte (mesmo range usado em normalizeText do botAdapter.ts).
+  const DIACRITICS_RE = new RegExp(`[${String.fromCharCode(0x0300)}-${String.fromCharCode(0x036f)}]`, 'g')
+
+  function normalize(s: string): string {
+    return s.normalize('NFD').replace(DIACRITICS_RE, '').toLowerCase()
+  }
+
+  const filteredClients = clientQuery.trim()
+    ? allClients.filter((c) => normalize(c.nome).includes(normalize(clientQuery.trim())))
+    : allClients
+
+  function resetForm() {
+    setTitle(''); setRawMarkdown(''); setIsActive(true)
+    setClientId(null); setClientName(null); setClientQuery(''); setClientDropdownOpen(false)
+    setSaveError(''); setSaveWarning('')
+  }
+
+  function startNew() {
+    resetForm()
+    setEditingId('new')
+  }
+
+  async function startEdit(doc: KnowledgeDoc) {
+    resetForm()
+    setEditingId(doc.id)
+    const res = await adminFetch(`/api/admin/mensageria/knowledge/${doc.id}`)
+    const data = await res.json()
+    const d: KnowledgeDocDetail = data.document
+    setTitle(d.title)
+    setRawMarkdown(d.rawMarkdown)
+    setIsActive(d.isActive)
+    setClientId(d.clientId)
+    setClientName(doc.clientName)
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    resetForm()
+  }
+
+  async function save() {
+    if (!title.trim() || !rawMarkdown.trim()) return
+    setSaving(true)
+    setSaveError(''); setSaveWarning('')
+    try {
+      const body = JSON.stringify({ title: title.trim(), rawMarkdown: rawMarkdown.trim(), clientId, isActive })
+      const res = editingId === 'new'
+        ? await adminFetch('/api/admin/mensageria/knowledge', { method: 'POST', body })
+        : await adminFetch(`/api/admin/mensageria/knowledge/${editingId}`, { method: 'PUT', body })
+      const data = await res.json()
+      if (!res.ok && res.status !== 207) { setSaveError(data.error || 'Falha ao salvar documento.'); return }
+      if (data.warning) {
+        setSaveWarning(data.warning)
+      } else {
+        setEditingId(null)
+        resetForm()
+      }
+      await load()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function remove(id: string) {
+    setDeletingId(id)
+    try {
+      await adminFetch(`/api/admin/mensageria/knowledge/${id}`, { method: 'DELETE' })
+      if (editingId === id) { setEditingId(null); resetForm() }
+      await load()
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  async function handleImportFile(file: File) {
+    setImporting(true)
+    setImportError('')
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await adminFetch('/api/admin/mensageria/knowledge/import', { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok && res.status !== 207) { setImportError(data.error || 'Falha ao importar o arquivo.'); return }
+      // Abre direto em modo de edição com o texto extraído — o import não é "definitivo" até o
+      // usuário revisar (extração de PDF/DOCX pode trazer ruído: cabeçalho/rodapé repetido,
+      // numeração de página etc.) e confirmar com "Salvar".
+      resetForm()
+      setEditingId(data.id)
+      setTitle(data.title || '')
+      setRawMarkdown(data.rawMarkdown || '')
+      if (data.warning) setSaveWarning(data.warning)
+      await load()
+    } catch {
+      setImportError('Falha ao importar o arquivo.')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  async function toggleChunks(docId: string) {
+    if (expandedChunksId === docId) { setExpandedChunksId(null); return }
+    setExpandedChunksId(docId)
+    if (chunksByDoc[docId]) return // já carregado — não refetch a cada toggle
+    setChunksLoadingId(docId)
+    try {
+      const res = await adminFetch(`/api/admin/mensageria/knowledge/${docId}/chunks`)
+      const data = await res.json()
+      setChunksByDoc((prev) => ({ ...prev, [docId]: data.chunks || [] }))
+    } finally {
+      setChunksLoadingId(null)
+    }
+  }
+
+  if (loading) return <Card><p className="text-sm text-slate-500">Carregando...</p></Card>
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <p className="text-xs text-slate-500 mb-3">
+          Políticas, condições comerciais, FAQ e outros textos livres que o bot consulta quando a pergunta
+          é sobre <strong className="text-slate-400">como funciona algo</strong> ou{' '}
+          <strong className="text-slate-400">quais são as regras</strong> — não sobre um item específico
+          (isso é feito pelas ferramentas de dados). Escreva em Markdown; use{' '}
+          <code className="text-[#d4af37]"># títulos</code> para separar seções — o bot recupera o trecho
+          mais relevante, não o documento inteiro. Deixe o campo &quot;cliente&quot; vazio para valer pra
+          todos os clientes sob seu guarda-chuva; escolha um cliente específico para restringir só a ele.
+        </p>
+
+        {editingId === null ? (
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <PrimaryButton onClick={startNew}><PlusIcon className="w-4 h-4" /> Novo documento</PrimaryButton>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importing}
+                className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-[#112240] border border-white/10 text-slate-200 text-sm font-medium disabled:opacity-40 hover:border-[#c5a028]/40 transition-colors"
+              >
+                <BookOpenIcon className="w-4 h-4" /> {importing ? 'Importando...' : 'Importar arquivo (PDF/DOCX)'}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.docx"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) handleImportFile(file)
+                  e.target.value = ''
+                }}
+              />
+            </div>
+            {importError && <p className="text-xs text-rose-400 mt-2">{importError}</p>}
+          </div>
+        ) : (
+          <div className="space-y-2.5 pt-1">
+            <TextInput value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título (ex: Política de Garantia)" className="w-full" />
+
+            <div className="relative">
+              {clientId ? (
+                <div className="flex items-center justify-between h-9 px-3 rounded-lg bg-[#112240] border border-[#c5a028]/30 text-sm text-[#d4af37]">
+                  <span>Cliente: {clientName || clientId}</span>
+                  <button onClick={() => { setClientId(null); setClientName(null) }} className="text-slate-400 hover:text-white">
+                    <XMarkIcon className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <TextInput
+                    value={clientQuery}
+                    onChange={(e) => { setClientQuery(e.target.value); setClientDropdownOpen(true) }}
+                    onFocus={() => setClientDropdownOpen(true)}
+                    onBlur={() => setTimeout(() => setClientDropdownOpen(false), 150)}
+                    placeholder="Todos os clientes (clique para escolher um específico)..."
+                    className="w-full"
+                  />
+                  {clientDropdownOpen && (
+                    <div className="absolute z-10 mt-1 w-full max-h-64 overflow-y-auto rounded-lg bg-[#112240] border border-white/10 shadow-xl">
+                      {filteredClients.length === 0 ? (
+                        <p className="px-3 py-2 text-sm text-slate-500">Nenhum cliente encontrado.</p>
+                      ) : (
+                        filteredClients.map((c) => (
+                          <button
+                            key={c.id}
+                            // onMouseDown (não onClick) dispara antes do onBlur do input, senão a lista
+                            // fecha (por causa do blur) antes do clique ser registrado.
+                            onMouseDown={() => { setClientId(c.id); setClientName(c.nome); setClientQuery(''); setClientDropdownOpen(false) }}
+                            className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-[#c5a028]/10"
+                          >
+                            {c.nome}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <textarea
+              value={rawMarkdown} onChange={(e) => setRawMarkdown(e.target.value)}
+              placeholder={'# Título da seção\n\nTexto da política/regra...\n\n## Subseção\n\nMais detalhes...'}
+              rows={12}
+              className="w-full px-3 py-2 rounded-lg bg-[#112240] border border-white/8 text-sm text-slate-200 outline-none focus:border-[#c5a028] font-mono resize-y transition-colors"
+            />
+
+            <label className="flex items-center gap-1.5 text-xs text-slate-400">
+              <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+              Ativo (visível pro bot)
+            </label>
+
+            {saveError && <p className="text-xs text-rose-400">{saveError}</p>}
+            {saveWarning && <p className="text-xs text-amber-400">{saveWarning}</p>}
+
+            <div className="flex items-center gap-2">
+              <PrimaryButton onClick={save} disabled={saving || !title.trim() || !rawMarkdown.trim()}>
+                {saving ? 'Salvando...' : 'Salvar'}
+              </PrimaryButton>
+              <button onClick={cancelEdit} className="h-9 px-3.5 rounded-lg text-sm text-slate-400 hover:text-slate-200 transition-colors">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      <Card>
+        {docs.length === 0 ? (
+          <EmptyState text="Nenhum documento cadastrado ainda." />
+        ) : (
+          <div className="space-y-2">
+            {docs.map((d) => (
+              <div key={d.id} className="rounded-lg bg-[#112240] border border-white/8 overflow-hidden">
+                <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{d.title}</p>
+                    <p className="text-xs text-slate-500">
+                      {d.clientName ? `Cliente: ${d.clientName}` : 'Todos os clientes'} · {d.chunkCount} trecho{d.chunkCount === 1 ? '' : 's'}
+                      {' · '}
+                      {d.isActive ? <span className="text-emerald-400">ativo</span> : <span className="text-slate-500">inativo</span>}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => toggleChunks(d.id)}
+                      disabled={d.chunkCount === 0}
+                      title="Ver trechos gerados (o que o bot realmente recupera)"
+                      className="text-slate-500 hover:text-[#d4af37] transition-colors disabled:opacity-30 disabled:hover:text-slate-500"
+                    >
+                      <ChevronDownIcon className={`w-4 h-4 transition-transform ${expandedChunksId === d.id ? 'rotate-180' : ''}`} />
+                    </button>
+                    <button onClick={() => startEdit(d)} className="text-slate-500 hover:text-[#d4af37] transition-colors">
+                      <PencilIcon className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => remove(d.id)}
+                      disabled={deletingId === d.id}
+                      className="text-slate-500 hover:text-rose-400 transition-colors disabled:opacity-40"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {expandedChunksId === d.id && (
+                  <div className="border-t border-white/8 bg-[#0a192f] px-3.5 py-2.5 space-y-2">
+                    {chunksLoadingId === d.id ? (
+                      <p className="text-xs text-slate-500">Carregando trechos...</p>
+                    ) : (chunksByDoc[d.id] || []).length === 0 ? (
+                      <p className="text-xs text-slate-500">Nenhum trecho gerado ainda.</p>
+                    ) : (
+                      (chunksByDoc[d.id] || []).map((c) => (
+                        <div key={c.chunkIndex} className="rounded-lg bg-[#112240] border border-white/8 px-3 py-2">
+                          {c.headingPath && (
+                            <p className="text-[10px] uppercase tracking-wide text-[#d4af37] mb-1">{c.headingPath}</p>
+                          )}
+                          <p className="text-xs text-slate-300 whitespace-pre-wrap font-mono leading-relaxed">{c.chunkText}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
     </div>
   )

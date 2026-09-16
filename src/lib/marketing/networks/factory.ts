@@ -1,6 +1,18 @@
 import { Pool } from 'pg';
 import { MetaAdsAdapter, MetaCredentials } from './meta/metaAdsAdapter';
+import { GoogleAdsAdapter, GoogleCredentials } from './google';
+import { FakeMetaAdapter } from './fake/FakeMetaAdapter';
+import { FakeGoogleAdapter } from './fake/FakeGoogleAdapter';
+import { FakeTikTokAdapter } from './fake/FakeTikTokAdapter';
 import type { AdNetworkService, NetworkCode, NetworkCredentials } from './types';
+import prisma from '../prisma';
+
+/**
+ * Marcador sentinela da Trilha E (docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md) — nunca uma
+ * credencial real. Só ativa o adapter fake quando um tenant de teste tem esse valor literal
+ * gravado como access_token/developer_token — nunca acidental, nunca silencioso.
+ */
+const SIMULATED_MARKER = '__SIMULATED__';
 
 let _pool: Pool | null = null;
 function getPool(): Pool {
@@ -18,6 +30,7 @@ export function buildNetworkService(
 ): AdNetworkService {
   switch (code) {
     case 'meta':
+      if (credentials.access_token === SIMULATED_MARKER) return new FakeMetaAdapter();
       return new MetaAdsAdapter({
         access_token:       credentials.access_token       || '',
         ad_account_id:      credentials.ad_account_id      || '',
@@ -30,8 +43,23 @@ export function buildNetworkService(
       } as MetaCredentials);
 
     case 'google':
-    case 'linkedin':
+      if (credentials.developer_token === SIMULATED_MARKER) return new FakeGoogleAdapter();
+      return new GoogleAdsAdapter({
+        developer_token: credentials.developer_token || '',
+        client_id:       credentials.client_id || '',
+        client_secret:   credentials.client_secret || '',
+        refresh_token:   credentials.refresh_token || '',
+        customer_id:     credentials.customer_id || '',
+      } as GoogleCredentials);
+
     case 'tiktok':
+      // Adapter real (TikTokAdsAdapter) é T2 do plano — ainda não implementado. O fake já
+      // funciona (docs/PLANO_TIKTOK.md T1), pra viabilizar toda a Trilha F/G de teste sem
+      // depender de aprovação de app no TikTok for Business.
+      if (credentials.access_token === SIMULATED_MARKER) return new FakeTikTokAdapter();
+      throw new Error(`Rede "${code}" ainda não está implementada (adapter real pendente — ver docs/PLANO_TIKTOK.md T2).`);
+
+    case 'linkedin':
       throw new Error(`Rede "${code}" ainda não está implementada. Disponível na FASE 11.`);
 
     default:
@@ -91,6 +119,29 @@ export async function getNetworkServiceForTenant(
         page_id:            t?.meta_page_id || creds.page_id || '',
         pixel_id:           t?.meta_pixel_id || creds.pixel_id || '',
         instagram_actor_id: t?.meta_instagram_actor_id || creds.instagram_actor_id || '',
+      };
+    }
+  } else if (networkCode === 'google') {
+    // Mesmo padrão do Meta: credenciais em public.tenant_network_credentials,
+    // join por public.ad_networks.code = 'google'. Ver docs/PLANO_GOOGLE_TIKTOK.md
+    // (decisão de consolidação 2026-07-19 — não usar tabela dedicada GoogleAdsConfig).
+    const credsRes = await pool.query(
+      `SELECT tnc.credentials, tnc.account_id
+       FROM public.tenant_network_credentials tnc
+       JOIN public.ad_networks n ON n.id = tnc.network_id
+       WHERE tnc.tenant_id = $1::uuid AND n.code = 'google' AND tnc.is_active = true
+       LIMIT 1`,
+      [tenantId],
+    );
+    const row = credsRes.rows[0];
+    const creds = row?.credentials || {};
+    if (row && creds.developer_token) {
+      baseCredentials = {
+        developer_token: creds.developer_token,
+        client_id:       creds.client_id || '',
+        client_secret:   creds.client_secret || '',
+        refresh_token:   creds.refresh_token || '',
+        customer_id:     row.account_id || creds.customer_id || '',
       };
     }
   } else {

@@ -45,7 +45,7 @@ export default function RoleUsersModal({
       setLoading(true)
       setError(null)
 
-      const token = localStorage.getItem('auth-token')
+      const token = localStorage.getItem('admin-auth-token')
       if (!token) {
         throw new Error('Token de autenticação não encontrado. Faça login novamente.')
       }

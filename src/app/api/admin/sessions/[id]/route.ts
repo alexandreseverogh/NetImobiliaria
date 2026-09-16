@@ -169,7 +169,7 @@ async function getAdminInfo(request: NextRequest) {
     // Extrair token do header Authorization ou cookie
     const authHeader = request.headers.get('authorization')
     const token = authHeader?.replace('Bearer ', '') || 
-                  request.cookies.get('accessToken')?.value ||
+                  request.cookies.get('admin_auth_token')?.value ||
                   request.cookies.get('auth-token')?.value
 
     if (!token) {

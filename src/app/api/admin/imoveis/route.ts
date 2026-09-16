@@ -19,7 +19,7 @@ import { logAuditEvent, extractRequestData } from '@/lib/audit/auditLogger'
 // Função para extrair usuário logado
 function getCurrentUserPayload(request: NextRequest) {
   try {
-    const token = request.cookies.get('accessToken')?.value ||
+    const token = request.cookies.get('admin_auth_token')?.value ||
       request.headers.get('authorization')?.replace('Bearer ', '')
 
     if (!token) {
@@ -1077,7 +1077,7 @@ export async function POST(request: NextRequest) {
       const { ipAddress, userAgent } = extractRequestData(request)
       await logAuditEvent({
         userId: currentUser?.userId,
-        tenantId,
+        tenantId: (currentUser as any)?.tenantId,
         action: 'CREATE',
         resource: 'imoveis',
         resourceId: novoImovel.id,

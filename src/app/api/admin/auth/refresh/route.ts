@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     // Configurar novos cookies
     response.cookies.set('accessToken', newTokens.accessToken, {
       httpOnly: true,
-      secure: false, // false para desenvolvimento local
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 24 * 60 * 60, // 24 horas
       path: '/'
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
 
     response.cookies.set('refreshToken', newTokens.refreshToken, {
       httpOnly: true,
-      secure: false, // false para desenvolvimento local
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60, // 7 dias
       path: '/'

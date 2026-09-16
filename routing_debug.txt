@@ -288,3 +288,6 @@
 [2026-03-31T22:43:32.774Z] Starting routing for prospect 12
 [2026-03-31T22:43:32.795Z] Location: Recife/PE
 [2026-03-31T22:43:33.153Z] Success: Assignment created
+[2026-07-21T15:15:46.269Z] Starting routing for prospect 15
+[2026-07-21T15:15:46.371Z] Location: Recife/PE
+[2026-07-21T15:15:48.265Z] Success: Assignment created

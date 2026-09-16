@@ -15,10 +15,14 @@ export async function GET(request: NextRequest) {
     // Extrair filtros
     const nome = searchParams.get('nome') || undefined
     const cpf = searchParams.get('cpf') || undefined
+    const cnpj = searchParams.get('cnpj') || undefined
     const estado = searchParams.get('estado') || undefined
     const cidade = searchParams.get('cidade') || undefined
     const bairro = searchParams.get('bairro') || undefined
-    
+    const tipoClienteParam = searchParams.get('tipo_cliente') || undefined
+    const tipo_cliente = (['conta_gerenciada', 'comprador_pj', 'consumidor_pf'] as const)
+      .find(t => t === tipoClienteParam)
+
     // Obter tenantId do token
     const token = getTokenFromRequest(request)
     const decoded = token ? await verifyToken(token) : null
@@ -27,13 +31,15 @@ export async function GET(request: NextRequest) {
     if (!tenantId) {
       return NextResponse.json({ error: 'Tenant não identificado' }, { status: 401 })
     }
-    
+
     const result = await findClientesPaginated(page, limit, {
       nome,
       cpf,
+      cnpj,
       estado,
       cidade,
       bairro,
+      tipo_cliente,
       tenant_id: tenantId
     })
     
@@ -63,7 +69,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { nome, cpf, telefone, email, endereco, numero, bairro, estado_fk, cidade_fk, cep, created_by } = body
+    const { nome, cpf, cnpj, telefone, email, endereco, numero, bairro, estado_fk, cidade_fk, cep, created_by, tipo_cliente } = body
+    const tipoClienteValido = (['conta_gerenciada', 'comprador_pj', 'consumidor_pf'] as const)
+      .find(t => t === tipo_cliente)
     
     // Validação temporariamente desabilitada para testar IP
     // const validator = createValidator('clients', '/api/admin/clientes')
@@ -83,16 +91,26 @@ export async function POST(request: NextRequest) {
     //   )
     // }
     
-    if (!nome || !cpf || !telefone || !email || !estado_fk || !cidade_fk || !endereco || !bairro || !numero) {
+    if (!nome || !telefone || !email || !estado_fk || !cidade_fk || !endereco || !bairro || !numero) {
       return NextResponse.json(
-        { error: 'Nome, CPF, telefone, email, estado, cidade, endereço, bairro e número são obrigatórios' },
+        { error: 'Nome, telefone, email, estado, cidade, endereço, bairro e número são obrigatórios' },
         { status: 400 }
       )
     }
-    
+
+    // Cliente pode ser pessoa física (CPF) ou jurídica (CNPJ) — createCliente valida
+    // mutuamente exclusivo e rejeita se nenhum dos dois vier preenchido.
+    if ((!cpf || !cpf.trim()) && (!cnpj || !cnpj.trim())) {
+      return NextResponse.json(
+        { error: 'Informe o CPF (pessoa física) ou o CNPJ (pessoa jurídica) do cliente' },
+        { status: 400 }
+      )
+    }
+
     const cliente = await createCliente({
       nome,
-      cpf,
+      cpf: cpf || undefined,
+      cnpj: cnpj || undefined,
       telefone,
       email,
       endereco,
@@ -102,6 +120,7 @@ export async function POST(request: NextRequest) {
       cidade_fk: cidade_fk || undefined,
       cep,
       origem_cadastro: 'Plataforma',
+      tipo_cliente: tipoClienteValido || 'conta_gerenciada',
       created_by: created_by || 'system',
       tenant_id: tenantId
     })
@@ -120,6 +139,7 @@ export async function POST(request: NextRequest) {
         details: {
           nome: cliente.nome,
           cpf: cliente.cpf,
+          cnpj: cliente.cnpj,
           email: cliente.email,
           telefone: cliente.telefone
         },
@@ -135,10 +155,20 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Erro ao criar cliente:', error)
     
-    if (error.message === 'CPF já cadastrado' || error.message === 'Email já cadastrado') {
+    // Bug real corrigido: createCliente lança 'CPF já cadastrado nesta imobiliária'/'Email já
+    // cadastrado nesta imobiliária' (com sufixo), mas esta checagem comparava com a string sem
+    // sufixo — nunca batia, e a validação (foreseeable, não uma falha de infra) sempre caía no
+    // 500 genérico abaixo. Usa startsWith pra não depender de manter os textos idênticos.
+    const isValidationMessage = error.message === 'CPF Inválido' || error.message === 'CNPJ Inválido' || error.message === 'CPF ou CNPJ deve ser informado'
+    if (
+      error.message?.startsWith('CPF já cadastrado') ||
+      error.message?.startsWith('CNPJ já cadastrado') ||
+      error.message?.startsWith('Email já cadastrado') ||
+      isValidationMessage
+    ) {
       return NextResponse.json(
         { error: error.message },
-        { status: 409 }
+        { status: isValidationMessage ? 400 : 409 }
       )
     }
     

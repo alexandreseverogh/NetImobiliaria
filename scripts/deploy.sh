@@ -75,6 +75,14 @@ else
       warn "O domínio não pode ser vazio."
     done
 
+    # Segundo domínio público, opcional — mesmo prod_app, só a raiz do site muda
+    # de conteúdo entre os dois (ver ops/Caddyfile). Deixe em branco se não precisar.
+    read -rp "$(echo -e "${BOLD}Segundo domínio${RESET} (opcional, mesmo app — Enter pra pular): ")" PROD_DOMAIN_ARTEMIS
+    # Sem 2º domínio real: usa um host do TLD reservado .invalid (RFC 2606) — Caddy
+    # precisa de um endereço sintaticamente válido no site block, mas este nunca
+    # resolve/recebe tráfego de verdade, então nunca emite certificado à toa.
+    PROD_DOMAIN_ARTEMIS="${PROD_DOMAIN_ARTEMIS:-unused.invalid}"
+
     # Domínio de staging
     DEFAULT_STAGING="staging.${PROD_DOMAIN#*.}"
     read -rp "$(echo -e "${BOLD}Domínio de staging${RESET} [${DEFAULT_STAGING}]: ")" STAGING_DOMAIN
@@ -103,6 +111,21 @@ else
     PROD_CRON_SECRET="$(openssl rand -hex 32)"
     STAGING_CRON_SECRET="$(openssl rand -hex 32)"
 
+    # Google Calendar / SMTP — credenciais reais emitidas por terceiros, nunca
+    # geradas automaticamente. Se scripts/deploy.secrets.env existir (nunca
+    # commitado — ver scripts/deploy.secrets.env.example), pré-preenche o .env
+    # com o que estiver lá; senão os campos ficam em branco, como sempre foi.
+    SECRETS_FILE="$ROOT_DIR/scripts/deploy.secrets.env"
+    if [[ -f "$SECRETS_FILE" ]]; then
+      info "scripts/deploy.secrets.env encontrado — pré-preenchendo Google Calendar/SMTP."
+      set -a
+      # shellcheck disable=SC1090
+      source "$SECRETS_FILE"
+      set +a
+    else
+      info "scripts/deploy.secrets.env não encontrado — Google Calendar/SMTP ficarão em branco (preencha depois manualmente, ver .env.google_calendar.example)."
+    fi
+
     cat > .env <<EOF
 # ============================================================
 # .env — Gerado automaticamente por scripts/deploy.sh
@@ -112,6 +135,7 @@ else
 
 # ── Domínios ─────────────────────────────────────────────────
 PROD_DOMAIN=${PROD_DOMAIN}
+PROD_DOMAIN_ARTEMIS=${PROD_DOMAIN_ARTEMIS}
 STAGING_DOMAIN=${STAGING_DOMAIN}
 LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
 PROD_APP_URL=https://${PROD_DOMAIN}
@@ -159,6 +183,24 @@ META_AD_ACCOUNT_ID=
 EVOLUTION_API_URL=
 EVOLUTION_API_KEY=
 SLACK_WEBHOOK_URL=
+
+# ── Google Calendar (ver .env.google_calendar.example pro passo a passo
+# ── completo, inclusive o cadastro do redirect URI no Google Cloud Console).
+# ── Valem pra produção E staging ao mesmo tempo (mesmo valor). Pré-preenchido
+# ── automaticamente por scripts/deploy.secrets.env quando presente; senão,
+# ── fica em branco pra preencher manualmente depois (mesma disciplina de
+# ── aspas simples em qualquer valor com espaço ou aspas internas, ex. JSON). ──
+GOOGLE_CLIENT_ID='${GOOGLE_CLIENT_ID:-}'
+GOOGLE_CLIENT_SECRET='${GOOGLE_CLIENT_SECRET:-}'
+GOOGLE_SERVICE_ACCOUNT_KEY='${GOOGLE_SERVICE_ACCOUNT_KEY:-}'
+
+# ── SMTP / E-mail (confirmação de agendamento) — mesma origem acima ───────────
+SMTP_HOST='${SMTP_HOST:-}'
+SMTP_PORT='${SMTP_PORT:-}'
+SMTP_SECURE='${SMTP_SECURE:-}'
+SMTP_USER='${SMTP_USER:-}'
+SMTP_PASS='${SMTP_PASS:-}'
+SMTP_FROM_NAME='${SMTP_FROM_NAME:-}'
 EOF
 
     chmod 600 .env

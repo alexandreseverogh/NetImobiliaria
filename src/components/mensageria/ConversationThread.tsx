@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  PaperAirplaneIcon, CheckCircleIcon, ClockIcon, PhoneIcon, LockClosedIcon, PlusIcon,
+  PaperAirplaneIcon, CheckCircleIcon, ClockIcon, PhoneIcon, LockClosedIcon, PlusIcon, MegaphoneIcon,
 } from '@heroicons/react/24/outline'
 import { adminFetch } from '@/lib/auth/adminFetch'
 
@@ -25,7 +25,10 @@ interface ConversationDetail {
   priority: string | null
   handledByBot: boolean
   firstResponseAt?: string | null
-  contact: { id: string; name: string | null; phone: string | null; email: string | null; avatarUrl: string | null; leadUuid: string | null }
+  contact: {
+    id: string; name: string | null; phone: string | null; email: string | null; avatarUrl: string | null; leadUuid: string | null
+    attribution: { campaignId: string | null; campaignName: string | null; utmSource: string | null; utmMedium: string | null; utmCampaign: string | null } | null
+  }
   inbox: { id: string; channelType: string; name: string }
   labels: { id: string; name: string; color: string }[]
   sla: { firstResponseDue: string | null; firstResponseBreached: boolean; resolutionDue: string | null; resolutionBreached: boolean } | null
@@ -43,6 +46,14 @@ function timeAgo(iso: string | null): string {
   const h = Math.floor(min / 60)
   if (h < 24) return `${h}h`
   return `${Math.floor(h / 24)}d`
+}
+
+function attributionLabel(attr: ConversationDetail['contact']['attribution']): string | null {
+  if (!attr) return null
+  if (attr.campaignName) return attr.campaignName
+  if (attr.utmSource === 'whatsapp' && attr.utmMedium === 'organico') return 'WhatsApp orgânico'
+  if (attr.utmCampaign) return attr.utmCampaign
+  return attr.utmSource
 }
 
 function formatFullDate(iso: string | null): string {
@@ -274,8 +285,16 @@ export default function ConversationThread({ conversationId, onUpdated }: { conv
           </div>
           <div>
             <p className="text-sm font-semibold text-white">{detail.contact.name || detail.contact.phone}</p>
-            <div className="flex items-center gap-1.5 text-xs text-slate-400">
+            <div className="flex items-center gap-1.5 text-xs text-slate-400 flex-wrap">
               <PhoneIcon className="w-3 h-3" /> {detail.contact.phone}
+              {attributionLabel(detail.contact.attribution) && (
+                <span
+                  className="ml-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#c5a028]/10 border border-[#c5a028]/20 text-[#d4af37] text-[11px] font-medium"
+                  title={detail.contact.attribution?.campaignId ? 'Origem: clique numa campanha' : 'Origem: contato orgânico via WhatsApp'}
+                >
+                  <MegaphoneIcon className="w-3 h-3" /> {attributionLabel(detail.contact.attribution)}
+                </span>
+              )}
               {detail.contact.leadUuid && (
                 <a href={`/crm/leads?leadId=${detail.contact.leadUuid}`} target="_blank" rel="noreferrer" className="ml-2 text-[#d4af37] hover:underline">Ver no CRM →</a>
               )}

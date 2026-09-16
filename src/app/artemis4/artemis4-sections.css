@@ -1,0 +1,916 @@
+/* ============================================================================
+   ARTEMIS4 — Estilos por seção
+   Complementa artemis4.css (tokens/tipografia/primitivas).
+   ========================================================================== */
+
+/* ============================================================================
+   NAV
+   ========================================================================== */
+
+.a4-nav {
+  position: fixed;
+  inset-inline: 0;
+  top: 0;
+  z-index: 40;
+  height: var(--nav-h);
+  background: rgba(2, 12, 27, 0.82);
+  backdrop-filter: blur(18px) saturate(140%);
+  border-bottom: 1px solid var(--line);
+}
+.a4-nav__inner {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: clamp(0.75rem, 2vw, 2rem);
+}
+.a4-nav__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: none;
+  text-decoration: none;
+}
+.a4-nav__mark {
+  background: #fff;
+  border-radius: 9px;
+  padding: 4px 5px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-warm);
+}
+.a4-nav__mark img { height: 26px; width: 26px; display: block; }
+.a4-nav__wordmark {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 1.0625rem;
+  letter-spacing: -0.03em;
+  font-style: italic;
+  color: var(--ink);
+  line-height: 1;
+}
+.a4-nav__wordmark b { color: var(--gold); font-weight: 700; }
+.a4-nav__tag {
+  display: none;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--line);
+  line-height: 1.25;
+}
+@media (min-width: 64rem) { .a4-nav__tag { display: block; } }
+
+.a4-nav__links { display: none; margin-inline: auto; gap: 0.25rem; }
+@media (min-width: 64rem) { .a4-nav__links { display: flex; } }
+.a4-nav__link {
+  position: relative;
+  padding: 0.625rem 0.875rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ink-dim);
+  text-decoration: none;
+  transition: color 0.18s var(--ease-q);
+}
+.a4-nav__link:hover { color: var(--ink); }
+.a4-nav__link::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0.875rem;
+  bottom: 0.3125rem;
+  height: 1px;
+  background: var(--gold);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.28s var(--ease);
+}
+.a4-nav__link:hover::after { transform: scaleX(1); }
+.a4-nav__link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.a4-nav__right { display: flex; align-items: center; gap: 0.625rem; margin-left: auto; }
+@media (min-width: 64rem) { .a4-nav__right { margin-left: 0; } }
+
+/* Abaixo de 48rem os dois CTAs de texto somavam 299px no grupo da direita e
+   estouravam o viewport de 375px (medido: 470px de conteúdo em 375). Eles
+   passam a viver no drawer, em largura cheia — a barra fica marca + menu. */
+@media (max-width: 47.99rem) {
+  .a4-nav__right > .a4-btn { display: none; }
+}
+
+.a4-nav__burger {
+  display: grid;
+  place-items: center;
+  width: 2.625rem;
+  height: 2.625rem;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+@media (min-width: 64rem) { .a4-nav__burger { display: none; } }
+.a4-nav__burger:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.a4-nav__drawer {
+  background: rgba(2, 12, 27, 0.97);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--line);
+}
+.a4-nav__drawer nav { display: flex; flex-direction: column; padding-block: 0.75rem; }
+.a4-nav__drawer nav > a {
+  padding: 0.875rem 0.25rem;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--ink-dim);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+}
+.a4-nav__drawer nav > a:last-child { border-bottom: 0; }
+
+/* CTAs deslocados da barra para cá (ver nota em .a4-nav__right) */
+.a4-nav__drawer-cta {
+  display: grid;
+  gap: 0.625rem;
+  padding-block: 1rem 1.25rem;
+  border-top: 1px solid var(--line);
+}
+.a4-nav__drawer-cta .a4-btn { width: 100%; }
+
+/* ============================================================================
+   OVERLAY DE NAVEGAÇÃO
+   ========================================================================== */
+
+.a4-leaving {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 1.25rem;
+  background: rgba(2, 12, 27, 0.96);
+  backdrop-filter: blur(14px);
+}
+.a4-leaving__ring {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 999px;
+  border: 2px solid var(--line-warm);
+  border-top-color: var(--gold);
+  animation: a4-spin 0.9s linear infinite;
+}
+
+/* ============================================================================
+   HERO
+   ========================================================================== */
+
+.a4-hero {
+  position: relative;
+  padding-top: calc(var(--nav-h) + clamp(1.5rem, 3.5vw, 3rem));
+  padding-bottom: clamp(2.5rem, 6vw, 5rem);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Campo de estrelas estático: 2 camadas de gradiente radial tiled.
+   Substitui o canvas + requestAnimationFrame que disputava a main thread
+   (causa raiz documentada do "Entrar lento" em docs/CHECKPOINT.md). */
+.a4-hero__stars {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image:
+    radial-gradient(1px 1px at 18% 22%, rgba(255, 255, 255, 0.55) 50%, transparent 50%),
+    radial-gradient(1px 1px at 67% 12%, rgba(255, 255, 255, 0.40) 50%, transparent 50%),
+    radial-gradient(1px 1px at 41% 68%, rgba(255, 255, 255, 0.32) 50%, transparent 50%),
+    radial-gradient(1.5px 1.5px at 84% 54%, rgba(240, 212, 108, 0.35) 50%, transparent 50%),
+    radial-gradient(1px 1px at 8% 84%, rgba(255, 255, 255, 0.28) 50%, transparent 50%);
+  background-size: 340px 280px, 260px 320px, 420px 380px, 520px 460px, 300px 240px;
+}
+
+/* Horizonte de plasma: o eco visual da reentrada, sem custo de vídeo.
+   Fica no rodapé do hero — a curvatura quente onde a nave entra. */
+.a4-hero__horizon {
+  position: absolute;
+  inset-inline: -20%;
+  bottom: -58%;
+  height: 82%;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      ellipse at 50% 0%,
+      rgba(255, 176, 32, 0.17) 0%,
+      rgba(255, 77, 20, 0.10) 26%,
+      rgba(197, 160, 40, 0.05) 48%,
+      transparent 70%
+    );
+  filter: blur(28px);
+}
+.a4-hero__glow {
+  position: absolute;
+  left: 50%;
+  bottom: -2px;
+  width: min(70rem, 110%);
+  height: 1px;
+  transform: translateX(-50%);
+  z-index: -1;
+  background: linear-gradient(90deg, transparent, rgba(255, 176, 32, 0.5), transparent);
+}
+
+.a4-hero__grid {
+  display: grid;
+  gap: clamp(2.5rem, 5vw, 4rem);
+  align-items: center;
+}
+@media (min-width: 68rem) {
+  .a4-hero__grid { grid-template-columns: minmax(0, 1.02fr) minmax(0, 1fr); }
+}
+
+.a4-hero__copy > * + * { margin-top: 1.25rem; }
+.a4-hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.8125rem;
+  border-radius: 999px;
+  border: 1px solid var(--line-lit);
+  background: var(--gold-wash);
+}
+.a4-hero__eyebrow .a4-dot { animation: a4-breathe 2.4s ease-in-out infinite; }
+
+.a4-hero__trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4375rem 1.125rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+  margin-top: 1.5rem;
+  list-style: none;
+  padding-inline: 0;
+}
+.a4-hero__trust li {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  font-size: 0.8125rem;
+  color: var(--ink-faint);
+}
+.a4-hero__trust svg { width: 0.9375rem; height: 0.9375rem; color: var(--gold); flex: none; }
+
+/* ============================================================================
+   CONSOLE DE MISSÃO (hero, lado direito) — telemetria de NEGÓCIO
+   ========================================================================== */
+
+.a4-console {
+  background: linear-gradient(180deg, var(--raised) 0%, var(--panel) 100%);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 40px 80px -40px rgba(0, 0, 0, 0.85);
+}
+.a4-console::before {
+  content: "";
+  position: absolute;
+  inset-inline: 1.5rem;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--line-lit), transparent);
+  z-index: 2;
+}
+
+.a4-console__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.8125rem 1.125rem;
+  border-bottom: 1px solid var(--line);
+  background: rgba(2, 12, 27, 0.45);
+}
+.a4-console__live { display: inline-flex; align-items: center; gap: 0.4375rem; color: var(--ok); }
+.a4-console__live .a4-dot { animation: a4-breathe 1.8s ease-in-out infinite; }
+.a4-console__clock { margin-left: auto; }
+
+.a4-console__readouts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.a4-console__readout {
+  padding: 1rem 1.125rem;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+/* Em 375px a célula tem 111px e o padding de 18px deixava 75px úteis —
+   "R$ 128,08" a 17px mede 78px e transbordava. Medido ao vivo. */
+@media (max-width: 30rem) {
+  .a4-console__readout { padding: 0.8125rem 0.75rem; }
+  .a4-console__readout dd { font-size: 0.9375rem; }
+}
+.a4-console__readout:nth-child(3) { border-right: 0; }
+.a4-console__readout dt { margin-bottom: 0.3125rem; }
+.a4-console__readout dd {
+  margin: 0;
+  font-family: var(--font-display), sans-serif;
+  font-size: clamp(1.0625rem, 2.2vw, 1.375rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.a4-console__delta { margin-top: 0.4375rem; font-size: 0.6875rem; font-weight: 600; }
+.a4-console__delta--ok { color: var(--ok); }
+.a4-console__delta--crit { color: var(--crit); }
+.a4-console__delta--muted { color: var(--ink-faint); }
+
+.a4-console__body { padding: 1.125rem; display: grid; gap: 1.125rem; }
+
+/* Barras "Onde está o dinheiro" — série primária em âmbar, resto neutro.
+   Distinção por rótulo + posição, não por arco-íris de cores. */
+.a4-bars { display: grid; gap: 0.6875rem; }
+.a4-bars__row { display: grid; grid-template-columns: 4.25rem 1fr auto; gap: 0.75rem; align-items: center; }
+.a4-bars__name { font-size: 0.75rem; font-weight: 600; color: var(--ink-dim); }
+/* display: block obrigatório — track é <span> e fill é <i>, ambos inline por
+   padrão; sem isso a barra fica com altura/largura zero e não renderiza. */
+.a4-bars__track {
+  display: block;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+.a4-bars__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--ink-faint);
+  transition: width 0.9s var(--ease);
+}
+.a4-bars__fill--lead { background: var(--gold); }
+.a4-bars__val { font-size: 0.75rem; font-weight: 600; color: var(--ink); min-width: 4.25rem; text-align: right; }
+
+/* Feed de eventos do agente */
+.a4-feed { display: grid; gap: 0; border-top: 1px solid var(--line); }
+.a4-feed__item {
+  display: grid;
+  grid-template-columns: 3.25rem 1fr;
+  gap: 0.75rem;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--line);
+  align-items: start;
+}
+.a4-feed__item:last-child { border-bottom: 0; padding-bottom: 0; }
+.a4-feed__time { font-size: 0.6875rem; font-weight: 600; color: var(--ink-faint); padding-top: 0.125rem; }
+.a4-feed__text { font-size: 0.8125rem; line-height: 1.5; color: var(--ink-dim); }
+.a4-feed__text b { color: var(--ink); font-weight: 600; }
+
+/* ============================================================================
+   FAIXA DE AUTORIDADE — dados com fonte, separados por hairline (não cards)
+   ========================================================================== */
+
+.a4-authority { display: grid; gap: 0; border-block: 1px solid var(--line); }
+@media (min-width: 48rem) { .a4-authority { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 72rem) { .a4-authority { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+.a4-authority__cell {
+  padding: clamp(1.375rem, 2.5vw, 2rem) clamp(1rem, 2vw, 1.75rem);
+  border-bottom: 1px solid var(--line);
+}
+@media (min-width: 48rem) {
+  .a4-authority__cell { border-right: 1px solid var(--line); }
+  .a4-authority__cell:nth-child(2n) { border-right: 0; }
+  .a4-authority__cell:nth-last-child(-n + 2) { border-bottom: 0; }
+}
+@media (min-width: 72rem) {
+  .a4-authority__cell { border-bottom: 0; border-right: 1px solid var(--line); }
+  .a4-authority__cell:nth-child(2n) { border-right: 1px solid var(--line); }
+  .a4-authority__cell:last-child { border-right: 0; }
+}
+.a4-authority__fig {
+  font-family: var(--font-display), sans-serif;
+  font-size: clamp(2rem, 4vw, 2.875rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--gold-hot);
+  font-style: italic;
+}
+.a4-authority__claim { margin-top: 0.75rem; font-size: 0.875rem; line-height: 1.55; color: var(--ink-dim); }
+.a4-authority__src { margin-top: 0.875rem; font-size: 0.6875rem; line-height: 1.45; color: var(--ink-faint); }
+.a4-authority__src a { color: var(--ink-faint); text-decoration: underline; text-decoration-color: var(--line-lit); text-underline-offset: 2px; }
+.a4-authority__src a:hover { color: var(--gold-hot); }
+
+/* ============================================================================
+   DIAGNÓSTICO — o vazamento. Numerado porque É uma sequência real.
+   ========================================================================== */
+
+.a4-leak { display: grid; gap: clamp(1rem, 2vw, 1.25rem); }
+@media (min-width: 60rem) { .a4-leak { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.a4-leak__step {
+  position: relative;
+  padding: clamp(1.25rem, 2.5vw, 1.75rem);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--raised);
+  display: grid;
+  align-content: start;
+  gap: 0.75rem;
+}
+.a4-leak__step--loss { background: linear-gradient(180deg, var(--raised) 0%, rgba(251, 113, 133, 0.07) 100%); border-color: rgba(251, 113, 133, 0.22); }
+.a4-leak__ord {
+  font-family: var(--font-display), sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 0.02em;
+}
+.a4-leak__bar { height: 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.07); overflow: hidden; }
+.a4-leak__bar i { display: block; height: 100%; border-radius: 999px; background: var(--gold); }
+.a4-leak__bar--loss i { background: var(--crit); }
+.a4-leak__metric { display: flex; align-items: baseline; gap: 0.5rem; }
+.a4-leak__metric b {
+  font-family: var(--font-display), sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+
+/* ============================================================================
+   CICLO FECHADO — 3 módulos como estágios de um loop, não 3 cards iguais
+   ========================================================================== */
+
+.a4-loop { display: grid; gap: clamp(1rem, 2vw, 1.5rem); position: relative; }
+@media (min-width: 62rem) { .a4-loop { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.a4-loop__stage {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--raised);
+  padding: clamp(1.25rem, 2.4vw, 1.75rem);
+  display: grid;
+  align-content: start;
+  gap: 0.875rem;
+  transition: border-color 0.24s var(--ease-q), background 0.24s var(--ease-q);
+}
+.a4-loop__stage:hover { border-color: var(--line-lit); background: var(--raised-2); }
+
+.a4-loop__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--gold);
+}
+.a4-loop__badge svg { width: 1.125rem; height: 1.125rem; }
+.a4-loop__gains { display: grid; gap: 0.625rem; margin: 0; padding: 0; list-style: none; }
+.a4-loop__gains li { display: grid; grid-template-columns: 1rem 1fr; gap: 0.5rem; font-size: 0.875rem; line-height: 1.55; color: var(--ink-dim); }
+.a4-loop__gains svg { width: 0.9375rem; height: 0.9375rem; color: var(--gold); margin-top: 0.25rem; }
+.a4-loop__foot { margin-top: auto; padding-top: 0.25rem; }
+
+/* Conector entre estágios (só desktop) */
+.a4-loop__link {
+  display: none;
+  position: absolute;
+  top: 50%;
+  right: -0.75rem;
+  width: 1.5rem;
+  height: 1px;
+  background: var(--line-lit);
+  z-index: 1;
+}
+@media (min-width: 62rem) { .a4-loop__link { display: block; } }
+.a4-loop__link::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: -2.5px;
+  width: 6px;
+  height: 6px;
+  border-right: 1px solid var(--line-lit);
+  border-top: 1px solid var(--line-lit);
+  transform: rotate(45deg);
+}
+
+.a4-loop__close {
+  margin-top: clamp(1.25rem, 2.5vw, 2rem);
+  padding: clamp(1rem, 2vw, 1.375rem) clamp(1.125rem, 2.4vw, 1.75rem);
+  border: 1px dashed var(--line-lit);
+  border-radius: 14px;
+  background: var(--gold-wash);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+}
+.a4-loop__close svg { width: 1.375rem; height: 1.375rem; color: var(--gold); flex: none; }
+
+/* ============================================================================
+   TOUR DO PRODUTO — prova concreta, com mock de tela real
+   ========================================================================== */
+
+.a4-tour { display: grid; gap: clamp(1.25rem, 3vw, 2.25rem); }
+@media (min-width: 66rem) { .a4-tour { grid-template-columns: minmax(0, 20rem) minmax(0, 1fr); align-items: start; } }
+
+.a4-tour__list {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  scrollbar-width: thin;
+}
+@media (min-width: 66rem) {
+  .a4-tour__list {
+    display: grid;
+    gap: 0.25rem;
+    overflow: visible;
+    padding-bottom: 0;
+    position: sticky;
+    top: calc(var(--nav-h) + 1.5rem);
+  }
+}
+.a4-tour__tab {
+  flex: none;
+  display: grid;
+  gap: 0.25rem;
+  text-align: left;
+  padding: 0.875rem 1rem;
+  border-radius: 11px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-dim);
+  cursor: pointer;
+  transition: background 0.2s var(--ease-q), border-color 0.2s var(--ease-q), color 0.2s var(--ease-q);
+  min-width: 13rem;
+}
+@media (min-width: 66rem) { .a4-tour__tab { min-width: 0; } }
+.a4-tour__tab:hover { background: rgba(255, 255, 255, 0.035); color: var(--ink); }
+.a4-tour__tab[aria-selected="true"] {
+  background: var(--raised);
+  border-color: var(--line-lit);
+  color: var(--ink);
+}
+.a4-tour__tab:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.a4-tour__tab strong { font-size: 0.9375rem; font-weight: 600; letter-spacing: -0.01em; }
+.a4-tour__tab span { font-size: 0.75rem; color: var(--ink-faint); line-height: 1.45; }
+.a4-tour__tab[aria-selected="true"] span { color: var(--ink-dim); }
+
+.a4-tour__panel { display: grid; gap: 1.25rem; min-width: 0; }
+.a4-tour__copy > * + * { margin-top: 0.75rem; }
+
+/* Moldura do mock: lê como janela de aplicação, não como screenshot falso */
+.a4-mock {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  overflow: hidden;
+  box-shadow: 0 32px 64px -36px rgba(0, 0, 0, 0.8);
+}
+.a4-mock__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid var(--line);
+  background: rgba(2, 12, 27, 0.5);
+}
+.a4-mock__bar i { width: 8px; height: 8px; border-radius: 999px; background: var(--line); flex: none; }
+.a4-mock__bar span { margin-left: 0.375rem; }
+.a4-mock__body { padding: clamp(0.875rem, 2vw, 1.375rem); display: grid; gap: 1rem; }
+
+.a4-mock__kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+.a4-mock__kpi { background: var(--raised); padding: 0.875rem 1rem; display: grid; gap: 0.3125rem; }
+.a4-mock__kpi b { font-family: var(--font-display), sans-serif; font-size: 1.1875rem; font-weight: 700; letter-spacing: -0.03em; color: var(--ink); line-height: 1.1; }
+
+.a4-mock__rows { display: grid; border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+.a4-mock__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: var(--raised);
+  border-bottom: 1px solid var(--line);
+}
+.a4-mock__row:last-child { border-bottom: 0; }
+.a4-mock__row--hi { background: var(--raised-2); }
+.a4-mock__rowmain { display: grid; gap: 0.25rem; min-width: 0; }
+.a4-mock__rowmain strong { font-size: 0.875rem; font-weight: 600; color: var(--ink); letter-spacing: -0.01em; }
+.a4-mock__rowmain span { font-size: 0.75rem; color: var(--ink-faint); }
+.a4-mock__rowside { display: flex; align-items: center; gap: 0.625rem; flex: none; }
+
+/* Bolha de WhatsApp — usada no mock de aprovação e no da Mensageria */
+.a4-wa { display: grid; gap: 0.5rem; }
+.a4-wa__msg {
+  max-width: 27rem;
+  padding: 0.75rem 0.9375rem;
+  border-radius: 14px;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  background: var(--raised-2);
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+}
+.a4-wa__msg b { color: var(--ink); font-weight: 600; }
+.a4-wa__msg--out {
+  margin-left: auto;
+  background: rgba(52, 211, 153, 0.09);
+  border-color: rgba(52, 211, 153, 0.22);
+}
+.a4-wa__meta { font-size: 0.6875rem; color: var(--ink-faint); }
+
+/* ============================================================================
+   AGENTE AUTÔNOMO — formato de log de eventos
+   ========================================================================== */
+
+.a4-log { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--panel); }
+.a4-log__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.875rem 1.125rem;
+  border-bottom: 1px solid var(--line);
+  background: rgba(2, 12, 27, 0.5);
+}
+.a4-log__row {
+  display: grid;
+  gap: 0.3125rem 0.875rem;
+  padding: 0.9375rem 1.125rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--raised);
+}
+@media (min-width: 44rem) {
+  .a4-log__row { grid-template-columns: 4.5rem minmax(0, 1fr) auto; align-items: center; }
+}
+.a4-log__row:last-child { border-bottom: 0; }
+.a4-log__t { font-size: 0.75rem; font-weight: 600; color: var(--ink-faint); }
+.a4-log__m { font-size: 0.875rem; line-height: 1.55; color: var(--ink-dim); }
+.a4-log__m b { color: var(--ink); font-weight: 600; }
+
+.a4-split { display: grid; gap: clamp(1.25rem, 3vw, 2rem); }
+@media (min-width: 60rem) { .a4-split { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.a4-rule {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: clamp(1.125rem, 2.2vw, 1.625rem);
+  background: var(--raised);
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+}
+.a4-rule--auto { border-color: rgba(52, 211, 153, 0.24); }
+.a4-rule--ask { border-color: var(--line-lit); }
+.a4-rule__tags { display: flex; flex-wrap: wrap; gap: 0.4375rem; }
+
+/* ============================================================================
+   ORIGEM DA MARCA — o vídeo ganha função narrativa aqui
+   ========================================================================== */
+
+.a4-origin { position: relative; overflow: hidden; isolation: isolate; background: #000; }
+.a4-origin__stage { position: absolute; inset: 0; z-index: -2; overflow: hidden; }
+.a4-origin__stage > div { position: absolute; top: 50%; left: 50%; width: 100vw; height: 56.25vw; min-height: 100%; min-width: 177.78vh; transform: translate(-50%, -50%) scale(1.32); pointer-events: none; }
+.a4-origin__stage iframe { width: 100%; height: 100%; border: 0; pointer-events: none; }
+
+/* Fallback quando o vídeo não carrega: plasma em CSS, nunca um retângulo vazio */
+.a4-origin__fallback {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 78%, rgba(255, 176, 32, 0.42) 0%, rgba(255, 77, 20, 0.24) 40%, transparent 72%),
+    radial-gradient(ellipse 90% 55% at 50% 96%, rgba(255, 77, 20, 0.34) 0%, transparent 66%),
+    #030a14;
+}
+.a4-origin__veil {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(2, 12, 27, 0.94) 0%, rgba(2, 12, 27, 0.74) 42%, rgba(2, 12, 27, 0.34) 100%),
+    linear-gradient(180deg, var(--void) 0%, transparent 22%, transparent 74%, var(--void) 100%);
+}
+@media (max-width: 60rem) {
+  .a4-origin__veil { background: linear-gradient(180deg, rgba(2, 12, 27, 0.9) 0%, rgba(2, 12, 27, 0.8) 60%, var(--void) 100%); }
+}
+
+.a4-origin__inner { position: relative; max-width: 40rem; }
+.a4-origin__inner > * + * { margin-top: 1.25rem; }
+.a4-origin__facts { display: grid; gap: 0; margin-top: 2rem; border-top: 1px solid var(--line); }
+.a4-origin__fact { padding: 0.9375rem 0; border-bottom: 1px solid var(--line); display: grid; gap: 0.25rem; }
+.a4-origin__fact b { font-family: var(--font-display), sans-serif; font-size: 1.0625rem; font-weight: 700; letter-spacing: -0.02em; color: var(--gold-hot); }
+.a4-origin__disclaimer { margin-top: 1.5rem; font-size: 0.75rem; line-height: 1.55; color: var(--ink-faint); max-width: 34rem; }
+
+/* ============================================================================
+   COMPARATIVO — tabela, não cards
+   ========================================================================== */
+
+.a4-vs { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.a4-vs__head, .a4-vs__row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+@media (min-width: 48rem) {
+  .a4-vs__head, .a4-vs__row { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.05fr) minmax(0, 1.05fr); }
+}
+.a4-vs__head { background: rgba(2, 12, 27, 0.55); border-bottom: 1px solid var(--line); }
+.a4-vs__head > div { padding: 0.875rem 1.125rem; }
+.a4-vs__head > div + div { border-left: 1px solid var(--line); }
+.a4-vs__topic { display: none; }
+@media (min-width: 48rem) { .a4-vs__topic { display: block; } }
+
+.a4-vs__row { border-bottom: 1px solid var(--line); background: var(--raised); }
+.a4-vs__row:last-child { border-bottom: 0; }
+.a4-vs__row > div { padding: 1rem 1.125rem; font-size: 0.875rem; line-height: 1.55; }
+.a4-vs__row > div + div { border-left: 1px solid var(--line); }
+.a4-vs__label { grid-column: 1 / -1; color: var(--ink); font-weight: 600; border-bottom: 1px solid var(--line); }
+@media (min-width: 48rem) { .a4-vs__label { grid-column: auto; border-bottom: 0; } }
+.a4-vs__old { color: var(--ink-faint); }
+.a4-vs__new { color: var(--ink-dim); background: rgba(197, 160, 40, 0.045); }
+.a4-vs__new b { color: var(--gold-hot); font-weight: 600; }
+
+/* ============================================================================
+   SEGMENTOS
+   ========================================================================== */
+
+.a4-seg__chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.75rem; }
+.a4-seg__chip {
+  padding: 0.5rem 0.9375rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-dim);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s var(--ease-q), color 0.2s var(--ease-q), background 0.2s var(--ease-q);
+}
+.a4-seg__chip:hover { color: var(--ink); border-color: var(--line-lit); }
+.a4-seg__chip[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); color: var(--void); }
+.a4-seg__chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.a4-seg__demo { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+@media (min-width: 56rem) { .a4-seg__demo { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.a4-seg__cell { padding: clamp(1.125rem, 2.2vw, 1.5rem); background: var(--raised); border-bottom: 1px solid var(--line); display: grid; gap: 0.4375rem; align-content: start; }
+@media (min-width: 56rem) {
+  .a4-seg__cell { border-bottom: 0; border-right: 1px solid var(--line); }
+  .a4-seg__cell:last-child { border-right: 0; }
+}
+.a4-seg__cell strong { font-size: 0.9375rem; font-weight: 600; color: var(--ink); }
+
+/* ============================================================================
+   FAQ
+   ========================================================================== */
+
+.a4-faq { border-top: 1px solid var(--line); }
+.a4-faq__item { border-bottom: 1px solid var(--line); }
+.a4-faq__item summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 1.1875rem 0;
+  cursor: pointer;
+  list-style: none;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: var(--ink);
+}
+.a4-faq__item summary::-webkit-details-marker { display: none; }
+.a4-faq__item summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 4px; }
+.a4-faq__item summary:hover { color: var(--gold-hot); }
+.a4-faq__sign { flex: none; width: 1.125rem; height: 1.125rem; color: var(--gold); transition: transform 0.28s var(--ease); }
+.a4-faq__item[open] .a4-faq__sign { transform: rotate(45deg); }
+.a4-faq__a { padding-bottom: 1.375rem; max-width: var(--maxw-text); color: var(--ink-dim); font-size: 0.9375rem; line-height: 1.68; }
+
+/* ============================================================================
+   CTA FINAL
+   ========================================================================== */
+
+.a4-final {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line-warm);
+  border-radius: 22px;
+  padding: clamp(2rem, 5vw, 4rem);
+  background: linear-gradient(160deg, var(--panel) 0%, var(--raised) 55%, rgba(197, 160, 40, 0.08) 100%);
+  isolation: isolate;
+}
+.a4-final::before {
+  content: "";
+  position: absolute;
+  top: -40%;
+  left: 50%;
+  width: 30rem;
+  height: 30rem;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(197, 160, 40, 0.17) 0%, transparent 68%);
+  z-index: -1;
+  pointer-events: none;
+}
+.a4-final > * + * { margin-top: 1.375rem; }
+.a4-final__grid { display: grid; gap: clamp(1.5rem, 3vw, 3rem); align-items: center; }
+@media (min-width: 62rem) { .a4-final__grid { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); } }
+
+.a4-final__list { display: grid; gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
+.a4-final__list li { display: grid; grid-template-columns: 1.125rem 1fr; gap: 0.625rem; font-size: 0.875rem; line-height: 1.55; color: var(--ink-dim); }
+.a4-final__list svg { width: 1rem; height: 1rem; color: var(--gold); margin-top: 0.25rem; }
+
+/* ============================================================================
+   FOOTER
+   ========================================================================== */
+
+.a4-footer { border-top: 1px solid var(--line); background: var(--void); padding-block: clamp(2.5rem, 5vw, 4rem); }
+.a4-footer__grid { display: grid; gap: clamp(1.75rem, 4vw, 3rem); }
+@media (min-width: 56rem) { .a4-footer__grid { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr); } }
+.a4-footer__col { display: grid; gap: 0.875rem; align-content: start; }
+.a4-footer__col ul { display: grid; gap: 0.6875rem; margin: 0; padding: 0; list-style: none; }
+.a4-footer__col a { color: var(--ink-dim); text-decoration: none; font-size: 0.875rem; }
+.a4-footer__col a:hover { color: var(--gold-hot); }
+.a4-footer__contact li { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: var(--ink-dim); }
+.a4-footer__contact svg { width: 0.9375rem; height: 0.9375rem; color: var(--gold); flex: none; }
+.a4-footer__base {
+  margin-top: clamp(1.75rem, 3.5vw, 2.75rem);
+  padding-top: 1.375rem;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  align-items: center;
+  justify-content: space-between;
+}
+.a4-footer__sources { margin-top: 1.375rem; font-size: 0.6875rem; line-height: 1.6; color: var(--ink-faint); }
+.a4-footer__sources a { color: var(--ink-faint); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; }
+.a4-footer__sources a:hover { color: var(--gold-hot); }
+
+/* ============================================================================
+   MODAL DE MÓDULO
+   ========================================================================== */
+
+.a4-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: clamp(0.75rem, 3vw, 2rem);
+  background: rgba(2, 12, 27, 0.86);
+  backdrop-filter: blur(10px);
+  animation: a4-enter 0.24s var(--ease) both;
+}
+.a4-modal__card {
+  position: relative;
+  width: 100%;
+  max-width: 46rem;
+  max-height: 88vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 32px 90px -30px rgba(0, 0, 0, 0.85);
+}
+.a4-modal__close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 2.375rem;
+  height: 2.375rem;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+.a4-modal__close:hover { color: var(--gold-hot); border-color: var(--line-lit); }
+.a4-modal__close:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.a4-modal__body { padding: clamp(1.5rem, 4vw, 2.75rem); }
+.a4-modal__body > * + * { margin-top: 1.25rem; }
+
+.a4-modal__pillars {
+  display: grid;
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-top: 1.75rem;
+}
+@media (min-width: 40rem) { .a4-modal__pillars { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.a4-modal__pillar { background: var(--raised); padding: 1.125rem 1.25rem; display: grid; gap: 0.4375rem; align-content: start; }
+
+.a4-modal__trust {
+  margin-top: 1.75rem;
+  padding: 1.125rem 1.25rem;
+  border: 1px solid var(--line-lit);
+  border-radius: 12px;
+  background: var(--gold-wash);
+}

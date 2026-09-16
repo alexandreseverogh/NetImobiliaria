@@ -15,7 +15,7 @@
  *   - Aba ativa: controla qual segmento está sendo visualizado
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import {
   TagIcon,
   ChevronDownIcon,
@@ -49,62 +49,29 @@ export interface SegmentSelectorProps {
   isDark?: boolean;
 }
 
-// ─── Paleta por slug ──────────────────────────────────────────────────────────
+// ─── Cor real por segmento (system_segments.color_theme) ─────────────────────
+// Antes desta correção, este componente ignorava `colorTheme` (o hex que o
+// Master de fato escolhe em /admin/master/segments, com paleta de swatches +
+// input customizado) e usava uma paleta fixa por slug — a personalização do
+// Master nunca tinha efeito nenhum aqui, só na própria tela de gestão dele.
+// Tailwind não consegue gerar classe a partir de um hex vindo do banco em
+// runtime (JIT precisa da string literal em tempo de build), então a cor real
+// é aplicada via estilo inline; hex+alfa (`${cor}26`) é 8-dígitos CSS válido
+// em todos os browsers evergreen.
+const FALLBACK_COLOR = '#6366f1'; // indigo — só se colorTheme vier nulo/vazio
 
-const PALETTE: Record<string, { dot: string; chip: string; tab: string; tabActive: string }> = {
-  imobiliaria: {
-    dot:       'bg-blue-500',
-    chip:      'bg-blue-500/15 text-blue-400 border-blue-500/30',
-    tab:       'text-blue-400 border-b-blue-500',
-    tabActive: 'bg-blue-500/10',
-  },
-  saude: {
-    dot:       'bg-rose-500',
-    chip:      'bg-rose-500/15 text-rose-400 border-rose-500/30',
-    tab:       'text-rose-400 border-b-rose-500',
-    tabActive: 'bg-rose-500/10',
-  },
-  pet: {
-    dot:       'bg-amber-500',
-    chip:      'bg-amber-500/15 text-amber-400 border-amber-500/30',
-    tab:       'text-amber-400 border-b-amber-500',
-    tabActive: 'bg-amber-500/10',
-  },
-  carros: {
-    dot:       'bg-orange-500',
-    chip:      'bg-orange-500/15 text-orange-400 border-orange-500/30',
-    tab:       'text-orange-400 border-b-orange-500',
-    tabActive: 'bg-orange-500/10',
-  },
-  geral: {
-    dot:       'bg-slate-500',
-    chip:      'bg-slate-500/15 text-slate-400 border-slate-500/30',
-    tab:       'text-slate-400 border-b-slate-500',
-    tabActive: 'bg-slate-500/10',
-  },
-  master: {
-    dot:       'bg-violet-500',
-    chip:      'bg-violet-500/15 text-violet-400 border-violet-500/30',
-    tab:       'text-violet-400 border-b-violet-500',
-    tabActive: 'bg-violet-500/10',
-  },
-};
-
-const PALETTE_LIGHT: Record<string, { dot: string; chip: string; tab: string; tabActive: string }> = {
-  imobiliaria: { dot: 'bg-blue-500',   chip: 'bg-blue-50 text-blue-700 border-blue-200',   tab: 'text-blue-600 border-b-blue-500',   tabActive: 'bg-blue-50'   },
-  saude:       { dot: 'bg-rose-500',   chip: 'bg-rose-50 text-rose-700 border-rose-200',   tab: 'text-rose-600 border-b-rose-500',   tabActive: 'bg-rose-50'   },
-  pet:         { dot: 'bg-amber-500',  chip: 'bg-amber-50 text-amber-700 border-amber-200', tab: 'text-amber-600 border-b-amber-500', tabActive: 'bg-amber-50'  },
-  carros:      { dot: 'bg-orange-500', chip: 'bg-orange-50 text-orange-700 border-orange-200', tab: 'text-orange-600 border-b-orange-500', tabActive: 'bg-orange-50' },
-  geral:       { dot: 'bg-slate-500',  chip: 'bg-slate-50 text-slate-700 border-slate-200',  tab: 'text-slate-600 border-b-slate-500',  tabActive: 'bg-slate-50'  },
-  master:      { dot: 'bg-violet-500', chip: 'bg-violet-50 text-violet-700 border-violet-200', tab: 'text-violet-600 border-b-violet-500', tabActive: 'bg-violet-50' },
-};
-
-const DEFAULT_PAL_DARK  = { dot: 'bg-indigo-500', chip: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30', tab: 'text-indigo-400 border-b-indigo-500', tabActive: 'bg-indigo-500/10' };
-const DEFAULT_PAL_LIGHT = { dot: 'bg-indigo-500', chip: 'bg-indigo-50 text-indigo-700 border-indigo-200',         tab: 'text-indigo-600 border-b-indigo-500', tabActive: 'bg-indigo-50'         };
-
-function palFor(slug: string, isDark: boolean) {
-  const map = isDark ? PALETTE : PALETTE_LIGHT;
-  return map[slug] ?? (isDark ? DEFAULT_PAL_DARK : DEFAULT_PAL_LIGHT);
+function themeStyleFor(colorTheme: string | null | undefined, isDark: boolean) {
+  const c = colorTheme || FALLBACK_COLOR;
+  const dot: CSSProperties = { backgroundColor: c };
+  const chip: CSSProperties = {
+    backgroundColor: c + (isDark ? '26' : '14'),
+    color: c,
+    borderColor: c + (isDark ? '4D' : '33'),
+  };
+  const tabText: CSSProperties = { color: c };
+  const tabBorder: CSSProperties = { borderBottomColor: c };
+  const tabActive: CSSProperties = { backgroundColor: c + (isDark ? '1A' : '14') };
+  return { dot, chip, tabText, tabBorder, tabActive };
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
@@ -161,8 +128,8 @@ export default function SegmentSelector({
       ? 'bg-[rgba(255,255,255,0.04)] border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.07)]'
       : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm',
     open && (isDark
-      ? 'ring-2 ring-indigo-500/30 border-indigo-500/40'
-      : 'ring-2 ring-indigo-500/20 border-indigo-300'),
+      ? 'ring-2 ring-gold-premium/30 border-gold-premium/40'
+      : 'ring-2 ring-gold-premium/20 border-gold-premium/40'),
   );
 
   const panelBase = cn(
@@ -207,16 +174,14 @@ export default function SegmentSelector({
             {hasSelected ? (
               <div className="flex items-center gap-1.5">
                 {visibleChips.map(seg => {
-                  const p = palFor(seg.slug, isDark);
+                  const p = themeStyleFor(seg.colorTheme, isDark);
                   return (
                     <span
                       key={seg.id}
-                      className={cn(
-                        'inline-flex items-center gap-1 text-[11px] font-black px-2 py-0.5 rounded-lg border',
-                        p.chip,
-                      )}
+                      className="inline-flex items-center gap-1 text-[11px] font-black px-2 py-0.5 rounded-lg border"
+                      style={p.chip}
                     >
-                      <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', p.dot)} />
+                      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={p.dot} />
                       {seg.name}
                       {/* Botão remover chip individual */}
                       <button
@@ -277,8 +242,8 @@ export default function SegmentSelector({
                     className={cn(
                       'w-full pl-8 pr-8 py-2 rounded-xl text-sm font-medium focus:outline-none transition-all',
                       isDark
-                        ? 'bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.08)] text-slate-200 placeholder:text-slate-600 focus:ring-2 focus:ring-indigo-500/30'
-                        : 'bg-slate-50 border border-slate-200 text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-500/20',
+                        ? 'bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.08)] text-slate-200 placeholder:text-slate-600 focus:ring-2 focus:ring-blue-600/50'
+                        : 'bg-slate-50 border border-slate-200 text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-600/30',
                     )}
                   />
                   {search && (
@@ -300,7 +265,7 @@ export default function SegmentSelector({
                 ) : (
                   filtered.map(seg => {
                     const isSelected = selected.includes(seg.id);
-                    const p          = palFor(seg.slug, isDark);
+                    const p          = themeStyleFor(seg.colorTheme, isDark);
                     return (
                       <button
                         key={seg.id}
@@ -315,26 +280,27 @@ export default function SegmentSelector({
                         className={cn(
                           'w-full flex items-center gap-3 px-4 py-3 text-left transition-colors',
                           isSelected
-                            ? isDark ? 'bg-[rgba(255,255,255,0.04)]' : 'bg-indigo-50/60'
+                            ? isDark ? 'bg-[rgba(255,255,255,0.04)]' : 'bg-amber-50/60'
                             : rowHov,
                         )}
                       >
-                        {/* Checkbox */}
+                        {/* Checkbox — único indicador de seleção (Regra do Acento Único: não
+                            duplicar o mesmo sinal em cor de texto + badge + checkbox) */}
                         <span className={cn(
                           'w-4 h-4 rounded flex items-center justify-center shrink-0 border transition-colors',
                           isSelected
-                            ? 'bg-indigo-600 border-indigo-600'
+                            ? 'bg-gold-premium border-gold-premium'
                             : isDark ? 'border-[rgba(255,255,255,0.15)] bg-transparent' : 'border-slate-300 bg-white',
                         )}>
-                          {isSelected && <CheckIcon className="h-2.5 w-2.5 text-white" strokeWidth={3} />}
+                          {isSelected && <CheckIcon className="h-2.5 w-2.5 text-navy-dark" strokeWidth={3} />}
                         </span>
 
                         {/* Dot colorido */}
-                        <span className={cn('w-2 h-2 rounded-full shrink-0', p.dot)} />
+                        <span className="w-2 h-2 rounded-full shrink-0" style={p.dot} />
 
                         {/* Nome + meta */}
                         <div className="flex-1 min-w-0">
-                          <p className={cn('text-sm font-semibold truncate', isSelected ? (isDark ? 'text-indigo-300' : 'text-indigo-700') : tx)}>
+                          <p className={cn('text-sm font-semibold truncate', tx)}>
                             {seg.name}
                           </p>
                           {seg.isOwn && (
@@ -345,9 +311,7 @@ export default function SegmentSelector({
                         {/* Badge de campanhas no período */}
                         <span className={cn(
                           'text-[10px] font-black px-2 py-0.5 rounded-full shrink-0',
-                          isSelected
-                            ? isDark ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-100 text-indigo-600'
-                            : isDark ? 'bg-[rgba(255,255,255,0.06)] text-slate-500' : 'bg-slate-100 text-slate-500',
+                          isDark ? 'bg-[rgba(255,255,255,0.06)] text-slate-500' : 'bg-slate-100 text-slate-500',
                         )}>
                           {seg.campaignCount} camp.
                         </span>
@@ -386,21 +350,20 @@ export default function SegmentSelector({
         )}>
           {selectedSegs.map(seg => {
             const isActive = activeSegment === seg.id;
-            const p        = palFor(seg.slug, isDark);
+            const p        = themeStyleFor(seg.colorTheme, isDark);
             return (
               <button
                 key={seg.id}
                 onClick={() => onActivate(seg.id)}
                 className={cn(
-                  'flex items-center gap-1.5 px-4 py-2 text-[11px] font-black transition-all whitespace-nowrap',
-                  isActive
-                    ? cn(p.tabActive, p.tab, 'border-b-2')
-                    : isDark
-                      ? 'text-slate-500 hover:text-slate-300 hover:bg-[rgba(255,255,255,0.04)] border-b-2 border-b-transparent'
-                      : 'text-slate-500 hover:text-slate-700 hover:bg-white border-b-2 border-b-transparent',
+                  'flex items-center gap-1.5 px-4 py-2 text-[11px] font-black transition-all whitespace-nowrap border-b-2',
+                  !isActive && (isDark
+                    ? 'text-slate-500 hover:text-slate-300 hover:bg-[rgba(255,255,255,0.04)] border-b-transparent'
+                    : 'text-slate-500 hover:text-slate-700 hover:bg-white border-b-transparent'),
                 )}
+                style={isActive ? { ...p.tabActive, ...p.tabText, ...p.tabBorder } : undefined}
               >
-                <span className={cn('w-1.5 h-1.5 rounded-full', p.dot)} />
+                <span className="w-1.5 h-1.5 rounded-full" style={p.dot} />
                 {seg.name}
                 <span className={cn('text-[9px] font-bold px-1 rounded', isDark ? 'bg-white/8' : 'bg-slate-200')}>
                   {seg.campaignCount}

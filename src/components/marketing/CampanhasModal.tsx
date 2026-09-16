@@ -19,11 +19,14 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   SparklesIcon,
+  MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
 import { adminFetch } from '@/lib/auth/adminFetch';
 import { cn } from '@/lib/marketing-utils';
 import { ANGLE_OPTIONS, angleLabel } from '@/lib/marketing/angles';
 import { PencilIcon, CheckIcon } from '@heroicons/react/24/outline';
+import ClientSelector, { type ClientOption, type ClientFilterValue } from '@/components/crm/ClientSelector';
+import DateInputPtBR from '@/components/ui/DateInputPtBR';
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -75,6 +78,15 @@ interface CampaignData {
   declaredAngle?: string | null;
   // FASE 14d — fonte: 'declared' | 'llm_auto' | null
   angleSource?: string | null;
+  // Indicadores cumulativos (desde sempre até agora) — mesmo conjunto da Visão Executiva do
+  // dashboard, adaptado a 1 campanha. null quando a agregação falhou (não bloqueia o card).
+  metrics?: {
+    spend: number;
+    leads: number;
+    cpl: number | null;
+    ctr: number | null;
+    hookRate: number | null;
+  } | null;
 }
 
 // ── Constants ─────────────────────────────────────────────────────
@@ -94,9 +106,26 @@ function fmtBudget(cents: number): string {
   return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+// Diferente de fmtBudget: Insight.spend já vem em reais (não centavos) — ver CLAUDE.md
+// "CPC e spend em reais".
+function fmtCurrency(value: number): string {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
 function fmtHour(h: number | null | undefined): string {
   if (h == null) return '';
   return `${String(h).padStart(2, '0')}:00`;
+}
+
+// Meta guarda dayparting em MINUTOS desde meia-noite (start_minute/end_minute), não em horas
+// cheias — 1230 = 20:30, por exemplo. 1440 (=24:00) é o fim do dia, não "00:00" do dia
+// seguinte, por isso tratado como caso especial.
+function fmtMinutes(min: number | null | undefined): string {
+  if (min == null) return '';
+  if (min >= 1440) return '24:00';
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
 const OBJECTIVE_MAP: Record<string, string> = {
@@ -817,34 +846,48 @@ interface ScheduleDisplayProps {
 function ScheduleDisplay({
   scheduleDays, scheduleStartHour, scheduleEndHour, scheduleTimeSlots,
 }: ScheduleDisplayProps) {
-  // Custom per-day slots
+  // Custom per-day slots — formato real do Meta (adset_schedule): array de
+  // { days: number[], start_minute, end_minute, timezone_type } — uma entrada pode cobrir
+  // vários dias de uma vez, e os horários são em MINUTOS desde meia-noite, não horas cheias
+  // (ex.: 1230 = 20:30). Também aceita, defensivamente, o formato mais simples { day,
+  // startHour, endHour } — caso algum dado histórico tenha sido gravado assim.
   if (scheduleTimeSlots && typeof scheduleTimeSlots === 'object') {
-    type SlotEntry = { day: number; startHour: number; endHour: number };
-    let entries: SlotEntry[] = [];
+    type DaySlot = { day: number; startMin: number; endMin: number };
+    const bySlots: unknown[] = Array.isArray(scheduleTimeSlots)
+      ? scheduleTimeSlots
+      : Object.entries(scheduleTimeSlots as Record<string, unknown>).map(([day, v]) => ({ day: parseInt(day), ...(v as object) }));
 
-    if (Array.isArray(scheduleTimeSlots)) {
-      entries = (scheduleTimeSlots as SlotEntry[]).slice(0, 7);
-    } else {
-      entries = Object.entries(scheduleTimeSlots as Record<string, unknown>).map(([day, v]) => {
-        const val = v as Record<string, number>;
-        return { day: parseInt(day), startHour: val?.start ?? val?.startHour ?? 0, endHour: val?.end ?? val?.endHour ?? 24 };
-      });
+    const expanded: DaySlot[] = [];
+    for (const raw of bySlots) {
+      const entry = raw as Record<string, any>;
+      if (!entry) continue;
+      const days: number[] = Array.isArray(entry.days)
+        ? entry.days
+        : (typeof entry.day === 'number' ? [entry.day] : []);
+      if (days.length === 0) continue;
+
+      const hasMinutes = entry.start_minute != null || entry.end_minute != null;
+      const startMin = hasMinutes ? (entry.start_minute ?? 0) : (entry.startHour ?? entry.start ?? 0) * 60;
+      const endMin   = hasMinutes ? (entry.end_minute ?? 1440) : (entry.endHour ?? entry.end ?? 24) * 60;
+
+      for (const d of days) expanded.push({ day: d, startMin, endMin });
     }
 
-    if (entries.length > 0) {
+    if (expanded.length > 0) {
+      expanded.sort((a, b) => a.day - b.day);
       return (
         <div className="space-y-2">
           <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-violet-50 border border-violet-200 rounded-md text-[10px] font-black text-violet-700 uppercase tracking-wider">
             Personalizado por dia
           </div>
           <div className="grid grid-cols-4 gap-1">
-            {entries.map((slot, i) => (
+            {expanded.map((slot, i) => (
               <div key={i} className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5 text-center">
                 <p className="text-[9px] font-black text-indigo-600 uppercase tracking-wider">
-                  {DAY_LABELS[slot.day ?? i] ?? `D${slot.day ?? i}`}
+                  {DAY_LABELS[slot.day] ?? `D${slot.day}`}
                 </p>
                 <p className="text-[10px] font-semibold text-gray-700 leading-tight mt-0.5">
-                  {fmtHour(slot.startHour)}<span className="text-gray-400">–</span>{fmtHour(slot.endHour)}
+                  {fmtMinutes(slot.startMin)}<span className="text-gray-400">–</span>{fmtMinutes(slot.endMin)}
                 </p>
               </div>
             ))}
@@ -854,8 +897,9 @@ function ScheduleDisplay({
     }
   }
 
-  // Uniform schedule
+  // Uniform schedule (mesmo horário todo dia veiculado)
   const allDays = !scheduleDays?.length || scheduleDays.length === 7;
+  const hasCustomHours = scheduleStartHour != null || scheduleEndHour != null;
 
   return (
     <div className="space-y-2">
@@ -869,7 +913,7 @@ function ScheduleDisplay({
             <span key={i} className={cn(
               'w-7 h-7 flex items-center justify-center rounded-md text-[10px] font-black',
               scheduleDays?.includes(i)
-                ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/30'
+                ? 'bg-gold-premium text-navy-dark shadow-sm shadow-gold-premium/30'
                 : 'bg-gray-100 text-gray-400',
             )}>
               {d.slice(0, 2)}
@@ -877,11 +921,12 @@ function ScheduleDisplay({
           ))}
         </div>
       )}
-      {(scheduleStartHour != null || scheduleEndHour != null) && (
-        <p className="text-[11px] font-semibold text-gray-600">
-          {fmtHour(scheduleStartHour)} <span className="text-gray-400">→</span> {fmtHour(scheduleEndHour)}
-        </p>
-      )}
+      {/* Sempre mostra um horário — sem restrição configurada = veiculação o dia inteiro */}
+      <p className="text-[11px] font-semibold text-gray-600">
+        {hasCustomHours
+          ? <>{fmtHour(scheduleStartHour)} <span className="text-gray-400">→</span> {fmtHour(scheduleEndHour)}</>
+          : <>00:00 <span className="text-gray-400">→</span> 24:00 <span className="text-gray-400 font-medium">(dia todo)</span></>}
+      </p>
     </div>
   );
 }
@@ -946,17 +991,15 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
 
         {/* Campaign name */}
         <h3 className="text-sm font-black text-gray-900 leading-snug mb-2">
+          <span className="text-gray-400 font-bold">CAMPANHA </span>
           {campaign.name}
         </h3>
 
-        {/* Objetivo + data */}
+        {/* Objetivo */}
         <div className="flex items-center gap-3 flex-wrap">
           <span className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-[11px] font-bold text-indigo-700">
             <RocketLaunchIcon className="h-3 w-3 shrink-0" />
             {objectiveLabel(campaign.objective)}
-          </span>
-          <span className="text-[10px] text-gray-400 font-medium">
-            Criada em {fmtDate(campaign.createdAt)}
           </span>
         </div>
       </div>
@@ -964,7 +1007,7 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
       {/* ── AdSet section ── */}
       {adSet && (
         <div className="px-5 py-4 border-b border-gray-50 space-y-4 flex-1">
-          {/* Budget & Período — uma linha cada */}
+          {/* Budget, Criação & Período — mesmo peso visual nos 3 */}
           <div className="flex items-stretch gap-3">
             <div className="flex-1 bg-gradient-to-br from-indigo-50 to-indigo-100/50 border border-indigo-100 rounded-xl px-3 py-2.5">
               <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-0.5">
@@ -972,6 +1015,14 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
               </p>
               <p className="text-base font-black text-indigo-800 leading-tight">
                 {fmtBudget(adSet.dailyBudget)}
+              </p>
+            </div>
+            <div className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
+              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">
+                Criada em
+              </p>
+              <p className="text-[11px] font-bold text-gray-700 leading-snug">
+                {fmtDate(campaign.createdAt)}
               </p>
             </div>
             <div className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
@@ -988,6 +1039,47 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
             </div>
           </div>
 
+          {/* Desempenho acumulado — mesmos indicadores da Visão Executiva (dashboard), sem
+              filtro de período: cumulativo desde sempre até agora. "Campanhas Ativas" fica de
+              fora (métrica de portfólio, não de campanha individual). */}
+          {campaign.metrics && (
+            <div className="bg-slate-50/70 border border-slate-100 rounded-xl px-3 py-2.5">
+              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
+                Desempenho Acumulado
+              </p>
+              <div className="grid grid-cols-4 gap-1.5">
+                <div className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-2 text-center">
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Gasto</p>
+                  <p className="text-[11px] font-black text-slate-800 mt-0.5 leading-tight">
+                    {fmtCurrency(campaign.metrics.spend)}
+                  </p>
+                </div>
+                <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-2 py-2 text-center">
+                  <p className="text-[8px] font-black text-indigo-400 uppercase tracking-wider leading-tight">Sinais Interesse</p>
+                  <p className="text-[11px] font-black text-indigo-700 mt-0.5 leading-tight">
+                    {campaign.metrics.leads}
+                  </p>
+                </div>
+                <div className="bg-teal-50 border border-teal-100 rounded-lg px-2 py-2 text-center">
+                  <p className="text-[8px] font-black text-teal-500 uppercase tracking-wider">Custo/Sinal</p>
+                  <p className="text-[11px] font-black text-teal-700 mt-0.5 leading-tight">
+                    {campaign.metrics.cpl !== null ? fmtCurrency(campaign.metrics.cpl) : '—'}
+                  </p>
+                </div>
+                <div className="bg-amber-50 border border-amber-100 rounded-lg px-2 py-2 text-center">
+                  <p className="text-[8px] font-black text-amber-500 uppercase tracking-wider">
+                    {campaign.metrics.hookRate !== null ? 'Hook Rate' : 'CTR'}
+                  </p>
+                  <p className="text-[11px] font-black text-amber-700 mt-0.5 leading-tight">
+                    {(campaign.metrics.hookRate ?? campaign.metrics.ctr) !== null
+                      ? `${(campaign.metrics.hookRate ?? campaign.metrics.ctr)!.toFixed(2)}%`
+                      : '—'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Público */}
           <div>
             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
@@ -1000,13 +1092,21 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
               <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-[11px] font-bold text-slate-700">
                 {genderLabel(adSet.genders)}
               </span>
-              {adSet.optimizationGoal && (
-                <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-[11px] font-bold text-slate-700">
-                  {adSet.optimizationGoal.replace(/_/g, ' ')}
-                </span>
-              )}
             </div>
           </div>
+
+          {/* Otimização de entrega — separado do Público-alvo: não é quem é
+              alcançado, é para QUAL AÇÃO o Meta otimiza a veiculação. */}
+          {adSet.optimizationGoal && (
+            <div>
+              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
+                Otimizado para
+              </p>
+              <span className="inline-block px-2.5 py-1 bg-slate-100 rounded-lg text-[11px] font-bold text-slate-700">
+                {adSet.optimizationGoal.replace(/_/g, ' ')}
+              </span>
+            </div>
+          )}
 
           {/* Programação */}
           <div>
@@ -1195,7 +1295,7 @@ function Pagination({
               className={cn(
                 'w-8 h-8 rounded-lg text-sm font-bold transition-all',
                 n === page
-                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/30'
+                  ? 'bg-gold-premium text-navy-dark shadow-sm shadow-gold-premium/30'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
               )}
             >
@@ -1228,6 +1328,15 @@ export interface CampanhasModalProps {
   isMaster?: boolean;
 }
 
+// Presets de período — mesma lógica de "Hoje/7d/15d/30d" do dashboard, adaptados
+// pra filtro client-side por janela de veiculação (não agregação de gasto/leads).
+const PERIOD_PRESETS = [
+  { value: '1',  label: 'Hoje' },
+  { value: '7',  label: '7d'   },
+  { value: '15', label: '15d'  },
+  { value: '30', label: '30d'  },
+];
+
 export default function CampanhasModal({
   isOpen, onClose, effectiveClientId, campaignFor, clientName, isMaster = false,
 }: CampanhasModalProps) {
@@ -1241,12 +1350,40 @@ export default function CampanhasModal({
   const [showClassifyModal, setShowClassifyModal] = useState(false);
   const [classifyDismissed, setClassifyDismissed] = useState(false);
 
+  // ── Pivot de cliente dentro do modal (sem fechar/reabrir) ──────────────────
+  // 'own' | 'segment' (= todas: próprias + clientes) | <uuid de cliente>
+  const [localClientFilter, setLocalClientFilter] = useState<ClientFilterValue>('own');
+  const [clientOptions, setClientOptions]         = useState<ClientOption[]>([]);
+  const [clientsLoading, setClientsLoading]       = useState(false);
+
+  // ── Filtro de período — janela de veiculação (AdSet.startTime/endTime),
+  // não janela de agregação de gasto/leads (esta tela não tem métrica). ─────
+  const [periodStart, setPeriodStart] = useState('');
+  const [periodEnd, setPeriodEnd]     = useState('');
+  const [quickPeriod, setQuickPeriod] = useState('');
+
+  function applyQuickPeriod(days: string) {
+    const end   = new Date();
+    const start = new Date(Date.now() - (parseInt(days, 10) - 1) * 86400000);
+    setQuickPeriod(days);
+    setPeriodStart(start.toISOString().split('T')[0]);
+    setPeriodEnd(end.toISOString().split('T')[0]);
+  }
+
+  function clearPeriod() {
+    setQuickPeriod('');
+    setPeriodStart('');
+    setPeriodEnd('');
+  }
+
   const fetchCampaigns = useCallback(async () => {
     setLoading(true); setError('');
     try {
       const params = new URLSearchParams();
       if (!isMaster) {
-        params.set('clientId', effectiveClientId || 'own');
+        if (localClientFilter === 'own') params.set('clientId', 'own');
+        else if (localClientFilter !== 'segment') params.set('clientId', localClientFilter);
+        // 'segment' (Todos os Clientes) → sem parâmetro; a API já retorna próprias + clientes
       }
       const res = await adminFetch(`/api/admin/campanhas/campaigns?${params}`);
       if (!res.ok) throw new Error(await res.text() || `Erro ${res.status}`);
@@ -1257,20 +1394,50 @@ export default function CampanhasModal({
     } finally {
       setLoading(false);
     }
-  }, [effectiveClientId, campaignFor, isMaster]);
+  }, [localClientFilter, isMaster]);
 
+  // Reseta o estado do modal só na transição de abertura — pivotar cliente/período
+  // DENTRO do modal já aberto não deve reiniciar busca/status/página sozinho.
   useEffect(() => {
     if (isOpen) {
-      fetchCampaigns();
+      setLocalClientFilter(campaignFor === 'client' && effectiveClientId ? effectiveClientId : 'own');
       setSearch('');
       setStatusFilter('');
+      clearPeriod();
       setPage(1);
       setClassifyDismissed(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  // Busca campanhas sempre que o modal abre OU o cliente pivotado muda
+  useEffect(() => {
+    if (isOpen) fetchCampaigns();
   }, [isOpen, fetchCampaigns]);
 
+  // Carrega a lista de clientes pra o ClientSelector (não aplicável a master,
+  // que já vê tudo sem noção de cliente único nesta tela)
+  useEffect(() => {
+    if (!isOpen || isMaster) return;
+    setClientsLoading(true);
+    fetch('/api/admin/campanhas/clients', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => {
+        const list: any[] = Array.isArray(data) ? data : (data.clients || []);
+        setClientOptions(list.map((c: any) => ({
+          id:            c.id   || c.uuid,
+          name:          c.name || c.nome || '',
+          email:         c.email || null,
+          segmentName:   c.segmentName || c.segment_name || c.segment_slug || null,
+          campaignCount: c.campaignCount ?? undefined,
+        })));
+      })
+      .catch(() => {})
+      .finally(() => setClientsLoading(false));
+  }, [isOpen, isMaster]);
+
   // Reset to page 1 when filters change
-  useEffect(() => { setPage(1); }, [search, statusFilter]);
+  useEffect(() => { setPage(1); }, [search, statusFilter, periodStart, periodEnd]);
 
   // Close on Escape
   useEffect(() => {
@@ -1283,26 +1450,53 @@ export default function CampanhasModal({
   // FASE 14d — contagem para o banner de classificação
   const unclassifiedCount = campaigns.filter(c => !c.declaredAngle).length;
 
+  // Overlap com a janela de veiculação real (AdSet.startTime/endTime) — não é
+  // "criada entre X e Y", é "esteve/está ativa nesse intervalo" (mesmo critério
+  // que o próprio Meta Ads Manager usa pra filtrar lista de campanhas por data).
+  function overlapsPeriod(c: CampaignData): boolean {
+    if (!periodStart && !periodEnd) return true;
+    const rangeStart = periodStart ? new Date(`${periodStart}T00:00:00`) : null;
+    const rangeEnd   = periodEnd   ? new Date(`${periodEnd}T23:59:59`)   : null;
+    if (c.adSets.length === 0) return false;
+    return c.adSets.some(as => {
+      const flightStart = new Date(as.startTime);
+      const flightEnd    = as.endTime ? new Date(as.endTime) : null;
+      if (rangeEnd && flightStart > rangeEnd) return false;
+      if (rangeStart && flightEnd && flightEnd < rangeStart) return false;
+      return true;
+    });
+  }
+
+  const hasActiveFilters = !!(search || statusFilter || periodStart || periodEnd);
+
   const filtered = campaigns.filter(c => {
-    const matchSearch  = !search       || c.id === search;   // seleção exata pelo id
+    const matchSearch  = !search       || c.name.toLowerCase().includes(search.trim().toLowerCase());
     const matchStatus  = !statusFilter || c.status === statusFilter;
-    return matchSearch && matchStatus;
+    const matchPeriod  = overlapsPeriod(c);
+    return matchSearch && matchStatus && matchPeriod;
   });
 
   const totalFiltered = filtered.length;
   const paginated     = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
+  const isClientPivot   = localClientFilter !== 'own' && localClientFilter !== 'segment';
+  const pivotedClientName = isClientPivot
+    ? clientOptions.find(c => c.id === localClientFilter)?.name ?? clientName
+    : undefined;
+
   const contextTitle = isMaster
     ? 'Todas as Campanhas'
-    : campaignFor === 'client' && clientName
-    ? `Campanhas de ${clientName}`
+    : localClientFilter === 'segment'
+    ? 'Todas as Campanhas'
+    : pivotedClientName
+    ? `Campanhas de ${pivotedClientName}`
     : 'Campanhas da Minha Empresa';
 
   const contextSubtitle = isMaster
     ? 'Visão consolidada'
-    : campaignFor === 'client' && clientName
-    ? clientName
-    : 'Minha Empresa';
+    : localClientFilter === 'segment'
+    ? 'Próprias + Clientes'
+    : pivotedClientName || 'Minha Empresa';
 
   return (
     <AnimatePresence>
@@ -1352,22 +1546,17 @@ export default function CampanhasModal({
 
                   {/* Controls */}
                   <div className="flex items-center gap-2 shrink-0">
-                    {/* Campaign select — populated with loaded campaigns */}
+                    {/* Busca por nome (texto livre — filtra por substring, pode retornar 0) */}
                     <div className="relative hidden md:block">
-                      <select
+                      <MagnifyingGlassIcon className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                      <input
+                        type="text"
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                         disabled={loading || campaigns.length === 0}
-                        className="py-2 pl-3 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all appearance-none shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed max-w-[260px]"
-                      >
-                        <option value="">
-                          {loading ? 'Carregando…' : `Todas as campanhas (${campaigns.length})`}
-                        </option>
-                        {campaigns.map(c => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
-                      <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                        placeholder={loading ? 'Carregando…' : `Buscar por nome (${campaigns.length})`}
+                        className="py-2 pl-8 pr-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed w-[220px]"
+                      />
                     </div>
 
                     {/* Status filter */}
@@ -1375,7 +1564,7 @@ export default function CampanhasModal({
                       <select
                         value={statusFilter}
                         onChange={e => setStatusFilter(e.target.value)}
-                        className="py-2 pl-3 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all appearance-none shadow-sm cursor-pointer"
+                        className="py-2 pl-3 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all appearance-none shadow-sm cursor-pointer"
                       >
                         <option value="">Todos status</option>
                         <option value="ACTIVE">Ativas</option>
@@ -1401,24 +1590,21 @@ export default function CampanhasModal({
                 {/* Mobile filters */}
                 <div className="mt-3 md:hidden flex gap-2">
                   <div className="relative flex-1">
-                    <select
+                    <MagnifyingGlassIcon className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                    <input
+                      type="text"
                       value={search}
                       onChange={e => setSearch(e.target.value)}
                       disabled={loading || campaigns.length === 0}
-                      className="w-full py-2.5 pl-3 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer disabled:opacity-50"
-                    >
-                      <option value="">{loading ? 'Carregando…' : 'Todas as campanhas'}</option>
-                      {campaigns.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
-                    <ChevronDownIcon className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                      placeholder={loading ? 'Carregando…' : 'Buscar por nome'}
+                      className="w-full py-2.5 pl-8 pr-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:opacity-50"
+                    />
                   </div>
                   <div className="relative">
                     <select
                       value={statusFilter}
                       onChange={e => setStatusFilter(e.target.value)}
-                      className="h-full py-2 pl-3 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer"
+                      className="h-full py-2 pl-3 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-600 appearance-none cursor-pointer"
                     >
                       <option value="">Status</option>
                       <option value="ACTIVE">Ativas</option>
@@ -1426,6 +1612,73 @@ export default function CampanhasModal({
                       <option value="ARCHIVED">Arquivadas</option>
                     </select>
                     <ChevronDownIcon className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                  </div>
+                </div>
+
+                {/* ── Pivot: Cliente + Período de veiculação ── */}
+                <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-4 flex-wrap">
+                  {!isMaster && (
+                    <ClientSelector
+                      value={localClientFilter}
+                      onChange={setLocalClientFilter}
+                      clients={clientOptions}
+                      loading={clientsLoading}
+                      variant="toggle"
+                    />
+                  )}
+
+                  {/* Container discreto — agrupa label + range + presets do período */}
+                  <div className="flex flex-col gap-1.5 bg-gray-50/70 border border-gray-100 rounded-xl px-3 py-2">
+                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                      Período de veiculação
+                    </span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* DateInputPtBR: o <span> interno é sempre w-full do pai (a
+                          largura vem de fora); sem esse wrapper de tamanho fixo, o
+                          span estica pra ocupar a linha flex inteira e o ícone de
+                          calendário (absolute right-2 do próprio componente) acaba
+                          longe do fim visível do campo estreito. */}
+                      <div className="w-[120px] shrink-0">
+                        <DateInputPtBR
+                          value={periodStart}
+                          onChange={iso => { setPeriodStart(iso); setQuickPeriod(''); }}
+                          className="w-full py-2 pl-3 pr-7 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
+                        />
+                      </div>
+                      <span className="text-gray-300 text-xs font-bold">→</span>
+                      <div className="w-[120px] shrink-0">
+                        <DateInputPtBR
+                          value={periodEnd}
+                          onChange={iso => { setPeriodEnd(iso); setQuickPeriod(''); }}
+                          className="w-full py-2 pl-3 pr-7 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
+                        />
+                      </div>
+                      <div className="flex gap-1 rounded-lg p-1 border border-gray-200 bg-white">
+                        {PERIOD_PRESETS.map(p => (
+                          <button
+                            key={p.value}
+                            onClick={() => applyQuickPeriod(p.value)}
+                            className={cn(
+                              'px-2.5 py-1.5 rounded-md text-xs font-black transition-colors',
+                              quickPeriod === p.value
+                                ? 'bg-gold-premium text-navy-dark'
+                                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50',
+                            )}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                      {(periodStart || periodEnd) && (
+                        <button
+                          onClick={clearPeriod}
+                          title="Limpar período"
+                          className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-white rounded-lg transition-all"
+                        >
+                          <XMarkIcon className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1475,19 +1728,19 @@ export default function CampanhasModal({
                       <RocketLaunchIcon className="h-12 w-12 text-indigo-300" />
                     </div>
                     <p className="text-lg font-black text-gray-700 mb-2">
-                      {search || statusFilter ? 'Nenhuma campanha encontrada' : 'Nenhuma campanha lançada ainda'}
+                      {hasActiveFilters ? 'Nenhuma campanha encontrada' : 'Nenhuma campanha lançada ainda'}
                     </p>
                     <p className="text-sm text-gray-400 max-w-xs leading-relaxed">
-                      {search || statusFilter
-                        ? 'Ajuste os filtros de busca ou status.'
+                      {hasActiveFilters
+                        ? 'Ajuste os filtros de busca, status ou período.'
                         : `Use "Configurar Campanha" para lançar ${
-                            campaignFor === 'client' && clientName ? `a primeira campanha de ${clientName}` : 'sua primeira campanha'
+                            pivotedClientName ? `a primeira campanha de ${pivotedClientName}` : 'sua primeira campanha'
                           }.`}
                     </p>
-                    {(search || statusFilter) && (
+                    {hasActiveFilters && (
                       <button
-                        onClick={() => { setSearch(''); setStatusFilter(''); }}
-                        className="mt-5 px-5 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:border-indigo-300 hover:text-indigo-600 transition-all shadow-sm"
+                        onClick={() => { setSearch(''); setStatusFilter(''); clearPeriod(); }}
+                        className="mt-5 px-5 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:border-gray-300 hover:text-gray-900 transition-all shadow-sm"
                       >
                         Limpar filtros
                       </button>

@@ -37,6 +37,11 @@ export interface NetworkInsight {
   learningStatus?:        string;  // LEARNING | LEARNING_LIMITED | ACTIVE | ...
   learningConversions?:   number;  // conversões acumuladas no período de learning
   firstImpressionRatio?:  number;  // reach / impressions — proxy de saturação de audiência
+  // FASE 1 (Google Ads) — Impression Share + ROAS
+  searchImpressionShare?: number;  // % de impression share (0-100)
+  searchBudgetLostIs?:    number;  // % perdido por orçamento insuficiente
+  searchRankLostIs?:      number;  // % perdido por rank/qualidade
+  conversionsValue?:      number;  // valor monetário das conversões (para ROAS)
 }
 
 export interface TargetingResult {
@@ -96,6 +101,29 @@ export interface CreateCampaignResult {
   networkMetadata: Record<string, any>;
 }
 
+export interface GoogleCampaignInput {
+  name: string;
+  budget: number; // daily budget in cents
+  conversionGoal?: string; // Conversion Action ID
+  biddingStrategy: {
+    type: 'MAXIMIZE_CONVERSIONS' | 'TCPA' | 'TROAS';
+    targetValue?: number; // target CPA/ROAS value if applicable
+  };
+  assetGroups: Array<{
+    name: string;
+    headlines: string[];
+    descriptions: string[];
+    images: string[];
+    videos?: string[];
+    logos?: string[];
+    finalUrl: string;
+  }>;
+  audienceSignals?: {
+    keywords?: string[];
+    segments?: string[];
+  };
+}
+
 export interface NetworkCredentials {
   [key: string]: string | undefined;
 }
@@ -108,7 +136,7 @@ export interface AdNetworkService {
 
   uploadCreative(imagePath: string): Promise<UploadResult>;
 
-  createCampaign(input: CreateCampaignInput): Promise<CreateCampaignResult>;
+  createCampaign(input: CreateCampaignInput | GoogleCampaignInput): Promise<CreateCampaignResult>;
 
   updateCampaignStatus(externalId: string, status: 'ACTIVE' | 'PAUSED'): Promise<void>;
 

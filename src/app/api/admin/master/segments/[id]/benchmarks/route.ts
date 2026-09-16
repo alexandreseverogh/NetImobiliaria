@@ -28,6 +28,7 @@ const AGENT_KEYS: Record<string, { label: string; unit: string }> = {
   min_days_running:   { label: 'Dias Mín. Rodando',            unit: 'NUM' },
   hook_rate_critical: { label: 'Hook Rate Crítico (%)',        unit: 'PCT' },
   hook_rate_min:      { label: 'Hook Rate Mínimo (%)',         unit: 'PCT' },
+  avg_fit_scale_min:  { label: 'Fit Médio Mín. p/ Escalar',    unit: 'NUM' },
   // Execução — como agir
   scale_budget_base_pct:  { label: 'Escala Base (%)',                  unit: 'PCT' },
   scale_budget_max_pct:   { label: 'Escala Máxima (%)',                unit: 'PCT' },
@@ -99,10 +100,14 @@ export async function POST(
       const meta = AGENT_KEYS[b.metric_key];
       const label = b.metric_label ?? meta?.label ?? b.metric_key;
       const unit  = b.unit ?? meta?.unit ?? 'BRL';
+      // ON CONFLICT precisa bater EXATAMENTE com a constraint real
+      // (system_benchmarks_seg_metric_net_key — inclui network_id via COALESCE, da fase
+      // multi-rede/TikTok, docs/PLANO_TIKTOK.md §5.1). Esta tela nunca edita benchmark POR
+      // REDE, só o "sem rede" (camada 4 do resolver) — por isso network_id sempre NULL aqui.
       await pool.query(
         `INSERT INTO public.system_benchmarks (segment_id, metric_key, metric_label, value, unit)
          VALUES ($1::uuid, $2, $3, $4, $5)
-         ON CONFLICT (segment_id, metric_key)
+         ON CONFLICT (segment_id, metric_key, COALESCE(network_id, '00000000-0000-0000-0000-000000000000'::uuid))
          DO UPDATE SET value = EXCLUDED.value, metric_label = EXCLUDED.metric_label,
                        unit = EXCLUDED.unit, updated_at = now()`,
         [params.id, b.metric_key, label, b.value, unit],

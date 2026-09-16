@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -13,14 +13,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [twoFactorCode, setTwoFactorCode] = useState('')
   const [error, setError] = useState('')
-  const [csrfToken, setCsrfToken] = useState('')
   const [requires2FA, setRequires2FA] = useState(false)
   const { login, loading } = useAuth()
-
-  // Gerar token CSRF simples
-  useEffect(() => {
-    setCsrfToken(Math.random().toString(36).substring(2, 15))
-  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -92,7 +86,6 @@ export default function LoginPage() {
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <input type="hidden" name="csrf" value={csrfToken} />
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
               <label htmlFor="username" className="sr-only">

@@ -6,14 +6,25 @@ Documentação completa da lógica de permissões, provisionamento e visibilidad
 
 ## Visão Geral: como uma feature aparece na sidebar de um usuário
 
-Para que uma feature apareça na sidebar de um usuário logado, **quatro condições** precisam ser verdadeiras simultaneamente (verificadas pela função SQL `get_sidebar_menu_for_user`):
+Para que uma feature apareça na sidebar de um usuário logado, **cinco condições** precisam ser verdadeiras simultaneamente (verificadas pela função SQL `get_sidebar_menu_for_user`):
 
 ```
 1. system_features.is_active = true
-2. Filtro A (permissão): usuário é master OU tenant admin OU tem role_permission com ação read/view/execute
-3. Filtro B (provisão): usuário é master OU feature está em tenant_feature_overrides para o tenant dele
-4. Categoria ativa: system_categorias.is_active = true
+2. Filtro C (tem página real): system_features.url IS NOT NULL AND url <> ''
+3. Filtro A (permissão): usuário é master OU tenant admin OU tem role_permission com ação read/view/execute
+4. Filtro B (provisão): usuário é master OU feature está em tenant_feature_overrides para o tenant dele
+5. Categoria ativa: system_categorias.is_active = true
 ```
+
+**Filtro C (adicionado em 2026-07-29, `migration-2026-07-29-sidebar-url-fixes.sql`):** existem
+linhas em `system_features` que nunca foram pensadas como página navegável — são "toggles de
+capacidade" que reaproveitam a mesma tabela/mecanismo de provisionamento por conveniência (ex.:
+`campanhas-rede-meta`/`campanhas-rede-google`/`campanhas-rede-tiktok`, consumidas só por
+`GET /api/admin/campanhas/configuracoes/redes`, nunca pela sidebar). Sem esse filtro, qualquer
+feature assim — ou qualquer feature real que só ainda não teve o `url` preenchido por
+esquecimento — aparecia como item de menu com `path: null`, visível mas sem nenhum link
+funcional por trás. O filtro exclui automaticamente qualquer `system_features` sem `url` real
+da sidebar, sem precisar de exceção por id.
 
 ---
 
@@ -179,6 +190,7 @@ Assinatura: `get_sidebar_menu_for_user(p_user_id uuid, p_system_id text, p_tenan
 
 3. CTE permitted_features:
    WHERE is_active = true
+     AND (Filtro C: url IS NOT NULL AND url <> '' — nunca bypassado, nem por master)
      AND (Filtro A: v_is_master OR v_is_tenant_admin OR EXISTS role_permissions com ação read/view/execute)
      AND (Filtro B: v_is_master OR p_tenant_id IS NULL OR EXISTS tenant_feature_overrides ativo)
 
@@ -232,6 +244,8 @@ Tabela **legada/administrativa** para configuração visual da sidebar pelo Mast
 ```
 1. INSERT public.system_features (name, slug, url, category_id, sort_order, is_active=true)
    └─ category_id: apenas para agrupamento visual, não afeta o provisionamento
+   └─ url: OBRIGATÓRIO pra aparecer na sidebar (Filtro C) — deixar vazio/NULL só se a
+      intenção for um "toggle de capacidade" (ex.: contratação de rede), nunca um esquecimento
 
 2. INSERT public.system_feature_modules (feature_id, module_id)
    └─ OBRIGATÓRIO para a feature aparecer na tela de provisionamento

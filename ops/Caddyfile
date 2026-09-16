@@ -3,15 +3,60 @@
   email {$LETSENCRYPT_EMAIL}
 }
 
-{$PROD_DOMAIN} {
+# ── imovtec.com.br — plataforma real, multi-tenant ──────────────────────────
+{$PROD_DOMAIN}, www.{$PROD_DOMAIN} {
   encode zstd gzip
 
   request_body {
     max_size 50MB
   }
 
+  # A raiz do domínio mostra a landpaging (busca de imóveis agregada por segmento),
+  # não a home estática do app — mesmo comportamento já em produção antes deste
+  # arquivo existir, preservado aqui pra não regredir.
+  @root path /
+  redir @root /landpaging 308
+
+  # Hotfix histórico preservado (nunca prejudica se a causa raiz já tiver sido
+  # corrigida no app — só nunca é atingido nesse caso).
+  @adminroot path /admin/admin/
+  redir @adminroot /admin/login 308
+
   # Object Storage público — /storage/* → MinIO (bucket prod)
-  # URLs de imagens ficam: https://{PROD_DOMAIN}/storage/net-imobiliaria-prod/<key>
+  # URLs de imagens ficam: https://{PROD_DOMAIN}/storage/netimobiliaria-prod/<key>
+  handle /storage/* {
+    uri strip_prefix /storage
+    reverse_proxy minio:9000
+  }
+
+  reverse_proxy prod_app:3000 {
+    header_up X-Forwarded-Proto {scheme}
+    header_up X-Forwarded-Host {host}
+    header_up X-Forwarded-For {remote}
+  }
+
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "SAMEORIGIN"
+    Referrer-Policy "strict-origin-when-cross-origin"
+  }
+}
+
+# ── artemis9.com.br — vitrine da plataforma (mesmo app, mesmo banco) ────────
+# Mesmo prod_app de imovtec.com.br — só a raiz do domínio muda de conteúdo (igual
+# o padrão acima pra /landpaging). Todo o resto (login, admin, etc.) funciona
+# identicamente nos dois domínios, porque é literalmente a mesma aplicação.
+{$PROD_DOMAIN_ARTEMIS}, www.{$PROD_DOMAIN_ARTEMIS} {
+  encode zstd gzip
+
+  request_body {
+    max_size 50MB
+  }
+
+  @root path /
+  redir @root /artemis4 308
+
   handle /storage/* {
     uri strip_prefix /storage
     reverse_proxy minio:9000
@@ -57,5 +102,3 @@
     Referrer-Policy "strict-origin-when-cross-origin"
   }
 }
-
-

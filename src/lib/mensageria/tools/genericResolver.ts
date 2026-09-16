@@ -376,6 +376,49 @@ export async function resolveEntity(
 }
 
 /**
+ * Resolve 1 linha pela coluna de identidade e devolve um resumo em texto natural, pronto pra
+ * injetar como contexto de página (M4.4 — widget público embutido na página de detalhe de um
+ * item específico, ex.: `/imoveis/[id]`). Filtra DIRETO pela identidade — não passa pelo loop de
+ * filtros normais de `resolveEntity` (que só aceita colunas marcadas `filterable`; a coluna de
+ * identidade tipicamente não é uma delas, já que não é algo que o LLM digitaria numa busca).
+ * Genérico: `entityName` vem de fora (parametrizado pelo componente que embute o widget), nunca
+ * fixo em código — a mesma função serve pra qualquer entidade de qualquer segmento.
+ */
+export async function describeEntityRowByIdentity(
+  segmentId: string | null,
+  tenantId: string,
+  entityName: string,
+  identityValue: string | number,
+): Promise<string | null> {
+  const entities = await loadEntitiesForSegment(segmentId, tenantId)
+  const entity = entities.find((e) => e.entityName === entityName)
+  if (!entity || !ok(entity.tableName) || !ok(entity.tenantColumn)) return null
+
+  const identityCol = entity.identityColumn || 'id'
+  if (!ok(identityCol)) return null
+
+  const selectableCols = entity.columns.filter((c) => c.selectable && ok(c.name))
+  if (selectableCols.length === 0) return null
+
+  const projection = selectableCols.map((c) => buildColumnProjection(c, 'e') ?? `e.${c.name}`).join(', ')
+  const where = [`e.${entity.tenantColumn} = $1`, `e.${identityCol} = $2`]
+  if (entity.defaultFilter) where.push(entity.defaultFilter)
+
+  const { rows } = await pool.query(
+    `SELECT ${projection} FROM ${entity.tableName} e WHERE ${where.join(' AND ')} LIMIT 1`,
+    [tenantId, identityValue],
+  )
+  const row = rows[0]
+  if (!row) return null
+
+  const parts = selectableCols
+    .map((c) => (row[c.name] != null && row[c.name] !== '' ? `${c.description || c.name}: ${row[c.name]}` : null))
+    .filter((s): s is string => s !== null)
+
+  return `O visitante está atualmente vendo a página deste item específico (${entityName}): ${parts.join('; ')}. Se ele disser "esse", "este", "esse aqui" ou similar sem especificar outro item, ele está se referindo A ESTE item — use estes dados reais pra responder, não invente nem diga que falta informação.`
+}
+
+/**
  * Compara/ordena os resultados de uma entidade por 1+ campos numéricos e retorna só o(s)
  * item(ns) no extremo (menor ou maior) — a aritmética roda aqui, em código, nunca no LLM.
  *

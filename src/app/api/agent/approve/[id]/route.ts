@@ -20,6 +20,8 @@ async function getAction(id: string) {
       a.approval_pin     AS "approvalPin",
       a.approval_pin_exp AS "approvalPinExp",
       a.budget_proposed,
+      a.audience_id                        AS "audienceId",
+      a.audience_external_id               AS "audienceExternalId",
       COALESCE(
         a.scale_pct,
         (SELECT sb.value::int FROM public.system_benchmarks sb
@@ -33,10 +35,11 @@ async function getAction(id: string) {
     LEFT JOIN campanhasmarketingdigital."Campaign" cam ON cam.id = a."campaignId"
     LEFT JOIN public.clientes cl ON cl.uuid = cam.client_id
     LEFT JOIN campanhasmarketingdigital."AdSet" ads ON ads."campaignId" = a."campaignId"
-    WHERE a.id = $1::uuid
+    WHERE a.id = $1
     GROUP BY a.id, a.tenant_id, a."campaignId", a."campaignName", a.type, a.title,
              a.description, a.confidence, a.status, a.approval_pin, a.approval_pin_exp,
-             a.budget_proposed, a.scale_pct, cl.segment_id, t.segment_id
+             a.budget_proposed, a.audience_id, a.audience_external_id, a.scale_pct,
+             cl.segment_id, t.segment_id
     LIMIT 1
   `, [id]);
   return rows[0] ?? null;
@@ -114,6 +117,22 @@ export async function POST(
 
   try {
     await executeAction(action, action.tenantId ?? null, false, false, customBudgetCents);
+
+    // §8.4/H15 — circuit breaker: executeAction pode ter aprovado o PIN mas bloqueado a
+    // execução de verdade (REALLOCATE_BUDGET com ≥3 BACKFIRED recentes) — o retorno não
+    // distingue isso de "executado sem mudança de budget" (ex.: ADD_NEGATIVE_KEYWORD também
+    // retorna null), então checamos o status real gravado em vez de assumir sucesso.
+    const after = await getAction(params.id);
+    if (after?.status === 'BLOCKED') {
+      return htmlResponse(
+        '🛑 Bloqueada pelo circuit breaker',
+        `O PIN foi validado, mas a ação <strong>${action.title}</strong> para <strong>${action.campaignName}</strong> ` +
+        `NÃO foi executada: este tenant teve realocações mal-sucedidas recentes e a auto-sugestão foi ` +
+        `desligada até revisão manual. O Master foi notificado.`,
+        200,
+      );
+    }
+
     const budgetLine = customBudgetCents
       ? ` Novo investimento diário: <strong>${fmtBRL(customBudgetCents)}</strong>.`
       : '';
@@ -124,7 +143,7 @@ export async function POST(
     );
   } catch (err: any) {
     await setStatus(params.id, 'PENDING_APPROVAL');
-    return htmlResponse('❌ Erro na execução', `Houve um erro ao executar: ${err.message}`, 500);
+    return htmlResponse('❌ Erro na execução', `Houve um erro ao executar: ${err?.message ?? String(err)}`, 500);
   }
 }
 

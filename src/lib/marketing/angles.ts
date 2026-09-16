@@ -45,5 +45,10 @@ export function normalizeAngle(value: unknown): CommunicationAngle | null {
 /** Rótulo amigável de um ângulo (fallback para o próprio valor). */
 export function angleLabel(value: string | null | undefined): string {
   if (!value) return '—';
+  // 'unknown' é o sentinela usado por angleInsightsService quando a campanha não tem
+  // declared_angle nem análise Vision (ex.: campanhas do Google, que não passam pelo
+  // pipeline de Vision) — não é um ângulo real da taxonomia, por isso fica de fora de
+  // ANGLE_LABELS/ANGLE_OPTIONS (não deve aparecer como opção selecionável no wizard).
+  if (value === 'unknown') return 'Sem ângulo classificado';
   return ANGLE_LABELS[value as CommunicationAngle] ?? value;
 }

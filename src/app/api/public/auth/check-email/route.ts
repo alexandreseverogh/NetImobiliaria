@@ -38,11 +38,11 @@ export async function GET(request: NextRequest) {
     let exists = false
     
     if (userType === 'proprietario') {
-      exists = await checkEmailExistsProprietario(email, excludeUuid)
+      exists = await checkEmailExistsProprietario(email, null, excludeUuid)
     } else {
       // Verificar em ambas as tabelas para garantir unicidade
-      const existsCliente = await checkEmailExists(email, excludeUuid)
-      const existsProprietario = await checkEmailExistsProprietario(email, excludeUuid)
+      const existsCliente = await checkEmailExists(email, null, excludeUuid)
+      const existsProprietario = await checkEmailExistsProprietario(email, null, excludeUuid)
       exists = existsCliente || existsProprietario
     }
     

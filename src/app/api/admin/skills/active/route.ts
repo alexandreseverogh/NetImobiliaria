@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/database/connection';
-import { verifyTokenNode } from '@/lib/auth/jwt-node';
+import { getTokenPayload } from '@/lib/auth/jwt-node';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    // 1. Validar autenticação
-    const cookie = request.cookies.get('admin_auth_token');
-    if (!cookie?.value) {
-      return NextResponse.json({ success: false, message: 'Não autorizado' }, { status: 401 });
-    }
-
-    const payload = verifyTokenNode(cookie.value);
+    // 1. Validar autenticação (cookie ou Bearer)
+    const payload = getTokenPayload(request);
     if (!payload?.tenantId) {
       return NextResponse.json({ success: false, message: 'Tenant não identificado' }, { status: 401 });
     }

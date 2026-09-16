@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/marketing/prisma';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { resolveCampaignIdsBySegment } from '@/lib/marketing/segmentUtils';
+import { filterCampaignsByNetwork } from '@/lib/marketing/networkFilterUtils';
+import { getLeadEvents, leadsByDay } from '@/lib/marketing/services/leadEvents';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,7 +40,8 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const campaignId      = searchParams.get('campaignId');
-    const clientId        = searchParams.get('clientId');
+    let clientId          = searchParams.get('clientId');
+    if (clientId === 'segment' || clientId === 'all') clientId = null;
     const segmentId       = searchParams.get('segmentId');
     const objectiveFilter = searchParams.get('objectiveFilter');
     const statusFilter    = searchParams.get('statusFilter');
@@ -46,6 +49,7 @@ export async function GET(request: NextRequest) {
     const startDateStr    = searchParams.get('startDate');
     const endDateStr      = searchParams.get('endDate');
     const projectionDays  = parseInt(searchParams.get('days') || '30');
+    const network         = searchParams.get('network');
 
     // Janela histórica: usa o período selecionado (mínimo 14 dias para regressão)
     const histEnd   = endDateStr
@@ -76,7 +80,10 @@ export async function GET(request: NextRequest) {
       delete campaignWhere.clientId;
     }
 
-    const campaigns = await prisma.campaign.findMany({ where: campaignWhere });
+    let campaigns = await prisma.campaign.findMany({ where: campaignWhere });
+    // PARTE D1 (correção) — predições continuavam projetando gasto/leads de todas as redes
+    // mesmo com o filtro do dashboard ativo.
+    campaigns = await filterCampaignsByNetwork(campaigns as any, network);
     const campaignIds = campaigns.map(c => c.id);
 
     if (campaignIds.length === 0) {
@@ -147,26 +154,12 @@ export async function GET(request: NextRequest) {
       return data.clicks > 0 ? data.spend / data.clicks : 0;
     });
 
-    const leadsRaw: any[] = await prisma.$queryRaw`
-      SELECT DATE("clickedAt") as date, COUNT(*)::int as count
-      FROM campanhasmarketingdigital."Lead"
-      WHERE "tenant_id" = ${payload.tenantId}::uuid
-        AND "campaignId" = ANY(${campaignIds})
-        AND "clickedAt" >= ${histStart}::timestamp
-        AND "clickedAt" <= ${histEnd}::timestamp
-      GROUP BY DATE("clickedAt")
-      ORDER BY date ASC
-    `;
+    // Fonte única de lead (WhatsApp + formulário + conversão real do Google) — antes só
+    // WHATSAPP_CLICK, subestimando (ou zerando) a projeção de leads pra campanhas de Google.
+    const leadEvents = await getLeadEvents(payload.tenantId, { campaignIds, startDate: histStart, endDate: histEnd });
+    const leadCountByDay = leadsByDay(leadEvents);
 
-    const normalizedLeads = leadsRaw.map(r => ({
-      date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : r.date,
-      count: Number(r.count)
-    }));
-
-    const leadValues = sortedDays.map(d => {
-      const found = normalizedLeads.find((l: any) => l.date === d);
-      return found ? found.count : 0;
-    });
+    const leadValues = sortedDays.map(d => leadCountByDay.get(d) ?? 0);
 
     return NextResponse.json({
       spend: predict(spendValues),

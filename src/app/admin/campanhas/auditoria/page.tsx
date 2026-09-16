@@ -11,7 +11,7 @@ import {
   MinusCircleIcon,
   ChevronDownIcon,
 } from '@heroicons/react/24/outline';
-import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
+import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector';
 
 // ── Types ─────────────────────────────────────────────────────
 

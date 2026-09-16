@@ -18,6 +18,20 @@ export interface Segment {
   primary_kpis: any[];
   imagens_por_ia: boolean;
   chatbot_max_turns_default: number;
+  /** F7 (docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §6) — configuração de roteamento de leads
+   *  por segmento, consumida por DistributionEngine. Ver src/lib/routing/distributionEngine.ts. */
+  distribution_role_name: string;
+  distribution_target_table: string | null;
+  distribution_target_id_column: string | null;
+  distribution_owner_column: string | null;
+  /** Gate explícito da Master — segmento pronto pra qualificação de lead por IA (CRM).
+   *  Ver src/lib/ai/conciergeService.ts e o bloqueio em src/app/crm/CRMLayoutContent.tsx. */
+  crm_ia_ativa: boolean;
+  /** Aderência mínima (score_fit, 0-100) pra disparar a Sugestão da IA (next_best_action)
+   *  já na captação do lead, sem esperar mudança de etapa. null = desativado — nunca
+   *  dispara na captação sem valor explícito (evita gasto de LLM em lead frio). Ver
+   *  src/app/api/crm/leads/route.ts. */
+  next_best_action_captacao_fit_minimo: number | null;
 }
 
 export interface SegmentOption {

@@ -4,7 +4,7 @@ import pool from '@/lib/database/connection';
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get('accessToken')?.value || 
+    const token = request.cookies.get('admin_auth_token')?.value || 
                   request.headers.get('authorization')?.replace('Bearer ', '');
     
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

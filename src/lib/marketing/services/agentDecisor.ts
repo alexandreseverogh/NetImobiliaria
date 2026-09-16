@@ -2,23 +2,41 @@ import { randomUUID } from 'crypto';
 import prisma from '../prisma';
 import { generateAiInsights } from './aiInsights';
 import {
-  notifyExecuted, notifyDigest,
+  notifyExecuted, notifyDigest, notifyAlert,
   type DigestItem,
 } from './agentNotificador';
 import { invokeForContext } from '../../intelligence/llmInvoker';
 import { getNetworkServiceForTenant } from '../networks/factory';
+import { MetaAdsAdapter } from '../networks/meta/metaAdsAdapter';
+import type { NetworkCode } from '../networks/types';
 import { transitionCampaign } from './campaignStateMachine';
 import { getAngleInsights } from './angleInsightsService';
 import { resolveCampaignSegment, computeBudgetPlan } from './budgetPlanner';
 import { resolveBenchmarks } from '../../intelligence/benchmarkResolver';
+import { isReallocationCircuitBreakerTripped } from './reallocationMeasurement';
 
 const CONFIDENCE_THRESHOLD = parseFloat(process.env.AGENT_CONFIDENCE_THRESHOLD || '0.85');
 const PUBLIC_DOMAIN = process.env.PUBLIC_DOMAIN || 'http://localhost:3001';
 
+// PARTE D3 — resolve o código de rede (meta/google/tiktok...) de uma campanha via ad_networks.
+// Extraído do fix de executeAction (schema real é networkId, não networkCode) pra ser
+// reaproveitado também no digest do WhatsApp, que precisa rotular a rede por ação.
+async function resolveNetworkCode(networkId: string | null | undefined): Promise<NetworkCode> {
+  if (!networkId) return 'meta';
+  const netRows = await prisma.$queryRaw<{ code: string }[]>`
+    SELECT code FROM public.ad_networks WHERE id = ${networkId}::uuid LIMIT 1
+  `;
+  return (netRows[0]?.code as NetworkCode) ?? 'meta';
+}
+
 // Ações defensivas: executam automaticamente sem aprovação humana
-const DEFENSIVE_TYPES = ['PAUSE', 'DOWNSCALE'];
+// FASE 1 (Google Ads) A6 — ADD_NEGATIVE_KEYWORD é defensiva (baixo risco, só remove tráfego
+// ruim já comprovado sem conversão) — mesmo tratamento de PAUSE/DOWNSCALE.
+const DEFENSIVE_TYPES = ['PAUSE', 'DOWNSCALE', 'ADD_NEGATIVE_KEYWORD'];
 // Ações ofensivas: exigem aprovação via WhatsApp/Slack
-const OFFENSIVE_TYPES = ['SCALE', 'REFRESH_CREATIVE', 'ADJUST_AUDIENCE', 'REALLOCATE_BUDGET'];
+// Tier 3 "Loop do ICP" — USE_LOOKALIKE_AUDIENCE muda a segmentação de uma campanha real, mesma
+// classe de risco de SCALE/REALLOCATE_BUDGET — nunca auto-executa.
+const OFFENSIVE_TYPES = ['SCALE', 'REFRESH_CREATIVE', 'ADJUST_AUDIENCE', 'REALLOCATE_BUDGET', 'USE_LOOKALIKE_AUDIENCE'];
 
 export async function runDecisor(tenantId?: string): Promise<{ actionsCreated: number }> {
   const result = await generateAiInsights(undefined, tenantId);
@@ -60,6 +78,8 @@ export async function runDecisor(tenantId?: string): Promise<{ actionsCreated: n
     const campaign = await prisma.campaign.findUnique({ where: { id: insight.campaignId } });
     const resolvedTenantId = tenantId ?? campaign?.tenantId ?? null;
     if (resolvedTenantId && !resolvedTenantForDigest) resolvedTenantForDigest = resolvedTenantId;
+    // PARTE D3 — rede da campanha, pra rotular no digest do WhatsApp quando o ciclo misturar redes
+    const networkCode = await resolveNetworkCode((campaign as any)?.networkId);
 
     // Nome do cliente para o digest (campanha própria → client_id nulo → '')
     const clientRow = await prisma.$queryRaw<{ nome: string }[]>`
@@ -82,6 +102,9 @@ export async function runDecisor(tenantId?: string): Promise<{ actionsCreated: n
     const actionDesc = enriched.description || insight.description;
 
     const scalePctVal = insight.type === 'SCALE' ? (insight.scalePct ?? null) : null;
+    // Tier 3 "Loop do ICP" — USE_LOOKALIKE_AUDIENCE carrega qual audiência aplicar
+    const audienceIdVal = insight.type === 'USE_LOOKALIKE_AUDIENCE' ? (insight.audienceId ?? null) : null;
+    const audienceExtIdVal = insight.type === 'USE_LOOKALIKE_AUDIENCE' ? (insight.audienceExternalId ?? null) : null;
 
     // Para SCALE: computa o budget proposto pelo agente e grava na linha
     let budgetProposed: number | null = null;
@@ -94,16 +117,19 @@ export async function runDecisor(tenantId?: string): Promise<{ actionsCreated: n
     await prisma.$executeRaw`
       INSERT INTO campanhasmarketingdigital."AgentAction"
         (id, tenant_id, "campaignId", "campaignName", type, title, description, confidence,
-         approval_pin, approval_pin_exp, status, scale_pct, budget_proposed, "createdAt")
+         approval_pin, approval_pin_exp, status, scale_pct, budget_proposed, audience_id,
+         audience_external_id, "createdAt")
       VALUES
         (${actionId}, ${resolvedTenantId}::uuid, ${insight.campaignId}, ${insight.campaignName},
          ${insight.type}, ${insight.title}, ${actionDesc}, ${insight.confidence},
-         ${pin}, ${pinExp}, ${actionStatus}, ${scalePctVal}, ${budgetProposed}, now())
+         ${pin}, ${pinExp}, ${actionStatus}, ${scalePctVal}, ${budgetProposed},
+         ${audienceIdVal}::uuid, ${audienceExtIdVal}, now())
     `;
 
     const action = { id: actionId, campaignId: insight.campaignId, campaignName: insight.campaignName,
       type: insight.type, title: insight.title, description: actionDesc,
-      tenantId: resolvedTenantId, approvalPin: pin, approvalPinExp: pinExp, status: actionStatus };
+      tenantId: resolvedTenantId, approvalPin: pin, approvalPinExp: pinExp, status: actionStatus,
+      audienceId: audienceIdVal, audienceExternalId: audienceExtIdVal };
 
     actionsCreated++;
 
@@ -128,6 +154,7 @@ export async function runDecisor(tenantId?: string): Promise<{ actionsCreated: n
         clientName,
         actionId:     action.id,
         description:  action.description ?? '',
+        network:      networkCode,
         budget:       budgetChange ? { before: budgetChange.before, after: budgetChange.after } : null,
         pauseBudget,
       });
@@ -145,6 +172,7 @@ export async function runDecisor(tenantId?: string): Promise<{ actionsCreated: n
         clientName,
         actionId:     action.id,
         description:  action.description ?? '',
+        network:      networkCode,
         pin,
         budget,
         approveUrl: `${PUBLIC_DOMAIN}/api/agent/approve/${action.id}`,
@@ -159,6 +187,7 @@ export async function runDecisor(tenantId?: string): Promise<{ actionsCreated: n
         clientName,
         actionId:     action.id,
         description:  action.description ?? '',
+        network:      networkCode,
       });
       await prisma.$executeRaw`UPDATE campanhasmarketingdigital."AgentAction" SET status = 'NOTIFIED' WHERE id = ${action.id}`;
     }
@@ -215,10 +244,30 @@ export async function executeAction(
 ): Promise<{ before: number; after: number } | null> {
   try {
     const campaign = await prisma.campaign.findUnique({ where: { id: action.campaignId } }) as any;
-    const externalId = campaign?.external_id || campaign?.metaCampaignId;
-    const networkCode = (campaign?.networkCode as any) || 'meta';
+    // FIX: campaign.networkCode/external_id nunca existiram (schema real é networkId/externalId
+    // camelCase) — toda campanha caía silenciosamente no fallback 'meta', mesmo sendo Google.
+    const externalId = campaign?.externalId || campaign?.metaCampaignId;
+    const networkCode = await resolveNetworkCode(campaign?.networkId);
 
     let budgetChange: { before: number; after: number } | null = null;
+
+    if (action.type === 'ADD_NEGATIVE_KEYWORD') {
+      // Google-only — mecânica real (chamada à API + memória) vive em googleNegationCore.ts,
+      // compartilhada com a rota de negativação MANUAL (evita import circular com
+      // googleNegationService.ts, que já importa executeAction deste arquivo).
+      if (tenantId && networkCode === 'google') {
+        const { applyNegation } = await import('./googleNegationCore');
+        await applyNegation(tenantId, action.campaignId, externalId, action.negativeTerm, action.negativeMatchType, 'agent');
+      }
+
+      await prisma.$executeRaw`
+        UPDATE campanhasmarketingdigital."AgentAction"
+        SET status = 'EXECUTED', "executedAt" = now()
+        WHERE id = ${action.id}
+      `;
+      if (!skipNotify) await notifyExecuted({ ...action, budget: null }, auto);
+      return null;
+    }
 
     if (action.type === 'PAUSE') {
       if (externalId && tenantId) {
@@ -301,6 +350,127 @@ export async function executeAction(
         }
       }
       if (adSets.length > 0) budgetChange = { before, after };
+
+    } else if (action.type === 'REALLOCATE_BUDGET') {
+      // docs/PLANO_TIKTOK.md §8.4 — DOWNSCALE na origem + SCALE no destino. Diferente de
+      // PAUSE/SCALE/DOWNSCALE (que nunca chamam a rede de verdade pro budget, só best-effort
+      // via updateAdSetBudget se o adapter tiver isso), aqui a garantia de atomicidade é a
+      // MESMA já usada no resto do módulo: local (Prisma) é a fonte da verdade, uma falha de
+      // rede NUNCA bloqueia nem reverte o estado local — mas as duas campanhas (origem E
+      // destino) têm que mudar juntas ou nenhuma muda, por isso as duas ficam num único
+      // prisma.$transaction. Reversão de verdade só existiria se houvesse push síncrono pra
+      // rede real (não existe hoje pra nenhuma ação deste motor).
+      const realloc = await prisma.budgetReallocation.findFirst({ where: { agentActionId: action.id } });
+      if (!realloc) throw new Error('BudgetReallocation não encontrada para esta AgentAction');
+
+      // §8.4/H15 — circuit breaker: a proposta pode ter sido criada ANTES de bater 3
+      // BACKFIRED (o breaker só é checado na hora de sugerir, em runReallocationAgent) e ainda
+      // assim chegar aqui já aprovada com PIN — "não executa nem com aprovação" é literal: barra
+      // aqui também, mesmo com PIN correto, e avisa o Master em vez de mexer em budget real.
+      if (tenantId && await isReallocationCircuitBreakerTripped(tenantId)) {
+        await prisma.budgetReallocation.update({ where: { id: realloc.id }, data: { status: 'BLOCKED' } });
+        await prisma.$executeRaw`
+          UPDATE campanhasmarketingdigital."AgentAction" SET status = 'BLOCKED' WHERE id = ${action.id}
+        `;
+        await notifyAlert({
+          campaignId: action.campaignId,
+          campaignName: action.campaignName,
+          title: 'Realocação bloqueada pelo circuit breaker',
+          description:
+            `A proposta "${realloc.sourceCampaignName} → ${realloc.targetCampaignName}" foi aprovada, ` +
+            `mas NÃO foi executada: este tenant teve ≥3 realocações mal-sucedidas (BACKFIRED) nos ` +
+            `últimos 90 dias. Auto-sugestão desligada até revisão manual.`,
+          confidence: realloc.confidence,
+          tenantId,
+        });
+        return null;
+      }
+
+      const [sourceAdSets, targetAdSets] = await Promise.all([
+        prisma.adSet.findMany({ where: { campaignId: realloc.sourceCampaignId } }),
+        prisma.adSet.findMany({ where: { campaignId: realloc.targetCampaignId } }),
+      ]);
+      const sourceTotal = sourceAdSets.reduce((s, a) => s + (a.dailyBudget || 0), 0);
+      const targetTotal = targetAdSets.reduce((s, a) => s + (a.dailyBudget || 0), 0);
+
+      const sourceUpdates = sourceAdSets.map(a => {
+        const ratio = sourceTotal > 0 ? (a.dailyBudget || 0) / sourceTotal : 1 / sourceAdSets.length;
+        const cut = Math.round(realloc.amountCents * ratio);
+        const newBudget = Math.max(1, (a.dailyBudget || 0) - cut);
+        return prisma.adSet.update({ where: { id: a.id }, data: { dailyBudget: newBudget } });
+      });
+      const targetUpdates = targetAdSets.map(a => {
+        const ratio = targetTotal > 0 ? (a.dailyBudget || 0) / targetTotal : 1 / targetAdSets.length;
+        const add = Math.round(realloc.amountCents * ratio);
+        const newBudget = (a.dailyBudget || 0) + add;
+        return prisma.adSet.update({ where: { id: a.id }, data: { dailyBudget: newBudget } });
+      });
+
+      if (sourceAdSets.length === 0 || targetAdSets.length === 0) {
+        throw new Error('Origem ou destino sem AdSet — não é possível realocar');
+      }
+      await prisma.$transaction([...sourceUpdates, ...targetUpdates]);
+
+      const sourceBudgetAfter = Math.max(0, sourceTotal - realloc.amountCents);
+      const targetBudgetAfter = targetTotal + realloc.amountCents;
+
+      // Best-effort na rede real de cada lado — mesma disciplina de nunca bloquear/reverter
+      // o estado local já acordado com PAUSE/SCALE/DOWNSCALE acima.
+      for (const [campId, net, adSets] of [
+        [realloc.sourceCampaignId, realloc.sourceNetwork, sourceAdSets],
+        [realloc.targetCampaignId, realloc.targetNetwork, targetAdSets],
+      ] as const) {
+        if (!tenantId) continue;
+        try {
+          const campRow = await prisma.campaign.findUnique({ where: { id: campId }, select: { externalId: true, metaCampaignId: true } });
+          const extId = (campRow as any)?.externalId || (campRow as any)?.metaCampaignId;
+          if (!extId) continue;
+          const networkService = await getNetworkServiceForTenant(tenantId, net as NetworkCode);
+          if (typeof (networkService as any).updateAdSetBudget === 'function') {
+            for (const a of adSets) {
+              const updated = await prisma.adSet.findUnique({ where: { id: a.id } });
+              if (updated) {
+                await (networkService as any).updateAdSetBudget(
+                  (updated as any).external_id || (updated as any).metaAdSetId,
+                  updated.dailyBudget,
+                );
+              }
+            }
+          }
+        } catch { /* falha de rede não bloqueia */ }
+      }
+
+      await prisma.budgetReallocation.update({
+        where: { id: realloc.id },
+        data: { status: 'EXECUTED', sourceBudgetAfter, targetBudgetAfter, executedAt: new Date() },
+      });
+
+      budgetChange = { before: realloc.sourceBudgetBefore, after: sourceBudgetAfter };
+
+    } else if (action.type === 'USE_LOOKALIKE_AUDIENCE') {
+      // Tier 3 "Loop do ICP" — diferente de PAUSE/SCALE/DOWNSCALE/REALLOCATE_BUDGET, aqui não
+      // existe nenhum estado LOCAL equivalente à ação (não é orçamento, não sincroniza de novo
+      // num próximo ciclo) — a ação inteira É a chamada de rede. Mesmo assim, seguida a MESMA
+      // disciplina de "melhor esforço, falha de rede nunca bloqueia a marcação de executado" já
+      // usada em toda esta função, por consistência — uma falha aqui fica só no log do
+      // servidor, sem re-tentativa automática (limitação conhecida, documentada).
+      if (!action.audienceExternalId) throw new Error('audienceExternalId ausente na ação USE_LOOKALIKE_AUDIENCE');
+      if (tenantId && externalId) {
+        try {
+          const networkService = await getNetworkServiceForTenant(tenantId, networkCode);
+          if (networkService instanceof MetaAdsAdapter) {
+            const adSets = await prisma.adSet.findMany({ where: { campaignId: action.campaignId } });
+            for (const adSet of adSets) {
+              const extAdSetId = (adSet as any).external_id || (adSet as any).metaAdSetId;
+              if (extAdSetId) {
+                await networkService.applyCustomAudienceToAdSet(extAdSetId, action.audienceExternalId);
+              }
+            }
+          }
+        } catch (err) {
+          console.error('[agentDecisor] USE_LOOKALIKE_AUDIENCE falhou ao aplicar na rede real:', err);
+        }
+      }
     }
 
     const bBefore = budgetChange?.before ?? null;

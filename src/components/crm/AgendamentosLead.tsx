@@ -23,6 +23,8 @@ interface Agendamento {
 interface Props {
   leadUuid: string
   onAgendar?: () => void
+  /** Muda a cada agendamento criado/cancelado alhures — força reload da lista. */
+  refreshKey?: number
 }
 
 const STATUS_CONFIG = {
@@ -40,7 +42,7 @@ function formatarDH(iso: string) {
   }
 }
 
-export default function AgendamentosLead({ leadUuid, onAgendar }: Props) {
+export default function AgendamentosLead({ leadUuid, onAgendar, refreshKey }: Props) {
   const t = useTheme()
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,7 +50,7 @@ export default function AgendamentosLead({ leadUuid, onAgendar }: Props) {
 
   useEffect(() => {
     if (leadUuid) loadAgendamentos()
-  }, [leadUuid])
+  }, [leadUuid, refreshKey])
 
   const loadAgendamentos = async () => {
     setLoading(true)
@@ -85,7 +87,7 @@ export default function AgendamentosLead({ leadUuid, onAgendar }: Props) {
   return (
     <div className="space-y-3">
       <div className={`flex items-center justify-between`}>
-        <div className={`flex items-center space-x-2 text-xs font-black uppercase tracking-widest ${t.textMuted}`}>
+        <div className={`flex items-center space-x-2 text-xs font-black uppercase tracking-widest ${t.textPrimary}`}>
           <CalendarDaysIcon className="h-4 w-4 text-blue-500" />
           <span>Histórico de Visitas</span>
           {agendamentos.length > 0 && (

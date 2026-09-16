@@ -164,10 +164,10 @@ export async function PUT(request: NextRequest) {
     try {
       if (userType === 'cliente') {
         console.log('👤 PROFILE PUT - Atualizando cliente...')
-        updatedUser = await updateClienteByUuid(userUuid, body)
+        updatedUser = await updateClienteByUuid(userUuid, null, body)
       } else {
         console.log('🏢 PROFILE PUT - Atualizando proprietário...')
-        updatedUser = await updateProprietarioByUuid(userUuid, body)
+        updatedUser = await updateProprietarioByUuid(userUuid, null, body)
       }
     } catch (error: any) {
       console.error('❌ PROFILE PUT - Erro ao atualizar:', error)

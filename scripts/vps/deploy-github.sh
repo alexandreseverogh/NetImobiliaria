@@ -8,10 +8,13 @@ set -euo pipefail
 #
 # Ambientes: producao | staging
 #
-# Variáveis de ambiente esperadas (injetadas pelo GitHub Actions):
+# Variáveis de ambiente esperadas (injetadas pelo GitHub Actions, via Settings →
+# Secrets and variables → Actions do repositório — nunca hardcoded aqui):
 #   ANTHROPIC_API_KEY, GEMINI_API_KEY,
 #   EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE,
-#   SLACK_WEBHOOK_URL
+#   SLACK_WEBHOOK_URL,
+#   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_SERVICE_ACCOUNT_KEY,
+#   SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, SMTP_FROM_NAME
 # =============================================================
 
 BRANCH=${1:-main}
@@ -19,6 +22,7 @@ AMBIENTE=${2:-producao}
 BASE_DIR="$HOME/net-imobiliaria"
 SOURCES_DIR="$HOME/net-imobiliaria-sources"
 LOG_FILE="$BASE_DIR/deploy.log"
+COMPOSE_FILE="$BASE_DIR/docker-compose.vps.yml"
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 
 log() { echo "[$TIMESTAMP] $1" | tee -a "$LOG_FILE"; }
@@ -39,7 +43,7 @@ fi
 mkdir -p "$SOURCES_DIR"
 TARGET_SOURCE="$SOURCES_DIR/$BRANCH"
 
-log "[1/6] Atualizando código fonte da branch '$BRANCH'..."
+log "[1/5] Atualizando código fonte da branch '$BRANCH'..."
 if [ -d "$TARGET_SOURCE/.git" ]; then
   cd "$TARGET_SOURCE"
   git fetch origin
@@ -51,23 +55,44 @@ else
 fi
 log "   ✅ Código: $(cd "$TARGET_SOURCE" && git log -1 --pretty='%h — %s')"
 
-# Sincronizar migrations (AMBAS as pastas)
+# Sincronizar migrations (AS TRÊS pastas — ver apply-migrations.sh pro porquê de três)
 mkdir -p "$BASE_DIR/database/migrations_docker"
 rsync -a --delete "$TARGET_SOURCE/database/migrations_docker/" "$BASE_DIR/database/migrations_docker/"
 
 mkdir -p "$BASE_DIR/migrations"
 rsync -a --delete "$TARGET_SOURCE/migrations/" "$BASE_DIR/migrations/"
 
+# prisma/ tem os arquivos .sql de migration REAL do projeto (schema.prisma etc. também vêm
+# junto, sem problema — apply-migrations.sh só processa o que casa com migration-*.sql).
+mkdir -p "$BASE_DIR/prisma"
+rsync -a --delete "$TARGET_SOURCE/prisma/" "$BASE_DIR/prisma/"
+
 # Sincronizar ops/ (Caddyfile, etc.)
+CADDYFILE_CHANGED=false
 if [[ -d "$TARGET_SOURCE/ops" ]]; then
   mkdir -p "$BASE_DIR/ops"
+  if ! diff -q "$TARGET_SOURCE/ops/Caddyfile" "$BASE_DIR/ops/Caddyfile" >/dev/null 2>&1; then
+    CADDYFILE_CHANGED=true
+  fi
   rsync -a --delete "$TARGET_SOURCE/ops/" "$BASE_DIR/ops/"
 fi
 
 log "   ✅ Migrations e infra sincronizados"
 
+# Achado real (2026-09-16): nada aqui nunca recarregava o Caddy depois de sincronizar um
+# Caddyfile novo — mudança de domínio/rota só valeria a partir do PRÓXIMO restart manual do
+# container. Reload é sem downtime (caddy valida a config antes de trocar; se o container
+# ainda não existe — 1º bootstrap — o `docker compose up -d` completo do fim do script já
+# sobe com o Caddyfile certo, então o best-effort aqui nunca bloqueia nada).
+if [[ "$CADDYFILE_CHANGED" == true ]]; then
+  log "[*] Caddyfile mudou — recarregando (sem downtime)..."
+  docker compose -f "$COMPOSE_FILE" exec -T caddy caddy reload --config /etc/caddy/Caddyfile \
+    && log "   ✅ Caddy recarregado" \
+    || log "   ⚠️  Reload do Caddy falhou (container ainda não existe? confira depois de subir o stack)"
+fi
+
 # ── 2. Atualizar secrets de app no .env da VPS ───────────────
-log "[2/6] Atualizando secrets de app no .env da VPS..."
+log "[2/5] Atualizando secrets de app no .env da VPS..."
 
 ENV_FILE="$BASE_DIR/.env"
 
@@ -76,7 +101,11 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-# Upsert: atualiza se existe, adiciona se não existe
+# Upsert: atualiza se existe, adiciona se não existe. Valor SEMPRE entre aspas
+# simples — GOOGLE_SERVICE_ACCOUNT_KEY é um blob JSON real (espaço, aspas duplas,
+# \n literal dentro da private_key) e um `sed`/`awk` com -v quebraria nele (awk -v
+# interpreta \n como escape; sed com delimitador `|` quebraria se o valor tivesse
+# `|`). Reescrita linha a linha em bash puro, sem interpretar nada do valor.
 upsert_env() {
   local key="$1"
   local value="$2"
@@ -84,24 +113,44 @@ upsert_env() {
     log "   ⚠️  $key está vazio — mantendo valor atual (se houver)"
     return
   fi
+  local quoted="'${value//\'/\'\\\'\'}'"
   if grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
-    sed -i "s|^${key}=.*|${key}=${value}|" "$ENV_FILE"
+    local tmp_file
+    tmp_file="$(mktemp)"
+    local line
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      if [[ "$line" == "${key}="* ]]; then
+        printf '%s=%s\n' "$key" "$quoted" >> "$tmp_file"
+      else
+        printf '%s\n' "$line" >> "$tmp_file"
+      fi
+    done < "$ENV_FILE"
+    mv "$tmp_file" "$ENV_FILE"
   else
-    echo "${key}=${value}" >> "$ENV_FILE"
+    printf '%s=%s\n' "$key" "$quoted" >> "$ENV_FILE"
   fi
 }
 
-upsert_env "ANTHROPIC_API_KEY"   "${ANTHROPIC_API_KEY:-}"
-upsert_env "GEMINI_API_KEY"      "${GEMINI_API_KEY:-}"
-upsert_env "EVOLUTION_API_URL"   "${EVOLUTION_API_URL:-}"
-upsert_env "EVOLUTION_API_KEY"   "${EVOLUTION_API_KEY:-}"
-upsert_env "EVOLUTION_INSTANCE"  "${EVOLUTION_INSTANCE:-trafegopago}"
-upsert_env "SLACK_WEBHOOK_URL"   "${SLACK_WEBHOOK_URL:-}"
+upsert_env "ANTHROPIC_API_KEY"          "${ANTHROPIC_API_KEY:-}"
+upsert_env "GEMINI_API_KEY"             "${GEMINI_API_KEY:-}"
+upsert_env "EVOLUTION_API_URL"          "${EVOLUTION_API_URL:-}"
+upsert_env "EVOLUTION_API_KEY"          "${EVOLUTION_API_KEY:-}"
+upsert_env "EVOLUTION_INSTANCE"         "${EVOLUTION_INSTANCE:-trafegopago}"
+upsert_env "SLACK_WEBHOOK_URL"          "${SLACK_WEBHOOK_URL:-}"
+upsert_env "GOOGLE_CLIENT_ID"           "${GOOGLE_CLIENT_ID:-}"
+upsert_env "GOOGLE_CLIENT_SECRET"       "${GOOGLE_CLIENT_SECRET:-}"
+upsert_env "GOOGLE_SERVICE_ACCOUNT_KEY" "${GOOGLE_SERVICE_ACCOUNT_KEY:-}"
+upsert_env "SMTP_HOST"                  "${SMTP_HOST:-}"
+upsert_env "SMTP_PORT"                  "${SMTP_PORT:-}"
+upsert_env "SMTP_SECURE"                "${SMTP_SECURE:-}"
+upsert_env "SMTP_USER"                  "${SMTP_USER:-}"
+upsert_env "SMTP_PASS"                  "${SMTP_PASS:-}"
+upsert_env "SMTP_FROM_NAME"             "${SMTP_FROM_NAME:-}"
 
 log "   ✅ Secrets de app atualizados no .env"
 
 # ── 3. Gerar .env de build ────────────────────────────────────
-log "[3/6] Gerando .env de build para $AMBIENTE..."
+log "[3/5] Gerando .env de build para $AMBIENTE..."
 
 set -o allexport; source "$ENV_FILE"; set +o allexport
 
@@ -177,9 +226,7 @@ ENVEOF
 fi
 
 # ── 4. Build da imagem Docker ─────────────────────────────────
-log "[4/6] Construindo imagens Docker para $AMBIENTE..."
-
-COMPOSE_FILE="$BASE_DIR/docker-compose.vps.yml"
+log "[4/5] Construindo imagens Docker para $AMBIENTE..."
 
 if [ "$AMBIENTE" == "producao" ]; then
   docker build -t "net-imobiliaria-prod_app:latest"  -f "$BASE_DIR/Dockerfile.prod" "$TARGET_SOURCE"
@@ -192,7 +239,7 @@ else
 fi
 
 # ── 5. Reiniciar containers + migrations ─────────────────────
-log "[5/6] Reiniciando containers e aplicando migrations..."
+log "[5/5] Reiniciando containers e aplicando migrations..."
 
 cd "$BASE_DIR"
 
@@ -241,52 +288,29 @@ else
   fi
 fi
 
-# ── 6. Configurar cron jobs ───────────────────────────────────
-# Apenas para produção (staging não precisa de crons operacionais)
-if [ "$AMBIENTE" == "producao" ]; then
-  log "[6/6] Configurando cron jobs de produção..."
-
-  # Função para upsert idempotente de entrada no crontab
-  # Usa um marcador único no comentário para identificar cada job
-  setup_cron_job() {
-    local marker="$1"
-    local schedule="$2"
-    local cmd="$3"
-    # Remove entrada existente com este marcador
-    (crontab -l 2>/dev/null | grep -v "# net-imob:${marker}" || true) | crontab - 2>/dev/null || true
-    # Adiciona entrada nova
-    (crontab -l 2>/dev/null; echo "${schedule} ${cmd} # net-imob:${marker}") | crontab -
-  }
-
-  DC="docker compose -f $BASE_DIR/docker-compose.vps.yml"
-
-  # Agente: expirar ações PENDING_APPROVAL com PIN vencido (a cada hora)
-  setup_cron_job "agent-expire" "0 * * * *" \
-    "$DC exec -T prod_app sh -c 'curl -sf -o /dev/null -H \"x-cron-secret: \$CRON_SECRET\" http://localhost:3000/api/cron/agent-expire' >> $BASE_DIR/cron.log 2>&1"
-
-  # Agente: ciclo de decisão (a cada 30 min)
-  setup_cron_job "agent-tick" "*/30 * * * *" \
-    "$DC exec -T prod_app sh -c 'curl -sf -o /dev/null -H \"x-cron-secret: \$CRON_SECRET\" http://localhost:3000/api/agent/tick' >> $BASE_DIR/cron.log 2>&1"
-
-  # Briefing matinal (08:00 BRT = 11:00 UTC)
-  setup_cron_job "briefing-morning" "0 11 * * *" \
-    "$DC exec -T prod_app sh -c 'curl -sf -o /dev/null -H \"x-cron-secret: \$CRON_SECRET\" http://localhost:3000/api/cron/briefing/morning' >> $BASE_DIR/cron.log 2>&1"
-
-  # Briefing fechamento (22:00 BRT = 01:00 UTC próximo dia)
-  setup_cron_job "briefing-closing" "0 1 * * *" \
-    "$DC exec -T prod_app sh -c 'curl -sf -o /dev/null -H \"x-cron-secret: \$CRON_SECRET\" http://localhost:3000/api/cron/briefing/closing' >> $BASE_DIR/cron.log 2>&1"
-
-  # Sincronização de campanhas Meta (a cada 15 min)
-  setup_cron_job "meta-sync" "*/15 * * * *" \
-    "$DC exec -T prod_app sh -c 'curl -sf -o /dev/null -H \"x-cron-secret: \$CRON_SECRET\" http://localhost:3000/api/cron/campanhas' >> $BASE_DIR/cron.log 2>&1"
-
-  log "   ✅ Cron jobs configurados:"
-  crontab -l 2>/dev/null | grep "net-imob:" | while read -r line; do
-    log "      $line"
-  done
-else
-  log "[6/6] Staging: cron jobs não configurados (apenas produção usa crons)."
-fi
+# ── 6. Cron jobs — NÃO configurados por este script (ver nota) ────────────
+# Removido em 2026-09-04: este bloco configurava um 3º mecanismo de agendamento (crontab do
+# SISTEMA OPERACIONAL do host), paralelo e não-coordenado com os 2 que já cobrem tudo:
+#   1. scripts/feed-cron-scheduler.js — roda dentro do container prod_feed/staging_feed
+#      (node-cron, processo Node persistente), 13 jobs — feed, transbordo, audit, mensageria,
+#      CRM, canário de rede, agent-expire, sinais exógenos etc.
+#   2. src/instrumentation.ts → agentMonitor.ts (startAgentMonitor) — roda DENTRO do próprio
+#      processo do Next.js (prod_app/staging_app), disparado 1x quando o servidor sobe — sync
+#      (6h, completo: decisor+negativação+realocação+digest), briefing matinal (8h) e
+#      fechamento (18h). Legítimo aqui porque prod_app/staging_app são processos `next start`
+#      de longa duração em Docker, não serverless — o cenário que este bloco original
+#      presumia ("substitui node-cron em ambientes serverless", ver comentário de
+#      /api/agent/tick) nunca se aplicou de fato a este deploy.
+# Achado real, investigado antes de remover (não suposto): das 5 entradas que este bloco
+# criava, 3 apontavam pra rotas que não existem mais — /api/cron/briefing/morning,
+# /api/cron/briefing/closing, /api/cron/campanhas (renomeadas/reorganizadas em sessões
+# anteriores sem atualizar este script) — e as 2 que existiam (agent-expire, agent-tick)
+# duplicavam trabalho que os mecanismos 1/2 acima já fazem. Nunca chegou a rodar contra uma
+# VPS real (nenhum deploy de Campanhas/CRM/Mensageria foi feito até agora) — corrigido antes
+# do 1º deploy real, não depois de um incidente.
+# /api/agent/tick e /api/cron/agent-expire continuam existindo e funcionais — úteis como
+# gatilho manual/diagnóstico (o 2º já está coberto automaticamente pelo scheduler; o 1º é
+# redundante com o ciclo interno completo do agentMonitor, mantido só como fallback externo).
 
 log "============================================"
 log "✅ DEPLOY CONCLUÍDO COM SUCESSO!"

@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useSessionWarning } from '@/hooks/useSessionWarning'
 import AdminHeader from '@/components/admin/AdminHeader'
 import AdminSidebar from '@/components/admin/AdminSidebar'
+import HorizontalTabsBar from '@/components/admin/HorizontalTabsBar'
 import LoadingSpinner from '@/components/admin/LoadingSpinner'
 import ErrorBoundary from '@/components/admin/ErrorBoundary'
 import SessionWarningModal from '@/components/SessionWarningModal'
@@ -199,6 +200,7 @@ function AdminLayoutPrivateContent({
 
           {/* Conteúdo principal - ocupa toda largura se sidebar oculta */}
           <main className={`w-full min-w-0 px-8 ${hideSidebar ? '' : ''}`} role="main" aria-label="Conteúdo principal">
+            <HorizontalTabsBar menuItems={menuItems} theme={theme} bleedClassName="-mx-8 px-8" />
             {children}
           </main>
         </div>

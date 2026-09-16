@@ -1,13 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { getTokenPayload } from '@/lib/auth/jwt-node'
+import { requireAnyApiPermission } from '@/lib/auth/apiPermissions'
 
 export const dynamic = 'force-dynamic'
 
 const WEBHOOK_BASE = process.env.NEXTAUTH_URL || 'https://artemis4.com.br'
 
+// Peça 3 do desacoplamento (docs/CHECKPOINT.md, 2026-09-02) — achado real: esta rota nunca
+// teve NENHUM gate de permissão além de "tem algum JWT válido pra algum tenant" — qualquer
+// usuário autenticado, de qualquer role, conseguia LER o token secreto do webhook (GET) e
+// REGENERÁ-LO (POST, ação destrutiva que derruba o fluxo de mensagens em produção até alguém
+// colar a URL nova na Evolution API). Mesmo padrão OR das Peças 1/2: qualquer um dos 3 módulos
+// que legitimamente dependem deste portão de entrada (Campanhas via CTA WhatsApp, CRM via
+// processInboundWhatsAppMessage, Mensageria via a mesma função) já prova acesso legítimo.
+const EVOLUTION_WEBHOOK_RESOURCES = ['crm-agentes-config', 'mensageria-config', 'configuracoes-campanhas']
+
 /** GET — retorna config Evolution + webhook URL do tenant */
 export async function GET(request: NextRequest) {
+  const denied = await requireAnyApiPermission(request, EVOLUTION_WEBHOOK_RESOURCES, 'READ')
+  if (denied) return denied
+
   const payload = getTokenPayload(request)
   if (!payload?.tenantId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
@@ -32,8 +45,11 @@ export async function GET(request: NextRequest) {
   })
 }
 
-/** POST — regenera o webhook secret */
+/** POST — regenera o webhook secret (ação destrutiva — ver EVOLUTION_WEBHOOK_RESOURCES acima) */
 export async function POST(request: NextRequest) {
+  const denied = await requireAnyApiPermission(request, EVOLUTION_WEBHOOK_RESOURCES, 'UPDATE')
+  if (denied) return denied
+
   const payload = getTokenPayload(request)
   if (!payload?.tenantId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 

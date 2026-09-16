@@ -44,7 +44,7 @@ export default function DeleteSystemFeatureModal({
     setLoading(true)
     
     try {
-      const token = localStorage.getItem('auth-token')
+      const token = localStorage.getItem('admin-auth-token')
       console.log('🔍 DEBUG - Token encontrado:', token ? 'SIM' : 'NÃO')
       
       const url = `/api/admin/system-features/${feature.id}`

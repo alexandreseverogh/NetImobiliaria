@@ -5,7 +5,7 @@ import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 function getCurrentUser(request: NextRequest): { userId: string, tenantId?: string, is_system_role?: boolean } | null {
   try {
-    const token = request.cookies.get('accessToken')?.value ||
+    const token = request.cookies.get('admin_auth_token')?.value ||
       request.headers.get('authorization')?.replace('Bearer ', '')
 
     if (!token) return null

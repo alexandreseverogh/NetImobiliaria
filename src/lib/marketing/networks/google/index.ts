@@ -1,2 +1,1 @@
-// Google Ads adapter — placeholder (FASE 11)
-export {};
+export * from './GoogleAdsAdapter';

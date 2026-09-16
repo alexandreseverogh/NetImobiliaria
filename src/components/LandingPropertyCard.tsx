@@ -38,6 +38,9 @@ export default function LandingPropertyCard({ property, onTenhoInteresseClick }:
             src={property.image}
             alt={property.title}
             fill
+            // /api/public/imagens/[id] redireciona (302) pro storage real — o otimizador do
+            // Next não segue redirect em rota interna, precisa pular a otimização aqui.
+            unoptimized={property.image.startsWith('/api/public/imagens/')}
             className="object-cover group-hover:scale-105 transition-transform duration-300"
           />
         ) : (

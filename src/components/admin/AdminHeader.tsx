@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Menu, Transition } from '@headlessui/react'
 import { ChevronDownIcon, UserCircleIcon } from '@heroicons/react/24/outline'
@@ -20,6 +20,42 @@ export default function AdminHeader({ user, onLogout, onMenuClick, title = 'Áre
   const headerBg = isDark ? 'bg-[#020617] border-white/5' : 'bg-white border-gray-200 shadow-sm'
   const titleColor = isDark ? 'text-white' : 'text-gray-900'
 
+  // Autoatendimento de plantão — zero hardcode de segmento/role: elegibilidade vem do perfil
+  // (user_roles.elegivel_plantonista, curado pelo admin em Perfis), e o próprio usuário liga/
+  // desliga sozinho. Some da UI pra quem não é elegível (a maioria dos usuários/tenants hoje).
+  const [plantonista, setPlantonista] = useState<{ eligible: boolean; active: boolean } | null>(null)
+  const [plantonistaBusy, setPlantonistaBusy] = useState(false)
+  const tenantIdForPlantonista = user?.currentTenant?.id
+
+  useEffect(() => {
+    if (!tenantIdForPlantonista) { setPlantonista(null); return }
+    let cancelled = false
+    fetch('/api/admin/usuarios/me/plantonista')
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => { if (!cancelled && data) setPlantonista(data) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [tenantIdForPlantonista])
+
+  async function togglePlantonista() {
+    if (!plantonista || plantonistaBusy) return
+    const next = !plantonista.active
+    setPlantonistaBusy(true)
+    try {
+      const res = await fetch('/api/admin/usuarios/me/plantonista', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: next }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setPlantonista(prev => (prev ? { ...prev, active: data.active } : prev))
+      }
+    } finally {
+      setPlantonistaBusy(false)
+    }
+  }
+
   const getLogo = () => {
     const tenant = user?.currentTenant
 
@@ -33,16 +69,16 @@ export default function AdminHeader({ user, onLogout, onMenuClick, title = 'Áre
     const isMasterAdmin = (user as any)?.is_system_role === true;
     if (isMasterAdmin) {
       console.log('👑 Logo: Administrador Master detectado - Exibindo Artemis');
-      return '/Artemis4.JPEG'
+      return '/Assets/artemis4_light_b.png'
     }
 
     // 🔄 FALLBACK FINAL
     const isMasterArea = tenant?.name?.toUpperCase().includes('MASTER') ||
       tenant?.slug === 'master'
 
-    if (isMasterArea) return '/Artemis4.JPEG'
+    if (isMasterArea) return '/Assets/artemis4_light_b.png'
 
-    return '/Artemis4.JPEG' // Fallback definitivo
+    return '/Assets/artemis4_light_b.png' // Fallback definitivo
   }
 
   // Verificação de segurança para evitar erros
@@ -94,7 +130,15 @@ export default function AdminHeader({ user, onLogout, onMenuClick, title = 'Áre
           {/* Título da página */}
           <div className="flex-1 lg:flex-none flex items-center space-x-3">
             <Link href="/admin">
-              <img src={getLogo()} alt="Logo" className="h-16 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+              {isDark ? (
+                // Asset padrão tem fundo branco opaco — badge evita caixa branca
+                // crua contra o header escuro (ex.: layout da Central de Mensagens).
+                <div className="h-12 w-12 rounded-xl bg-white flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity">
+                  <img src={getLogo()} alt="Logo" className="h-9 w-auto object-contain" />
+                </div>
+              ) : (
+                <img src={getLogo()} alt="Logo" className="h-16 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+              )}
             </Link>
             <h1 className={`text-lg font-bold ${titleColor} tracking-tight`}>
               {title}
@@ -144,7 +188,7 @@ export default function AdminHeader({ user, onLogout, onMenuClick, title = 'Áre
                 leaveFrom="transform opacity-100 scale-100"
                 leaveTo="transform opacity-0 scale-95"
               >
-                <Menu.Items className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                <Menu.Items className="absolute right-0 z-10 mt-2 w-56 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
                   <Menu.Item>
                     {({ active }) => (
                       <div className="px-4 py-2 text-sm text-gray-700 border-b border-gray-100">
@@ -153,6 +197,34 @@ export default function AdminHeader({ user, onLogout, onMenuClick, title = 'Áre
                       </div>
                     )}
                   </Menu.Item>
+
+                  {plantonista?.eligible && (
+                    <Menu.Item disabled>
+                      {() => (
+                        <div className="px-4 py-2 border-b border-gray-100">
+                          <button
+                            type="button"
+                            onClick={togglePlantonista}
+                            disabled={plantonistaBusy}
+                            className="flex w-full items-center justify-between text-sm text-gray-700 disabled:opacity-50"
+                          >
+                            <span>Estou de plantão</span>
+                            <span
+                              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                                plantonista.active ? 'bg-amber-600' : 'bg-gray-200'
+                              }`}
+                            >
+                              <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                  plantonista.active ? 'translate-x-4' : 'translate-x-0.5'
+                                }`}
+                              />
+                            </span>
+                          </button>
+                        </div>
+                      )}
+                    </Menu.Item>
+                  )}
 
                   <Menu.Item>
                     {({ active }) => (

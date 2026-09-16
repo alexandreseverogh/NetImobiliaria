@@ -15,9 +15,15 @@ import { cn } from '@/lib/marketing-utils';
 import { useAuth } from '@/hooks/useAuth';
 import { adminFetch } from '@/lib/auth/adminFetch';
 import CampanhasModal from '@/components/marketing/CampanhasModal';
+import { TokenExpiryBanner } from '@/components/marketing/TokenExpiryBanner';
 
 const CampaignWizard = dynamic(
   () => import('@/components/marketing/CampaignWizard').then(m => m.CampaignWizard),
+  { ssr: false },
+);
+
+const GoogleAiMaxWizard = dynamic(
+  () => import('@/components/marketing/GoogleAiMaxWizard').then(m => m.GoogleAiMaxWizard),
   { ssr: false },
 );
 
@@ -75,9 +81,109 @@ export default function NovaCampanhaPage() {
 
   /* ── Phase 2: wizard ────────────────────────────────── */
   const [showWizard, setShowWizard] = useState(false);
+  const [showGoogleWizard, setShowGoogleWizard] = useState(false);
+  /** Rede escolhida no botão específico clicado (Meta ou TikTok) — pré-seleciona o step 0
+   *  do wizard genérico, que continua mostrando o passo "Rede de Anúncios" normalmente
+   *  (o usuário ainda pode trocar lá dentro, só chega com a intenção certa já marcada). */
+  const [pickedNetwork, setPickedNetwork] = useState<'meta' | 'tiktok'>('meta');
+
+  /* ── Provisionamento por rede — botões separados, cada um habilitado só quando a rede foi
+   *  contratada pelo tenant (via Master → Provisionamento) E está com credenciais conectadas.
+   *  Ver prisma/migration-2026-07-28-network-provisioning.sql. */
+  const [networkStatus, setNetworkStatus] = useState<Record<string, { contracted: boolean; connected: boolean; supported: boolean }>>({});
+  const [networksLoaded, setNetworksLoaded] = useState(false);
+  // Lista crua da mesma resposta, repassada pro CampaignWizard -> StepNetwork — achado real:
+  // a etapa "Rede" do wizard sempre refazia essa MESMA chamada do zero (com o próprio
+  // skeleton), mesmo a rede já tendo sido escolhida no botão macro clicado aqui. Reaproveitar
+  // elimina 1 dos fatores da demora extrema reportada ao abrir o wizard.
+  const [networksRaw, setNetworksRaw] = useState<any[]>([]);
+  // Achado real: em dev, quando a rota ainda não compilou nessa sessão, uma única chamada
+  // pode levar 30-50s (medido ao vivo, inclusive retornando 404 nesse meio tempo). O retry
+  // automático abaixo evita ficar preso pra sempre, mas não acelera a espera em si — esse
+  // indicador dá contexto visual ("carregando", não "quebrado") e uma saída manual pro
+  // usuário não precisar esperar o backoff inteiro se quiser forçar de novo.
+  const [networksSlow, setNetworksSlow] = useState(false);
+  const [networksRetryTick, setNetworksRetryTick] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setNetworksSlow(false);
+    const slowTimer = setTimeout(() => { if (!cancelled) setNetworksSlow(true); }, 6000);
+
+    // Achado real: sem retry, uma falha transitória (comum em dev com a rota ainda
+    // compilando sob demanda no 1º hit da sessão — já confirmado ao vivo levando 40-50s e
+    // até retornando 404 nesse meio tempo) deixava os 3 botões de rede desabilitados pra
+    // sempre nessa instância da página, sem nenhuma forma de recuperação a não ser recarregar
+    // manualmente — o efeito só roda uma vez (deps `[]`). Até 3 tentativas com backoff curto
+    // cobre esse hiccup sem exigir ação do usuário.
+    async function loadNetworkStatus(attempt = 1) {
+      try {
+        const r = await adminFetch('/api/admin/campanhas/configuracoes/redes');
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const d = await r.json();
+        if (cancelled) return;
+        const list = d.networks || [];
+        setNetworksRaw(list);
+        const map: Record<string, { contracted: boolean; connected: boolean; supported: boolean }> = {};
+        list.forEach((n: any) => {
+          map[n.code] = {
+            contracted: n.contracted !== false,
+            connected:  !!n.connected,
+            supported:  n.capabilities?.supported !== false,
+          };
+        });
+        setNetworkStatus(map);
+        setNetworksLoaded(true);
+      } catch {
+        if (cancelled) return;
+        if (attempt < 3) {
+          setTimeout(() => loadNetworkStatus(attempt + 1), attempt * 1500);
+        } else {
+          setNetworkStatus({});
+          setNetworksLoaded(true);
+        }
+      }
+    }
+
+    loadNetworkStatus();
+    return () => { cancelled = true; clearTimeout(slowTimer); };
+  }, [networksRetryTick]);
+
+  function retryNetworkStatus() {
+    setNetworksLoaded(false);
+    setNetworksSlow(false);
+    setNetworksRetryTick(t => t + 1);
+  }
+
+  function networkReady(code: string): boolean {
+    const s = networkStatus[code];
+    return !!s && s.contracted && s.connected;
+  }
 
   /* ── Consultar campanhas modal ──────────────────────── */
   const [showConsultarModal, setShowConsultarModal] = useState(false);
+
+  /* Prewarm da rota de campanhas assim que a página monta — em dev, o Next
+   * compila cada API route sob demanda no 1º hit; sem isso, o 1º clique em
+   * "Consultar Campanhas" mostra o skeleton de loading por vários segundos
+   * (mesmo padrão de causa raiz já documentado no prewarm de /admin/login em
+   * /artemis4). Dispara direto no mount, sem esperar ociosidade — o clique
+   * costuma ser rápido demais pra um requestIdleCallback vencer a corrida. */
+  useEffect(() => {
+    adminFetch('/api/admin/campanhas/campaigns?clientId=own').catch(() => {});
+  }, []);
+
+  /* Prewarm dos chunks JS dos wizards (Meta/TikTok e Google AI Max) — medido ao vivo: a
+   * primeira abertura de qualquer um dos dois, numa sessão nova, levava 30+ segundos porque
+   * next/dynamic({ssr:false}) só compila o chunk sob demanda no 1º uso (mesma causa raiz já
+   * documentada em outros prewarms desta sessão). Disparar o import() aqui (sem renderizar
+   * nada) faz o webpack compilar em background enquanto o usuário ainda está selecionando
+   * criativos — pelo tempo que isso leva, o chunk já deve estar pronto quando o botão de
+   * rede for clicado. */
+  useEffect(() => {
+    import('@/components/marketing/CampaignWizard').catch(() => {});
+    import('@/components/marketing/GoogleAiMaxWizard').catch(() => {});
+  }, []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const supportsPickerAPI =
@@ -234,11 +340,51 @@ export default function NovaCampanhaPage() {
         onClose={() => setShowWizard(false)}
         onSuccess={handleSuccess}
         getAssetIds={() => uploadPromiseRef.current}
-        initialValues={
-          (prefillBody || prefillHeadline)
-            ? { body: prefillBody || undefined, headline: prefillHeadline || undefined, hookText: prefillHookText || undefined }
-            : undefined
-        }
+        networks={networksRaw}
+        initialValues={{
+          body:        prefillBody || undefined,
+          headline:    prefillHeadline || undefined,
+          hookText:    prefillHookText || undefined,
+          networkCode: pickedNetwork,
+        }}
+        onSwitchToGoogle={networkReady('google') ? () => {
+          setShowWizard(false);
+          setShowGoogleWizard(true);
+        } : undefined}
+      />
+    );
+  }
+
+  if (showGoogleWizard) {
+    return (
+      <GoogleAiMaxWizard
+        selectedImages={selected}
+        onClose={() => setShowGoogleWizard(false)}
+        onLaunch={async (payload) => {
+          try {
+            const assetIds = await uploadPromiseRef.current;
+            const res = await adminFetch('/api/admin/campanhas/google', {
+              method: 'POST',
+              body: JSON.stringify({
+                payload,
+                clientId: effectiveClientId,
+                assetIds,
+              }),
+            });
+            if (!res.ok) {
+              const err = await res.json();
+              throw new Error(err.error || 'Erro na criação');
+            }
+            alert('Campanha PMax criada com sucesso e pendente de revisão (DRAFT)!');
+            setShowGoogleWizard(false);
+            router.push('/admin/campanhas/iniciativas');
+          } catch (e: any) {
+            alert('Falha ao criar campanha Google AI Max: ' + e.message);
+          }
+        }}
+        initialData={{
+          name: prefillHeadline || 'Nova PMax',
+        }}
       />
     );
   }
@@ -262,7 +408,7 @@ export default function NovaCampanhaPage() {
               <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.3em] mb-1">Campanhas</p>
               <h1 className="text-3xl font-black text-gray-900 tracking-tight">Lançar Campanha</h1>
               <p className="text-gray-500 mt-1 text-sm font-medium">
-                Selecione os criativos e configure sua campanha no Meta Ads
+                Selecione os criativos e configure sua campanha — Meta, TikTok ou Google
               </p>
             </div>
 
@@ -279,6 +425,8 @@ export default function NovaCampanhaPage() {
             </div>
           </div>
         </div>
+
+        <TokenExpiryBanner isDark={false} />
 
         {/* ── Section: Para quem? (only for tenants) ── */}
         {!isMaster && (
@@ -618,19 +766,80 @@ export default function NovaCampanhaPage() {
             )}
           </div>
 
-          <button
-            onClick={() => {
-              // Inicia uploads em paralelo; promise resolvida antes do submit do wizard
-              uploadPromiseRef.current = uploadSelectedToLibrary(effectiveClientId);
-              setShowWizard(true);
-            }}
-            disabled={!contextReady}
-            className="inline-flex items-center gap-2 px-7 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ background: contextReady ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : '#94a3b8' }}
-          >
-            <RocketLaunchIcon className="h-4 w-4" />
-            Configurar Campanha
-          </button>
+          <div className="flex flex-col items-end gap-1.5">
+            {!networksLoaded && (
+              <div className="flex items-center gap-2 text-[11px] font-medium text-gray-400">
+                <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
+                {networksSlow ? 'Ainda carregando as redes disponíveis…' : 'Carregando redes disponíveis…'}
+                {networksSlow && (
+                  <button
+                    type="button"
+                    onClick={retryNetworkStatus}
+                    className="underline text-indigo-600 hover:text-indigo-800 font-semibold"
+                  >
+                    Tentar novamente
+                  </button>
+                )}
+              </div>
+            )}
+            <div className="flex gap-3">
+            {(() => {
+              const metaOk = networkReady('meta');
+              return (
+                <button
+                  onClick={() => {
+                    setPickedNetwork('meta');
+                    uploadPromiseRef.current = uploadSelectedToLibrary(effectiveClientId);
+                    setShowWizard(true);
+                  }}
+                  disabled={!contextReady || !networksLoaded || !metaOk}
+                  title={!metaOk && networksLoaded ? (networkStatus.meta?.contracted === false ? 'Rede não contratada' : 'Rede não conectada — configure em Configurações → Redes') : undefined}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ background: (contextReady && metaOk) ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : '#94a3b8' }}
+                >
+                  <RocketLaunchIcon className="h-4 w-4" />
+                  Meta Ads
+                </button>
+              );
+            })()}
+            {(() => {
+              const tiktokOk = networkReady('tiktok');
+              return (
+                <button
+                  onClick={() => {
+                    setPickedNetwork('tiktok');
+                    uploadPromiseRef.current = uploadSelectedToLibrary(effectiveClientId);
+                    setShowWizard(true);
+                  }}
+                  disabled={!contextReady || !networksLoaded || !tiktokOk}
+                  title={!tiktokOk && networksLoaded ? (networkStatus.tiktok?.contracted === false ? 'Rede não contratada' : 'Rede não conectada — configure em Configurações → Redes') : undefined}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-slate-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ background: (contextReady && tiktokOk) ? 'linear-gradient(135deg, #111827, #000000)' : '#94a3b8' }}
+                >
+                  <RocketLaunchIcon className="h-4 w-4" />
+                  TikTok Ads
+                </button>
+              );
+            })()}
+            {(() => {
+              const googleOk = networkReady('google');
+              return (
+                <button
+                  onClick={() => {
+                    uploadPromiseRef.current = uploadSelectedToLibrary(effectiveClientId);
+                    setShowGoogleWizard(true);
+                  }}
+                  disabled={!contextReady || !networksLoaded || !googleOk}
+                  title={!googleOk && networksLoaded ? (networkStatus.google?.contracted === false ? 'Rede não contratada' : 'Rede não conectada — configure em Configurações → Redes') : undefined}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed bg-emerald-600 hover:bg-emerald-700"
+                >
+                  <span className="text-base font-black leading-none" aria-hidden="true">G</span>
+                  Google AI Max
+                </button>
+              );
+            })()}
+            </div>
+          </div>
         </div>
 
       </div>

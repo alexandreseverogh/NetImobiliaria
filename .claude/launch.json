@@ -14,6 +14,13 @@
       "runtimeArgs": ["next", "dev", "-p", "3050"],
       "port": 3050,
       "autoPort": false
+    },
+    {
+      "name": "mensageria-webchat",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["next", "dev", "-p", "3060"],
+      "port": 3060,
+      "autoPort": false
     }
   ]
 }

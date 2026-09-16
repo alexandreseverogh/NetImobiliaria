@@ -23,6 +23,7 @@ interface Kpis {
   backlogNaoAtribuido: number; slaEstourado: number
   medianaPrimeiraRespostaSeg: number | null; medianaResolucaoSeg: number | null
   taxaResolucaoBotPct: number
+  deCampanha: number; deCampanhaPct: number
 }
 interface Team { id: string; name: string }
 interface TenantUser { id: string; nome: string }
@@ -147,6 +148,10 @@ export default function MensageriaAnalyticsPage() {
           <KpiCard label="1ª resposta (mediana)" value={kpis ? formatDuration(kpis.medianaPrimeiraRespostaSeg) : '—'} />
           <KpiCard label="Resolução (mediana)" value={kpis ? formatDuration(kpis.medianaResolucaoSeg) : '—'} />
           <KpiCard label="Resolvidas pelo bot" value={kpis ? `${kpis.taxaResolucaoBotPct}%` : '—'} />
+          <KpiCard
+            label="Vindas de campanha"
+            value={kpis ? `${kpis.deCampanha} (${kpis.deCampanhaPct}%)` : '—'}
+          />
         </div>
 
         {/* KPIs "agora" — fotografia do estado atual, sempre ignoram o filtro de período */}

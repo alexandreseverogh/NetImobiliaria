@@ -944,16 +944,18 @@ export default function MasterTenantsPage() {
                 <div className="animate-fade-in space-y-6 max-w-xl">
                   <div className="rounded-2xl p-5 text-white bg-gradient-to-r from-indigo-600 to-indigo-800">
                     <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-0.5">Comunicação e Agentes</p>
-                    <h3 className="text-base font-black">Slack · WhatsApp · Agentes · IA</h3>
+                    <h3 className="text-base font-black">WhatsApp · Agentes · IA</h3>
                   </div>
 
                   <div className="space-y-4">
-                    <div>
+                    {/* ⏸️ Slack Webhook URL — desativado junto com notifySlack() (2026-09-01).
+                        Estado (newTenant.slack_webhook_url) preservado — reativar descomentando. */}
+                    {/* <div>
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Slack Webhook URL</label>
                       <input type="text" value={newTenant.slack_webhook_url || ''} onChange={e => setNewTenant({ ...newTenant, slack_webhook_url: e.target.value })}
                         placeholder="https://hooks.slack.com/services/..."
                         className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
-                    </div>
+                    </div> */}
                     <div>
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Evolution API URL</label>
                       <input type="text" value={newTenant.evolution_api_url || ''} onChange={e => setNewTenant({ ...newTenant, evolution_api_url: e.target.value })}
@@ -1112,6 +1114,26 @@ export default function MasterTenantsPage() {
                                   <p className="text-[9px] text-red-600 font-black ml-1">⚠️ Isso parece uma chave de API, não um nome de modelo. Insira aqui apenas o nome (ex: llama-3.3-70b-versatile).</p>
                                 )}
                               </div>
+                           </div>
+                        </div>
+
+                        {/* CRM — gate de escopo Minha Empresa/Cliente no Kanban (2026-08-31) */}
+                        <div className="col-span-2 pt-4 border-t border-gray-100">
+                           <h4 className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-4">CRM</h4>
+                           <div
+                             className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 cursor-pointer"
+                             onClick={() => setEditingTenant({ ...editingTenant, crm_clientes: !editingTenant?.crm_clientes })}
+                           >
+                             <div className="pr-4">
+                               <p className="text-[9px] font-black text-gray-700 uppercase">Gerencia clientes no CRM</p>
+                               <p className="text-[8px] text-gray-400 font-bold mt-0.5 leading-relaxed">
+                                 Quando ativo, o Kanban (/crm/kanban) exige escolher &quot;Minha Empresa&quot;
+                                 ou um cliente antes de mostrar leads. Desativado por padrão.
+                               </p>
+                             </div>
+                             <div className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${editingTenant?.crm_clientes ? 'bg-emerald-600' : 'bg-gray-300'}`}>
+                               <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform ${editingTenant?.crm_clientes ? 'translate-x-6' : 'translate-x-1'}`} />
+                             </div>
                            </div>
                         </div>
                      </div>
@@ -1495,16 +1517,18 @@ export default function MasterTenantsPage() {
                 <div className="animate-fade-in space-y-6 max-w-xl">
                   <div className="rounded-2xl p-5 text-white bg-gradient-to-r from-indigo-600 to-indigo-800">
                     <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-0.5">Comunicação e Agentes</p>
-                    <h3 className="text-base font-black">Slack · WhatsApp · Agentes · IA</h3>
+                    <h3 className="text-base font-black">WhatsApp · Agentes · IA</h3>
                   </div>
 
                   <div className="space-y-4">
-                    <div>
+                    {/* ⏸️ Slack Webhook URL — desativado junto com notifySlack() (2026-09-01).
+                        Estado (editingTenant.slack_webhook_url) preservado — reativar descomentando. */}
+                    {/* <div>
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Slack Webhook URL</label>
                       <input type="text" value={editingTenant.slack_webhook_url || ''} onChange={e => setEditingTenant({ ...editingTenant, slack_webhook_url: e.target.value })}
                         placeholder="https://hooks.slack.com/services/..."
                         className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
-                    </div>
+                    </div> */}
                     <div>
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Evolution API URL</label>
                       <input type="text" value={editingTenant.evolution_api_url || ''} onChange={e => setEditingTenant({ ...editingTenant, evolution_api_url: e.target.value })}

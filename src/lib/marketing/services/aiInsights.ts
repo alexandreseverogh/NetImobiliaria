@@ -3,8 +3,39 @@ import pool from '@/lib/database/connection';
 import { resolveBenchmarks, BenchmarkMap } from '../../intelligence/benchmarkResolver';
 import { computeSignalsForCampaign, type NormalizedSignals } from './signalEngine';
 import { resolveCampaignIdsBySegment } from '../segmentUtils';
+import { filterCampaignsByNetwork, resolveCampaignNetworkCodes } from '../networkFilterUtils';
+import { getLeadEvents, sumLeads } from './leadEvents';
 
 const S = 'campanhasmarketingdigital';
+
+/**
+ * Piso de recência pra generateAiInsights() quando NENHUM filtro de período é passado —
+ * achado real (não hipotético): agentDecisor.ts (cron autônomo, executa PAUSE/DOWNSCALE
+ * sozinho) e strategicBriefing.ts (Briefing com LLM, manual e cron 08h/18h) chamam essa
+ * função sem startDate/endDate, porque rodam em background sem nenhuma UI/período por trás.
+ * Sem piso, a query caía em "últimas 14 linhas de Insight que a campanha já teve, não importa
+ * de quando" — uma campanha morta há 70 dias podia ser avaliada por uma decisão automática ou
+ * narrada pelo LLM como se fosse performance de agora. Configurável via env, mesmo padrão já
+ * usado por AGENT_SYNC_SCHEDULE/AGENT_CONFIDENCE_THRESHOLD (CLAUDE.md).
+ *
+ * Exportado — mesmo conceito de "vigente" reaproveitado pelo filtro de campanha do
+ * Dashboard (dashboard/full/route.ts), pra não ter dois números concorrentes de "o que é
+ * atual" na plataforma. São 2 mecanismos independentes (este filtra linhas de Insight pra
+ * avaliação de regra/LLM; o outro filtra quais campanhas aparecem no dropdown por padrão),
+ * só o limiar é compartilhado.
+ */
+export const AGENT_INSIGHT_RECENCY_DAYS = parseInt(process.env.AGENT_INSIGHT_RECENCY_DAYS || '30', 10);
+
+/**
+ * Expande uma data pura "YYYY-MM-DD" pro fim do dia (23:59:59.999 UTC) antes de usar como
+ * limite superior (`lte`) — sem isso, `new Date("2026-07-27")` vira meia-noite UTC e exclui
+ * qualquer lead/evento com timestamp real (created_at) do PRÓPRIO dia final do período, já
+ * que created_at nunca é exatamente meia-noite. Mesma convenção já usada em
+ * dashboard/full/route.ts e outros; strings com horário explícito passam intactas.
+ */
+export function expandEndOfDay(dateStr: string): Date {
+  return dateStr.length === 10 ? new Date(dateStr + 'T23:59:59.999Z') : new Date(dateStr);
+}
 
 /**
  * Mapeia cada campanha ao seu segmento efetivo:
@@ -42,6 +73,101 @@ async function mapCampaignSegments(
   return result;
 }
 
+/**
+ * Tier 2 "Loop do ICP" (2026-09-04) — média de `score_fit` (0-100) dos leads que cada campanha
+ * gerou no período. Sub-loop (a) da auditoria: depende só do lead ter sido qualificado por IA
+ * (system_segments.crm_ia_ativa, curado pelo Master por SEGMENTO), nunca do tenant ter o
+ * módulo CRM comprado — `POST /api/crm/leads` já roda a qualificação incondicionalmente pra
+ * qualquer lead capturado, inclusive via Campanhas (ver docs/CHECKPOINT.md).
+ *
+ * Correlação lead→campanha: `leads_staging` (public) não tem campaign_id direto — o vínculo
+ * vive em `marketing_eventos` (mesmo caminho já usado por `revenueAttributionService.ts`).
+ * `AVG(score_fit)` já ignora NULL automaticamente (lead sem fit calculado não distorce a
+ * média) — retorna `null` pra campanha sem NENHUM lead com fit real, nunca 0 fabricado.
+ */
+async function mapCampaignAvgFit(
+  campaignIds: string[],
+  tenantId: string,
+  startDate: Date,
+  endDate: Date,
+): Promise<Map<string, number | null>> {
+  const result = new Map<string, number | null>();
+  if (campaignIds.length === 0) return result;
+  try {
+    const { rows } = await pool.query(
+      `SELECT me.campaign_id, AVG(ls.score_fit)::float AS avg_fit
+       FROM public.marketing_eventos me
+       JOIN public.leads_staging ls ON ls.lead_uuid = me.lead_uuid
+       WHERE me.campaign_id = ANY($1::text[])
+         AND me.tenant_id   = $2::uuid
+         AND ls.score_fit IS NOT NULL
+         AND me.created_at >= $3::timestamptz
+         AND me.created_at <= $4::timestamptz
+       GROUP BY me.campaign_id`,
+      [campaignIds, tenantId, startDate, endDate],
+    );
+    for (const r of rows) {
+      result.set(r.campaign_id, r.avg_fit != null ? Number(r.avg_fit) : null);
+    }
+  } catch (err) {
+    console.warn('[aiInsights] mapCampaignAvgFit falhou — SCALE segue sem sinal de fit:', err);
+  }
+  return result;
+}
+
+/**
+ * Tier 3 "Loop do ICP" (2026-09-05) — fecha o loop de aquisição: para cada campanha, resolve a
+ * audiência Lookalike PRONTA (status='READY') no MESMO escopo (tenant + client_id da campanha)
+ * que ainda não foi sugerida/aplicada a ela. `tenant_audiences` é schema `public`, criada e
+ * mantida por `audienceService.ts`/o cron `audiences-refresh` — nunca por este módulo.
+ *
+ * "Já sugerida/aplicada" é resolvido consultando a própria AgentAction (não uma tabela nova de
+ * junção — mesmo espírito de `scale_pct`/`budget_proposed`, que também vivem direto na
+ * AgentAction): qualquer ação USE_LOOKALIKE_AUDIENCE para esse par (campanha, audiência) em
+ * status EXECUTED/PENDING_APPROVAL/PENDING_EXECUTION significa "não sugerir de novo" — só uma
+ * REJECTED (humano recusou) ou nenhuma ação ainda libera a sugestão.
+ */
+async function mapReadyLookalikeAudiences(
+  campaigns: { id: string; clientId: string | null }[],
+  tenantId: string,
+): Promise<Map<string, { id: string; externalId: string; name: string }>> {
+  const result = new Map<string, { id: string; externalId: string; name: string }>();
+  if (campaigns.length === 0) return result;
+  try {
+    const { rows: audiences } = await pool.query(
+      `SELECT id, client_id, external_id, name
+         FROM public.tenant_audiences
+        WHERE tenant_id = $1::uuid AND kind = 'lookalike' AND status = 'READY' AND external_id IS NOT NULL
+        ORDER BY created_at DESC`,
+      [tenantId],
+    );
+    if (audiences.length === 0) return result;
+
+    const { rows: used } = await pool.query(
+      `SELECT "campaignId" AS campaign_id, audience_id
+         FROM ${S}."AgentAction"
+        WHERE type = 'USE_LOOKALIKE_AUDIENCE'
+          AND audience_id IS NOT NULL
+          AND status IN ('EXECUTED', 'PENDING_APPROVAL', 'PENDING_EXECUTION')
+          AND "campaignId" = ANY($1::text[])`,
+      [campaigns.map((c) => c.id)],
+    );
+    const usedSet = new Set(used.map((r: any) => `${r.campaign_id}::${r.audience_id}`));
+
+    for (const c of campaigns) {
+      const candidate = audiences.find(
+        (a: any) => (a.client_id ?? null) === (c.clientId ?? null) && !usedSet.has(`${c.id}::${a.id}`),
+      );
+      if (candidate) {
+        result.set(c.id, { id: candidate.id, externalId: candidate.external_id, name: candidate.name });
+      }
+    }
+  } catch (err) {
+    console.warn('[aiInsights] mapReadyLookalikeAudiences falhou:', err);
+  }
+  return result;
+}
+
 // Sem DEFAULT_BENCHMARKS hardcoded — todos os valores vêm de system_benchmarks por segmento.
 // Se um segmento não tiver uma chave configurada, benchmarkResolver loga o erro e retorna 0.
 
@@ -51,6 +177,10 @@ const BENCHMARK_KEYS = [
   'scale_budget_pct', 'downscale_budget_pct',
   // Cálculo proporcional de escala (substituem scale_budget_pct quando configurados)
   'scale_budget_base_pct', 'scale_budget_max_pct', 'scale_ratio_cap',
+  // FASE 1 (Google Ads) — regra IMPRESSION_SHARE_OPPORTUNITY
+  'is_lost_budget_scale_min',
+  // Tier 2 "Loop do ICP" (2026-09-04) — SCALE passa a considerar qualidade de lead, não só volume
+  'avg_fit_scale_min',
 ];
 
 /**
@@ -86,6 +216,15 @@ interface CampaignData {
   // FASE 5 — Video Metrics
   hasVideoMetrics: boolean;
   avgHookRate: number;  // video_views_3s / impressions * 100
+  // FASE 1 (Google Ads) — Impression Share (só > 0 em campanhas Google Search)
+  avgSearchImpressionShare: number;
+  avgSearchBudgetLostIs: number;
+  // Tier 2 "Loop do ICP" — média de score_fit (0-100) dos leads do período; null = sem dado
+  // (segmento sem qualificação ativa, ou nenhum lead com fit calculado ainda) — nunca 0.
+  avgFit: number | null;
+  // Tier 3 "Loop do ICP" — audiência Lookalike pronta no mesmo escopo, ainda não sugerida/
+  // aplicada a esta campanha; null = nenhuma disponível.
+  readyLookalikeAudience: { id: string; externalId: string; name: string } | null;
 }
 
 interface InsightRule {
@@ -94,6 +233,30 @@ interface InsightRule {
   title: string;
   description: (data: CampaignData, b: BenchmarkMap) => string;
   confidence: (data: CampaignData, b: BenchmarkMap) => number;
+}
+
+// Predicado compartilhado entre a regra de SCALE genérica e a de DOWNSCALE — sem isso, uma
+// campanha com volume/CTR bons mas CPL crítico (ex.: Google com muitas "conversões" agregadas
+// que não são lead de verdade, ver aviso de Insight.conversions na UI) recebia os dois cards ao
+// mesmo tempo ("aumente o orçamento" + "reduza o orçamento" pra mesma campanha).
+function isCplCritical(d: CampaignData, b: BenchmarkMap): boolean {
+  return (
+    d.leads > 0 &&
+    d.totalSpend > 0 &&
+    (d.totalSpend / d.leads) > b.cpl_ideal * 2.5 &&
+    d.totalSpend > b.spend_no_lead * 0.4 &&
+    d.daysRunning >= b.min_days_running
+  );
+}
+
+// Tier 2 "Loop do ICP" (2026-09-04) — achado da auditoria: "A regra de SCALE dispara por
+// volume+CTR com um único teto de custo — nenhuma checagem de quantos desses leads viram
+// negócio de verdade. Uma campanha pode trazer 20 curiosos clicando em WhatsApp por um CPL
+// bom e ainda assim escalar automaticamente." `d.avgFit === null` (sem dado — segmento sem
+// qualificação ativa, ou tenant sem nenhum lead qualificado ainda) NUNCA bloqueia — sub-loop
+// (a) do plano: só entra em vigor quando o dado existe, zero regressão pra quem não tem.
+function hasAcceptableLeadQuality(d: CampaignData, b: BenchmarkMap): boolean {
+  return d.avgFit === null || d.avgFit >= (b.avg_fit_scale_min ?? 40);
 }
 
 const RULES: InsightRule[] = [
@@ -130,11 +293,17 @@ const RULES: InsightRule[] = [
     confidence: (d, b) => Math.min(0.95, 0.75 + d.totalSpend / (b.spend_no_lead * 10)),
   },
   {
-    check: (d, b) => d.leads >= b.min_leads_scale && d.avgCtr >= b.ctr_scale,
+    check: (d, b) =>
+      d.leads >= b.min_leads_scale &&
+      d.avgCtr >= b.ctr_scale &&
+      !isCplCritical(d, b) &&
+      hasAcceptableLeadQuality(d, b),
     type: 'SCALE',
     title: 'Campanha com bom desempenho',
-    description: (d, b) =>
-      `A campanha "${d.campaignName}" tem CTR ${d.avgCtr.toFixed(2)}% e gerou ${d.leads} leads (mínimo: ${b.min_leads_scale}). Considere aumentar o orçamento diário para escalar resultados.`,
+    description: (d, b) => {
+      const fitNote = d.avgFit !== null ? ` e fit médio ${d.avgFit.toFixed(0)}/100` : '';
+      return `A campanha "${d.campaignName}" tem CTR ${d.avgCtr.toFixed(2)}% e gerou ${d.leads} leads (mínimo: ${b.min_leads_scale})${fitNote}. Considere aumentar o orçamento diário para escalar resultados.`;
+    },
     confidence: (d) => Math.min(0.9, 0.6 + d.leads * 0.02),
   },
   {
@@ -165,12 +334,7 @@ const RULES: InsightRule[] = [
   },
   // FASE 15 — DOWNSCALE: CPL crítico (>2.5× o ideal) com gasto relevante → defensivo, auto-executa
   {
-    check: (d, b) =>
-      d.leads > 0 &&
-      d.totalSpend > 0 &&
-      (d.totalSpend / d.leads) > b.cpl_ideal * 2.5 &&
-      d.totalSpend > b.spend_no_lead * 0.4 &&
-      d.daysRunning >= b.min_days_running,
+    check: (d, b) => isCplCritical(d, b),
     type: 'DOWNSCALE',
     title: 'CPL crítico — reduzir orçamento',
     description: (d, b) => {
@@ -213,6 +377,43 @@ const RULES: InsightRule[] = [
       const gap = b.ctr_min - d.avgCtr;
       return Math.min(0.88, 0.62 + gap * 0.08);
     },
+  },
+  // FASE 1 (Google Ads) A6 — IMPRESSION_SHARE_OPPORTUNITY: IS perdido por orçamento alto
+  // + CPL já bom → oportunidade real de aumentar verba (só dispara em campanhas Google Search,
+  // que são as únicas com search_impression_share > 0; Meta sempre fica em 0/default).
+  {
+    check: (d, b) =>
+      d.avgSearchImpressionShare > 0 &&
+      d.avgSearchBudgetLostIs > (b.is_lost_budget_scale_min ?? 20) &&
+      d.leads > 0 &&
+      d.totalSpend > 0 &&
+      (d.totalSpend / d.leads) < b.cpl_ideal,
+    type: 'SCALE',
+    title: 'Impression Share perdido por orçamento — oportunidade de escalar',
+    description: (d, b) => {
+      const cpl = d.totalSpend / d.leads;
+      return `A campanha "${d.campaignName}" está perdendo ${d.avgSearchBudgetLostIs.toFixed(1)}% de Impression Share por falta de orçamento (limite: ${b.is_lost_budget_scale_min ?? 20}%), com CPL R$${cpl.toFixed(2)} já abaixo do ideal (R$${b.cpl_ideal}). Aumentar o orçamento tende a trazer mais leads no mesmo CPL.`;
+    },
+    confidence: (d, b) => {
+      const gap = d.avgSearchBudgetLostIs - (b.is_lost_budget_scale_min ?? 20);
+      return Math.min(0.9, 0.65 + gap * 0.01);
+    },
+  },
+  // Tier 3 "Loop do ICP" (2026-09-05) — USE_LOOKALIKE_AUDIENCE: existe uma Lookalike pronta
+  // (gerada a partir de clientes reais que já fecharam negócio) no mesmo escopo da campanha,
+  // ainda não aplicada a ela. Ofensiva (muda a segmentação de uma campanha real) — sempre exige
+  // aprovação humana via PIN, nunca auto-executa. Maturidade mínima evita sugerir isso pra
+  // campanha recém-criada, ainda sem histórico suficiente pra decidir algo.
+  // Confiança alta (0.85) de propósito: diferente de outras regras (CTR/CPC/frequência, que são
+  // inferências estatísticas com incerteza real), aqui a condição é um FATO determinístico —
+  // a audiência existe/está pronta ou não existe — não há ambiguidade a refletir num número menor.
+  {
+    check: (d, b) => d.readyLookalikeAudience !== null && d.daysRunning >= b.min_days_running,
+    type: 'USE_LOOKALIKE_AUDIENCE',
+    title: 'Audiência Lookalike disponível',
+    description: (d) =>
+      `Existe uma audiência Lookalike pronta ("${d.readyLookalikeAudience!.name}"), construída a partir de clientes reais que já fecharam negócio no CRM. Aplicar como público desta campanha tende a atrair leads parecidos com quem já comprou de verdade.`,
+    confidence: () => 0.85,
   },
 ];
 
@@ -310,6 +511,8 @@ interface AiInsightFilters {
   startDate?: string;
   endDate?: string;
   segmentId?: string;
+  // PARTE D1 (correção) — código de rede (meta/google/tiktok...)
+  network?: string;
 }
 
 export async function generateAiInsights(
@@ -339,7 +542,11 @@ export async function generateAiInsights(
     where.clientId = clientId;
   }
 
-  const campaigns = await prisma.campaign.findMany({ where });
+  let campaigns = await prisma.campaign.findMany({ where });
+  // PARTE D1 (correção) — sem isso, Insights da IA / Actionable Alerts continuavam citando
+  // campanha de outra rede mesmo com o filtro do dashboard ativo (ex.: Google com "Meta"
+  // selecionado) — pior que incompleto, era enganoso.
+  campaigns = await filterCampaignsByNetwork(campaigns as any, filters?.network);
 
   // FASE 18.2 — Benchmarks POR SEGMENTO (nunca aplicar 1 segmento a todos).
   // Mapeia cada campanha ao seu segmento e resolve benchmarks por segmento.
@@ -347,24 +554,49 @@ export async function generateAiInsights(
     ? await mapCampaignSegments(campaigns.map(c => c.id), tenantId)
     : new Map<string, { segmentId: string | null; segmentName: string }>();
 
-  const benchmarksBySegment = new Map<string, BenchmarkMap>();
+  // Tier 2 "Loop do ICP" — mesma janela de período já usada pra leadEvents (ver dentro do loop
+  // abaixo), pré-calculada aqui uma vez pra bater em lote (1 query) em vez de N.
+  const fitDateFrom = filters?.startDate ? new Date(filters.startDate) : new Date(0);
+  const fitDateTo   = filters?.endDate   ? expandEndOfDay(filters.endDate) : new Date();
+  const campaignAvgFit = tenantId
+    ? await mapCampaignAvgFit(campaigns.map(c => c.id), tenantId, fitDateFrom, fitDateTo)
+    : new Map<string, number | null>();
+
+  // Tier 3 "Loop do ICP" — audiência Lookalike pronta por campanha (escopo tenant+cliente)
+  const readyLookalikeByCampaign = tenantId
+    ? await mapReadyLookalikeAudiences(campaigns.map(c => ({ id: c.id, clientId: c.clientId })), tenantId)
+    : new Map<string, { id: string; externalId: string; name: string }>();
+
+  // docs/PLANO_TIKTOK.md §5.1/§7.2 — benchmark também varia por REDE (cpl_ideal calibrado em
+  // Meta não vale para TikTok/Google). Cache agora é (segmento, rede), não só segmento — sem
+  // isso toda campanha de uma rede nova seria julgada pelo padrão de outra.
+  const networkByCampaignId = await resolveCampaignNetworkCodes(campaigns as any);
+
+  const benchmarksBySegmentNetwork = new Map<string, BenchmarkMap>();
   if (tenantId) {
-    const uniqueSegmentIds = Array.from(
-      new Set(Array.from(campaignSegments.values()).map(v => v.segmentId).filter(Boolean) as string[]),
-    );
-    await Promise.all(uniqueSegmentIds.map(async segId => {
-      const bm = await resolveBenchmarks(BENCHMARK_KEYS, tenantId, segId, clientId).catch((err) => {
-        console.error('[aiInsights] resolveBenchmarks falhou para segment', segId, err);
+    const uniquePairs = new Map<string, { segId: string; network: string }>();
+    for (const c of campaigns) {
+      const seg = campaignSegments.get(c.id);
+      if (!seg?.segmentId) continue;
+      const network = networkByCampaignId.get(c.id) ?? 'meta';
+      uniquePairs.set(`${seg.segmentId}::${network}`, { segId: seg.segmentId, network });
+    }
+    await Promise.all(Array.from(uniquePairs.entries()).map(async ([cacheKey, { segId, network }]) => {
+      const bm = await resolveBenchmarks(BENCHMARK_KEYS, tenantId, segId, clientId, network).catch((err) => {
+        console.error('[aiInsights] resolveBenchmarks falhou para segment', segId, 'rede', network, err);
         return {} as BenchmarkMap;
       });
-      benchmarksBySegment.set(segId, bm);
+      benchmarksBySegmentNetwork.set(cacheKey, bm);
     }));
   }
 
   function benchmarksFor(campaignId: string): BenchmarkMap {
     const seg = campaignSegments.get(campaignId);
-    if (seg?.segmentId && benchmarksBySegment.has(seg.segmentId)) {
-      return benchmarksBySegment.get(seg.segmentId)!;
+    if (!seg?.segmentId) return {} as BenchmarkMap;
+    const network = networkByCampaignId.get(campaignId) ?? 'meta';
+    const cacheKey = `${seg.segmentId}::${network}`;
+    if (benchmarksBySegmentNetwork.has(cacheKey)) {
+      return benchmarksBySegmentNetwork.get(cacheKey)!;
     }
     // Segmento não mapeado ou não configurado — retorna vazio; as regras usarão valor 0
     // e o benchmarkResolver já logou o erro. Configure via /admin/master/segments → Parâmetros.
@@ -380,11 +612,15 @@ export async function generateAiInsights(
     const segTag     = { segmentId: campSeg?.segmentId ?? null, segmentName: campSeg?.segmentName ?? 'Sem segmento' };
     const insightWhere: any = { campaignId: campaign.id };
     if (tenantId) insightWhere.tenantId = tenantId;
-    if (filters?.startDate || filters?.endDate) {
-      insightWhere.date = {};
-      if (filters.startDate) insightWhere.date.gte = new Date(filters.startDate);
-      if (filters.endDate)   insightWhere.date.lte = new Date(filters.endDate);
-    }
+    // Sempre um piso de recência — explícito (UI, filters.startDate) ou implícito
+    // (AGENT_INSIGHT_RECENCY_DAYS, quando o caller não passa período nenhum). Nunca cai em
+    // busca sem limite inferior de data.
+    insightWhere.date = {
+      gte: filters?.startDate
+        ? new Date(filters.startDate)
+        : new Date(Date.now() - AGENT_INSIGHT_RECENCY_DAYS * 86400000),
+    };
+    if (filters?.endDate) insightWhere.date.lte = expandEndOfDay(filters.endDate);
 
     const insights = await prisma.insight.findMany({
       where: insightWhere,
@@ -392,9 +628,15 @@ export async function generateAiInsights(
       take: 14,
     });
 
-    const leadWhere: any = { campaignId: campaign.id };
-    if (tenantId) leadWhere.tenantId = tenantId;
-    const leads = await prisma.lead.count({ where: leadWhere });
+    // Fonte única de lead (WhatsApp + formulário + conversão real do Google) — antes só contava
+    // WHATSAPP_CLICK, o que fazia campanha de Google/formulário parecer "sem lead" pras regras
+    // abaixo (ex.: recomendar PAUSE numa campanha que na verdade está gerando lead real).
+    // Mesma janela (fitDateFrom/fitDateTo) já usada pra pré-calcular campaignAvgFit acima —
+    // garante que "quantos leads" e "qual o fit médio deles" sempre olham o mesmo período.
+    const leadEvents = tenantId
+      ? await getLeadEvents(tenantId, { campaignIds: [campaign.id], startDate: fitDateFrom, endDate: fitDateTo })
+      : [];
+    const leads = sumLeads(leadEvents);
 
     if (insights.length === 0) continue;
 
@@ -410,6 +652,10 @@ export async function generateAiInsights(
       ? (totalVideoViews3s / totalImpressions) * 100
       : 0;
 
+    // FASE 1 (Google Ads) — só > 0 em campanhas Search reais (0 é o default de campanhas Meta)
+    const avgSearchImpressionShare = insights.reduce((s, i) => s + (i.searchImpressionShare || 0), 0) / insights.length;
+    const avgSearchBudgetLostIs    = insights.reduce((s, i) => s + (i.searchBudgetLostIs    || 0), 0) / insights.length;
+
     const data: CampaignData = {
       campaignId: campaign.id,
       campaignName: campaign.name,
@@ -423,6 +669,10 @@ export async function generateAiInsights(
       daysRunning: insights.length,
       hasVideoMetrics,
       avgHookRate,
+      avgSearchImpressionShare,
+      avgSearchBudgetLostIs,
+      avgFit: campaignAvgFit.get(campaign.id) ?? null,
+      readyLookalikeAudience: readyLookalikeByCampaign.get(campaign.id) ?? null,
     };
 
     // Lagging rules (FASE 5 e anteriores)
@@ -440,6 +690,11 @@ export async function generateAiInsights(
         // Para SCALE: calcula % proporcional à performance real (não fixo)
         if (rule.type === 'SCALE') {
           insight.scalePct = computeScalePct(data.avgCtr, benchmarks);
+        }
+        // Tier 3 "Loop do ICP" — carrega qual audiência aplicar (executeAction precisa disso)
+        if (rule.type === 'USE_LOOKALIKE_AUDIENCE' && data.readyLookalikeAudience) {
+          insight.audienceId = data.readyLookalikeAudience.id;
+          insight.audienceExternalId = data.readyLookalikeAudience.externalId;
         }
         allInsights.push(insight);
       }

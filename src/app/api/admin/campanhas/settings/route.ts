@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/database/connection';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
-import { requireApiPermission } from '@/lib/auth/apiPermissions';
+import { requireApiPermission, requireAnyApiPermission } from '@/lib/auth/apiPermissions';
+
+// Canal de WhatsApp dos agentes (docs/CHECKPOINT.md, 2026-09-02) — genuinamente compartilhado:
+// agentDecisor.ts (Campanhas), crm/agents/runner.ts (CRM) e mensageria/sla.ts chamam
+// notifyWhatsApp(msg, tenantId), que lê exatamente estes 3 campos de public.tenants. Qualquer
+// um dos 3 resources abaixo já prova que o tenant chegou aqui por um caminho legítimo.
+const EVOLUTION_CHANNEL_RESOURCES = ['crm-agentes-config', 'mensageria-config', 'configuracoes-campanhas'];
 
 export const dynamic = 'force-dynamic';
 
@@ -87,6 +93,18 @@ export async function PUT(request: NextRequest) {
                  || metaToken !== undefined || adAccountId !== undefined;
     if (hasMeta) {
       const denied = await requireApiPermission(request, 'campanhasmarketingdigital', 'UPDATE');
+      if (denied) return denied;
+    }
+
+    // Canal de WhatsApp dos agentes — achado real (2026-09-02): estes 3 campos nunca tiveram
+    // NENHUM gate de permissão (só entravam no "hasMeta" acima quando vinham junto de um campo
+    // de Meta) — qualquer usuário autenticado, de qualquer role, conseguia sobrescrever a
+    // Evolution API Key do tenant. Corrigido com o mesmo padrão do "hasMeta", aceitando
+    // qualquer um dos 3 módulos que legitimamente usam este canal (Campanhas/CRM/Mensageria).
+    const hasEvolution = evolutionApiUrl !== undefined || evolutionApiKey !== undefined
+                       || evolutionInstance !== undefined;
+    if (hasEvolution) {
+      const denied = await requireAnyApiPermission(request, EVOLUTION_CHANNEL_RESOURCES, 'UPDATE');
       if (denied) return denied;
     }
 

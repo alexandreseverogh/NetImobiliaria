@@ -21,10 +21,11 @@ export async function GET(request: NextRequest) {
     const adSetId         = searchParams.get('adSetId')         || undefined;
     const startDate       = searchParams.get('startDate')       || undefined;
     const endDate         = searchParams.get('endDate')         || undefined;
+    const network         = searchParams.get('network')         || undefined;
 
     const result = await generateAiInsights(
       campaignId, payload.tenantId, clientId,
-      { objectiveFilter, statusFilter, adSetId, startDate, endDate, segmentId },
+      { objectiveFilter, statusFilter, adSetId, startDate, endDate, segmentId, network },
     );
 
     // Retrocompatibilidade: result.insights é o array original

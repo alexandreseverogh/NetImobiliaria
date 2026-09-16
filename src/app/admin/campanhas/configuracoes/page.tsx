@@ -4,22 +4,19 @@ import { useState, useEffect, useRef } from 'react';
 import {
   getSettings, updateSettings,
   getWhatsAppConfig, updateWhatsAppConfig,
-  getLlmSettings, updateLlmSettings, testLlmConnection, testWhatsAppBriefing,
-  getLlmModels,
+  testWhatsAppBriefing,
   getClientCreativePaths, updateClientCreativePath,
   getMetaIdentity, updateMetaIdentity,
-  type LlmModelOption, type LlmModelsResponse, type ClientWithCreativesPath,
+  type ClientWithCreativesPath,
   type MetaIdentitySettings,
 } from '@/lib/marketing-api';
 import {
   Cog6ToothIcon,
-  CpuChipIcon,
   ChatBubbleLeftRightIcon,
   GlobeAltIcon,
   ArrowRightIcon,
   CheckCircleIcon,
   XCircleIcon,
-  WifiIcon,
   FolderOpenIcon,
   MagnifyingGlassIcon,
   UserCircleIcon,
@@ -35,24 +32,9 @@ import {
 } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/marketing-utils';
 import { UpdateGuard } from '@/components/admin/PermissionGuard';
+import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector';
 
 // ─── Helpers compartilhados ───────────────────────────────────────────────────
-
-function Stars({ score }: { score: number }) {
-  return (
-    <span className="text-amber-400 text-sm tracking-tight">
-      {'★'.repeat(score)}{'☆'.repeat(5 - score)}
-    </span>
-  );
-}
-
-function Badge({ children, color }: { children: React.ReactNode; color: string }) {
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ${color}`}>
-      {children}
-    </span>
-  );
-}
 
 function Field({
   label, value, onChange, placeholder, type = 'text', hint,
@@ -73,7 +55,7 @@ function Field({
           onChange={e => onChange(e.target.value)}
           placeholder={placeholder}
           className={cn(
-            "w-full bg-gray-50 border border-gray-200 rounded-xl py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all pl-4",
+            "w-full bg-gray-50 border border-gray-200 rounded-xl py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all pl-4",
             isPassword ? "pr-12" : "pr-4"
           )}
         />
@@ -105,20 +87,6 @@ function SectionCard({ icon: Icon, title, description, children }: {
       <div className="p-6 space-y-4">{children}</div>
     </div>
   );
-}
-
-function getKeyHint(provider: string): string {
-  const hints: Record<string, string> = {
-    anthropic:  'Obtenha em: console.anthropic.com',
-    openai:     'Obtenha em: platform.openai.com/api-keys',
-    gemini:     'Obtenha em: aistudio.google.com/app/apikey',
-    groq:       'Obtenha em: console.groq.com/keys',
-    deepseek:   'Obtenha em: platform.deepseek.com',
-    openrouter: 'Obtenha em: openrouter.ai/keys',
-    kimi:       'Obtenha em: platform.moonshot.cn',
-    qwen:       'Obtenha em: dashscope.aliyuncs.com (chave "DashScope")',
-  };
-  return hints[provider] || 'Consulte a documentação do provider para obter a API Key';
 }
 
 // ─── Seção Identidade Meta ────────────────────────────────────────────────────
@@ -174,7 +142,7 @@ function MetaIdentityField({
             ? 'border-emerald-200 focus:ring-emerald-500'
             : status === 'warn'
             ? 'border-amber-200 focus:ring-amber-500'
-            : 'border-gray-200 focus:ring-indigo-500',
+            : 'border-gray-200 focus:ring-blue-600',
         )}
       />
       {hint && <p className="text-[11px] text-gray-400 mt-1.5 leading-relaxed">{hint}</p>}
@@ -227,7 +195,7 @@ function MetaIdentitySection() {
 
   if (!loaded) return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 flex items-center justify-center">
-      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-indigo-600" />
+      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-gold-premium" />
     </div>
   );
 
@@ -398,30 +366,17 @@ function MasterSettingsView() {
     phoneNumber: '', defaultMessage: '', businessName: '',
   });
 
-  const [llmProvider,   setLlmProvider]   = useState('anthropic');
-  const [llmModel,      setLlmModel]       = useState('claude-sonnet-4-5');
-  const [llmApiKey,     setLlmApiKey]      = useState('');
-  const [llmApiKeySet,  setLlmApiKeySet]   = useState(false);
-  const [llmModels,     setLlmModels]      = useState<LlmModelsResponse | null>(null);
-  const [llmSaving,     setLlmSaving]      = useState(false);
-  const [llmSaved,      setLlmSaved]       = useState(false);
-  const [llmTesting,    setLlmTesting]     = useState(false);
-  const [llmTestResult, setLlmTestResult]  = useState<{ success: boolean; message: string } | null>(null);
-
   const [briefingTesting,    setBriefingTesting]    = useState(false);
   const [briefingTestResult, setBriefingTestResult] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
 
-  const providerModels: LlmModelOption[] = llmModels?.providers[llmProvider]?.models || [];
-  const selectedModel = providerModels.find(m => m.modelId === llmModel);
-
   useEffect(() => { loadAll(); }, []);
 
   async function loadAll() {
     try {
-      const [s, w, l, m] = await Promise.all([
-        getSettings(), getWhatsAppConfig(), getLlmSettings(), getLlmModels(),
+      const [s, w] = await Promise.all([
+        getSettings(), getWhatsAppConfig(),
       ]);
       setSettings({
         metaAppId:     s.metaAppId     || '',
@@ -442,49 +397,7 @@ function MasterSettingsView() {
         defaultMessage: w.defaultMessage || '',
         businessName:   w.businessName   || '',
       });
-      setLlmProvider(l.llmProvider || 'anthropic');
-      setLlmModel(l.llmModel       || 'claude-sonnet-4-5');
-      setLlmApiKeySet(l.llmApiKeySet);
-      setLlmModels(m);
     } catch { /* primeiro carregamento pode falhar */ }
-  }
-
-  function handleProviderChange(p: string) {
-    setLlmProvider(p);
-    const provModels = llmModels?.providers[p]?.models || [];
-    const recommended = provModels.find(m => m.isRecommended) || provModels[0];
-    if (recommended) setLlmModel(recommended.modelId);
-    setLlmTestResult(null);
-  }
-
-  async function handleSaveLlm() {
-    setLlmSaving(true);
-    try {
-      const payload: any = { llmProvider, llmModel };
-      if (llmApiKey) payload.llmApiKey = llmApiKey;
-      await updateLlmSettings(payload);
-      setLlmSaved(true);
-      setLlmApiKeySet(!!llmApiKey || llmApiKeySet);
-      setLlmApiKey('');
-      setTimeout(() => setLlmSaved(false), 3000);
-    } catch { alert('Erro ao salvar configuração LLM'); }
-    finally { setLlmSaving(false); }
-  }
-
-  async function handleTestLlm() {
-    setLlmTesting(true);
-    setLlmTestResult(null);
-    try {
-      const r = await testLlmConnection();
-      setLlmTestResult({
-        success: r.success,
-        message: r.success
-          ? `Conectado — ${r.provider} / ${r.model}`
-          : (r.error || 'Falha na conexão'),
-      });
-    } catch {
-      setLlmTestResult({ success: false, message: 'Erro de conexão' });
-    } finally { setLlmTesting(false); }
   }
 
   async function handleSave() {
@@ -499,30 +412,25 @@ function MasterSettingsView() {
     } finally { setSaving(false); }
   }
 
-  const providerList = llmModels
-    ? Object.entries(llmModels.providers).map(([key, val]: [string, any]) => ({ key, label: val.label }))
-    : [{ key: 'anthropic', label: 'Anthropic' }];
-
-  const selectCls = "w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all";
-
   return (
     <div className="space-y-6">
 
       {/* ── Redes de Anúncios ─── */}
       <Link href="/admin/campanhas/configuracoes/redes">
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center justify-between hover:border-indigo-200 hover:shadow-md transition-all cursor-pointer group">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center justify-between hover:border-gold-premium/40 hover:shadow-md transition-colors cursor-pointer group">
           <div className="flex items-center gap-4">
-            <div className="p-2.5 bg-indigo-50 rounded-xl group-hover:bg-indigo-600 transition-colors">
-              <GlobeAltIcon className="h-5 w-5 text-indigo-600 group-hover:text-white transition-colors" />
+            <div className="p-2.5 bg-gold-premium/10 rounded-xl group-hover:bg-gold-premium transition-colors">
+              <GlobeAltIcon className="h-5 w-5 text-gold-premium group-hover:text-navy-dark transition-colors" />
             </div>
             <div>
               <h2 className="text-sm font-black text-gray-900">Redes de Anúncios</h2>
               <p className="text-xs text-gray-400 mt-0.5">
-                Conecte Meta, Google, LinkedIn e TikTok — gerencie credenciais por rede
+                {/* LinkedIn removido do texto — oculto da UI por enquanto, ver route.ts de /configuracoes/redes */}
+                Conecte Meta, Google e TikTok — gerencie credenciais por rede
               </p>
             </div>
           </div>
-          <ArrowRightIcon className="h-4 w-4 text-gray-300 group-hover:text-indigo-600 transition-colors" />
+          <ArrowRightIcon className="h-4 w-4 text-gray-300 group-hover:text-gold-premium transition-colors" />
         </div>
       </Link>
 
@@ -546,87 +454,10 @@ function MasterSettingsView() {
       {/* ── Identidade Meta — Page ID, Pixel, Instagram, Website ─── */}
       <MetaIdentitySection />
 
-      {/* ── LLM ─── */}
-      <SectionCard icon={CpuChipIcon} title="Inteligência Artificial (LLM)"
-        description="Para briefings estratégicos e análises de campanha">
-        <div>
-          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Provider</label>
-          <select value={llmProvider} onChange={e => handleProviderChange(e.target.value)} className={selectCls}>
-            {providerList.map(p => (
-              <option key={p.key} value={p.key}>{p.label}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Modelo</label>
-          {providerModels.length > 0 ? (
-            <select value={llmModel} onChange={e => setLlmModel(e.target.value)} className={selectCls}>
-              {providerModels.map(m => (
-                <option key={m.modelId} value={m.modelId}>
-                  {m.modelLabel}{m.isRecommended ? ' ⭐' : ''}{m.isFree ? ' 🆓' : ''}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input type="text" value={llmModel} onChange={e => setLlmModel(e.target.value)}
-              placeholder="ID do modelo"
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
-          )}
-        </div>
-
-        {selectedModel && (
-          <div className="bg-indigo-50 rounded-xl p-3 flex flex-wrap items-center gap-3">
-            <Stars score={selectedModel.qualityScore} />
-            {selectedModel.isFree && <Badge color="bg-emerald-100 text-emerald-700">🆓 Tier gratuito</Badge>}
-            {selectedModel.isRecommended && <Badge color="bg-blue-100 text-blue-700">⭐ Recomendado</Badge>}
-            {selectedModel.contextWindow && (
-              <Badge color="bg-violet-100 text-violet-700">
-                {selectedModel.contextWindow >= 1000000
-                  ? `${(selectedModel.contextWindow / 1000000).toFixed(1)}M tokens`
-                  : `${Math.round(selectedModel.contextWindow / 1000)}k tokens`}
-              </Badge>
-            )}
-            {selectedModel.notes && <span className="text-xs text-gray-500 w-full">{selectedModel.notes}</span>}
-          </div>
-        )}
-
-        <Field
-          label={llmApiKeySet ? 'API Key (já configurada — deixe vazio para manter)' : 'API Key'}
-          value={llmApiKey}
-          onChange={setLlmApiKey}
-          placeholder={llmApiKeySet ? '••••••••' : 'Cole sua API Key aqui'}
-          type="password"
-          hint={getKeyHint(llmProvider)}
-        />
-
-        <div className="flex items-center gap-3 flex-wrap pt-1">
-          <UpdateGuard resource="configuracoes-campanhas">
-            <button onClick={handleSaveLlm} disabled={llmSaving}
-              className="px-5 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50">
-              {llmSaving ? 'Salvando...' : 'Salvar IA'}
-            </button>
-          </UpdateGuard>
-          <button onClick={handleTestLlm} disabled={llmTesting}
-            className="px-5 py-2.5 bg-gray-100 text-gray-700 text-xs font-black uppercase tracking-widest rounded-xl hover:bg-gray-200 active:scale-95 transition-all disabled:opacity-50">
-            <span className="flex items-center gap-2">
-              <WifiIcon className="h-3.5 w-3.5" />
-              {llmTesting ? 'Testando...' : 'Testar Conexão'}
-            </span>
-          </button>
-          {llmSaved && (
-            <span className="flex items-center gap-1.5 text-xs font-black text-emerald-600">
-              <CheckCircleIcon className="h-4 w-4" /> Salvo
-            </span>
-          )}
-          {llmTestResult && (
-            <span className={`flex items-center gap-1.5 text-xs font-black ${llmTestResult.success ? 'text-emerald-600' : 'text-red-500'}`}>
-              {llmTestResult.success ? <CheckCircleIcon className="h-4 w-4" /> : <XCircleIcon className="h-4 w-4" />}
-              {llmTestResult.message}
-            </span>
-          )}
-        </div>
-      </SectionCard>
+      {/* Modelo de LLM (cascata Cliente→Tenant→Segmento→Global) removido daqui em 2026-09-01 —
+          nunca foi sobre Campanhas (que usa getLlmClientForCampaigns, sempre global, à parte);
+          serve só CRM/Mensageria, agora em /crm/config/ia e /mensageria/config
+          (LlmCascadeSection, components/crm/). Ver docs/CHECKPOINT.md. */}
 
       {/* ── WhatsApp ─── */}
       <SectionCard icon={ChatBubbleLeftRightIcon} title="WhatsApp"
@@ -645,7 +476,7 @@ function MasterSettingsView() {
             onChange={e => setWhatsapp(w => ({ ...w, defaultMessage: e.target.value }))}
             placeholder="Olá! Vi o anúncio e quero saber mais sobre o imóvel..."
             rows={3}
-            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all resize-none"
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all resize-none"
           />
         </div>
         <div className="flex items-center gap-3 pt-1">
@@ -683,10 +514,13 @@ function MasterSettingsView() {
       </SectionCard>
 
       {/* ── Configurações de Comunicação e Agentes (Slack, Evolution, IA) ─── */}
-      <SectionCard icon={Cog6ToothIcon} title="Configurações de Comunicação e Agentes" description="WhatsApp, Slack, IA e Threshold do Agente">
-        <Field label="Slack Webhook URL" value={settings.slackWebhookUrl}
+      <SectionCard icon={Cog6ToothIcon} title="Configurações de Comunicação e Agentes" description="WhatsApp, IA e Threshold do Agente">
+        {/* ⏸️ Slack Webhook URL — desativado junto com notifySlack() (2026-09-01), campo
+            escondido pra não sugerir uma capacidade que hoje não tem efeito nenhum. Estado
+            (settings.slackWebhookUrl) preservado — reativar só descomentando este bloco. */}
+        {/* <Field label="Slack Webhook URL" value={settings.slackWebhookUrl}
           onChange={v => setSettings(s => ({ ...s, slackWebhookUrl: v }))}
-          placeholder="https://hooks.slack.com/services/..." />
+          placeholder="https://hooks.slack.com/services/..." /> */}
         <Field label="Evolution API URL" value={settings.evolutionApiUrl}
           onChange={v => setSettings(s => ({ ...s, evolutionApiUrl: v }))}
           placeholder="http://localhost:8080" />
@@ -708,7 +542,7 @@ function MasterSettingsView() {
       <div className="flex items-center gap-4 pb-8">
         <UpdateGuard resource="configuracoes-campanhas">
           <button onClick={handleSave} disabled={saving}
-            className="px-8 py-3 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50">
+            className="px-8 py-3 bg-gold-premium text-navy-dark text-xs font-black uppercase tracking-widest rounded-xl hover:bg-gold transition-colors disabled:opacity-50">
             {saving ? 'Salvando...' : 'Salvar Configurações'}
           </button>
         </UpdateGuard>
@@ -865,7 +699,7 @@ function TenantSettingsView() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-gold-premium" />
       </div>
     );
   }
@@ -882,10 +716,10 @@ function TenantSettingsView() {
           <button
             onClick={() => setImportMode('own')}
             className={cn(
-              'flex items-center gap-2.5 px-5 py-3 rounded-xl text-sm font-black transition-all border',
+              'flex items-center gap-2.5 px-5 py-3 rounded-xl text-sm font-black transition-colors border',
               importMode === 'own'
-                ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-500/20'
-                : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
+                ? 'bg-gold-premium text-navy-dark border-gold-premium'
+                : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300 hover:text-gray-900'
             )}
           >
             <BuildingOfficeIcon className="h-4 w-4" />
@@ -894,10 +728,10 @@ function TenantSettingsView() {
           <button
             onClick={() => { setImportMode('client'); setSelectedClient(null); setSearch(''); }}
             className={cn(
-              'flex items-center gap-2.5 px-5 py-3 rounded-xl text-sm font-black transition-all border',
+              'flex items-center gap-2.5 px-5 py-3 rounded-xl text-sm font-black transition-colors border',
               importMode === 'client'
-                ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-500/20'
-                : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
+                ? 'bg-gold-premium text-navy-dark border-gold-premium'
+                : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300 hover:text-gray-900'
             )}
           >
             <UserCircleIcon className="h-4 w-4" />
@@ -929,7 +763,7 @@ function TenantSettingsView() {
                 value={ownPath}
                 onChange={e => { setOwnPath(e.target.value); setOwnSaved(false); setOwnError(''); }}
                 placeholder="Ex: C:\Criativos\MinhaEmpresa"
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
               />
               <p className="text-[10px] text-gray-400 mt-1.5">
                 Anotação do caminho local na sua máquina — usado como referência ao abrir a pasta na página de Criativos.
@@ -940,7 +774,7 @@ function TenantSettingsView() {
                 <button
                   onClick={handleSaveOwn}
                   disabled={ownSaving}
-                  className="px-6 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+                  className="px-6 py-2.5 bg-gold-premium text-navy-dark text-xs font-black uppercase tracking-widest rounded-xl hover:bg-gold transition-colors disabled:opacity-50"
                 >
                   {ownSaving ? 'Salvando...' : 'Salvar'}
                 </button>
@@ -986,7 +820,7 @@ function TenantSettingsView() {
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Buscar por nome ou e-mail..."
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-9 py-2.5 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-9 py-2.5 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
                 />
                 {search && (
                   <button onClick={() => { setSearch(''); searchRef.current?.focus(); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -1018,19 +852,19 @@ function TenantSettingsView() {
                     <button
                       key={client.id}
                       onClick={() => handleSelect(client)}
-                      className={`w-full flex items-center gap-3 px-4 py-3.5 text-left transition-all border-b border-gray-50 last:border-0 ${
+                      className={`w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors border-b border-gray-50 last:border-0 ${
                         isSelected
-                          ? 'bg-indigo-50 border-l-2 border-l-indigo-500'
+                          ? 'bg-amber-50/80'
                           : 'hover:bg-gray-50'
                       }`}
                     >
                       <div className={`h-9 w-9 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${
-                        isSelected ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'
+                        isSelected ? 'bg-gold-premium text-navy-dark' : 'bg-gray-100 text-gray-600'
                       }`}>
                         {initials(client.name)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-black truncate ${isSelected ? 'text-indigo-700' : 'text-gray-900'}`}>
+                        <p className="text-sm font-black truncate text-gray-900">
                           {client.name}
                         </p>
                         {client.email && (
@@ -1061,7 +895,7 @@ function TenantSettingsView() {
             ) : (
               <>
                 <div className="px-6 py-4 border-b border-gray-50 flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl bg-indigo-600 flex items-center justify-center text-xs font-black text-white shrink-0">
+                  <div className="h-9 w-9 rounded-xl bg-gold-premium flex items-center justify-center text-xs font-black text-navy-dark shrink-0">
                     {initials(selectedClient.name)}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -1082,7 +916,7 @@ function TenantSettingsView() {
                       value={editingPath}
                       onChange={e => { setEditingPath(e.target.value); setSaved(false); setSaveError(''); }}
                       placeholder="Ex: C:\Criativos\NomeDoCliente"
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
                     />
                     <p className="text-[10px] text-gray-400 mt-1.5">
                       Anotação do caminho local na sua máquina — usado como referência ao preparar os criativos para a campanha.
@@ -1093,7 +927,7 @@ function TenantSettingsView() {
                       <button
                         onClick={handleSave}
                         disabled={saving}
-                        className="px-6 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+                        className="px-6 py-2.5 bg-gold-premium text-navy-dark text-xs font-black uppercase tracking-widest rounded-xl hover:bg-gold transition-colors disabled:opacity-50"
                       >
                         {saving ? 'Salvando...' : 'Salvar'}
                       </button>
@@ -1136,11 +970,18 @@ function TenantSettingsView() {
       {/* ── Identidade Meta ── */}
       <MetaIdentitySection />
 
+      {/* Modelo de LLM (cascata Cliente→Tenant→Segmento→Global) removido daqui em 2026-09-01 —
+          nunca foi sobre Campanhas; serve só CRM/Mensageria, agora em /crm/config/ia e
+          /mensageria/config (LlmCascadeSection, components/crm/). Ver docs/CHECKPOINT.md. */}
+
       {/* ── Comunicação e Inteligência ── */}
-      <SectionCard icon={Cog6ToothIcon} title="Agentes, Alertas e IA" description="Configurações de notificações do WhatsApp, Slack e chaves de IA do Tenant">
-        <Field label="Slack Webhook URL" value={settings.slackWebhookUrl}
+      <SectionCard icon={Cog6ToothIcon} title="Agentes, Alertas e IA" description="Configurações de notificações do WhatsApp e chaves de IA do Tenant">
+        {/* ⏸️ Slack Webhook URL — desativado junto com notifySlack() (2026-09-01), campo
+            escondido pra não sugerir uma capacidade que hoje não tem efeito nenhum. Estado
+            (settings.slackWebhookUrl) preservado — reativar só descomentando este bloco. */}
+        {/* <Field label="Slack Webhook URL" value={settings.slackWebhookUrl}
           onChange={v => setSettings(s => ({ ...s, slackWebhookUrl: v }))}
-          placeholder="https://hooks.slack.com/services/..." />
+          placeholder="https://hooks.slack.com/services/..." /> */}
         <Field label="Evolution API URL" value={settings.evolutionApiUrl}
           onChange={v => setSettings(s => ({ ...s, evolutionApiUrl: v }))}
           placeholder="http://localhost:8080" />
@@ -1162,7 +1003,7 @@ function TenantSettingsView() {
             <button
               onClick={handleSaveSettings}
               disabled={settingsSaving}
-              className="px-6 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+              className="px-6 py-2.5 bg-gold-premium text-navy-dark text-xs font-black uppercase tracking-widest rounded-xl hover:bg-gold transition-colors disabled:opacity-50"
             >
               {settingsSaving ? 'Salvando...' : 'Salvar Configurações adicionais'}
             </button>
@@ -1217,7 +1058,7 @@ function SettingsPageInner() {
         <div className="max-w-3xl mx-auto">
           {header}
           <div className="flex items-center justify-center py-24">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600" />
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-gold-premium" />
           </div>
         </div>
       </div>

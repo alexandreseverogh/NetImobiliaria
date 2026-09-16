@@ -3,11 +3,19 @@ set -euo pipefail
 
 # Aplica migrations idempotentes dentro do Postgres do container.
 #
-# Processa DUAS pastas de migrations:
-#   1. database/migrations_docker/  →  NNN_*.sql  (numeradas, legadas)
-#   2. migrations/                  →  YYYY-MM-DD_*.sql  (data-based, novas)
+# Processa TRÊS pastas de migrations, nesta ordem:
+#   1. database/migrations_docker/  →  NNN_*.sql            (numeradas, legadas — paradas em 2026-06-23)
+#   2. migrations/                  →  YYYY-MM-DD_*.sql     (data-based, legadas — paradas em 2026-06-23)
+#   3. prisma/                      →  migration-*.sql      (convenção real usada desde 2026-05 —
+#      onde toda migration nova deste projeto é criada; ver docs/CHECKPOINT.md)
 #
-# Ambas usam a tabela public.schema_migrations como controle de idempotência.
+# Achado real (2026-09-16): as pastas 1/2 nunca acompanharam a convenção real do projeto —
+# ficaram paradas em 23/06 enquanto ~160 migrations reais se acumulavam em prisma/, nunca
+# escaneadas por este script. Corrigido para nunca mais deixar migration nova órfã do deploy
+# automático.
+#
+# As três usam a mesma tabela public.schema_migrations como controle de idempotência —
+# nome de arquivo é a chave, então um mesmo nome nunca roda duas vezes, venha de qual pasta vier.
 #
 # Uso:
 #   ./scripts/vps/apply-migrations.sh producao
@@ -122,6 +130,21 @@ if [[ -d "$MIGRATIONS_DATE_DIR" ]]; then
   done < <(find "$MIGRATIONS_DATE_DIR" -maxdepth 1 -type f -name '*.sql' | sort 2>/dev/null || true)
 else
   echo "[*] Pasta migrations/ não encontrada — pulando."
+fi
+
+# ── PASSO 3: migrations reais do projeto (prisma/) ────────────────
+PRISMA_DIR="$BASE_DIR/prisma"
+if [[ -d "$PRISMA_DIR" ]]; then
+  echo "[*] Processando migrations do projeto (prisma/migration-*.sql)..."
+  while IFS= read -r file; do
+    if apply_file "$file"; then
+      applied=$((applied+1))
+    else
+      skipped=$((skipped+1))
+    fi
+  done < <(find "$PRISMA_DIR" -maxdepth 1 -type f -name 'migration-*.sql' | sort 2>/dev/null || true)
+else
+  echo "[AVISO] Pasta prisma/ não encontrada em $BASE_DIR — nenhuma migration real do projeto foi aplicada." >&2
 fi
 
 echo "[OK] Migrations: $applied aplicadas, $skipped já existentes."

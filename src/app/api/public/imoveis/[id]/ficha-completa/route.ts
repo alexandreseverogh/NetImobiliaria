@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
+import { resolveTenantLogo } from '@/lib/tenant/resolveTenantLogo'
 
 export async function GET(
   request: NextRequest,
@@ -25,6 +26,7 @@ export async function GET(
     const query = `
       SELECT 
         i.id,
+        i.tenant_id,
         i.codigo,
         i.titulo,
         i.descricao,
@@ -99,9 +101,15 @@ export async function GET(
     const imovel = result.rows[0]
     console.log('✅ Dados básicos encontrados:', imovel.titulo)
 
+    // Logo real do tenant dono do imóvel (a mesma exibida no header do admin) — nunca quebra
+    // a página se o tenant não tiver logo configurado ou a query falhar (fallback null).
+    const tenantLogo = await resolveTenantLogo(imovel.tenant_id)
+
     // Montar objeto de resposta base
     const imovelResponse = {
       id: imovel.id,
+      tenant_id: imovel.tenant_id,
+      tenant_logo: tenantLogo,
       codigo: imovel.codigo,
       titulo: imovel.titulo,
       descricao: imovel.descricao,
