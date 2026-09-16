@@ -310,10 +310,14 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    # Depende só de prod_app — staging_app é opcional (nem sempre está no ar; hoje mesmo
+    # esta VPS não tem staging provisionado). Achado real: com os dois como
+    # `condition: service_healthy`, o Caddy inteiro (inclusive imovtec.com.br/
+    # artemis9.com.br) travaria pra sempre esperando um staging_app que nunca sobe.
+    # Sem staging_app, o próprio Caddy sobe normal — só o bloco de STAGING_DOMAIN no
+    # Caddyfile devolve erro de upstream até staging_app existir, sem afetar os demais.
     depends_on:
       prod_app:
-        condition: service_healthy
-      staging_app:
         condition: service_healthy
     environment:
       PROD_DOMAIN: ${PROD_DOMAIN}
