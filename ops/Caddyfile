@@ -29,11 +29,13 @@
     reverse_proxy minio:9000
   }
 
-  reverse_proxy prod_app:3000 {
-    header_up X-Forwarded-Proto {scheme}
-    header_up X-Forwarded-Host {host}
-    header_up X-Forwarded-For {remote}
-  }
+  # Sem header_up explícito pra X-Forwarded-*: o reverse_proxy do Caddy já seta
+  # Proto/Host/For corretamente por padrão (achado real, 2026-09-17 — o próprio Caddy
+  # já avisava nos logs "Unnecessary header_up..." pras 3 linhas que existiam aqui antes).
+  # {remote} inclui host:porta ("187.59.71.235:63337"), diferente do padrão do Caddy
+  # (só o IP) — isso ia parar direto na coluna `ip_address inet` do Postgres e quebrava
+  # TODO login com "invalid input syntax for type inet". O default do Caddy já é o certo.
+  reverse_proxy prod_app:3000
 
   header {
     Strict-Transport-Security "max-age=31536000; includeSubDomains"
@@ -62,11 +64,7 @@
     reverse_proxy minio:9000
   }
 
-  reverse_proxy prod_app:3000 {
-    header_up X-Forwarded-Proto {scheme}
-    header_up X-Forwarded-Host {host}
-    header_up X-Forwarded-For {remote}
-  }
+  reverse_proxy prod_app:3000
 
   header {
     Strict-Transport-Security "max-age=31536000; includeSubDomains"
@@ -89,11 +87,7 @@
     reverse_proxy minio:9000
   }
 
-  reverse_proxy staging_app:3000 {
-    header_up X-Forwarded-Proto {scheme}
-    header_up X-Forwarded-Host {host}
-    header_up X-Forwarded-For {remote}
-  }
+  reverse_proxy staging_app:3000
 
   header {
     Strict-Transport-Security "max-age=31536000; includeSubDomains"
