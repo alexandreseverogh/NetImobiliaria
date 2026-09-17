@@ -68,28 +68,12 @@ mkdir -p "$BASE_DIR/prisma"
 rsync -a --delete "$TARGET_SOURCE/prisma/" "$BASE_DIR/prisma/"
 
 # Sincronizar ops/ (Caddyfile, etc.)
-CADDYFILE_CHANGED=false
 if [[ -d "$TARGET_SOURCE/ops" ]]; then
   mkdir -p "$BASE_DIR/ops"
-  if ! diff -q "$TARGET_SOURCE/ops/Caddyfile" "$BASE_DIR/ops/Caddyfile" >/dev/null 2>&1; then
-    CADDYFILE_CHANGED=true
-  fi
   rsync -a --delete "$TARGET_SOURCE/ops/" "$BASE_DIR/ops/"
 fi
 
 log "   ✅ Migrations e infra sincronizados"
-
-# Achado real (2026-09-16): nada aqui nunca recarregava o Caddy depois de sincronizar um
-# Caddyfile novo — mudança de domínio/rota só valeria a partir do PRÓXIMO restart manual do
-# container. Reload é sem downtime (caddy valida a config antes de trocar; se o container
-# ainda não existe — 1º bootstrap — o `docker compose up -d` completo do fim do script já
-# sobe com o Caddyfile certo, então o best-effort aqui nunca bloqueia nada).
-if [[ "$CADDYFILE_CHANGED" == true ]]; then
-  log "[*] Caddyfile mudou — recarregando (sem downtime)..."
-  docker compose -f "$COMPOSE_FILE" exec -T caddy caddy reload --config /etc/caddy/Caddyfile \
-    && log "   ✅ Caddy recarregado" \
-    || log "   ⚠️  Reload do Caddy falhou (container ainda não existe? confira depois de subir o stack)"
-fi
 
 # ── 2. Atualizar secrets de app no .env da VPS ───────────────
 log "[2/5] Atualizando secrets de app no .env da VPS..."
@@ -305,6 +289,27 @@ else
     exit 1
   fi
 fi
+
+# Achado real (2026-09-17): Caddy é compartilhado entre producao/staging (1 único
+# Caddyfile com os 3 domínios) — antes disso, mudança de Caddyfile OU de env var nova
+# no serviço `caddy` do compose só valia depois de um restart manual feito à mão.
+# 2 problemas reais, distintos, ambos resolvidos só por RECRIAR o container (nunca só
+# `restart`, que reusa o container existente com env antigo; nunca só `caddy reload`,
+# que reflete o arquivo atual só se o bind mount do Caddyfile não tiver ficado órfão):
+# 1) bind mount de ARQUIVO único (não pasta) — rsync recria o arquivo via rename (novo
+#    inode) a cada sync; o container já rodando fica com um handle órfão pro conteúdo
+#    ANTIGO, mesmo o host já mostrando o arquivo novo em qualquer `cat`/`grep`.
+# 2) env var nova adicionada ao `environment:` do serviço `caddy` (ex.:
+#    PROD_DOMAIN_ARTEMIS) nunca chega a um container já existente — só contêineres
+#    criados depois dessa mudança no compose têm a variável de verdade.
+# Roda DEPOIS de prod_app/staging_app já confirmados saudáveis (nunca antes) — Caddy
+# depende de prod_app via `depends_on: condition: service_healthy`; recriar Caddy antes
+# disso arriscaria disparar um auto-start de dependência fora da sequência já testada
+# acima. --force-recreate roda em TODO deploy (produção ou staging), incondicional —
+# idempotente e barato (Caddy sobe em menos de 1s), mais simples e confiável do que
+# tentar detectar "mudou?" e escolher entre reload/recreate.
+log "   → Recriando Caddy (Caddyfile + env sempre atuais)..."
+docker compose -f "$COMPOSE_FILE" up -d --force-recreate caddy
 
 # ── 6. Cron jobs — NÃO configurados por este script (ver nota) ────────────
 # Removido em 2026-09-04: este bloco configurava um 3º mecanismo de agendamento (crontab do
