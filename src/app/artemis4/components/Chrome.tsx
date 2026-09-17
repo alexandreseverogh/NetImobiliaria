@@ -131,7 +131,13 @@ export function Cite({ sourceId }: { sourceId: keyof typeof SOURCES }) {
    NAV
    ========================================================================== */
 
-export function Nav({ onEnter }: { onEnter: () => void }) {
+export function Nav({
+  onEnter,
+  onOpenSpecialist,
+}: {
+  onEnter: () => void
+  onOpenSpecialist: () => void
+}) {
   const [open, setOpen] = useState(false)
 
   /* Fecha o drawer no Escape — teclado nunca fica preso no menu aberto */
@@ -147,7 +153,7 @@ export function Nav({ onEnter }: { onEnter: () => void }) {
   return (
     <header className="a4-nav">
       <div className="a4-wrap a4-wrap--wide a4-nav__inner">
-        <Link href="/artemis4" className="a4-nav__brand" aria-label="Artemis4 — início">
+        <Link href="/artemis4" className="a4-nav__brand" aria-label="Artemis9 — início">
           {/* next/image de propósito: o arquivo original é 1024x1024 / 206 KB e
               renderiza a 26px. Com <img> cru o visitante baixava os 206 KB
               inteiros no topo da página, acima da dobra. */}
@@ -162,7 +168,7 @@ export function Nav({ onEnter }: { onEnter: () => void }) {
             />
           </span>
           <span className="a4-nav__wordmark">
-            Artemis<b>4</b>
+            Artemis<b>9</b>
           </span>
           {/* 10px é o piso: a 9px o texto ficava ilegível mesmo com contraste OK */}
           <span className="a4-nav__tag">
@@ -184,13 +190,14 @@ export function Nav({ onEnter }: { onEnter: () => void }) {
         </nav>
 
         <div className="a4-nav__right">
-          <a
-            href="/contato"
+          <button
+            type="button"
+            onClick={onOpenSpecialist}
             className="a4-btn a4-btn--primary a4-btn--sm"
             style={{ whiteSpace: 'nowrap' }}
           >
             Falar com especialista
-          </a>
+          </button>
           <a
             href="/admin/login"
             onClick={onEnter}
@@ -222,9 +229,16 @@ export function Nav({ onEnter }: { onEnter: () => void }) {
               ))}
             </nav>
             <div className="a4-nav__drawer-cta">
-              <a href="/contato" className="a4-btn a4-btn--primary">
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false)
+                  onOpenSpecialist()
+                }}
+                className="a4-btn a4-btn--primary"
+              >
                 Falar com um especialista
-              </a>
+              </button>
               <a href="/admin/login" onClick={onEnter} className="a4-btn a4-btn--ghost">
                 Já sou cliente · Entrar
               </a>
@@ -253,7 +267,7 @@ export function LeavingOverlay() {
    FOOTER — com a lista consolidada de fontes citadas na página
    ========================================================================== */
 
-export function Footer() {
+export function Footer({ onOpenSpecialist }: { onOpenSpecialist: () => void }) {
   const cited = ['hbr', 'mit', 'mobileTime', 'dataReportal', 'esaOrion', 'nasaArtemis2'] as const
 
   return (
@@ -262,7 +276,7 @@ export function Footer() {
         <div className="a4-footer__grid">
           <div className="a4-footer__col">
             <span className="a4-nav__wordmark" style={{ fontSize: '1.25rem' }}>
-              Artemis<b>4</b>
+              Artemis<b>9</b>
             </span>
             <p className="a4-body" style={{ maxWidth: '38ch' }}>
               Plataforma brasileira que une marketing digital, atendimento e vendas num ciclo
@@ -301,16 +315,16 @@ export function Footer() {
                 <PhoneIcon /> <span>(81) 99800-0047</span>
               </li>
               <li>
-                <EnvelopeIcon /> <span>contato@artemis4.com.br</span>
+                <EnvelopeIcon /> <span>contato@artemis9.com.br</span>
               </li>
               <li>
                 <MapPinIcon /> <span>Recife, PE</span>
               </li>
             </ul>
             <div style={{ marginTop: '0.5rem' }}>
-              <a href="/contato" className="a4-btn a4-btn--ghost a4-btn--sm">
+              <button type="button" onClick={onOpenSpecialist} className="a4-btn a4-btn--ghost a4-btn--sm">
                 Falar com especialista
-              </a>
+              </button>
             </div>
           </div>
         </div>
@@ -335,7 +349,7 @@ export function Footer() {
             })}
           </ul>
           <p style={{ marginTop: '0.75rem' }}>
-            Artemis4 não possui vínculo, patrocínio ou endosso da NASA. Instagram e Facebook são
+            Artemis9 não possui vínculo, patrocínio ou endosso da NASA. Instagram e Facebook são
             marcas da Meta Platforms; Google e YouTube, da Google LLC; TikTok, da ByteDance;
             WhatsApp, da Meta Platforms. As marcas citadas pertencem aos respectivos titulares e
             aparecem apenas para identificar integrações.
@@ -343,7 +357,7 @@ export function Footer() {
         </div>
 
         <div className="a4-footer__base">
-          <p className="a4-small">© {new Date().getFullYear()} Artemis4. Todos os direitos reservados.</p>
+          <p className="a4-small">© {new Date().getFullYear()} Artemis9. Todos os direitos reservados.</p>
           <div style={{ display: 'flex', gap: '1.25rem' }}>
             <Link href="/privacidade" className="a4-small" style={{ textDecoration: 'none' }}>
               Privacidade

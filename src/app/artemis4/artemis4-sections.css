@@ -914,3 +914,97 @@
   border-radius: 12px;
   background: var(--gold-wash);
 }
+
+/* ============================================================================
+   FORMULÁRIO — modal de contato com especialista
+   ========================================================================== */
+
+.a4-field { display: grid; gap: 0.5rem; }
+.a4-field__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink-dim);
+  letter-spacing: -0.01em;
+}
+.a4-field__label b { color: var(--crit); font-weight: 600; }
+
+.a4-input,
+.a4-textarea,
+.a4-select {
+  width: 100%;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.75rem 0.9375rem;
+  color: var(--ink);
+  font-size: 0.9375rem;
+  font-family: inherit;
+  transition: border-color 0.18s var(--ease-q), background 0.18s var(--ease-q);
+}
+.a4-input::placeholder,
+.a4-textarea::placeholder { color: var(--ink-faint); }
+.a4-input:focus,
+.a4-textarea:focus,
+.a4-select:focus {
+  outline: none;
+  border-color: var(--focus);
+  background: var(--raised-2);
+}
+.a4-textarea { resize: vertical; min-height: 5.5rem; line-height: 1.5; }
+
+.a4-select {
+  appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%238695ab' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.9375rem center;
+  padding-right: 2.25rem;
+}
+
+/* Toggle de escolha exclusiva (Pessoa Física / Jurídica) — mesmo espírito do
+   a4-btn, mas como grupo segmentado, nunca dois acentos ao mesmo tempo. */
+.a4-radio-group {
+  display: inline-flex;
+  gap: 0.375rem;
+  padding: 0.25rem;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.a4-radio-pill {
+  padding: 0.5rem 1rem;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: var(--ink-dim);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s var(--ease-q), color 0.18s var(--ease-q);
+}
+.a4-radio-pill:hover { color: var(--ink); }
+.a4-radio-pill[aria-pressed="true"] { background: var(--gold); color: var(--void); }
+.a4-radio-pill:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.a4-form-error {
+  font-size: 0.8125rem;
+  color: var(--crit);
+}
+.a4-form-status {
+  padding: 1rem 1.125rem;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.a4-form-status--error {
+  border: 1px solid rgba(251, 113, 133, 0.35);
+  background: rgba(251, 113, 133, 0.08);
+  color: var(--ink);
+}
+.a4-form-status--success {
+  border: 1px solid var(--line-lit);
+  background: var(--gold-wash);
+  color: var(--ink);
+}
+.a4-btn[disabled] { opacity: 0.55; cursor: not-allowed; }
+.a4-btn[disabled]:hover { background: var(--gold); }

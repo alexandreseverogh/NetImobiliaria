@@ -158,7 +158,13 @@ function MissionConsole() {
    HERO
    ========================================================================== */
 
-export function Hero({ onEnter }: { onEnter: () => void }) {
+export function Hero({
+  onEnter,
+  onOpenSpecialist,
+}: {
+  onEnter: () => void
+  onOpenSpecialist: () => void
+}) {
   return (
     <section className="a4-hero" aria-labelledby="a4-hero-title">
       <div className="a4-hero__stars" aria-hidden="true" />
@@ -180,7 +186,7 @@ export function Hero({ onEnter }: { onEnter: () => void }) {
             </h1>
 
             <p className="a4-lead a4-enter a4-enter--3">
-              A Artemis4 fecha o ciclo entre o anúncio e a venda: o interessado chega{' '}
+              A Artemis9 fecha o ciclo entre o anúncio e a venda: o interessado chega{' '}
               <span className="a4-strong">identificado com a campanha que o trouxe</span>, é
               respondido <span className="a4-strong">em segundos, a qualquer hora</span>, e você vê
               na tela <span className="a4-gold">qual anúncio virou dinheiro no seu caixa</span> — não
@@ -192,9 +198,9 @@ export function Hero({ onEnter }: { onEnter: () => void }) {
                 Ver a plataforma funcionando
                 <ArrowRightIcon width={17} height={17} />
               </a>
-              <a href="/contato" className="a4-btn a4-btn--ghost a4-btn--lg">
+              <button type="button" onClick={onOpenSpecialist} className="a4-btn a4-btn--ghost a4-btn--lg">
                 Falar com um especialista
-              </a>
+              </button>
             </div>
 
             <ul className="a4-hero__trust a4-enter a4-enter--5">

@@ -7,6 +7,7 @@ import './artemis4-sections.css'
 
 import { MODULE_CONTENT } from './moduleContent'
 import ModuleDetailModal from './ModuleDetailModal'
+import SpecialistContactModal from './SpecialistContactModal'
 import { Nav, Footer, LeavingOverlay, useReveal } from './components/Chrome'
 import { Hero, AuthorityBand } from './components/Hero'
 import { Diagnosis, ClosedLoop, ProductTour, AgentSection } from './components/Product'
@@ -46,6 +47,7 @@ export default function Artemis4LandingPage() {
   const [navigating, setNavigating] = useState(false)
   const [detailSlug, setDetailSlug] = useState<string | null>(null)
   const [availableSlugs, setAvailableSlugs] = useState<string[] | null>(null)
+  const [specialistOpen, setSpecialistOpen] = useState(false)
 
   /**
    * Pré-aquece /admin/login no mount.
@@ -100,6 +102,7 @@ export default function Artemis4LandingPage() {
   }, [])
 
   const handleEnter = () => setNavigating(true)
+  const handleOpenSpecialist = () => setSpecialistOpen(true)
 
   const visibleLoopSlugs = availableSlugs
     ? LOOP_SLUGS.filter((s) => availableSlugs.includes(s))
@@ -115,13 +118,16 @@ export default function Artemis4LandingPage() {
           content={MODULE_CONTENT[detailSlug]}
           onClose={() => setDetailSlug(null)}
           onEnter={handleEnter}
+          onOpenSpecialist={handleOpenSpecialist}
         />
       )}
 
-      <Nav onEnter={handleEnter} />
+      <SpecialistContactModal open={specialistOpen} onClose={() => setSpecialistOpen(false)} />
+
+      <Nav onEnter={handleEnter} onOpenSpecialist={handleOpenSpecialist} />
 
       <main style={{ paddingTop: 0 }}>
-        <Hero onEnter={handleEnter} />
+        <Hero onEnter={handleEnter} onOpenSpecialist={handleOpenSpecialist} />
         <AuthorityBand />
         <Diagnosis />
         <ClosedLoop onOpenModule={setDetailSlug} visibleSlugs={visibleLoopSlugs} />
@@ -132,10 +138,10 @@ export default function Artemis4LandingPage() {
         <Segments />
         <Guarantees />
         <Faq />
-        <FinalCta onEnter={handleEnter} />
+        <FinalCta onEnter={handleEnter} onOpenSpecialist={handleOpenSpecialist} />
       </main>
 
-      <Footer />
+      <Footer onOpenSpecialist={handleOpenSpecialist} />
     </div>
   )
 }

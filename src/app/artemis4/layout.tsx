@@ -21,16 +21,16 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Artemis4 — Saiba qual anúncio virou venda de verdade',
+  title: 'Artemis9 — Saiba qual anúncio virou venda de verdade',
   description:
     'Plataforma brasileira que une Marketing Digital, CRM e Mensageria num ciclo fechado: o interessado chega identificado com a campanha que o trouxe, é respondido em segundos e o negócio fechado volta para o anúncio de origem.',
   openGraph: {
-    title: 'Artemis4 — Saiba qual anúncio virou venda de verdade',
+    title: 'Artemis9 — Saiba qual anúncio virou venda de verdade',
     description:
       'Marketing Digital, CRM e Mensageria num ciclo fechado. Instagram, Google e TikTok num painel só, atendimento em segundos e retorno medido pelo seu caixa — não pela estimativa da rede social.',
     type: 'website',
     locale: 'pt_BR',
-    siteName: 'Artemis4',
+    siteName: 'Artemis9',
   },
 };
 

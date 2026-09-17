@@ -9,9 +9,10 @@ interface Props {
   content: ModuleCardContent
   onClose: () => void
   onEnter: () => void
+  onOpenSpecialist: () => void
 }
 
-export default function ModuleDetailModal({ moduleName, content, onClose, onEnter }: Props) {
+export default function ModuleDetailModal({ moduleName, content, onClose, onEnter, onOpenSpecialist }: Props) {
   const cardRef = useRef<HTMLDivElement | null>(null)
 
   /* Escape fecha; foco entra no diálogo; scroll do body travado enquanto aberto.
@@ -80,10 +81,10 @@ export default function ModuleDetailModal({ moduleName, content, onClose, onEnte
           </p>
 
           <div className="a4-cta-row" style={{ marginTop: '1.75rem' }}>
-            <a href="/contato" className="a4-btn a4-btn--primary">
+            <button type="button" onClick={onOpenSpecialist} className="a4-btn a4-btn--primary">
               Falar com um especialista
               <ArrowRightIcon width={15} height={15} />
-            </a>
+            </button>
             <a href="/admin/login" onClick={onEnter} className="a4-btn a4-btn--ghost">
               Já sou cliente · Entrar
             </a>
