@@ -106,9 +106,27 @@ fi
 # \n literal dentro da private_key) e um `sed`/`awk` com -v quebraria nele (awk -v
 # interpreta \n como escape; sed com delimitador `|` quebraria se o valor tivesse
 # `|`). Reescrita linha a linha em bash puro, sem interpretar nada do valor.
+#
+# Achado real (2026-09-17): o loop de replace abaixo só reconhece e troca a
+# PRIMEIRA linha física de "$key=" — se o valor antigo já gravado no arquivo
+# tinha newline real no meio (ex.: GOOGLE_SERVICE_ACCOUNT_KEY colado como JSON
+# pretty-printed no GitHub Secret, em vez de minificado numa linha só), as
+# linhas de continuação do valor ANTIGO ficam órfãs no arquivo — sem prefixo
+# "KEY=", nunca mais reconhecidas nem limpas por nenhuma rodada futura. Isso
+# acumulava 1 bloco JSON quebrado a cada deploy (achado com 3 cópias na VPS,
+# a última delas derrubando "source .env" com "type:: command not found").
+# Colapsado aqui, na entrada da função — garante que TODO valor gravado, de
+# qualquer chave, sempre ocupa exatamente 1 linha física, então o replace por
+# linha nunca mais deixa resto pra trás. Seguro mesmo pra JSON: um `\n` real
+# dentro de uma string JSON já teria que estar escapado como 2 caracteres
+# literais (barra+"n") pra ser JSON válido — nunca é um byte de quebra de
+# linha de verdade, então remover bytes de quebra de linha reais do valor
+# nunca corrompe o conteúdo de uma private_key já corretamente escapada.
 upsert_env() {
   local key="$1"
   local value="$2"
+  value="${value//$'\r'/}"
+  value="${value//$'\n'/}"
   if [[ -z "$value" ]]; then
     log "   ⚠️  $key está vazio — mantendo valor atual (se houver)"
     return
