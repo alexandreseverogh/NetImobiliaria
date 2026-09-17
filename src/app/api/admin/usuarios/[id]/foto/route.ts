@@ -62,7 +62,10 @@ export async function GET(
     const meta = metaResult.rows[0]
 
     if (meta.storage_type === 's3' && (meta.url_cdn || meta.s3_key)) {
-      const redirectUrl = meta.url_cdn || getS3Url(meta.s3_key)
+      // Mesmo fix de src/app/api/public/imagens/[id]/route.ts: prioriza s3_key + CDN_URL do
+      // ambiente ATUAL — url_cdn gravado no banco pode vir de outro ambiente (ex.:
+      // "localhost:9000" de dev, persistido num dump restaurado em produção).
+      const redirectUrl = getS3Url(meta.s3_key) || meta.url_cdn
       if (redirectUrl) {
         return NextResponse.redirect(redirectUrl, {
           status: 302,
