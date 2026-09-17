@@ -159,6 +159,22 @@ export async function POST(request: NextRequest) {
       ipAddress = '127.0.0.1';
     }
 
+    // Achado real (2026-09-17): a coluna ip_address é do tipo `inet` do Postgres, que
+    // rejeita "IP:porta" (só aceita endereço, opcionalmente com /CIDR). A checagem antiga
+    // só olhava se a string tinha "." ou ":" — um IPv4 com porta (ex.: "187.59.71.235:63337",
+    // que é como o Caddy formata {remote} no X-Forwarded-For, achado em produção) tem os dois
+    // e passava direto, quebrando TODO login com "invalid input syntax for type inet".
+    // Removida aqui a porta de IPv4 (host:port) e de IPv6 com colchetes ([::1]:port) antes de
+    // validar o formato — nunca mexe num IPv6 puro sem colchetes (ex.: 2001:db8::1), que usa
+    // ":" como parte legítima do endereço, não como separador de porta.
+    const ipv4WithPort = ipAddress.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):\d+$/);
+    const ipv6BracketedWithPort = ipAddress.match(/^\[([0-9a-fA-F:]+)\]:\d+$/);
+    if (ipv4WithPort) {
+      ipAddress = ipv4WithPort[1];
+    } else if (ipv6BracketedWithPort) {
+      ipAddress = ipv6BracketedWithPort[1];
+    }
+
     // Validar formato básico de IP (se não for ipv4/ipv6, fallback)
     // Regex simples ou apenas confiar no fallback anterior
     if (!ipAddress.includes('.') && !ipAddress.includes(':')) {
