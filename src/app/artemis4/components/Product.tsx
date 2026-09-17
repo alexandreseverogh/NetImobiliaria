@@ -289,7 +289,7 @@ function MockApproval() {
     <MockFrame label="WhatsApp · Aprovação do agente">
       <div className="a4-wa">
         <div className="a4-wa__msg">
-          <b>Artemis4 · Agente</b>
+          <b>Artemis9 · Agente</b>
           <br />
           A campanha <b>Reforma · Carrossel</b> está entregando a R$ 96,40 por interessado — 36%
           abaixo da sua meta — há 7 dias seguidos.
@@ -304,7 +304,7 @@ function MockApproval() {
         <div className="a4-wa__msg a4-wa__msg--out">482917</div>
 
         <div className="a4-wa__msg">
-          <b>Artemis4 · Agente</b>
+          <b>Artemis9 · Agente</b>
           <br />
           Feito. Orçamento em R$ 680/dia. Vou medir o efeito e te dar o veredito em 14 dias.
         </div>

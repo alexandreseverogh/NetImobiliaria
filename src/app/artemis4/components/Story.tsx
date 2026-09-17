@@ -184,7 +184,7 @@ export function Versus() {
               <span className="a4-label">Do jeito que é hoje</span>
             </div>
             <div>
-              <span className="a4-label a4-label--gold">Com a Artemis4</span>
+              <span className="a4-label a4-label--gold">Com a Artemis9</span>
             </div>
           </div>
 
@@ -345,7 +345,13 @@ export function Faq() {
    10 · CTA FINAL
    ========================================================================== */
 
-export function FinalCta({ onEnter }: { onEnter: () => void }) {
+export function FinalCta({
+  onEnter,
+  onOpenSpecialist,
+}: {
+  onEnter: () => void
+  onOpenSpecialist: () => void
+}) {
   const bullets = [
     'Diagnóstico das suas campanhas atuais, com a verba em risco calculada',
     'Configuração do seu segmento: o que qualifica um interessado no seu negócio',
@@ -370,9 +376,9 @@ export function FinalCta({ onEnter }: { onEnter: () => void }) {
               </p>
 
               <div className="a4-cta-row" style={{ marginTop: '1.75rem' }}>
-                <a href="/contato" className="a4-btn a4-btn--primary a4-btn--lg">
+                <button type="button" onClick={onOpenSpecialist} className="a4-btn a4-btn--primary a4-btn--lg">
                   Falar com um especialista
-                </a>
+                </button>
                 <a href="/admin/login" onClick={onEnter} className="a4-btn a4-btn--ghost a4-btn--lg">
                   Já sou cliente · Entrar
                 </a>

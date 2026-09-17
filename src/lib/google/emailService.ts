@@ -241,3 +241,94 @@ export async function sendConfirmacaoLead(params: {
     html,
   })
 }
+
+// ── E-mail de solicitação de contato — landing Artemis9 ─────────
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+/** Envia ao próprio e-mail configurado via SMTP (SMTP_USER) o lead capturado
+ *  pelo modal "Falar com um especialista" da landing Artemis9. */
+export async function sendSpecialistContactRequest(params: {
+  personType: 'pf' | 'pj'
+  name: string
+  segment: string
+  demand: string
+  contactName: string
+  whatsapp: string
+}) {
+  const personLabel = params.personType === 'pj' ? 'Pessoa Jurídica' : 'Pessoa Física'
+  const nameLabel = params.personType === 'pj' ? 'Razão Social' : 'Nome'
+
+  const html = baseHtml(`
+    <div class="header">
+      <div class="header-icon">📣</div>
+      <h1>Novo Lead — Falar com Especialista</h1>
+      <div style="margin-top:10px;"><span class="badge">Artemis9</span></div>
+    </div>
+    <div class="body">
+      <p style="color:#94a3b8;font-size:14px;margin:0 0 24px;">
+        Alguém preencheu o formulário "Falar com um especialista" na landing.
+      </p>
+      <div class="info-row">
+        <div class="info-icon">🏷️</div>
+        <div>
+          <div class="info-label">Tipo</div>
+          <div class="info-value">${escapeHtml(personLabel)}</div>
+        </div>
+      </div>
+      <div class="info-row">
+        <div class="info-icon">🏢</div>
+        <div>
+          <div class="info-label">${nameLabel}</div>
+          <div class="info-value">${escapeHtml(params.name)}</div>
+        </div>
+      </div>
+      <div class="info-row">
+        <div class="info-icon">📂</div>
+        <div>
+          <div class="info-label">Segmento de atuação</div>
+          <div class="info-value">${escapeHtml(params.segment)}</div>
+        </div>
+      </div>
+      <div class="info-row">
+        <div class="info-icon">💬</div>
+        <div>
+          <div class="info-label">Maior demanda</div>
+          <div class="info-value" style="font-size:13px;font-weight:400;">${escapeHtml(params.demand)}</div>
+        </div>
+      </div>
+      <div class="info-row">
+        <div class="info-icon">👤</div>
+        <div>
+          <div class="info-label">Contato</div>
+          <div class="info-value">${escapeHtml(params.contactName)}</div>
+        </div>
+      </div>
+      <div class="info-row">
+        <div class="info-icon">📱</div>
+        <div>
+          <div class="info-label">WhatsApp</div>
+          <div class="info-value">${escapeHtml(params.whatsapp)}</div>
+        </div>
+      </div>
+      <div class="cta-box">
+        <p>Responda pelo WhatsApp informado acima.</p>
+        <a href="https://wa.me/55${params.whatsapp}" class="cta-btn">Abrir WhatsApp →</a>
+      </div>
+    </div>
+  `)
+
+  await getTransporter().sendMail({
+    from: `"${process.env.SMTP_FROM_NAME || 'Artemis9'}" <${process.env.SMTP_USER}>`,
+    to: process.env.SMTP_USER,
+    subject: `📣 Novo lead — ${params.contactName} (${params.segment})`,
+    html,
+  })
+}

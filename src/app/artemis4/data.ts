@@ -398,7 +398,7 @@ export const ORIGIN = {
   body: [
     'Na reentrada, a cápsula atravessa a atmosfera envolvida em uma bola de plasma a cerca de 2.760 °C, metade da temperatura da superfície do Sol, e perde todo o contato por rádio. Por alguns minutos, ninguém em Terra sabe o que está acontecendo lá dentro. É o instante em que tudo que foi investido na missão se confirma — ou se perde.',
     'Todo negócio tem esse momento. É quando o dinheiro colocado em anúncio precisa virar receita: o interessado aparece, a conversa começa, e a maioria das empresas perde exatamente aí o sinal do que está acontecendo. Paga, não vê, e descobre no fim do mês.',
-    'A Artemis4 é a telemetria que não cai. O nome é uma homenagem e uma promessa: atravessar a parte quente com instrumento, não com fé.',
+    'A Artemis9 é a telemetria que não cai. O nome é uma homenagem e uma promessa: atravessar a parte quente com instrumento, não com fé.',
   ],
   facts: [
     {
@@ -412,13 +412,13 @@ export const ORIGIN = {
       sourceId: 'nasaArtemis2' as keyof typeof SOURCES,
     },
     {
-      figure: 'Artemis IV',
-      text: 'É a próxima missão do programa. Escolhemos o número porque é para onde olhamos: o próximo salto, não o último.',
+      figure: 'Missões Artemis',
+      text: 'Serão várias missões da Artemis do programa. Escolhemos esse nome porque é para onde olhamos: o próximo salto, sempre evoluindo.',
       sourceId: 'nasaArtemis2' as keyof typeof SOURCES,
     },
   ],
   disclaimer:
-    'A Artemis4 é uma empresa brasileira, sediada em Recife (PE), sem qualquer vínculo, patrocínio ou endosso da NASA. As imagens de reentrada e os dados de missão citados são de domínio público e servem apenas para explicar a origem do nome.',
+    'A Artemis9 é uma empresa brasileira, sediada em Recife (PE), sem qualquer vínculo, patrocínio ou endosso da NASA. As imagens de reentrada e os dados de missão citados são de domínio público e servem apenas para explicar a origem do nome.',
 }
 
 /* ID do vídeo de reentrada no YouTube (mantido da versão anterior da página) */
