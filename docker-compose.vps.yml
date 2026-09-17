@@ -22,8 +22,13 @@ services:
       retries: 5
 
   # Object Storage (S3-compatible, self-hosted)
+  # Achado real (2026-09-17): "minio/minio" foi removido do Docker Hub (API
+  # confirma "object not found" — não é rate-limit, o repositório não existe
+  # mais lá). Isso derrubou o 1º deploy real deste cutover, no passo de subir
+  # os containers. quay.io/minio/minio é o outro registry oficial do MinIO,
+  # confirmado puxando com sucesso na VPS antes desta correção.
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
