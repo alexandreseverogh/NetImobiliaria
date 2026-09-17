@@ -29,7 +29,12 @@ export async function GET(
         // CAMINHO RÁPIDO: Se a imagem está no S3, redirecionar (zero CPU)
         // ============================================================
         if (meta.storage_type === 's3' && (meta.url_cdn || meta.s3_key)) {
-            const redirectUrl = meta.url_cdn || getS3Url(meta.s3_key)
+            // Prioriza reconstruir a partir de s3_key + CDN_URL do ambiente ATUAL — url_cdn
+            // gravado no banco pode ter sido persistido em outro ambiente (ex.: "localhost:9000"
+            // de dev, achado real ao restaurar um dump local em produção). getS3Url() sempre
+            // reflete o ambiente que está rodando agora; url_cdn só entra como último recurso,
+            // se por algum motivo não houver s3_key (registro legado incompleto).
+            const redirectUrl = getS3Url(meta.s3_key) || meta.url_cdn
             
             if (redirectUrl) {
                 return NextResponse.redirect(redirectUrl, {
