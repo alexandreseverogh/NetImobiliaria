@@ -6,9 +6,10 @@ import {
   BoltIcon,
   DevicePhoneMobileIcon,
   ArrowRightIcon,
+  ArrowLeftIcon,
 } from '@heroicons/react/24/outline'
 
-import { AUTHORITY, SOURCES } from '../data'
+import { AUTHORITY, SOURCES, HERO_PITCH, CONSOLE_SCREENSHOTS } from '../data'
 
 /* ==========================================================================
    CONSOLE DE MISSÃO — telemetria de NEGÓCIO, não de nave espacial.
@@ -86,7 +87,7 @@ function MissionConsole() {
   const visible = [FEED[feedAt], FEED[(feedAt + 1) % FEED.length], FEED[(feedAt + 2) % FEED.length]]
 
   return (
-    <div className="a4-console a4-enter a4-enter--4" aria-label="Exemplo de painel da plataforma">
+    <div className="a4-console" aria-label="Exemplo de painel da plataforma">
       <div className="a4-console__bar">
         <span className="a4-console__live a4-label" style={{ color: 'var(--ok)' }}>
           <i className="a4-dot" /> Ao vivo
@@ -155,6 +156,118 @@ function MissionConsole() {
 }
 
 /* ==========================================================================
+   CARROSSEL DO CONSOLE — slide 0 é o MissionConsole ao vivo; os demais são
+   capturas reais da própria plataforma (ver nota em CONSOLE_SCREENSHOTS).
+   ----------------------------------------------------------------------------
+   Sem autoplay, de propósito: o hero já tem dois relógios rodando sozinhos
+   (os números do console e o rodízio do feed) — mais um avançando por conta
+   própria deixaria o primeiro olhar do visitante ocupado demais. Navegação
+   é sempre por gesto do visitante (seta ou ponto), igual ao resto da página
+   trata seleção (Tour do Produto, Segmentos).
+
+   Setas ficam FORA da caixa do console, na mesma linha dos pontos — testado
+   ao vivo com as setas sobre o card (posição óbvia demais pra não tentar
+   primeiro): em mobile elas tapavam valores reais do painel ("Google"/
+   "TikTok"), já que a altura do card varia por slide e a seta é centralizada
+   verticalmente sobre TUDO. Sem overlay possível vivendo abaixo do card.
+
+   Avanço automático a cada 6s — pausa com mouse ou foco em cima (inclusive
+   teclado, `onFocus`/`onBlur` do React já se comportam como focusin/focusout,
+   cobrindo qualquer botão interno) e nunca roda sob prefers-reduced-motion,
+   mesma guarda já usada no tick do MissionConsole. `setTimeout` reagendado a
+   cada troca de `active` — não `setInterval` — porque assim uma troca manual
+   (seta/ponto) também reinicia a contagem, em vez de competir com o próximo
+   avanço automático já em andamento.
+   ========================================================================== */
+
+function ConsoleCarousel() {
+  const totalSlides = 1 + CONSOLE_SCREENSHOTS.length
+  const [active, setActive] = useState(0)
+  const [paused, setPaused] = useState(false)
+
+  const go = (i: number) => setActive(((i % totalSlides) + totalSlides) % totalSlides)
+
+  useEffect(() => {
+    if (paused) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const id = window.setTimeout(() => {
+      setActive((a) => (a + 1) % totalSlides)
+    }, 6000)
+    return () => window.clearTimeout(id)
+  }, [active, paused, totalSlides])
+
+  return (
+    <div
+      className="a4-carousel a4-enter a4-enter--4"
+      aria-roledescription="carrossel"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+    >
+      {active === 0 ? (
+        <MissionConsole />
+      ) : (
+        (() => {
+          const shot = CONSOLE_SCREENSHOTS[active - 1]
+          return (
+            <div className="a4-console" aria-label="Exemplo real da plataforma">
+              <div className="a4-console__bar">
+                <span className="a4-label" style={{ color: 'var(--gold)' }}>
+                  <i className="a4-dot" /> Exemplo real
+                </span>
+                <span className="a4-label" style={{ color: 'var(--ink-faint)' }}>
+                  {shot.caption}
+                </span>
+              </div>
+              {/* img cru, não next/image: são 5 arquivos locais já otimizados (7-30KB
+                  cada, WebP), sem benefício real do pipeline de otimização do Next
+                  aqui — e o slide precisa do tamanho intrínseco pra não recortar. */}
+              <img src={shot.src} alt={shot.alt} className="a4-console__shot" loading="lazy" />
+            </div>
+          )
+        })()
+      )}
+
+      {totalSlides > 1 && (
+        <div className="a4-carousel__controls">
+          <button
+            type="button"
+            className="a4-carousel__arrow"
+            onClick={() => go(active - 1)}
+            aria-label="Exemplo anterior"
+          >
+            <ArrowLeftIcon width={15} height={15} />
+          </button>
+
+          <div className="a4-carousel__dots" role="group" aria-label="Escolher exemplo">
+            {Array.from({ length: totalSlides }).map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                className="a4-carousel__dot"
+                aria-current={i === active}
+                aria-label={i === 0 ? 'Console ao vivo' : `Exemplo real ${i}`}
+                onClick={() => go(i)}
+              />
+            ))}
+          </div>
+
+          <button
+            type="button"
+            className="a4-carousel__arrow"
+            onClick={() => go(active + 1)}
+            aria-label="Próximo exemplo"
+          >
+            <ArrowRightIcon width={15} height={15} />
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ==========================================================================
    HERO
    ========================================================================== */
 
@@ -165,6 +278,13 @@ export function Hero({
   onEnter: () => void
   onOpenSpecialist: () => void
 }) {
+  /* Painel de contextualização revelado por clique, não navegação — pedido
+     explícito: "Ver a plataforma funcionando" deixa de pular para #plataforma
+     e passa a expandir, abaixo de si mesmo, o resumo do ciclo completo. O
+     link para a seção detalhada (#modulos) some do botão e reaparece dentro
+     do próprio painel, como próximo passo natural de quem já leu o resumo. */
+  const [pitchOpen, setPitchOpen] = useState(false)
+
   return (
     <section className="a4-hero" aria-labelledby="a4-hero-title">
       <div className="a4-hero__stars" aria-hidden="true" />
@@ -172,7 +292,10 @@ export function Hero({
       <div className="a4-hero__glow" aria-hidden="true" />
 
       <div className="a4-wrap a4-wrap--wide">
-        <div className="a4-hero__grid">
+        {/* align-items:start quando aberto — com o painel expandido a coluna
+            de texto cresce bem além da altura do console; centralizar as
+            duas colunas deixaria o console flutuando no meio de um vão. */}
+        <div className="a4-hero__grid" style={pitchOpen ? { alignItems: 'start' } : undefined}>
           <div className="a4-hero__copy">
             <span className="a4-hero__eyebrow a4-enter a4-enter--1">
               <i className="a4-dot" style={{ color: 'var(--gold)' }} />
@@ -194,14 +317,58 @@ export function Hero({
             </p>
 
             <div className="a4-cta-row a4-enter a4-enter--4">
-              <a href="#plataforma" className="a4-btn a4-btn--primary a4-btn--lg">
+              <button
+                type="button"
+                onClick={() => setPitchOpen((v) => !v)}
+                aria-expanded={pitchOpen}
+                aria-controls="a4-hero-pitch"
+                className="a4-btn a4-btn--primary a4-btn--lg a4-hero__toggle"
+              >
                 Ver a plataforma funcionando
                 <ArrowRightIcon width={17} height={17} />
-              </a>
+              </button>
               <button type="button" onClick={onOpenSpecialist} className="a4-btn a4-btn--ghost a4-btn--lg">
                 Falar com um especialista
               </button>
             </div>
+
+            {pitchOpen && (
+              <div id="a4-hero-pitch" className="a4-panel a4-panel--lit a4-hero__pitch a4-enter">
+                <span className="a4-label a4-label--gold">{HERO_PITCH.kicker}</span>
+                <p className="a4-body" style={{ fontSize: '0.9375rem' }}>
+                  {HERO_PITCH.lead}
+                </p>
+
+                {HERO_PITCH.stages.map((s) => (
+                  <div key={s.tag}>
+                    <span className="a4-label a4-label--gold a4-hero__pitch-tag">{s.tag}</span>
+                    <h4 className="a4-h4">{s.title}</h4>
+                    <p className="a4-body" style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>
+                      {s.body}
+                    </p>
+                  </div>
+                ))}
+
+                <div className="a4-hero__callout">
+                  <BoltIcon />
+                  <p className="a4-body" style={{ fontSize: '0.9375rem', margin: 0 }}>
+                    {HERO_PITCH.impossible}
+                  </p>
+                </div>
+
+                <p className="a4-body" style={{ fontSize: '0.875rem' }}>
+                  {HERO_PITCH.audience}
+                </p>
+                <p className="a4-body" style={{ fontSize: '0.875rem' }}>
+                  {HERO_PITCH.segmentAgnostic}
+                </p>
+
+                <a href="#modulos" className="a4-btn a4-btn--ghost a4-btn--sm">
+                  Ver os três estágios em detalhe
+                  <ArrowRightIcon width={15} height={15} />
+                </a>
+              </div>
+            )}
 
             <ul className="a4-hero__trust a4-enter a4-enter--5">
               <li>
@@ -216,7 +383,7 @@ export function Hero({
             </ul>
           </div>
 
-          <MissionConsole />
+          <ConsoleCarousel />
         </div>
       </div>
     </section>
@@ -232,6 +399,16 @@ export function AuthorityBand() {
   return (
     <section className="a4-band--deep" aria-label="O que a pesquisa mostra">
       <div className="a4-wrap a4-wrap--wide">
+        {/* Antes só existia como aria-label (invisível pra quem vê a tela) —
+            os 4 números pareciam soltos, sem nada ligando-os entre si nem ao
+            que o hero acabou de afirmar. Kicker visível, mesmo padrão de
+            micro-cabeçalho já usado no resto da página. */}
+        <p
+          className="a4-label a4-label--gold"
+          style={{ paddingTop: 'clamp(1.5rem, 3vw, 2.25rem)', marginBottom: '1rem' }}
+        >
+          O que a pesquisa já mostra sobre o seu cliente
+        </p>
         <div className="a4-authority a4-rise">
           {AUTHORITY.map((a) => {
             const s = SOURCES[a.sourceId]

@@ -14,6 +14,110 @@
  */
 
 /* ==========================================================================
+   HERO — carrossel do Console de Missão
+   ----------------------------------------------------------------------------
+   O slide 0 é sempre o MissionConsole ao vivo (números fictícios, ticking).
+   Os demais são capturas reais da própria plataforma (dado de demonstração,
+   nunca de cliente real) — a prova concreta de que a telemetria que o slide
+   0 dramatiza existe de fato. Curadoria: das 7 capturas originais, 2 ficaram
+   de fora por defeito visual real (não por dado sensível) — uma tinha um
+   tooltip de debug preso sobre o gráfico, outra tinha um percentual sem
+   sentido (200% de conversão) — nenhuma foi "corrigida" na imagem; ambas só
+   não entraram no carrossel.
+   ========================================================================== */
+
+export interface ConsoleScreenshot {
+  src: string
+  alt: string
+  caption: string
+}
+
+export const CONSOLE_SCREENSHOTS: ConsoleScreenshot[] = [
+  {
+    src: '/Assets/artemis4/console/visao-executiva.webp',
+    alt: 'Painel executivo real: evolução do investimento, saúde da campanha, funil e alertas automáticos',
+    caption: 'Evolução do investimento e a saúde de cada campanha, num único painel.',
+  },
+  {
+    src: '/Assets/artemis4/console/onde-esta-dinheiro.webp',
+    alt: 'Ranking real das campanhas por investimento, incluindo as que não trouxeram interessado nenhum',
+    caption: 'Onde está o dinheiro — inclusive o que não está trazendo ninguém.',
+  },
+  {
+    src: '/Assets/artemis4/console/sinais-radar.webp',
+    alt: 'Sinais que antecipam desgaste do anúncio, cruzados com radar de demanda e mapa de campanhas',
+    caption: 'Sinais que antecipam o desgaste, cruzados com a demanda real do mercado.',
+  },
+  {
+    src: '/Assets/artemis4/console/resumo-estrategico.webp',
+    alt: 'Resumo estratégico escrito pela inteligência artificial, com a ação recomendada em destaque',
+    caption: 'O resumo estratégico é escrito pela própria inteligência artificial, todos os dias.',
+  },
+  {
+    src: '/Assets/artemis4/console/selecao-criativos.webp',
+    alt: 'Seleção de fotos de imóveis reais para o próximo anúncio, direto na tela da plataforma',
+    caption: 'Escolhendo as fotos que vão para o próximo anúncio, direto na tela.',
+  },
+]
+
+/* ==========================================================================
+   HERO — painel de contextualização ("Ver a plataforma funcionando")
+   ----------------------------------------------------------------------------
+   Resumo executivo do ciclo inteiro, revelado por clique — não decoração:
+   cobre, numa passada, o que as seções mais abaixo (Diagnóstico, Ciclo
+   Fechado, Tour do Produto, Agente, Segmentos) desenvolvem em detalhe, para
+   quem quer entender o valor antes de rolar a página inteira.
+
+   Mesma REGRA DE VOZ do topo do arquivo: nada de "lead"/"funil"/ROAS/CTR/
+   CPL/SLA/"conversão" — mesmo que o pedido original os usasse, aqui saem
+   como "cliente em potencial", "ciclo de venda", "custo por interessado",
+   "prazo de resposta acompanhado", "negócio fechado".
+
+   Deliberadamente sem citar nome de tela/recurso interno (ex.: "Padrões
+   Vencedores", "Regimento do Segmento", nomes de agente) — o objetivo é
+   comunicar o VALOR de cada capacidade pro dono de negócio, nunca o rótulo
+   ou o mecanismo interno que um concorrente poderia copiar.
+   ========================================================================== */
+
+export interface HeroPitchStage {
+  tag: string
+  title: string
+  body: string
+}
+
+export const HERO_PITCH = {
+  kicker: 'Como isso funciona, do começo ao fim',
+  lead:
+    'Não é uma lista de funcionalidades soltas. É um motor completo de crescimento comercial, pensado para cobrir o ciclo inteiro — do primeiro anúncio ao dinheiro que efetivamente entra no seu caixa.',
+  stages: [
+    {
+      tag: 'Atrai',
+      title: 'Antes do anúncio ir ao ar — e depois dele',
+      body:
+        'A plataforma avalia cada foto, vídeo e texto do seu anúncio antes do lançamento e aponta, em linguagem simples, o que está perdendo força de atenção — a razão mais comum de um anúncio custar caro sem trazer gente nova. Feita a escolha, ela mesma cuida do lançamento, direto pela tela, em Instagram e Facebook, Google e TikTok. O retorno de cada rede volta detalhado: quanto foi investido, quantas pessoas se interessaram e — o dado que nenhuma rede social entrega de bandeja — quantas realmente se tornaram clientes. E um conjunto de ações automáticas trabalha o tempo todo para melhorar esse resultado, redistribuindo verba para o que funciona e protegendo você do que já parou.',
+    },
+    {
+      tag: 'Atende',
+      title: 'Cada interessado, respondido na hora certa',
+      body:
+        'Um assistente responde a partir do catálogo real do seu negócio e nunca inventa uma condição que você não oferece — quando a conversa exige uma pessoa, ele entrega tudo ao seu time, com o histórico completo. E o trabalho da própria equipe é acelerado: prazo de resposta acompanhado ponta a ponta, conversas organizadas por responsável, e indicadores que mostram, sem esforço, onde o atendimento está indo bem e onde precisa de atenção.',
+    },
+    {
+      tag: 'Fecha',
+      title: 'Ninguém esfria por falta de atenção',
+      body:
+        'Um conjunto de agentes de inteligência artificial cuida da parte que mais se perde no dia a dia comercial: direcionam cada novo contato para a pessoa certa, avisam sozinhos quando alguém espera resposta por tempo demais, sinalizam quando um cliente em potencial trava numa etapa do ciclo de venda, sugerem o próximo passo mais indicado para cada caso e reativam, com uma mensagem própria para a situação, quem parou de responder. Quem conversa, negocia e decide continua sendo sempre a sua equipe.',
+    },
+  ] as HeroPitchStage[],
+  impossible:
+    'Fazer tudo isso à mão — comparar três redes ao mesmo tempo, avaliar cada anúncio, redistribuir verba, responder em segundos a qualquer hora e lembrar de cada cliente em potencial que ainda espera retorno — exigiria uma equipe inteira, o dia inteiro, todos os dias. Sem esse nível de inteligência automatizada, alcançar o mesmo crescimento de receita não é só mais difícil: na prática, é competir em desvantagem contra quem já opera assim.',
+  audience:
+    'Essa capacidade pode ser contratada tanto pela empresa que vende diretamente ao seu cliente final quanto por agências e profissionais de marketing digital que administram campanhas de vários clientes ao mesmo tempo — cada um com o próprio ambiente isolado dos demais.',
+  segmentAgnostic:
+    'E o motor por trás de tudo isso é agnóstico por construção: cada segmento de negócio tem o próprio regimento de configuração — o que o assistente de atendimento pode consultar, quais respostas revelam a real intenção de compra, quando um anúncio deve ser ajustado, quem deve receber cada novo contato e o que efetivamente conta como negócio fechado. É por isso que a mesma plataforma atende uma imobiliária, uma revenda de veículos, uma clínica ou uma prestadora de serviços, sem depender de uma versão diferente do sistema para cada uma.',
+}
+
+/* ==========================================================================
    FONTES — citadas na página e consolidadas no rodapé
    ========================================================================== */
 
