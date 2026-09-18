@@ -279,8 +279,8 @@ export function Hero({
   onOpenSpecialist: () => void
 }) {
   /* Painel de contextualização revelado por clique, não navegação — pedido
-     explícito: "Ver a plataforma funcionando" deixa de pular para #plataforma
-     e passa a expandir, abaixo de si mesmo, o resumo do ciclo completo. O
+     explícito: o CTA deixa de pular para #plataforma e passa a expandir,
+     abaixo de si mesmo, o resumo do ciclo completo. O
      link para a seção detalhada (#modulos) some do botão e reaparece dentro
      do próprio painel, como próximo passo natural de quem já leu o resumo. */
   const [pitchOpen, setPitchOpen] = useState(false)
@@ -324,7 +324,7 @@ export function Hero({
                 aria-controls="a4-hero-pitch"
                 className="a4-btn a4-btn--primary a4-btn--lg a4-hero__toggle"
               >
-                Ver a plataforma funcionando
+                Entenda como gerar mais receitas para a sua empresa
                 <ArrowRightIcon width={17} height={17} />
               </button>
               <button type="button" onClick={onOpenSpecialist} className="a4-btn a4-btn--ghost a4-btn--lg">

@@ -61,7 +61,8 @@ export const CONSOLE_SCREENSHOTS: ConsoleScreenshot[] = [
 ]
 
 /* ==========================================================================
-   HERO — painel de contextualização ("Ver a plataforma funcionando")
+   HERO — painel de contextualização ("Entenda como gerar mais receitas para
+   a sua empresa")
    ----------------------------------------------------------------------------
    Resumo executivo do ciclo inteiro, revelado por clique — não decoração:
    cobre, numa passada, o que as seções mais abaixo (Diagnóstico, Ciclo
