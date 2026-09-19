@@ -277,14 +277,16 @@ export async function getUserWithPermissions(userId: string, tenantId?: string) 
     
     // Buscar role do usuário no contexto do Tenant (Prioritário) + Detalhes do Tenant
     const roleQuery = `
-      SELECT 
-        ur.id as role_id, ur.name as role_name, ur.description as role_description, 
+      SELECT
+        ur.id as role_id, ur.name as role_name, ur.description as role_description,
         ur.level as role_level, ur.requires_2fa, ur.is_system_role,
         t.id as tenant_id, t.name as tenant_name, t.slug as tenant_slug,
-        t.logo as tenant_logo, t.logo_url as tenant_logo_url, t.logo_mime_type as tenant_logo_mime_type
+        t.logo as tenant_logo, t.logo_url as tenant_logo_url, t.logo_mime_type as tenant_logo_mime_type,
+        ss.name as tenant_segment_name
       FROM user_tenant_membership utm
       JOIN user_roles ur ON utm.role_id = ur.id
       JOIN tenants t ON utm.tenant_id = t.id
+      LEFT JOIN system_segments ss ON ss.id = t.segment_id
       WHERE utm.user_id = $1::uuid AND (utm.tenant_id = $2::uuid OR $2 IS NULL)
       LIMIT 1
     `
@@ -330,6 +332,7 @@ export async function getUserWithPermissions(userId: string, tenantId?: string) 
           id: row.tenant_id,
           name: row.tenant_name,
           slug: row.tenant_slug,
+          segment: row.tenant_segment_name || null,
           logo: logoDataUrl,
           logo_mime_type: row.tenant_logo_mime_type
         }
