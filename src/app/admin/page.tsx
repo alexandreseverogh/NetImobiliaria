@@ -1,119 +1,110 @@
 'use client'
 
-import Link from 'next/link'
-import { SkillRenderer } from '@/components/shared/SkillRenderer'
+import { useEffect, useMemo, useState } from 'react'
+import { useAuth } from '@/hooks/useAuth'
+import { useSidebarMenu } from '@/hooks/useSidebarMenu'
 
-export default function AdminDashboard() {
-  // Home do Admin: vitrine visual (4 cards grandes com fotos de imóveis).
+/**
+ * Home do Admin — reescrita em 2026-09-19, 2ª versão.
+ *
+ * A 1ª tentativa desta reescrita virou uma grade com todas as categorias e
+ * funcionalidades do tenant — rejeitada explicitamente: essa não é a função
+ * desta tela (a sidebar já existe e já faz isso). O pedido real é mais
+ * simples e mais difícil: uma tela de chegada bonita, discreta, com leve
+ * contextualização da marca — não um painel funcional.
+ *
+ * Substitui a versão original (4 fotos de imóvel do Unsplash, texto
+ * "Gerencie imóveis, cadastros e configurações da sua imobiliária digital"
+ * — resíduo da época pré-multi-segmento) por uma saudação pessoal + um
+ * glifo de órbita desenhado em SVG (referência discreta ao nome Artemis —
+ * a mesma origem de marca já contada em /artemis4, nunca reinventada aqui)
+ * — zero funcionalidade listada, zero número, zero imagem externa.
+ *
+ * Nome de marca: a plataforma foi rebatizada de "Artemis4" para "Artemis9"
+ * (ver src/app/artemis4/data.ts e Chrome.tsx) — a rota /artemis4 manteve o
+ * nome antigo por compatibilidade, mas todo texto visível usa Artemis9.
+ */
 
-  const cards = [
-    {
-      tag: 'Alto padrão',
-      title: 'Apartamento com vista e varanda gourmet',
-      location: 'Recife • Boa Viagem',
-      href: '/admin/imoveis',
-      img: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1800&q=80'
-    },
-    {
-      tag: 'Oportunidade',
-      title: 'Casa moderna com área externa',
-      location: 'Recife • Imbiribeira',
-      href: '/admin/imoveis',
-      img: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=1800&q=80'
-    },
-    {
-      tag: 'Investimento',
-      title: 'Studio compacto em localização estratégica',
-      location: 'Recife • Pina',
-      href: '/admin/imoveis',
-      img: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1800&q=80'
-    },
-    {
-      tag: 'Família',
-      title: 'Casa ampla com 4 quartos e garagem',
-      location: 'Recife • Zona Sul',
-      href: '/admin/imoveis',
-      img: 'https://images.unsplash.com/photo-1570129477492-45c003edd2be?auto=format&fit=crop&w=1800&q=80'
-    }
-  ] as const
+function greetingForHour(hour: number): string {
+  if (hour < 12) return 'Bom dia'
+  if (hour < 18) return 'Boa tarde'
+  return 'Boa noite'
+}
 
-  const standardView = (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      {/* Hero */}
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-700 via-indigo-700 to-slate-900" />
-        <div className="absolute inset-0 opacity-25 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.45),transparent_40%),radial-gradient(circle_at_80%_30%,rgba(255,255,255,0.25),transparent_45%),radial-gradient(circle_at_50%_90%,rgba(255,255,255,0.18),transparent_55%)]" />
+/** Glifo de órbita — referência discreta ao nome Artemis (a origem da marca,
+ *  contada em /artemis4: missão lunar, trajetória, retorno). Um corpo
+ *  central parado e um satélite em órbita lenta — nunca literal, nunca
+ *  chamativo. O satélite só se move se o visitante não pediu menos
+ *  movimento (mesma guarda de sempre nesta base). */
+function OrbitGlyph({ accent, className }: { accent: string; className?: string }) {
+  const [animate, setAnimate] = useState(false)
 
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-          <div className="flex flex-col items-center text-center gap-4">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-white/90 ring-1 ring-white/20 backdrop-blur">
-              <img src="/imovitec-logo-definitive.png" alt="Logo" className="h-4 w-auto brightness-0 invert" />
-              <span className="text-sm font-semibold">Painel Administrativo</span>
-            </div>
-
-            <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-white">
-              Central Administrativa
-            </h1>
-            <p className="max-w-3xl text-lg sm:text-xl text-blue-100">
-              Gerencie imóveis, cadastros e configurações da sua imobiliária digital em um só lugar.
-            </p>
-
-            {/* CTAs removidos por solicitação — manter visual limpo */}
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div className="relative">
-          <svg className="block w-full h-12 text-slate-50" viewBox="0 0 1200 120" preserveAspectRatio="none">
-            <path
-              d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z"
-              fill="currentColor"
-            />
-          </svg>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8 pb-16 relative z-10">
-        <section className="mb-10">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {cards.map((c) => (
-              <Link
-                key={c.title}
-                href={c.href}
-                className="group relative overflow-hidden rounded-3xl border border-white/40 bg-white shadow-xl shadow-black/5"
-              >
-                <div className="relative h-[320px] sm:h-[360px]">
-                  <img
-                    src={c.img}
-                    alt={c.title}
-                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                    loading="lazy"
-                    referrerPolicy="no-referrer"
-                  />
-
-                  {/* overlay leve só para dar acabamento (sem texto) */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-black/0 to-black/0" />
-                  <div className="absolute inset-0 ring-1 ring-inset ring-white/20" />
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      </div>
-    </div>
-  )
+  useEffect(() => {
+    setAnimate(!window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+  }, [])
 
   return (
-    <SkillRenderer 
-      slug="dashboards" 
-      fallback={standardView} 
-    />
+    <svg viewBox="0 0 220 130" className={className} aria-hidden="true">
+      <ellipse cx="110" cy="65" rx="95" ry="34" fill="none" stroke={accent} strokeOpacity="0.22" strokeWidth="1.25" />
+      <circle cx="110" cy="65" r="6" fill={accent} fillOpacity="0.85" />
+      <circle r="9" fill={accent} fillOpacity="0.12">
+        <animateMotion
+          dur="22s"
+          repeatCount={animate ? 'indefinite' : '0'}
+          path="M 15,65 A 95,34 0 1,0 205,65 A 95,34 0 1,0 15,65 Z"
+        />
+      </circle>
+      <circle r="3" fill={accent}>
+        <animateMotion
+          dur="22s"
+          repeatCount={animate ? 'indefinite' : '0'}
+          path="M 15,65 A 95,34 0 1,0 205,65 A 95,34 0 1,0 15,65 Z"
+        />
+      </circle>
+    </svg>
   )
 }
 
+export default function AdminDashboard() {
+  const { user } = useAuth()
+  const { theme } = useSidebarMenu('admin')
 
+  const isDark = theme.mode === 'dark'
+  const accent = theme.primaryColor || '#2563eb'
 
+  const greeting = useMemo(() => greetingForHour(new Date().getHours()), [])
+  const firstName = user?.nome?.split(' ')[0] || ''
+  const tenantName = user?.currentTenant?.name
+  const segmentName = user?.currentTenant?.segment
 
+  return (
+    <div className="flex min-h-[72vh] flex-col items-center justify-center px-6 text-center">
+      {/* Eyebrow de marca — discreto, nunca o foco */}
+      <div className="mb-6 flex items-center gap-2">
+        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: accent }} />
+        <span
+          className={`text-xs font-semibold uppercase tracking-[0.2em] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
+        >
+          Artemis9
+        </span>
+      </div>
 
+      <OrbitGlyph accent={accent} className="mb-8 h-24 w-40 sm:h-28 sm:w-48" />
 
+      <h1 className={`text-3xl sm:text-4xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
+        {greeting}{firstName ? `, ${firstName}` : ''}.
+      </h1>
+
+      <p className={`mt-3 max-w-md text-sm sm:text-base ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+        Marketing, atendimento e vendas, num só lugar.
+      </p>
+
+      {(tenantName || segmentName) && (
+        <p className={`mt-8 text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+          {tenantName}
+          {segmentName ? ` · ${segmentName}` : ''}
+        </p>
+      )}
+    </div>
+  )
+}

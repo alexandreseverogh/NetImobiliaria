@@ -24,7 +24,7 @@ export interface Tenant {
   id: string
   name: string
   slug: string
-  segment: string
+  segment?: string | null
   logo?: string | null
   logo_mime_type?: string | null
 }
