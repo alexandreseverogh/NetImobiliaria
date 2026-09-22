@@ -193,10 +193,11 @@ async function qualifyWithLlm(
   const prompt = renderPrompt(template, { mensagem, regras_taticas: regrasTaticas, criterios_fit: criteriosFit });
 
   const llm = await getLlmClient(tenantId, clientId);
-  // 700, não 500 — o prompt agora pede 2 dimensões de julgamento (intenção + fit), não 1;
-  // com o teto antigo, respostas de alguns providers (confirmado ao vivo com Gemini) vinham
-  // truncadas no meio do JSON antes de fechar score_fit.
-  const responseText = await llm.complete(prompt, 700);
+  // 1000, não 700 — reconfirmado ao vivo nesta sessão (segmento Gestão de Marketing Digital,
+  // Gemini): mesmo com 700 a resposta ainda veio truncada no meio do resumo_ia, antes de
+  // chegar em score_fit — prompts mais longos (com contexto extra de interpretação de sinal
+  // por segmento) consomem mais do próprio orçamento de tokens antes de fechar o JSON.
+  const responseText = await llm.complete(prompt, 1000);
 
   const jsonMatch = responseText.match(/\{[\s\S]*\}/);
   if (!jsonMatch) return null;
