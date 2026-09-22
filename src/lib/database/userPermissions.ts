@@ -19,6 +19,70 @@ export interface AuditConfigMap {
 }
 
 /**
+ * Gate de cobrança (Stripe, 2026-09-19) — mesma lógica do FILTRO D de
+ * get_sidebar_menu_for_user() (prisma/migration-2026-09-19-sidebar-billing-
+ * gate.sql), reaproveitada aqui como string porque esta camada é feita de
+ * SQL montado em TypeScript, não uma função PL/pgSQL única.
+ *
+ * Existem DUAS vias reais de autorização nesta plataforma, e as duas
+ * precisam do gate — achado confirmado lendo o código, não suposto:
+ * 1. `requireApiPermission`/`requireAnyApiPermission` (apiPermissions.ts) —
+ *    lê `decoded.permissoes`, o mapa GRAVADO NO JWT no momento do LOGIN.
+ *    Esse mapa é montado por uma query PRÓPRIA e independente dentro de
+ *    src/app/api/admin/auth/login/route.ts (NÃO chama getUserPermissions
+ *    daqui) — por isso o gate também foi aplicado lá, nas 2 queries de
+ *    permissão daquele arquivo.
+ * 2. `userHasPermission`/`unifiedPermissionMiddleware` (permissionMiddleware.ts)
+ *    — chama getUserPermissions() (esta função) FRESCO A CADA REQUISIÇÃO,
+ *    sem cache de JWT nenhum. Rotas que usam esse caminho (ex.: várias de
+ *    imóveis) já refletem billing_status instantaneamente, sem esperar
+ *    login novo.
+ * getUserPermissions() também alimenta getUserWithPermissions(), consumido
+ * por /api/admin/auth/me — o endpoint que o FRONTEND usa pra decidir o que
+ * exibir/habilitar na UI (comentário already existente em login/route.ts:
+ * "o frontend nunca lê permissoes do JWT... só do payload de /auth/me,
+ * recalculado fresco") — outro motivo pelo qual o gate aqui já bastava
+ * pra UI refletir billing ao vivo, mesmo antes do fix em login/route.ts.
+ *
+ * Bloqueia a feature quando o módulo real dela (system_feature_modules →
+ * system_modules) está com billing_status='past_due' pra este tenant —
+ * exceto se o tenant for isento daquele módulo (isento_marketingdigital/
+ * isento_mensageria/isento_crm). Feature sem módulo vinculado, ou cujo
+ * módulo nunca ficou past_due, nunca é afetada.
+ *
+ * Limitação aceita conscientemente, só pra quem passa pela via 1
+ * (JWT) — simétrica ao que já vale pra provisionamento normal (revogar um
+ * tenant_feature_overrides também só tem efeito no PRÓXIMO login pra quem
+ * é autorizado via JWT): uma sessão com JWT válido emitido ANTES da
+ * inadimplência continua funcionando até o token expirar (JWT_EXPIRES_IN,
+ * default 24h) ou o usuário deslogar. Quem passa pela via 2 (live) não tem
+ * essa limitação — reflete billing_status na hora.
+ *
+ * `sf` precisa ser o alias de system_features na query que usa isto.
+ */
+export function BILLING_BLOCK_CLAUSE(tenantIdParam: string): string {
+  return `
+    AND NOT EXISTS (
+        SELECT 1
+        FROM system_feature_modules sfm
+        JOIN system_modules sm ON sm.id = sfm.module_id
+        JOIN tenant_modules tm ON tm.module_id = sfm.module_id AND tm.tenant_id = ${tenantIdParam}
+        WHERE sfm.feature_id = sf.id
+          AND tm.is_enabled = true
+          AND COALESCE(tm.billing_status, 'active') = 'past_due'
+          AND NOT (
+            (sm.slug = 'trafego-pago' AND EXISTS (
+                  SELECT 1 FROM tenants t WHERE t.id = ${tenantIdParam} AND t.isento_marketingdigital = true)) OR
+            (sm.slug = 'mensageria' AND EXISTS (
+                  SELECT 1 FROM tenants t WHERE t.id = ${tenantIdParam} AND t.isento_mensageria = true)) OR
+            (sm.slug = 'crm' AND EXISTS (
+                  SELECT 1 FROM tenants t WHERE t.id = ${tenantIdParam} AND t.isento_crm = true))
+          )
+    )
+  `
+}
+
+/**
  * Busca todas as permissões de um usuário baseado no seu role
  * @param userId ID do usuário
  * @returns Mapa de permissões por recurso
@@ -71,6 +135,7 @@ export async function getUserPermissions(userId: string, tenantId?: string): Pro
         FROM tenant_feature_overrides tfo
         JOIN system_features sf ON tfo.feature_id = sf.id
         WHERE tfo.tenant_id = $1::uuid AND tfo.is_active = true AND sf.is_active = true
+          ${BILLING_BLOCK_CLAUSE('$1::uuid')}
       `
       const provisionedResult = await pool.query(provisionedQuery, [tenantId!])
 
@@ -105,6 +170,7 @@ export async function getUserPermissions(userId: string, tenantId?: string): Pro
           SELECT 1 FROM tenant_feature_overrides tfo
           WHERE tfo.feature_id = sf.id AND tfo.tenant_id = $2::uuid AND tfo.is_active = true
         )
+        ${BILLING_BLOCK_CLAUSE('$2::uuid')}
       ORDER BY sf.slug, p.action
     `
     

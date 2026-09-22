@@ -175,6 +175,11 @@ STAGING_CRON_SECRET=${STAGING_CRON_SECRET}
 ANTHROPIC_API_KEY=
 GEMINI_API_KEY=
 
+# ── Stripe (cobrança dos módulos billáveis — preencher com a chave de
+# ── modo teste enquanto a conta não migrar pra cobrança real) ────────
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+
 # ── Meta API (preencher na UI de configurações) ───────────────
 META_ACCESS_TOKEN=
 META_AD_ACCOUNT_ID=

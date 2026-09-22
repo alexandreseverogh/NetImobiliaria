@@ -1136,6 +1136,29 @@ export default function MasterTenantsPage() {
                              </div>
                            </div>
                         </div>
+
+                        {/* Isenção de cobrança por módulo (Stripe Billing, 2026-09-19) */}
+                        <div className="col-span-2 pt-4 border-t border-gray-100">
+                           <h4 className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-4">Isenção de Cobrança</h4>
+                           <div className="space-y-3">
+                             {([
+                               { key: 'isento_marketingdigital', label: 'Marketing Digital (Campanhas)' },
+                               { key: 'isento_mensageria', label: 'Mensageria' },
+                               { key: 'isento_crm', label: 'CRM' },
+                             ] as const).map(({ key, label }) => (
+                               <div
+                                 key={key}
+                                 className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 cursor-pointer"
+                                 onClick={() => setEditingTenant({ ...editingTenant, [key]: !editingTenant?.[key] })}
+                               >
+                                 <p className="text-[9px] font-black text-gray-700 uppercase">{label}</p>
+                                 <div className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${editingTenant?.[key] ? 'bg-amber-600' : 'bg-gray-300'}`}>
+                                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform ${editingTenant?.[key] ? 'translate-x-6' : 'translate-x-1'}`} />
+                                 </div>
+                               </div>
+                             ))}
+                           </div>
+                        </div>
                      </div>
                   </div>
                   <div className="space-y-8">
