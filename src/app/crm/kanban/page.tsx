@@ -611,7 +611,18 @@ export default function KanbanPage() {
     if (!lead_uuid) return
     const lead = leads.find(l => l.lead_uuid === lead_uuid)
     if (!lead || lead.coluna_nome === targetCol.nome) return
-    requestMove(lead, targetCol)
+    // Adia a mutação de estado pro próximo tick — o `requestMove`/`executeMove` reestrutura o
+    // DOM do card (ele sai do .map() de uma coluna e entra no de outra, um subtree diferente,
+    // então o React desmonta o nó original e monta um novo, mesmo com a mesma key). Fazer isso
+    // ainda dentro da pilha de chamadas do evento nativo `drop` impede o Chromium de terminar
+    // de encerrar a sessão de drag corretamente (o `dragend` nunca chega a disparar limpo no
+    // elemento original, que já não existe mais). Depois de 2 arrastos reais seguidos assim, o
+    // motor de drag do navegador trava silenciosamente — nenhum `dragstart` novo dispara até
+    // recarregar a página, mesmo clique/scroll continuando normais. Achado real: simulação via
+    // `DragEvent`+`DataTransfer` sintético (sem uma sessão nativa de verdade) nunca reproduzia
+    // o travamento — só um arrasto físico de mouse é afetado, por isso passou despercebido em
+    // testes automatizados anteriores.
+    setTimeout(() => requestMove(lead, targetCol), 0)
   }
 
   // Enquanto a config do tenant ainda não carregou, não dá pra saber se o gate de escopo se
