@@ -99,8 +99,12 @@ export default function CRMLayoutContent({
     setSidebarOpen(false)
   }, [])
 
-  const containerClasses = useMemo(() => `min-h-screen ${isDark ? 'bg-[#020617] text-white' : 'bg-gray-100 text-gray-900'}`, [isDark])
-  const gridClasses = useMemo(() => `grid grid-cols-1 lg:grid-cols-[320px_1fr] ${isDark ? 'bg-[#020617]' : 'bg-gray-100'}`, [isDark])
+  // bg-navy-dark (#020c1b) — DESIGN.md: "Nunca #020617" (slate-950 genérico do Tailwind, não
+  // uma cor desta marca; mesmo achado já corrigido na landing artemis4). Confirmado ao vivo:
+  // com o valor genérico, os painéis do Kanban (navy-light translúcido) ficavam dessaturados
+  // por cima de um fundo com matiz diferente do resto da paleta.
+  const containerClasses = useMemo(() => `min-h-screen ${isDark ? 'bg-navy-dark text-white' : 'bg-gray-100 text-gray-900'}`, [isDark])
+  const gridClasses = useMemo(() => `grid grid-cols-1 lg:grid-cols-[320px_1fr] ${isDark ? 'bg-navy-dark' : 'bg-gray-100'}`, [isDark])
 
   if (authLoading || !user) {
     return <LoadingSpinner message="Carregando CRM..." />

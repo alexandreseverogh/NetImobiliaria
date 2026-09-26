@@ -72,7 +72,7 @@ export async function PATCH(
       admin_nome, admin_username, admin_email, admin_password,
       primary_color, secondary_color,
       anthropic_api_key, slack_webhook_url, evolution_api_url, evolution_api_key, evolution_instance, agent_confidence_threshold,
-      numero_whatsapp, crm_clientes,
+      numero_whatsapp, crm_clientes, associa_segmento_negocio_cliente, marketing_digital,
       isento_marketingdigital, isento_mensageria, isento_crm
     } = body;
 
@@ -148,8 +148,10 @@ export async function PATCH(
         isento_marketingdigital = COALESCE($29, isento_marketingdigital),
         isento_mensageria = COALESCE($30, isento_mensageria),
         isento_crm = COALESCE($31, isento_crm),
+        associa_segmento_negocio_cliente = COALESCE($32, associa_segmento_negocio_cliente),
+        marketing_digital = COALESCE($33, marketing_digital),
         updated_at = NOW()
-      WHERE id = $32
+      WHERE id = $34
       RETURNING *
     `;
 
@@ -175,6 +177,8 @@ export async function PATCH(
       isento_marketingdigital !== undefined ? isento_marketingdigital : null,
       isento_mensageria !== undefined ? isento_mensageria : null,
       isento_crm !== undefined ? isento_crm : null,
+      associa_segmento_negocio_cliente !== undefined ? associa_segmento_negocio_cliente : null,
+      marketing_digital !== undefined ? marketing_digital : null,
       id
     ];
 

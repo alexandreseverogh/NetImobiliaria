@@ -41,7 +41,7 @@ export async function GET(
         tnc.credentials->>'ad_account_id'       AS ad_account_id,
         tnc.is_active                           AS credentials_active
       FROM public.clientes c
-      JOIN public.tenants t ON t.uuid = c.tenant_id
+      JOIN public.tenants t ON t.id = c.tenant_id
       LEFT JOIN public.ad_networks an ON an.code = 'meta'
       LEFT JOIN public.tenant_network_credentials tnc
              ON tnc.tenant_id = c.tenant_id AND tnc.network_id = an.id

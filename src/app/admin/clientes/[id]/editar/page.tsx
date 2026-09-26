@@ -12,6 +12,15 @@ import ClientAvatar from '@/components/admin/ClientAvatar'
 
 type TipoCliente = 'conta_gerenciada' | 'comprador_pj' | 'consumidor_pf'
 
+// O toggle "Conta Gerenciada" sempre prevalece quando ligado; desligado, o documento
+// preenchido decide (CNPJ → pessoa jurídica, CPF → pessoa física). CNPJ checado primeiro
+// porque os dois campos são mutuamente exclusivos no formulário (nunca ambos preenchidos).
+function deriveTipoCliente(contaGerenciada: boolean, cpf: string, cnpj: string): TipoCliente {
+  if (contaGerenciada) return 'conta_gerenciada'
+  if (cnpj.trim() !== '') return 'comprador_pj'
+  return 'consumidor_pf'
+}
+
 interface Cliente {
   uuid: string
   nome: string
@@ -28,7 +37,16 @@ interface Cliente {
   cep?: string
   origem_cadastro?: string
   tipo_cliente?: TipoCliente
+  segment_id?: string | null
   logo_url?: string | null
+}
+
+interface SegmentOption {
+  id: string
+  name: string
+  slug: string
+  icon: string | null
+  color_theme: string | null
 }
 
 interface ValidationErrors {
@@ -47,15 +65,42 @@ export default function EditarClientePage() {
   const [error, setError] = useState<string | null>(null)
   const [cliente, setCliente] = useState<Cliente | null>(null)
   const [activeTab, setActiveTab] = useState<'dados' | 'meta'>('dados')
-  // Mesmo gate do "novo cliente": aba "Config. Meta" só faz sentido pra tenant com o módulo de
-  // Campanhas contratado.
-  const [hasCampanhasModule, setHasCampanhasModule] = useState(false)
+  // Mesmo gate do "novo cliente": aba "Config. Meta" só é oferecida quando o TENANT ativou
+  // isso explicitamente (tenants.marketing_digital, curado pelo Master).
+  const [hasMarketingDigital, setHasMarketingDigital] = useState(false)
 
   useEffect(() => {
-    get('/api/admin/clientes/tem-modulo-campanhas')
-      .then(res => res.ok ? res.json() : { hasModule: false })
-      .then(data => setHasCampanhasModule(!!data.hasModule))
-      .catch(() => setHasCampanhasModule(false))
+    get('/api/admin/clientes/tem-marketing-digital')
+      .then(res => res.ok ? res.json() : { marketingDigital: false })
+      .then(data => setHasMarketingDigital(!!data.marketingDigital))
+      .catch(() => setHasMarketingDigital(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Segmento de negócios do cliente — só solicitado quando o TENANT ativou isso
+  // (tenants.associa_segmento_negocio_cliente, curado pelo Master em /admin/master/tenants).
+  const [associaSegmento, setAssociaSegmento] = useState(false)
+  const [segments, setSegments] = useState<SegmentOption[]>([])
+  const [segmentsLoading, setSegmentsLoading] = useState(true)
+
+  useEffect(() => {
+    get('/api/admin/clientes/tem-segmento-negocio')
+      .then(res => res.ok ? res.json() : { associaSegmento: false })
+      .then(data => setAssociaSegmento(!!data.associaSegmento))
+      .catch(() => setAssociaSegmento(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Disparada em paralelo com a checagem acima (não depende de associaSegmento) — evita
+  // encadear 2 requisições sequenciais só pra popular as opções do <select>. O campo já
+  // fica desabilitado com "Carregando..." (segmentsLoading) até esta resolver, então não
+  // há risco de mostrar a lista de segmentos antes de saber se ela deve aparecer.
+  useEffect(() => {
+    get('/api/admin/segments')
+      .then(res => res.ok ? res.json() : { segments: [] })
+      .then(data => setSegments(data.segments || []))
+      .catch(() => setSegments([]))
+      .finally(() => setSegmentsLoading(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -79,8 +124,23 @@ export default function EditarClientePage() {
     numero: '',
     complemento: '',
     origem_cadastro: '',
-    tipo_cliente: 'conta_gerenciada' as TipoCliente
+    segment_id: ''
   })
+
+  // Toggle explícito — quando ligado, o cliente É uma empresa que o tenant gerencia
+  // (tipo_cliente='conta_gerenciada'), sempre prevalecendo sobre a inferência por documento.
+  // Quando desligado, o tipo é derivado automaticamente de qual documento está preenchido:
+  // CNPJ → comprador_pj (pessoa jurídica), CPF → consumidor_pf (pessoa física).
+  const [contaGerenciada, setContaGerenciada] = useState(false)
+
+  // Se o toggle for desligado (ou marketing_digital não estiver ativo) enquanto a aba "Config.
+  // Meta" está aberta, a tela ficaria em branco — o botão da aba já some do menu, mas activeTab
+  // continuaria 'meta'. Volta sozinho pra "Dados do Cliente" nesse caso.
+  useEffect(() => {
+    if (activeTab === 'meta' && !(contaGerenciada && hasMarketingDigital)) {
+      setActiveTab('dados')
+    }
+  }, [contaGerenciada, hasMarketingDigital, activeTab])
 
   const [errors, setErrors] = useState<ValidationErrors>({})
   const [cpfValidating, setCpfValidating] = useState(false)
@@ -138,6 +198,7 @@ export default function EditarClientePage() {
 
         setCliente(clienteData)
         setLogoUrl(clienteData.logo_url ?? null)
+        setContaGerenciada((clienteData.tipo_cliente || 'conta_gerenciada') === 'conta_gerenciada')
 
         // Preencher formulário com dados do cliente
         setFormData({
@@ -154,7 +215,7 @@ export default function EditarClientePage() {
           numero: clienteData.numero || '',
           complemento: clienteData.complemento || '',
           origem_cadastro: clienteData.origem_cadastro || 'Plataforma',
-          tipo_cliente: clienteData.tipo_cliente || 'conta_gerenciada'
+          segment_id: clienteData.segment_id || ''
         })
 
         // Guardar CEP inicial para evitar busca automática no carregamento
@@ -699,6 +760,9 @@ export default function EditarClientePage() {
         }
         // A verificação de duplicidade é feita pelo useEffect acima
         break
+      case 'segment_id':
+        if (formattedValue) delete newErrors.segment_id
+        break
     }
 
     setErrors(newErrors)
@@ -759,6 +823,10 @@ export default function EditarClientePage() {
       finalErrors.cidade = 'Cidade é obrigatória'
     }
 
+    if (associaSegmento && !formData.segment_id) {
+      finalErrors.segment_id = 'Segmento de negócios é obrigatório'
+    }
+
     if (cpfExists) {
       finalErrors.cpf = 'CPF já cadastrado'
     }
@@ -797,7 +865,13 @@ export default function EditarClientePage() {
           estado_fk: formData.estado ? estadosCidades.estados.find(e => e.id === formData.estado)?.sigla || null : null,
           cidade_fk: formData.cidade ? estadosCidades.municipios.find(m => m.id === formData.cidade)?.nome || null : null,
           cep: formData.cep,
-          tipo_cliente: formData.tipo_cliente,
+          // Sem marketing_digital, o toggle nunca é oferecido — o valor já salvo no cliente
+          // é preservado intocado (updateClienteByUuid ignora tipo_cliente=undefined), nunca
+          // sobrescrito silenciosamente pela inferência de documento desta edição.
+          tipo_cliente: hasMarketingDigital
+            ? deriveTipoCliente(contaGerenciada, formData.cpf, formData.cnpj)
+            : undefined,
+          segment_id: associaSegmento ? (formData.segment_id || null) : undefined,
           updated_by: user?.nome || 'system'
         })
       })
@@ -929,7 +1003,7 @@ export default function EditarClientePage() {
           >
             👤 Dados do Cliente
           </button>
-          {formData.tipo_cliente === 'conta_gerenciada' && hasCampanhasModule && (
+          {contaGerenciada && hasMarketingDigital && (
             <button
               type="button"
               onClick={() => setActiveTab('meta')}
@@ -946,7 +1020,7 @@ export default function EditarClientePage() {
       </div>
 
       {/* ── ABA: CONFIGURAÇÕES META ── */}
-      {activeTab === 'meta' && cliente && formData.tipo_cliente === 'conta_gerenciada' && hasCampanhasModule && (
+      {activeTab === 'meta' && cliente && contaGerenciada && hasMarketingDigital && (
         <div className="max-w-3xl">
           <ClientCampaignSettings clientId={cliente.uuid} />
         </div>
@@ -1040,26 +1114,74 @@ export default function EditarClientePage() {
           </p>
         </div>
 
-        {/* Tipo de Cliente — discriminador D2 (docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §4/§9.2) */}
-        <div>
-          <label htmlFor="tipo_cliente" className="block text-sm font-medium text-gray-700 mb-2">
-            Tipo de Cliente
-          </label>
-          <select
-            id="tipo_cliente"
-            value={formData.tipo_cliente}
-            onChange={(e) => setFormData(prev => ({ ...prev, tipo_cliente: e.target.value as TipoCliente }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="conta_gerenciada">Conta Gerenciada (empresa-cliente-da-agência)</option>
-            <option value="comprador_pj">Comprador PJ</option>
-            <option value="consumidor_pf">Consumidor PF</option>
-          </select>
-          <p className="text-xs text-gray-500 mt-1">
-            Só "Conta Gerenciada" aparece nos seletores de cliente do módulo de Campanhas e ganha
-            configuração de pixel/página/WhatsApp (aba "Config. Meta").
+        {/* Tipo de Cliente — discriminador D2 (docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §4/§9.2).
+            Toggle explícito prevalece; desligado, o documento preenchido decide PF/PJ. Só faz
+            sentido exibir quando o tenant tem marketing_digital=true — é a única coisa que
+            "conta_gerenciada" muda na prática (seletores de Campanhas + aba Config. Meta). */}
+        {hasMarketingDigital && (
+        <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-gray-700">Conta Gerenciada</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Este cliente é uma empresa que eu gerencio campanhas/CRM por ele.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={contaGerenciada}
+              onClick={() => setContaGerenciada(v => !v)}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${contaGerenciada ? 'bg-emerald-600' : 'bg-gray-300'
+                }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${contaGerenciada ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+              />
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mt-3">
+            {contaGerenciada ? (
+              <>Só "Conta Gerenciada" aparece nos seletores de cliente do módulo de Campanhas e ganha
+                configuração de pixel/página/WhatsApp (aba "Config. Meta").</>
+            ) : (
+              <>Desligado, o tipo é inferido automaticamente pelo documento preenchido — será
+                classificado como <strong>{formData.cnpj.trim() !== '' ? 'Pessoa Jurídica (CNPJ)' : 'Pessoa Física (CPF)'}</strong>.</>
+            )}
           </p>
         </div>
+        )}
+
+        {/* Segmento de Negócios — só quando o tenant ativou isso (associa_segmento_negocio_cliente) */}
+        {associaSegmento && (
+          <div>
+            <label htmlFor="segment_id" className="block text-sm font-medium text-gray-700 mb-2">
+              Segmento de Negócios *
+            </label>
+            <select
+              id="segment_id"
+              value={formData.segment_id}
+              onChange={(e) => handleInputChange('segment_id', e.target.value)}
+              disabled={segmentsLoading}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400 ${errors.segment_id ? 'border-red-500' : 'border-gray-300'
+                }`}
+            >
+              {segmentsLoading ? (
+                <option value="">Carregando segmentos...</option>
+              ) : (
+                <>
+                  <option value="">Selecione o segmento</option>
+                  {segments.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </>
+              )}
+            </select>
+            {errors.segment_id && <p className="text-red-500 text-sm mt-1">{errors.segment_id}</p>}
+            <p className="text-xs text-gray-500 mt-1">A qual segmento de negócios este cliente pertence.</p>
+          </div>
+        )}
 
         <div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

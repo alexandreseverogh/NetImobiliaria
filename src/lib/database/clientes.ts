@@ -34,6 +34,11 @@ export interface Cliente {
   origem_cadastro?: string
   tipo_cliente: TipoCliente
   tenant_id: string
+  /** Segmento de negócios DESTE cliente — só relevante quando o tenant tem
+   *  tenants.associa_segmento_negocio_cliente=true (ver GET /api/admin/clientes/
+   *  tem-segmento-negocio). Alimenta a cascata resolveSegment (clientes.segment_id →
+   *  tenant.segment_id → 'geral'). */
+  segment_id?: string | null
   created_at: Date
   created_by?: string
   updated_at: Date
@@ -56,6 +61,7 @@ export interface CreateClienteData {
   cep?: string
   origem_cadastro?: string
   tipo_cliente?: TipoCliente
+  segment_id?: string | null
   // Ausente/null pro cadastro público auto-atendido (consumidor_pf, sem empresa gestora) —
   // ver checkCPFExists/checkEmailExists (IS NOT DISTINCT FROM) pro tratamento null-safe.
   tenant_id?: string | null
@@ -77,6 +83,7 @@ export interface UpdateClienteData {
   cidade_fk?: string
   cep?: string
   tipo_cliente?: TipoCliente
+  segment_id?: string | null
   updated_by?: string
 }
 
@@ -355,6 +362,7 @@ export async function findClienteByUuid(uuid: string): Promise<Cliente | null> {
           tenant_id,
           origem_cadastro,
           tipo_cliente,
+          segment_id,
           logo_url,
           created_at,
           created_by,
@@ -433,8 +441,8 @@ export async function createCliente(data: CreateClienteData): Promise<Cliente> {
       INSERT INTO clientes (
         nome, cpf, cnpj, telefone, endereco, numero, bairro, complemento,
         password, email, estado_fk, cidade_fk, cep,
-        origem_cadastro, tipo_cliente, created_by, tenant_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        origem_cadastro, tipo_cliente, created_by, tenant_id, segment_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       RETURNING *
     `, [
       data.nome,
@@ -453,7 +461,8 @@ export async function createCliente(data: CreateClienteData): Promise<Cliente> {
       origemCadastro,
       tipoCliente,
       data.created_by || 'system',
-      tenantIdNormalizado
+      tenantIdNormalizado,
+      data.segment_id || null
     ])
     
     return result.rows[0]
@@ -588,6 +597,11 @@ export async function updateClienteByUuid(uuid: string, tenantId: string | null,
     if (data.tipo_cliente !== undefined) {
       fields.push(`tipo_cliente = $${++paramCount}`)
       values.push(data.tipo_cliente)
+    }
+
+    if (data.segment_id !== undefined) {
+      fields.push(`segment_id = $${++paramCount}`)
+      values.push(data.segment_id || null)
     }
 
     if (data.password !== undefined) {

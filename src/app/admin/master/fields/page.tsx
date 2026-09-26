@@ -14,23 +14,54 @@ import {
 } from '@heroicons/react/24/outline'
 import { CreateGuard, DeleteGuard } from '@/components/admin/PermissionGuard'
 
+interface SegmentOption {
+  slug: string
+  name: string
+  is_active: boolean
+}
+
 export default function FieldBuilderPage() {
   const { get, post } = useApi()
-  const [segment, setSegment] = useState('imobiliaria')
+  // Nunca hardcoded — populado via GET /api/admin/master/segments (fonte real usada em todo o
+  // resto do Master, ex. /admin/master/segments). Antes disso, o dropdown só oferecia 3 slugs
+  // fixos (imobiliaria/saude/geral) escritos direto no JSX — 4 dos 7 segmentos reais do banco
+  // (marketing-digital, pet, carros, master) ficavam inacessíveis nesta tela.
+  const [segments, setSegments] = useState<SegmentOption[]>([])
+  const [segmentsLoading, setSegmentsLoading] = useState(true)
+  const [segment, setSegment] = useState('')
   const [entity, setEntity] = useState('lead')
   const [fields, setFields] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [simulationValues, setSimulationValues] = useState<Record<string, string>>({})
-  
+
   const [newField, setNewField] = useState({
     entity_name: 'lead',
-    segment: 'imobiliaria',
+    segment: '',
     field_name: '',
     label: '',
     field_type: 'text',
     options: [] as {label: string, value: string}[]
   })
+
+  const fetchSegments = async () => {
+    try {
+      setSegmentsLoading(true)
+      const response = await get('/api/admin/master/segments')
+      if (response.ok) {
+        const data = await response.json()
+        const active: SegmentOption[] = (data.segments || []).filter((s: SegmentOption) => s.is_active !== false)
+        setSegments(active)
+        // Default = 1º segmento real (ordem alfabética, já vem assim da API) — nunca uma
+        // vertical específica escolhida de antemão no código.
+        if (active.length > 0) setSegment(prev => prev || active[0].slug)
+      }
+    } catch (error) {
+      console.error('Erro ao buscar segmentos:', error)
+    } finally {
+      setSegmentsLoading(false)
+    }
+  }
 
   const fetchFields = async () => {
     try {
@@ -48,6 +79,13 @@ export default function FieldBuilderPage() {
   }
 
   useEffect(() => {
+    fetchSegments()
+  }, [])
+
+  useEffect(() => {
+    // Espera o segmento real (vindo do banco) estar resolvido — evita disparar uma busca com
+    // segment='' antes da lista carregar.
+    if (!segment) return
     fetchFields()
     setNewField(prev => ({ ...prev, segment, entity_name: entity }))
   }, [segment, entity])
@@ -112,14 +150,21 @@ export default function FieldBuilderPage() {
               <option value="property">Entidade: Imóveis</option>
             </select>
 
-            <select 
+            <select
               value={segment}
               onChange={(e) => setSegment(e.target.value)}
-              className="px-6 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+              disabled={segmentsLoading || segments.length === 0}
+              className="px-6 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-indigo-500 text-sm disabled:opacity-50"
             >
-              <option value="imobiliaria">Segmento: Imobiliária</option>
-              <option value="saude">Segmento: Saúde</option>
-              <option value="geral">Segmento: Geral</option>
+              {segmentsLoading ? (
+                <option value="">Carregando segmentos...</option>
+              ) : segments.length === 0 ? (
+                <option value="">Nenhum segmento cadastrado</option>
+              ) : (
+                segments.map(s => (
+                  <option key={s.slug} value={s.slug}>Segmento: {s.name}</option>
+                ))
+              )}
             </select>
             
             <CreateGuard resource="field-builder">
@@ -139,7 +184,7 @@ export default function FieldBuilderPage() {
           <div className="lg:col-span-2 space-y-4">
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm mb-6 flex justify-between items-center">
               <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest">
-                {entity === 'lead' ? 'Campos de Prospect (Leads)' : 'Atributos de Inventário (Imóveis)'} - {segment}
+                {entity === 'lead' ? 'Campos de Prospect (Leads)' : 'Atributos de Inventário (Imóveis)'} - {segments.find(s => s.slug === segment)?.name || segment}
               </h3>
               <span className="px-3 py-1 bg-slate-100 rounded-full text-[10px] font-black text-slate-500">{fields.length} CAMPOS</span>
             </div>
