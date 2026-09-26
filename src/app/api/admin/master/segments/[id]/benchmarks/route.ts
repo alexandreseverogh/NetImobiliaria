@@ -94,6 +94,16 @@ export async function POST(
     return NextResponse.json({ error: 'benchmarks deve ser um array não vazio' }, { status: 400 });
   }
 
+  // Task 1 (2026-06-04) moveu cpl_ideal/cpl_critical/ctr_min pra colunas escalares diretas em
+  // system_segments (Portfolio/Cross-Insights/Auditoria leem de lá pra evitar 1 JOIN extra —
+  // ver src/app/api/admin/campanhas/portfolio/route.ts) — mas esta rota nunca sincronizava as
+  // duas fontes de volta. Achado real: segmento criado/editado só por aqui (sem alguém rodar
+  // um UPDATE manual em system_segments depois) ficava com essas 3 colunas divergentes ou NULL,
+  // mesmo com o benchmark real salvo corretamente em system_benchmarks (o Agente Autônomo, que
+  // lê via benchmarkResolver, nunca sofria com isso — só as telas que leem a coluna escalar).
+  const SCALAR_SYNC_KEYS = new Set(['cpl_ideal', 'cpl_critical', 'ctr_min']);
+  const scalarSync: Record<string, number> = {};
+
   try {
     for (const b of benchmarks) {
       if (!b.metric_key || b.value === undefined || b.value === null) continue;
@@ -112,7 +122,20 @@ export async function POST(
                        unit = EXCLUDED.unit, updated_at = now()`,
         [params.id, b.metric_key, label, b.value, unit],
       );
+      if (SCALAR_SYNC_KEYS.has(b.metric_key)) scalarSync[b.metric_key] = b.value;
     }
+
+    if (Object.keys(scalarSync).length > 0) {
+      await pool.query(
+        `UPDATE public.system_segments SET
+           cpl_ideal    = COALESCE($2, cpl_ideal),
+           cpl_critical = COALESCE($3, cpl_critical),
+           ctr_min      = COALESCE($4, ctr_min)
+         WHERE id = $1::uuid`,
+        [params.id, scalarSync.cpl_ideal ?? null, scalarSync.cpl_critical ?? null, scalarSync.ctr_min ?? null],
+      );
+    }
+
     return NextResponse.json({ ok: true, updated: benchmarks.length });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

@@ -6,11 +6,13 @@
  * Reutilizável na página de visualização e na de edição.
  */
 import { useState, useEffect } from 'react'
-import { CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
+import { useRouter } from 'next/navigation'
+import { CheckCircleIcon, ExclamationTriangleIcon, ArrowLeftIcon } from '@heroicons/react/24/outline'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
 import { UpdateGuard } from '@/components/admin/PermissionGuard'
 
 interface CampaignSettings {
+  clientName?: string
   pageId: string; pixelId: string; instagramActorId: string; website: string
   fallback: {
     pageId: string; pixelId: string; instagramActorId: string
@@ -81,6 +83,7 @@ function CampaignField({
 }
 
 export default function ClientCampaignSettings({ clientId }: { clientId: string }) {
+  const router = useRouter()
   const { get, put } = useAuthenticatedFetch()
   const [data, setData]       = useState<CampaignSettings | null>(null)
   const [form, setForm]       = useState({ pageId: '', pixelId: '', instagramActorId: '', website: '' })
@@ -138,6 +141,22 @@ export default function ClientCampaignSettings({ clientId }: { clientId: string 
 
   return (
     <div className="space-y-5">
+      {/* Barra de contexto: nome do cliente + saída rápida sem salvar */}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Cliente</p>
+          <p className="text-lg font-black text-gray-900">{data?.clientName || '—'}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => router.push('/admin/clientes')}
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 hover:text-gray-900 transition-colors flex-shrink-0"
+        >
+          <ArrowLeftIcon className="h-4 w-4" />
+          Ir para a lista de Clientes
+        </button>
+      </div>
+
       {/* Header */}
       <div
         className="rounded-2xl p-5 text-white relative overflow-hidden"

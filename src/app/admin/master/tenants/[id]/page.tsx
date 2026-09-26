@@ -472,6 +472,48 @@ export default function TenantDetailPage() {
                         ))}
                       </select>
                     </div>
+                    <div className="md:col-span-2 p-5 bg-gray-50 rounded-2xl flex items-center justify-between mt-1">
+                      <div className="pr-4">
+                        <p className="text-xs font-black uppercase tracking-tight text-gray-900">
+                          Segmento de Negócio para Clientes
+                        </p>
+                        <p className="text-[11px] text-gray-400 mt-1">
+                          Quando ativo, as telas de criar/editar cliente (<code className="text-[10px]">/admin/clientes</code>)
+                          exigem selecionar o segmento de negócios de cada cliente — necessário
+                          quando este tenant gerencia clientes de vários segmentos distintos (ex.:
+                          uma agência de marketing digital com clientes de saúde, veículos, etc.).
+                          Desativado por padrão — tenants com clientes de um único segmento não
+                          precisam disso.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setTenant({ ...tenant, associa_segmento_negocio_cliente: !tenant.associa_segmento_negocio_cliente })}
+                        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${tenant.associa_segmento_negocio_cliente ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${tenant.associa_segmento_negocio_cliente ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
+                    <div className="md:col-span-2 p-5 bg-gray-50 rounded-2xl flex items-center justify-between">
+                      <div className="pr-4">
+                        <p className="text-xs font-black uppercase tracking-tight text-gray-900">
+                          Marketing Digital
+                        </p>
+                        <p className="text-[11px] text-gray-400 mt-1">
+                          Quando ativo, ao finalizar criar/editar cliente (<code className="text-[10px]">/admin/clientes</code>)
+                          a tela oferece a aba &quot;Config. Meta&quot; (Facebook Page ID, Meta
+                          Pixel ID, Instagram Actor ID, Website do cliente). Desativado por
+                          padrão — não confundir com a Isenção de Cobrança abaixo.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setTenant({ ...tenant, marketing_digital: !tenant.marketing_digital })}
+                        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${tenant.marketing_digital ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${tenant.marketing_digital ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -608,6 +650,38 @@ export default function TenantDetailPage() {
                     >
                       <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${tenant.crm_clientes ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
+                  </div>
+                </div>
+
+                {/* Isenção de cobrança por módulo (Stripe Billing, 2026-09-19) */}
+                <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-gray-100">
+                  <h3 className="text-md font-black text-gray-900 mb-6 flex items-center uppercase tracking-tighter">
+                    <ShieldCheckIcon className="h-5 w-5 mr-3 text-amber-600" />
+                    Isenção de Cobrança
+                  </h3>
+                  <p className="text-[11px] text-gray-400 mb-5 -mt-3">
+                    Quando ativo, este tenant tem acesso ao módulo sem precisar de assinatura
+                    paga (Stripe) em dia — o acesso nunca é bloqueado por inadimplência nesse módulo.
+                  </p>
+                  <div className="space-y-4">
+                    {([
+                      { key: 'isento_marketingdigital', label: 'Marketing Digital (Campanhas)' },
+                      { key: 'isento_mensageria', label: 'Mensageria' },
+                      { key: 'isento_crm', label: 'CRM' },
+                    ] as const).map(({ key, label }) => (
+                      <div key={key} className="p-5 bg-gray-50 rounded-2xl flex items-center justify-between">
+                        <p className="text-xs font-black uppercase tracking-tight text-gray-900">
+                          {label}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setTenant({ ...tenant, [key]: !tenant[key] })}
+                          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${tenant[key] ? 'bg-amber-600' : 'bg-gray-300'}`}
+                        >
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${tenant[key] ? 'translate-x-6' : 'translate-x-1'}`} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 </div>
 

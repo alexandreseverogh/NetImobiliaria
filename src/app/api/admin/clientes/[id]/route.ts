@@ -4,6 +4,7 @@ import { verifyToken, getTokenFromRequest } from '@/lib/auth/jwt'
 import { requireApiPermission } from '@/lib/auth/apiPermissions'
 import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger'
 import { extractRequestData } from '@/lib/utils/ipUtils'
+import pool from '@/lib/database/connection'
 
 const uuidRegex =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/
@@ -84,7 +85,7 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { nome, cpf, cnpj, telefone, email, endereco, numero, bairro, complemento, estado_fk, cidade_fk, cep, updated_by, tipo_cliente } = body
+    const { nome, cpf, cnpj, telefone, email, endereco, numero, bairro, complemento, estado_fk, cidade_fk, cep, updated_by, tipo_cliente, segment_id } = body
     const tipoClienteValido = (['conta_gerenciada', 'comprador_pj', 'consumidor_pf'] as const)
       .find(t => t === tipo_cliente)
 
@@ -94,6 +95,24 @@ export async function PUT(
         { error: 'Nome, telefone, email, estado, cidade, endereço, bairro e número são obrigatórios' },
         { status: 400 }
       )
+    }
+
+    // Segmento de negócios só é obrigatório quando o TENANT exige isso (tenants.associa_
+    // segmento_negocio_cliente) — checado no servidor, nunca confiando só na UI. `segment_id`
+    // ausente (undefined) no body significa "não mexer" (edição parcial); `null`/'' explícito
+    // é o que dispara a exigência, igual a criação.
+    if (segment_id !== undefined) {
+      const { rows: tenantRows } = await pool.query(
+        `SELECT associa_segmento_negocio_cliente FROM public.tenants WHERE id = $1::uuid`,
+        [tenantId],
+      )
+      const exigeSegmento = tenantRows[0]?.associa_segmento_negocio_cliente === true
+      if (exigeSegmento && !segment_id) {
+        return NextResponse.json(
+          { error: 'Segmento de negócios do cliente é obrigatório' },
+          { status: 400 }
+        )
+      }
     }
 
     // Cliente pode ser pessoa física (CPF) ou jurídica (CNPJ) — updateClienteByUuid
@@ -123,6 +142,7 @@ export async function PUT(
       cidade_fk: cidade_fk || undefined,
       cep,
       tipo_cliente: tipoClienteValido,
+      segment_id: segment_id !== undefined ? (segment_id || null) : undefined,
       updated_by
     })
     

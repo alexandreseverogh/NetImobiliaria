@@ -1136,6 +1136,65 @@ export default function MasterTenantsPage() {
                              </div>
                            </div>
                         </div>
+
+                        {/* Segmento de Negócio para Clientes (2026-09-23) */}
+                        <div className="col-span-2 pt-4 border-t border-gray-100">
+                           <h4 className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-4">Cadastro de Clientes</h4>
+                           <div
+                             className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 cursor-pointer"
+                             onClick={() => setEditingTenant({ ...editingTenant, associa_segmento_negocio_cliente: !editingTenant?.associa_segmento_negocio_cliente })}
+                           >
+                             <div className="pr-4">
+                               <p className="text-[9px] font-black text-gray-700 uppercase">Segmento de Negócio para Clientes</p>
+                               <p className="text-[8px] text-gray-400 font-bold mt-0.5 leading-relaxed">
+                                 Quando ativo, criar/editar cliente exige selecionar o segmento de
+                                 negócios dele — para tenants que gerenciam clientes de vários
+                                 segmentos distintos. Desativado por padrão.
+                               </p>
+                             </div>
+                             <div className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${editingTenant?.associa_segmento_negocio_cliente ? 'bg-emerald-600' : 'bg-gray-300'}`}>
+                               <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform ${editingTenant?.associa_segmento_negocio_cliente ? 'translate-x-6' : 'translate-x-1'}`} />
+                             </div>
+                           </div>
+                           <div
+                             className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 cursor-pointer mt-3"
+                             onClick={() => setEditingTenant({ ...editingTenant, marketing_digital: !editingTenant?.marketing_digital })}
+                           >
+                             <div className="pr-4">
+                               <p className="text-[9px] font-black text-gray-700 uppercase">Marketing Digital</p>
+                               <p className="text-[8px] text-gray-400 font-bold mt-0.5 leading-relaxed">
+                                 Quando ativo, criar/editar cliente oferece a aba &quot;Config. Meta&quot;
+                                 (pixel/page/instagram/website do cliente). Desativado por padrão.
+                               </p>
+                             </div>
+                             <div className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${editingTenant?.marketing_digital ? 'bg-emerald-600' : 'bg-gray-300'}`}>
+                               <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform ${editingTenant?.marketing_digital ? 'translate-x-6' : 'translate-x-1'}`} />
+                             </div>
+                           </div>
+                        </div>
+
+                        {/* Isenção de cobrança por módulo (Stripe Billing, 2026-09-19) */}
+                        <div className="col-span-2 pt-4 border-t border-gray-100">
+                           <h4 className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-4">Isenção de Cobrança</h4>
+                           <div className="space-y-3">
+                             {([
+                               { key: 'isento_marketingdigital', label: 'Marketing Digital (Campanhas)' },
+                               { key: 'isento_mensageria', label: 'Mensageria' },
+                               { key: 'isento_crm', label: 'CRM' },
+                             ] as const).map(({ key, label }) => (
+                               <div
+                                 key={key}
+                                 className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 cursor-pointer"
+                                 onClick={() => setEditingTenant({ ...editingTenant, [key]: !editingTenant?.[key] })}
+                               >
+                                 <p className="text-[9px] font-black text-gray-700 uppercase">{label}</p>
+                                 <div className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${editingTenant?.[key] ? 'bg-amber-600' : 'bg-gray-300'}`}>
+                                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform ${editingTenant?.[key] ? 'translate-x-6' : 'translate-x-1'}`} />
+                                 </div>
+                               </div>
+                             ))}
+                           </div>
+                        </div>
                      </div>
                   </div>
                   <div className="space-y-8">

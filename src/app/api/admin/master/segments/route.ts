@@ -3,20 +3,6 @@ import { verifyToken } from '@/lib/auth/jwt';
 import pool from '@/lib/database/connection';
 import { SEGMENT_SEED_DEFAULTS } from '@/lib/intelligence/benchmarkResolver';
 
-// F7 — mesma validação de identificador já usada em data-entities/route.ts: o Master nunca
-// consegue salvar um fragmento de SQL disfarçado de nome de tabela/coluna.
-const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
-
-function validateDistributionIdents(body: any): string | null {
-  for (const field of ['distribution_target_table', 'distribution_target_id_column', 'distribution_owner_column']) {
-    const v = body[field];
-    if (v != null && v !== '' && !IDENT_RE.test(v)) {
-      return `${field} inválido — use apenas letras, números e underscore, começando por letra ou underscore`;
-    }
-  }
-  return null;
-}
-
 /* ── auth helper ─────────────────────────────────────────────────── */
 
 async function requireMaster(request: NextRequest) {
@@ -75,27 +61,22 @@ export async function POST(request: NextRequest) {
       imagens_por_ia = false as boolean,
       chatbot_max_turns_default = 6 as number,
       distribution_role_name = 'Corretor' as string,
-      distribution_target_table = null as string | null,
-      distribution_target_id_column = null as string | null,
-      distribution_owner_column = null as string | null,
+      vocabulary = {} as Record<string, any>,
     } = body;
 
     if (!name || !slug) {
       return NextResponse.json({ error: 'name e slug são obrigatórios' }, { status: 400 });
     }
 
-    const identError = validateDistributionIdents(body);
-    if (identError) return NextResponse.json({ error: identError }, { status: 400 });
-
     const { rows } = await pool.query(`
       INSERT INTO public.system_segments
         (name, slug, description, icon, color_theme, is_active, imagens_por_ia, chatbot_max_turns_default,
-         distribution_role_name, distribution_target_table, distribution_target_id_column, distribution_owner_column)
-      VALUES ($1, $2, $3, $4, $5, $6, $7::BOOLEAN, $8, $9, $10, $11, $12)
+         distribution_role_name, vocabulary)
+      VALUES ($1, $2, $3, $4, $5, $6, $7::BOOLEAN, $8, $9, $10::jsonb)
       RETURNING id
     `, [
       name, slug, description, icon, color_theme, is_active, imagens_por_ia ?? false, chatbot_max_turns_default || 6,
-      distribution_role_name || 'Corretor', distribution_target_table || null, distribution_target_id_column || null, distribution_owner_column || null,
+      distribution_role_name || 'Corretor', JSON.stringify(vocabulary ?? {}),
     ]);
 
     const newId = rows[0].id;
@@ -109,9 +90,15 @@ export async function POST(request: NextRequest) {
       for (const [key, def] of seedEntries) {
         params.push(key, def.label, def.value, def.unit);
       }
+      // ON CONFLICT precisa bater EXATAMENTE com o índice único real
+      // (system_benchmarks_seg_metric_net_key — inclui network_id via COALESCE, mesma
+      // constraint que a rota irmã /segments/[id]/benchmarks já respeita). Sem isso, TODA
+      // criação de segmento com SEGMENT_SEED_DEFAULTS não-vazio (sempre) quebrava aqui.
       await pool.query(
         `INSERT INTO public.system_benchmarks (segment_id, metric_key, metric_label, value, unit)
-         VALUES ${vals} ON CONFLICT (segment_id, metric_key) DO NOTHING`,
+         VALUES ${vals}
+         ON CONFLICT (segment_id, metric_key, COALESCE(network_id, '00000000-0000-0000-0000-000000000000'::uuid))
+         DO NOTHING`,
         params,
       );
     }
@@ -152,17 +139,12 @@ export async function PUT(request: NextRequest) {
       imagens_por_ia = false as boolean,
       chatbot_max_turns_default = 6 as number,
       distribution_role_name = 'Corretor' as string,
-      distribution_target_table = null as string | null,
-      distribution_target_id_column = null as string | null,
-      distribution_owner_column = null as string | null,
+      vocabulary = {} as Record<string, any>,
     } = body;
 
     if (!id || !name) {
       return NextResponse.json({ error: 'id e name são obrigatórios' }, { status: 400 });
     }
-
-    const identError = validateDistributionIdents(body);
-    if (identError) return NextResponse.json({ error: identError }, { status: 400 });
 
     await pool.query(`
       UPDATE public.system_segments SET
@@ -174,13 +156,11 @@ export async function PUT(request: NextRequest) {
         imagens_por_ia                 = $7::BOOLEAN,
         chatbot_max_turns_default      = $8,
         distribution_role_name         = $9,
-        distribution_target_table      = $10,
-        distribution_target_id_column  = $11,
-        distribution_owner_column      = $12
+        vocabulary                     = $10::jsonb
       WHERE id = $1::uuid
     `, [
       id, name, description, icon, color_theme, is_active, imagens_por_ia ?? false, chatbot_max_turns_default || 6,
-      distribution_role_name || 'Corretor', distribution_target_table || null, distribution_target_id_column || null, distribution_owner_column || null,
+      distribution_role_name || 'Corretor', JSON.stringify(vocabulary ?? {}),
     ]);
 
     // Re-sincronizar módulos: remove todos e reinsere

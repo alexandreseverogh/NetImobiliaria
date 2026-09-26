@@ -8,7 +8,7 @@ import { logLoginAttempt as logSecurityLoginAttempt, logSuspiciousActivity } fro
 import { AUTH_CONFIG } from '@/lib/config/auth';
 import { applyLoginRateLimit } from '@/lib/security/rate-limiter';
 import { invalidateUser } from '@/lib/cache/cache-service';
-import { getAuditConfigs } from '@/lib/database/userPermissions';
+import { getAuditConfigs, BILLING_BLOCK_CLAUSE } from '@/lib/database/userPermissions';
 
 // O pool agora é importado centralizadamente de @/lib/database/connection
 // para evitar o erro de 'too_many_connections' por excesso de instâncias.
@@ -598,10 +598,11 @@ export async function POST(request: NextRequest) {
       JOIN permissions p ON rp.permission_id = p.id
       JOIN system_features sf ON p.feature_id = sf.id
       LEFT JOIN system_categorias sc ON sf.category_id = sc.id
-      WHERE u.id = $1 
+      WHERE u.id = $1
         AND u.ativo = true
         AND ur.is_active = true
         AND sf.is_active = true
+        ${BILLING_BLOCK_CLAUSE('$2')}
       ORDER BY sc.sort_order, p.action
     `;
 
@@ -651,6 +652,7 @@ export async function POST(request: NextRequest) {
           FROM tenant_feature_overrides tfo
           JOIN system_features sf ON tfo.feature_id = sf.id
           WHERE tfo.tenant_id = $1 AND tfo.is_active = true AND sf.is_active = true
+            ${BILLING_BLOCK_CLAUSE('$1')}
         `;
         const provisionedResult = await pool.query(provisionedFeaturesQuery, [selectedTenantId]);
         provisionedResult.rows.forEach((f: any) => {

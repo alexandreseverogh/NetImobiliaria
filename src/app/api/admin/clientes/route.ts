@@ -5,6 +5,7 @@ import { requireApiPermission } from '@/lib/auth/apiPermissions'
 import { createValidator } from '@/lib/validation/unifiedValidation'
 import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger'
 import { extractRequestData } from '@/lib/utils/ipUtils'
+import pool from '@/lib/database/connection'
 
 export async function GET(request: NextRequest) {
   try {
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { nome, cpf, cnpj, telefone, email, endereco, numero, bairro, estado_fk, cidade_fk, cep, created_by, tipo_cliente } = body
+    const { nome, cpf, cnpj, telefone, email, endereco, numero, bairro, estado_fk, cidade_fk, cep, created_by, tipo_cliente, segment_id } = body
     const tipoClienteValido = (['conta_gerenciada', 'comprador_pj', 'consumidor_pf'] as const)
       .find(t => t === tipo_cliente)
     
@@ -107,6 +108,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Segmento de negócios só é obrigatório quando o TENANT exige isso (tenants.associa_
+    // segmento_negocio_cliente) — checado no servidor, nunca confiando só na UI. Ver
+    // GET /api/admin/clientes/tem-segmento-negocio.
+    const { rows: tenantRows } = await pool.query(
+      `SELECT associa_segmento_negocio_cliente FROM public.tenants WHERE id = $1::uuid`,
+      [tenantId],
+    )
+    const exigeSegmento = tenantRows[0]?.associa_segmento_negocio_cliente === true
+    if (exigeSegmento && !segment_id) {
+      return NextResponse.json(
+        { error: 'Segmento de negócios do cliente é obrigatório' },
+        { status: 400 }
+      )
+    }
+
     const cliente = await createCliente({
       nome,
       cpf: cpf || undefined,
@@ -121,6 +137,7 @@ export async function POST(request: NextRequest) {
       cep,
       origem_cadastro: 'Plataforma',
       tipo_cliente: tipoClienteValido || 'conta_gerenciada',
+      segment_id: segment_id || null,
       created_by: created_by || 'system',
       tenant_id: tenantId
     })

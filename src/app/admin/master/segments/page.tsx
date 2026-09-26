@@ -45,6 +45,45 @@ interface Segment {
   chatbot_max_turns_default: number
   distribution_role_name: string
   crm_ia_ativa: boolean
+  vocabulary?: Record<string, any>
+}
+
+// Forma do vocabulário DENTRO DO FORMULÁRIO — campos de lista ficam como string separada por
+// vírgula pra edição simples (nunca array aqui); convertidos pra array só no submit.
+const EMPTY_VOCAB_FORM = {
+  lead_term: '', conversion_term: '', product: '', products: '', currency: 'BRL',
+  cta_terms: '', pain_points: '', product_types: '', audience_terms: '',
+}
+type VocabForm = typeof EMPTY_VOCAB_FORM
+
+function vocabToForm(v: Record<string, any> | null | undefined): VocabForm {
+  const arr = (x: any) => Array.isArray(x) ? x.join(', ') : ''
+  return {
+    lead_term: v?.lead_term || '',
+    conversion_term: v?.conversion_term || '',
+    product: v?.product || '',
+    products: v?.products || '',
+    currency: v?.currency || 'BRL',
+    cta_terms: arr(v?.cta_terms),
+    pain_points: arr(v?.pain_points),
+    product_types: arr(v?.product_types),
+    audience_terms: arr(v?.audience_terms),
+  }
+}
+
+function vocabFromForm(f: VocabForm): Record<string, any> {
+  const toArr = (s: string) => s.split(',').map(t => t.trim()).filter(Boolean)
+  return {
+    lead_term: f.lead_term.trim(),
+    conversion_term: f.conversion_term.trim(),
+    product: f.product.trim(),
+    products: f.products.trim(),
+    currency: f.currency.trim() || 'BRL',
+    cta_terms: toArr(f.cta_terms),
+    pain_points: toArr(f.pain_points),
+    product_types: toArr(f.product_types),
+    audience_terms: toArr(f.audience_terms),
+  }
 }
 
 interface Module {
@@ -84,6 +123,7 @@ export default function MasterSegmentsPage() {
     imagens_por_ia: false,
     chatbot_max_turns_default: 6,
     distribution_role_name: 'Corretor',
+    vocabulary: { ...EMPTY_VOCAB_FORM } as VocabForm,
   })
 
   const fetchSegments = async () => {
@@ -110,14 +150,15 @@ export default function MasterSegmentsPage() {
     e.preventDefault()
     try {
       const url = '/api/admin/master/segments'
-      const response = editingSegment 
-        ? await put(url, { ...formData, id: editingSegment.id })
-        : await post(url, formData)
+      const payload = { ...formData, vocabulary: vocabFromForm(formData.vocabulary) }
+      const response = editingSegment
+        ? await put(url, { ...payload, id: editingSegment.id })
+        : await post(url, payload)
 
       if (response.ok) {
         setShowModal(false)
         setEditingSegment(null)
-        setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false, chatbot_max_turns_default: 6, distribution_role_name: 'Corretor' })
+        setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false, chatbot_max_turns_default: 6, distribution_role_name: 'Corretor', vocabulary: { ...EMPTY_VOCAB_FORM } })
         fetchSegments()
       } else {
         const err = await response.json()
@@ -141,6 +182,7 @@ export default function MasterSegmentsPage() {
       imagens_por_ia: segment.imagens_por_ia ?? false,
       chatbot_max_turns_default: segment.chatbot_max_turns_default ?? 6,
       distribution_role_name: segment.distribution_role_name || 'Corretor',
+      vocabulary: vocabToForm(segment.vocabulary),
     })
     setShowModal(true)
   }
@@ -176,7 +218,7 @@ export default function MasterSegmentsPage() {
             <button
               onClick={() => {
                 setEditingSegment(null)
-                setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false, chatbot_max_turns_default: 6, distribution_role_name: 'Corretor' })
+                setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false, chatbot_max_turns_default: 6, distribution_role_name: 'Corretor', vocabulary: { ...EMPTY_VOCAB_FORM } })
                 setShowModal(true)
               }}
               className="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 transition-all hover:scale-105 active:scale-95"
@@ -499,6 +541,7 @@ export default function MasterSegmentsPage() {
                       className="w-48 px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-sky-500 outline-none transition-all font-medium text-sm"
                     />
                   </div>
+
                 </div>
                 {/* ╚══════════════ FIM COLUNA ESQUERDA ══════════════╝ */}
 
@@ -560,6 +603,61 @@ export default function MasterSegmentsPage() {
                       ))}
                     </div>
                     <p className="text-[10px] text-gray-400 mt-1.5">Clique para ativar ou desativar módulos neste segmento.</p>
+                  </div>
+
+                  {/* Vocabulário do segmento — só usado hoje pela narrativa de Cross-Insights
+                      (segmentIntelligenceService.ts, ex. "Gasto acumulado sem {{lead_term}}...");
+                      nunca teve tela antes disto — sempre foi só via SQL direto na criação do
+                      segmento. Campos de lista são digitados separados por vírgula; grid 2x2
+                      (não empilhados) pra caber ao lado de Paleta/Módulos sem esticar o modal. */}
+                  <div className="p-3.5 rounded-xl border border-dashed border-teal-200 bg-teal-50/50">
+                    <label className="text-sm font-black text-teal-800 flex items-center gap-1.5 mb-1">
+                      <BookOpenIcon className="h-3.5 w-3.5" />
+                      Vocabulário do Segmento
+                    </label>
+                    <p className="text-[10px] text-teal-600 mb-2.5 leading-relaxed">
+                      Como a IA nomeia as coisas deste segmento nas narrativas (ex.: "lead" pode
+                      virar "paciente" ou "prospect"). Todos os campos são opcionais.
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[9px] font-black text-teal-500 uppercase tracking-widest mb-1">Como chama o lead</label>
+                        <input type="text" value={formData.vocabulary.lead_term}
+                          onChange={e => setFormData({...formData, vocabulary: {...formData.vocabulary, lead_term: e.target.value}})}
+                          placeholder="interessado" className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-teal-500 outline-none text-xs" />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-black text-teal-500 uppercase tracking-widest mb-1">Como chama a conversão</label>
+                        <input type="text" value={formData.vocabulary.conversion_term}
+                          onChange={e => setFormData({...formData, vocabulary: {...formData.vocabulary, conversion_term: e.target.value}})}
+                          placeholder="visita" className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-teal-500 outline-none text-xs" />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-black text-teal-500 uppercase tracking-widest mb-1">Produto (singular)</label>
+                        <input type="text" value={formData.vocabulary.product}
+                          onChange={e => setFormData({...formData, vocabulary: {...formData.vocabulary, product: e.target.value}})}
+                          placeholder="imóvel" className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-teal-500 outline-none text-xs" />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-black text-teal-500 uppercase tracking-widest mb-1">Produto (plural)</label>
+                        <input type="text" value={formData.vocabulary.products}
+                          onChange={e => setFormData({...formData, vocabulary: {...formData.vocabulary, products: e.target.value}})}
+                          placeholder="imóveis" className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-teal-500 outline-none text-xs" />
+                      </div>
+                      {[
+                        { key: 'cta_terms' as const, label: 'CTAs típicos (vírgula)', placeholder: 'Ver oferta, Agendar visita' },
+                        { key: 'pain_points' as const, label: 'Dores comuns (vírgula)', placeholder: 'preço, financiamento' },
+                        { key: 'product_types' as const, label: 'Tipos de produto (vírgula)', placeholder: 'apartamento, casa' },
+                        { key: 'audience_terms' as const, label: 'Termos de audiência (vírgula)', placeholder: 'comprador, família' },
+                      ].map(({ key, label, placeholder }) => (
+                        <div key={key}>
+                          <label className="block text-[9px] font-black text-teal-500 uppercase tracking-widest mb-1">{label}</label>
+                          <input type="text" value={formData.vocabulary[key]}
+                            onChange={e => setFormData({...formData, vocabulary: {...formData.vocabulary, [key]: e.target.value}})}
+                            placeholder={placeholder} className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-teal-500 outline-none text-xs" />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
                 {/* ╚══════════════ FIM COLUNA DIREITA ══════════════╝ */}

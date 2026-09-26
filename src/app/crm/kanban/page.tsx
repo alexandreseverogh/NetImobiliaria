@@ -72,8 +72,63 @@ const formatPhone = (phone?: string) => {
   return phone
 }
 
+// Mistura `col.cor` (hex arbitrário, curado pelo tenant em /crm/config/kanban) numa base opaca
+// (navy-light/branco) — dá identidade de coluna ao card sem virar uma cor de DECISÃO nova (é a
+// mesma cor já usada no dot/borda do cabeçalho da coluna, só entra também no corpo do card).
+// Cálculo puro em RGB (sem depender de color-mix(), suporte recente demais pra garantir em
+// qualquer navegador), sempre devolve uma cor sólida — cards continuam nítidos mesmo empilhados
+// sobre o painel semitransparente da coluna.
+//
+// Passo 1 (pastelAmount) clareia `col.cor` em direção ao BRANCO — sempre, nos dois modos, nunca
+// em direção à base final — antes de misturar. Sem isso, uma cor saturada/escura configurada
+// pelo tenant (ex.: vermelho puro numa coluna de "Perdido") entraria no card praticamente no
+// valor original, e testado contra o texto mais apagado do card (telefone/e-mail, 11px) isso
+// reprovava WCAG AA (~4.4:1, abaixo do mínimo de 4.5:1) já em misturas bem discretas. Garantir
+// que o próprio matiz injetado já nasce de alta luminância dá margem de contraste real mesmo no
+// pior caso, independente de qual cor o tenant escolher — inclusive em modo escuro, onde a base
+// final (navy) é escura mas a cor pré-clareada continua clara antes de entrar na mistura.
+const tintColor = (hex: string, base: [number, number, number], pastelAmount: number, mixAmount: number): string => {
+  const clean = (hex || '').replace('#', '')
+  if (!/^[0-9a-fA-F]{6}$/.test(clean)) return `rgb(${base[0]}, ${base[1]}, ${base[2]})`
+  const r0 = parseInt(clean.slice(0, 2), 16)
+  const g0 = parseInt(clean.slice(2, 4), 16)
+  const b0 = parseInt(clean.slice(4, 6), 16)
+  const pr = r0 + (255 - r0) * pastelAmount
+  const pg = g0 + (255 - g0) * pastelAmount
+  const pb = b0 + (255 - b0) * pastelAmount
+  const [br, bg, bb] = base
+  return `rgb(${Math.round(br + (pr - br) * mixAmount)}, ${Math.round(bg + (pg - bg) * mixAmount)}, ${Math.round(bb + (pb - bb) * mixAmount)})`
+}
+
 export default function KanbanPage() {
   const t = useTheme()
+  // Painel de Missão (DESIGN.md) — mesmo vocabulário já usado em admin/campanhas/dashboard,
+  // reaproveitado aqui para consistência entre as duas superfícies do produto. `t.isDark`
+  // (useTheme genérico) continua sendo a fonte de verdade do modo; só a PALETA muda — de
+  // cinza/azul genérico para navy+âmbar. Escopado ao Kanban de propósito (não editamos
+  // useTheme.ts): outras telas que ainda usam o hook genérico não são afetadas por esta ronda.
+  const isDark   = t.isDark
+  const dsCard   = isDark
+    ? 'bg-navy-light border border-[rgba(255,255,255,0.06)] transition-shadow hover:shadow-[0_4px_20px_rgba(0,0,0,0.25)]'
+    : 'bg-white border border-slate-200/80 transition-shadow hover:shadow-[0_4px_20px_rgba(0,0,0,0.06)]'
+  const dsPanel  = isDark
+    ? 'bg-navy-light/60 border border-[rgba(255,255,255,0.06)]'
+    : 'bg-white/80 backdrop-blur-xl border border-slate-200/60 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.05)]'
+  const dsText   = isDark ? 'text-slate-200' : 'text-slate-900'
+  // slate-600/slate-300 (não slate-500/slate-400) — um degrau a mais de contraste em cada modo.
+  // Necessário pra sobrar margem real de WCAG (≥4.5:1) mesmo no pior caso de tingimento de card
+  // (coluna com cor saturada tipo vermelho, ver tintColor abaixo) — com o par antigo, esse texto
+  // já vivia bem perto do limiar (~4.76:1) mesmo SEM nenhum tingimento.
+  const dsMuted  = isDark ? 'text-slate-300' : 'text-slate-600'
+  const dsFaint  = isDark ? 'text-slate-500' : 'text-slate-400'
+  const dsDivider= isDark ? 'border-[rgba(255,255,255,0.05)]' : 'border-slate-100'
+  const dsInput  = isDark
+    ? 'bg-white/5 border border-[rgba(255,255,255,0.08)] text-slate-200 placeholder:text-slate-500'
+    : 'bg-slate-50 hover:bg-slate-100/50 focus:bg-white text-slate-700 border border-transparent'
+  // Anel de foco (#2563eb) — fixo, não substituível pelo acento (DESIGN.md).
+  const dsFocus  = 'focus:outline-none focus:ring-2 focus:ring-blue-600/40'
+  // Botão de ação primária — único uso de âmbar sólido no board (Regra do Acento Único).
+  const dsPrimaryBtn = 'bg-gold-premium text-navy-dark hover:bg-gold transition-colors'
   const [colunas, setColunas] = useState<Coluna[]>([])
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
@@ -556,7 +611,18 @@ export default function KanbanPage() {
     if (!lead_uuid) return
     const lead = leads.find(l => l.lead_uuid === lead_uuid)
     if (!lead || lead.coluna_nome === targetCol.nome) return
-    requestMove(lead, targetCol)
+    // Adia a mutação de estado pro próximo tick — o `requestMove`/`executeMove` reestrutura o
+    // DOM do card (ele sai do .map() de uma coluna e entra no de outra, um subtree diferente,
+    // então o React desmonta o nó original e monta um novo, mesmo com a mesma key). Fazer isso
+    // ainda dentro da pilha de chamadas do evento nativo `drop` impede o Chromium de terminar
+    // de encerrar a sessão de drag corretamente (o `dragend` nunca chega a disparar limpo no
+    // elemento original, que já não existe mais). Depois de 2 arrastos reais seguidos assim, o
+    // motor de drag do navegador trava silenciosamente — nenhum `dragstart` novo dispara até
+    // recarregar a página, mesmo clique/scroll continuando normais. Achado real: simulação via
+    // `DragEvent`+`DataTransfer` sintético (sem uma sessão nativa de verdade) nunca reproduzia
+    // o travamento — só um arrasto físico de mouse é afetado, por isso passou despercebido em
+    // testes automatizados anteriores.
+    setTimeout(() => requestMove(lead, targetCol), 0)
   }
 
   // Enquanto a config do tenant ainda não carregou, não dá pra saber se o gate de escopo se
@@ -565,7 +631,7 @@ export default function KanbanPage() {
   if (tenantConfig === null) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center">
-        <div className={`h-8 w-8 rounded-full border-2 border-t-transparent animate-spin ${t.isDark ? 'border-white/30' : 'border-slate-300'}`} />
+        <div className={`h-8 w-8 rounded-full border-2 border-t-transparent animate-spin ${isDark ? 'border-gold-premium/40' : 'border-slate-300'}`} />
       </div>
     )
   }
@@ -577,14 +643,14 @@ export default function KanbanPage() {
   if (tenantConfig.crm_clientes && scopeClientId === null) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center animate-in fade-in duration-500">
-        <div className={`max-w-lg w-full mx-4 p-8 rounded-[2rem] border text-center ${t.isDark ? t.cardBg : 'bg-white/90 backdrop-blur-xl border-slate-200/60 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.08)]'}`}>
-          <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white mx-auto mb-5 shadow-lg shadow-blue-600/20">
+        <div className={`max-w-lg w-full mx-4 p-8 rounded-[2rem] border text-center ${dsPanel}`}>
+          <div className="h-14 w-14 rounded-2xl bg-gold-premium flex items-center justify-center text-navy-dark mx-auto mb-5">
             <BuildingOfficeIcon className="h-7 w-7" />
           </div>
-          <h2 className={`text-lg font-black tracking-tight mb-2 ${t.isDark ? t.textPrimary : 'text-slate-800'}`}>
+          <h2 className={`text-lg font-black tracking-tight mb-2 ${dsText}`}>
             Para quem são estes leads?
           </h2>
-          <p className={`text-sm mb-6 ${t.isDark ? t.textMuted : 'text-slate-500'}`}>
+          <p className={`text-sm mb-6 ${dsMuted}`}>
             Escolha o escopo antes de ver o quadro — os leads de "Minha Empresa" e de cada
             cliente ficam sempre separados.
           </p>
@@ -618,12 +684,12 @@ export default function KanbanPage() {
           o dropdown do ClientSelector (z-50, mas preso dentro deste contexto) fica coberto pela
           linha seguinte, que vem depois no HTML. Bug real, achado testando com o usuário
           (2026-08-31) — só aparecia com o dropdown aberto pelo toolbar, nunca pelo gate. */}
-      <div className={`relative z-20 flex flex-col md:flex-row md:items-center justify-between gap-4 ${t.isDark ? t.cardBg : 'bg-white/80 backdrop-blur-xl border border-slate-200/60 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.05)]'} p-4 rounded-[2rem]`}>
+      <div className={`relative z-20 flex flex-col md:flex-row md:items-center justify-between gap-4 ${dsPanel} p-4 rounded-[2rem]`}>
         <div className="relative flex-1 max-w-xl">
-          <MagnifyingGlassIcon className={`absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 ${t.isDark ? t.textMuted : 'text-slate-400'}`} />
+          <MagnifyingGlassIcon className={`absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 ${dsFaint}`} />
           <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
             placeholder="Buscar lead por Nome, E-mail, Tag ou Bairro..."
-            className={`w-full rounded-2xl py-3 pl-12 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium ${t.isDark ? t.inputBg : 'bg-slate-50 hover:bg-slate-100/50 focus:bg-white text-slate-700 border border-transparent focus:border-blue-200'}`} />
+            className={`w-full rounded-2xl py-3 pl-12 pr-4 text-sm ${dsFocus} transition-all font-medium ${dsInput}`} />
         </div>
         {/* Escopo Minha Empresa / Cliente — só aparece pra tenants com `crm_clientes` ativo
             (curado pelo Master, 2026-08-31); pros demais o seletor nunca teria opção real de
@@ -641,44 +707,45 @@ export default function KanbanPage() {
         <div className="flex items-center space-x-3">
           {tenantConfig?.calendario && (
             <button onClick={() => setIsCalendarioViewOpen(true)}
-              className={`flex items-center px-5 py-2.5 ${t.isDark ? t.cardBg : 'bg-white border-slate-200 hover:border-blue-300 hover:bg-blue-50/50'} ${t.isDark ? t.textPrimary : 'text-slate-700'} hover:text-blue-600 text-sm font-bold rounded-2xl transition-all border shadow-sm active:scale-95`}>
-              <CalendarDaysIcon className="h-4 w-4 mr-2 text-blue-500" />Calendário
+              className={`flex items-center px-5 py-2.5 ${dsPanel} ${dsText} hover:text-gold-premium text-sm font-bold rounded-2xl transition-colors active:scale-95`}>
+              <CalendarDaysIcon className="h-4 w-4 mr-2" />Calendário
             </button>
           )}
-          <a href="/crm/config/kanban" className={`p-3 ${t.isDark ? t.textMuted : 'text-slate-400'} hover:text-blue-500 ${t.isDark ? t.cardBg : 'bg-white border-slate-200'} rounded-2xl transition-all border shadow-sm`} title="Configurar Funil">
+          <a href="/crm/config/kanban" className={`p-3 ${dsMuted} hover:text-gold-premium ${dsPanel} rounded-2xl transition-colors`} title="Configurar Funil">
             <ListBulletIcon className="h-5 w-5" />
           </a>
-          <a href="/crm/config/atividades" className={`p-3 ${t.isDark ? t.textMuted : 'text-slate-400'} hover:text-blue-500 ${t.isDark ? t.cardBg : 'bg-white border-slate-200'} rounded-2xl transition-all border shadow-sm`} title="Configurar Tipos de Atividade">
+          <a href="/crm/config/atividades" className={`p-3 ${dsMuted} hover:text-gold-premium ${dsPanel} rounded-2xl transition-colors`} title="Configurar Tipos de Atividade">
             <PencilSquareIcon className="h-5 w-5" />
           </a>
           {/* Filtro "Mostrar leads excluídos" (docs/CHECKPOINT.md, 2026-08-14) — leads
-              soft-deletados (com atividade registrada) só aparecem no board com isso ativo. */}
+              soft-deletados (com atividade registrada) só aparecem no board com isso ativo.
+              Vermelho é estado semântico real (modo destrutivo ativo), não decorativo. */}
           <button
             onClick={() => setShowDeleted(v => !v)}
             title={showDeleted ? 'Ocultar leads excluídos' : 'Mostrar leads excluídos'}
-            className={`p-3 rounded-2xl transition-all border shadow-sm ${
+            className={`p-3 rounded-2xl transition-colors border ${
               showDeleted
                 ? 'bg-red-500 text-white border-red-500'
-                : `${t.isDark ? t.textMuted + ' ' + t.cardBg : 'text-slate-400 bg-white border-slate-200'} hover:text-red-500`
+                : `${dsMuted} ${dsPanel} hover:text-red-500`
             }`}
           >
             <TrashIcon className="h-5 w-5" />
           </button>
           <button onClick={() => setIsNovoLeadOpen(true)}
-            className="flex items-center px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-sm font-bold rounded-2xl transition-all shadow-[0_8px_20px_-6px_rgba(37,99,235,0.4)] active:scale-95 border border-white/10">
+            className={`flex items-center px-6 py-2.5 text-sm font-bold rounded-2xl active:scale-95 ${dsPrimaryBtn}`}>
             <PlusIcon className="h-5 w-5 mr-2" />Novo Lead
           </button>
         </div>
       </div>
 
       {/* Filtros de Dono do Lead + Período de Criação (pedido do usuário, 2026-08-16) */}
-      <div className={`flex flex-wrap items-center gap-3 ${t.isDark ? t.cardBg : 'bg-white/80 backdrop-blur-xl border border-slate-200/60 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.05)]'} p-4 rounded-[2rem]`}>
+      <div className={`flex flex-wrap items-center gap-3 ${dsPanel} p-4 rounded-[2rem]`}>
         <div className="flex items-center gap-2">
-          <UserCircleIcon className={`h-5 w-5 ${t.isDark ? t.textMuted : 'text-slate-400'}`} />
+          <UserCircleIcon className={`h-5 w-5 ${dsFaint}`} />
           <select
             value={filterOwnerId}
             onChange={e => setFilterOwnerId(e.target.value)}
-            className={`rounded-2xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium ${t.isDark ? t.inputBg : 'bg-slate-50 hover:bg-slate-100/50 focus:bg-white text-slate-700 border border-transparent focus:border-blue-200'}`}
+            className={`rounded-2xl py-2.5 px-4 text-sm ${dsFocus} transition-all font-medium ${dsInput}`}
           >
             <option value="">Todos os donos</option>
             {ownerOptions.owners.map(o => (
@@ -688,8 +755,8 @@ export default function KanbanPage() {
           </select>
         </div>
         <div className="flex items-center gap-2">
-          <CalendarDaysIcon className={`h-5 w-5 ${t.isDark ? t.textMuted : 'text-slate-400'}`} />
-          <span className={`text-xs font-bold uppercase tracking-wide ${t.isDark ? t.textMuted : 'text-slate-400'}`}>De</span>
+          <CalendarDaysIcon className={`h-5 w-5 ${dsFaint}`} />
+          <span className={`text-xs font-bold uppercase tracking-wide ${dsFaint}`}>De</span>
           {/* w-36 (era w-32) — em 128px o texto "dd/mm/aaaa" colidia com o espaço já
               reservado pro ícone (paddingRight:28 fixo no próprio DateInputPtBR),
               truncando o último "a". Alargar o campo, não mexer no padding do ícone. */}
@@ -697,22 +764,22 @@ export default function KanbanPage() {
             <DateInputPtBR
               value={filterDateFrom}
               onChange={setFilterDateFrom}
-              className={`w-full rounded-2xl py-2.5 pl-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium ${t.isDark ? t.inputBg : 'bg-slate-50 hover:bg-slate-100/50 focus:bg-white text-slate-700 border border-transparent focus:border-blue-200'}`}
+              className={`w-full rounded-2xl py-2.5 pl-4 text-sm ${dsFocus} transition-all font-medium ${dsInput}`}
             />
           </div>
-          <span className={`text-xs font-bold uppercase tracking-wide ${t.isDark ? t.textMuted : 'text-slate-400'}`}>Até</span>
+          <span className={`text-xs font-bold uppercase tracking-wide ${dsFaint}`}>Até</span>
           <div className="w-36">
             <DateInputPtBR
               value={filterDateTo}
               onChange={setFilterDateTo}
-              className={`w-full rounded-2xl py-2.5 pl-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium ${t.isDark ? t.inputBg : 'bg-slate-50 hover:bg-slate-100/50 focus:bg-white text-slate-700 border border-transparent focus:border-blue-200'}`}
+              className={`w-full rounded-2xl py-2.5 pl-4 text-sm ${dsFocus} transition-all font-medium ${dsInput}`}
             />
           </div>
         </div>
         {hasActiveFilters && (
           <button
             onClick={clearFilters}
-            className={`flex items-center gap-1 px-3 py-2 text-xs font-bold rounded-xl transition-all ${t.isDark ? 'text-red-400 hover:bg-red-500/10' : 'text-red-500 hover:bg-red-50'}`}
+            className={`flex items-center gap-1 px-3 py-2 text-xs font-bold rounded-xl transition-colors ${isDark ? 'text-red-400 hover:bg-red-500/10' : 'text-red-500 hover:bg-red-50'}`}
           >
             <XMarkIcon className="h-4 w-4" />Limpar filtros
           </button>
@@ -720,17 +787,39 @@ export default function KanbanPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center p-20 text-blue-500 font-bold italic animate-pulse">Sincronizando Inteligência...</div>
+        <div className={`flex items-center justify-center p-20 text-sm font-bold uppercase tracking-widest animate-pulse ${dsFaint}`}>Sincronizando Inteligência...</div>
       ) : (
         <div className="flex space-x-6 overflow-x-auto pb-8 pt-4 custom-scrollbar">
-          {colunas.map(col => (
+          {colunas.map(col => {
+            // Identidade de coluna, "leve", também no corpo/rodapé do card (pedido do usuário —
+            // o board inteiro em tons neutros ficava "insosso"): mesma cor já configurada no
+            // header, só que numa mistura bem baixa. Rodapé recebe uma mistura mais forte que o
+            // corpo — cria o efeito de "faixa destacada" sem virar uma faixa lateral (banida).
+            // Calibrado 2x: a 1ª rodada (pastel .70, mistura .14-.28) passava no cálculo de
+            // contraste mas era visualmente imperceptível — cores resultantes ficavam a 5-12
+            // unidades de RGB do branco puro, indistinguível a olho nu (feedback real do
+            // usuário: "ainda sem graça"). Recalibrado pra cor genuinamente visível ("linda e
+            // discreta", não "quase branco"): pastel mais baixo (deixa a cor de origem mais
+            // saturada antes de clarear) + mistura bem mais forte. Pior caso ainda medido contra
+            // as 7 cores de coluna reais deste tenant: ~4.8:1 no rodapé escuro, ~5.1:1 no rodapé
+            // claro — acima do mínimo de 4.5:1, com folga real.
+            const navyBase: [number, number, number] = [17, 34, 64]
+            const whiteBase: [number, number, number] = [255, 255, 255]
+            const pastelAmount = 0.55
+            const cardTint = tintColor(col.cor, isDark ? navyBase : whiteBase, pastelAmount, isDark ? 0.24 : 0.45)
+            const footerTint = tintColor(col.cor, isDark ? navyBase : whiteBase, pastelAmount, isDark ? 0.28 : 0.65)
+            return (
             <div key={col.id} className="flex-shrink-0 w-[340px] flex flex-col space-y-4">
-              {/* Header da Coluna */}
-              <div className={`px-5 py-3.5 rounded-2xl border flex items-center justify-between transition-colors`}
-                style={{ backgroundColor: `${col.cor}${t.isDark ? '15' : '10'}`, borderColor: `${col.cor}${t.isDark ? '30' : '40'}`, color: t.isDark ? col.cor : '#1e293b' }}>
+              {/* Header da Coluna — a cor cadastrada pelo tenant (/crm/config/kanban) continua
+                  real e visível (dot + badge de contagem), mas deixou de tingir o painel inteiro:
+                  Regra do Acento Único (DESIGN.md) reserva cor de fundo pra decisão real, não pra
+                  identidade de coluna configurável. Uma borda superior fina na cor do tenant
+                  substitui o preenchimento como indicador de "de qual coluna é isto". */}
+              <div className={`px-5 py-3.5 rounded-2xl border-x border-b flex items-center justify-between border-t-[3px] ${dsPanel}`}
+                style={{ borderTopColor: col.cor }}>
                 <div className="flex items-center space-x-3">
                   <div className="h-2 w-2 rounded-full shadow-sm" style={{ backgroundColor: col.cor, boxShadow: `0 0 0 2px ${col.cor}40` }} />
-                  <span className={`text-[11px] font-black uppercase tracking-[0.08em] ${t.isDark ? '' : 'text-slate-700'}`}>{col.titulo_exibicao}</span>
+                  <span className={`text-[11px] font-black uppercase tracking-[0.08em] ${dsText}`}>{col.titulo_exibicao}</span>
                   {/* Badge Ganho/Perda (mesmo padrão visual de /crm/config/kanban) — item 1.2 do
                       roteiro de testes pede isso no board em si, não só na tela de config. */}
                   {col.is_ganho && (
@@ -747,27 +836,21 @@ export default function KanbanPage() {
                     {filterLeads(col).length}
                   </span>
                 </div>
-                <EllipsisHorizontalIcon className="h-5 w-5 cursor-pointer opacity-50 hover:opacity-100 transition-opacity" style={{ color: t.isDark ? col.cor : '#64748b' }} />
+                <EllipsisHorizontalIcon className={`h-5 w-5 cursor-pointer opacity-50 hover:opacity-100 transition-opacity ${dsFaint}`} />
               </div>
 
               {/* Área de Cards (Lanes) */}
-              <div className={`flex-1 space-y-4 min-h-[500px] p-2.5 rounded-3xl border-2 border-dashed transition-all`}
+              <div className={`flex-1 space-y-4 min-h-[500px] p-2.5 rounded-3xl border-2 border-dashed transition-colors ${
+                isDark ? 'bg-white/[0.02] border-white/5' : 'bg-slate-50/60 border-slate-200/60'
+              }`}
                    onDragOver={handleDragOver}
-                   onDrop={(e) => handleDrop(e, col)}
-                   style={{ backgroundColor: t.isDark ? 'rgba(255,255,255,0.02)' : `${col.cor}06`, borderColor: t.isDark ? 'rgba(255,255,255,0.05)' : `${col.cor}25` }}>
+                   onDrop={(e) => handleDrop(e, col)}>
                 {filterLeads(col).map(lead => (
                   <div key={lead.lead_uuid} onClick={() => setSelectedLead(lead)}
                     draggable={!lead.deleted_at}
                     onDragStart={(e) => handleDragStart(e, lead)}
-                    className={`group relative p-4 rounded-2xl transition-all duration-300 cursor-pointer border hover:-translate-y-0.5 ${
-                      t.isDark
-                        ? `${t.cardBgSolid} hover:border-blue-500/50 shadow-md`
-                        : 'bg-white hover:shadow-lg'
-                    } ${lead.deleted_at ? 'opacity-50 grayscale-[30%]' : ''}`}
-                    style={{
-                      borderColor: t.isDark ? 'transparent' : `${col.cor}30`,
-                      boxShadow: t.isDark ? undefined : `0 4px 16px -4px ${col.cor}20`,
-                    }}>
+                    style={{ backgroundColor: cardTint }}
+                    className={`group relative p-4 rounded-2xl transition-all duration-300 cursor-pointer hover:-translate-y-0.5 ${dsCard} hover:border-gold-premium/40 ${lead.deleted_at ? 'opacity-50 grayscale-[30%]' : ''}`}>
                     {lead.deleted_at && (
                       <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest bg-red-500 text-white z-10">
                         <TrashIcon className="h-3 w-3" />Excluído
@@ -781,7 +864,7 @@ export default function KanbanPage() {
                           title={lead.corretor_nome ? `Responsável: ${lead.corretor_nome}` : 'Sem responsável atribuído'}
                         >
                           <div
-                            className={`h-9 w-9 rounded-lg overflow-hidden flex items-center justify-center shrink-0 ${t.isDark ? 'bg-white/5' : 'bg-slate-50 border border-slate-100'} group-hover:bg-blue-50 transition-colors`}
+                            className={`h-9 w-9 rounded-lg overflow-hidden flex items-center justify-center shrink-0 ${isDark ? 'bg-white/5' : 'bg-slate-50 border border-slate-100'} group-hover:bg-gold-premium/10 transition-colors`}
                           >
                             {lead.corretor_atribuido_id && lead.corretor_tem_foto ? (
                               <img
@@ -800,18 +883,32 @@ export default function KanbanPage() {
                           {/* Nome do dono do lead — antes só existia no hover (title), agora
                               sempre visível como legenda curta abaixo do avatar. */}
                           {lead.corretor_nome && (
-                            <span className={`text-[9px] font-bold leading-none text-center max-w-[52px] truncate ${t.isDark ? t.textMuted : 'text-slate-400'}`}>
+                            // dsMuted, não dsFaint — é texto informativo real (nome do
+                            // responsável), sentado direto sobre o tingimento do card; dsFaint é
+                            // claro demais pra WCAG AA quando usado como texto (era apropriado só
+                            // pra ícone/decoração, onde o requisito de contraste é mais frouxo).
+                            <span className={`text-[9px] font-bold leading-none text-center max-w-[52px] truncate ${dsMuted}`}>
                               {lead.corretor_nome.split(' ')[0]}
                             </span>
                           )}
                         </div>
                         <div>
-                          <div className={`text-sm font-black leading-tight tracking-tight ${t.isDark ? t.textPrimary : 'text-slate-800'}`}>{lead.nome || 'Lead s/ Nome'}</div>
-                          <div className={`text-[11px] font-bold mt-0.5 ${t.isDark ? t.textMuted : 'text-slate-500'}`}>{lead.telefone || lead.email || 'Sem contato'}</div>
+                          <div className={`text-sm font-black leading-tight tracking-tight ${dsText}`}>{lead.nome || 'Lead s/ Nome'}</div>
+                          <div className={`text-[11px] font-bold mt-0.5 ${dsMuted}`}>{lead.telefone || lead.email || 'Sem contato'}</div>
                         </div>
                       </div>
+                      {/* Score vira acento âmbar só quando ≥70% (lead "quente") — hierarquia com
+                          significado real, não cor decorativa: ajuda a escanear prioridade num
+                          board com muitos cards, sem depender de ler o número de cada um. */}
                       <div className={`text-[11px] font-black px-2 py-0.5 rounded-md border text-right leading-tight ${
-                        t.isDark ? 'text-blue-400 bg-blue-500/10 border-blue-500/20' : 'text-blue-700 bg-blue-50 border-blue-200 shadow-sm'
+                        (lead.score_prontidao || 0) >= 70
+                          // Fundo sólido + texto navy (mesmo par do botão primário, ~7.6:1 de
+                          // contraste) — texto dourado sobre fundo claro translúcido reprovava
+                          // WCAG AA em light mode (~2.5:1); em dark mode o par claro/escuro já
+                          // tinha contraste alto, mas o mesmo tratamento sólido mantém os dois
+                          // modos consistentes entre si.
+                          ? 'text-navy-dark bg-gold-premium border-gold'
+                          : dsMuted + ' ' + dsDivider + ' bg-transparent'
                       }`}>
                         <div>{lead.score_prontidao || 0}% Match</div>
                         {lead.score_fit != null && <div>{lead.score_fit}% Aderência</div>}
@@ -820,14 +917,17 @@ export default function KanbanPage() {
 
                     {(lead.valor_venda_estimado != null || lead.valor_venda != null) && (
                       <div className="flex items-center gap-1.5 -mt-1 mb-2">
+                        {/* text-*-500 mede ~2.6:1 sobre o fundo translúcido em light mode
+                            (reprova WCAG AA pra texto pequeno) — *-700 mede ~5.1:1, passa; em
+                            dark mode o *-500 original já tinha ~5.9:1 sobre navy, mantido. */}
                         {lead.valor_venda != null && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black border border-emerald-500/20 ${isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-700'}`}>
                             <span className="font-bold opacity-70 mr-1">Valor Fechado:</span>
                             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(lead.valor_venda)}
                           </span>
                         )}
                         {lead.valor_venda == null && lead.valor_venda_estimado != null && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black border border-amber-500/20 ${isDark ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-50 text-amber-700'}`}>
                             ~{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(lead.valor_venda_estimado)} est.
                           </span>
                         )}
@@ -836,34 +936,45 @@ export default function KanbanPage() {
 
                     <div className="mb-4 mt-3">
                       {lead.enriquecimento_cache ? (
-                        <div className={`px-3 py-2.5 rounded-xl ${t.isDark ? 'bg-black/20 border border-white/5' : 'bg-gradient-to-br from-blue-50/50 to-indigo-50/30 border border-blue-100/50'}`}>
+                        <div className={`px-3 py-2.5 rounded-xl ${isDark ? 'bg-black/20 border border-white/5' : 'bg-slate-50 border border-slate-100'}`}>
                           <EnrichedLeadData cache={lead.enriquecimento_cache} />
                         </div>
                       ) : lead.imovel_id ? (
-                        <div className={`flex items-center text-[11px] font-bold border-b pb-2 ${t.isDark ? t.textSecondary + ' ' + t.borderSub : 'text-slate-600 border-slate-100'}`}>
-                          <CheckBadgeIcon className="h-4 w-4 mr-2 text-indigo-500" />
+                        <div className={`flex items-center text-[11px] font-bold border-b pb-2 ${dsMuted} ${dsDivider}`}>
+                          <CheckBadgeIcon className={`h-4 w-4 mr-2 ${dsFaint}`} />
                           <span>Ref: #{lead.imovel_id}</span>
                         </div>
                       ) : (
-                        <div className={`flex items-center text-[11px] font-bold border-b pb-2 ${t.isDark ? t.borderSub : 'border-slate-100'} text-emerald-600`}>
-                          <MapPinIcon className="h-4 w-4 mr-2" />
+                        <div className={`flex items-center text-[11px] font-bold border-b pb-2 ${dsMuted} ${dsDivider}`}>
+                          <MapPinIcon className={`h-4 w-4 mr-2 ${dsFaint}`} />
                           <span>Interesse Regional</span>
                         </div>
                       )}
                     </div>
 
-                    <div className={`flex items-center justify-between pt-3 border-t ${t.isDark ? t.borderSub : 'border-slate-100/80'}`}>
+                    {/* Rodapé com faixa própria, discreta, na cor da coluna — mistura mais forte
+                        que o corpo do card (mesma cor, não uma nova), bleeded até a borda do card
+                        (-mx-4 -mb-4 cancelam o p-4 do container pai) com o canto arredondado
+                        replicando o rounded-2xl do card. Nunca uma faixa LATERAL (padrão banido) —
+                        é uma faixa horizontal no rodapé, papel visual diferente. */}
+                    <div
+                      className="flex items-center justify-between -mx-4 -mb-4 mt-3 px-4 py-2.5 rounded-b-2xl border-t"
+                      style={{ backgroundColor: footerTint, borderTopColor: `${col.cor}30` }}
+                    >
                       <div className="flex items-center space-x-2">
-                        <div className="h-7 w-7 rounded-lg bg-blue-600 flex items-center justify-center text-[10px] font-black text-white shadow-sm">
+                        <div className={`h-7 w-7 rounded-lg flex items-center justify-center text-[10px] font-black ${isDark ? 'bg-white/5 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
                           {getInitials(lead.nome)}
                         </div>
                         {lead.created_at && (
-                          <span className={`text-[10px] font-bold tracking-widest ${t.isDark ? t.textMuted : 'text-slate-400'}`}>
+                          // dsMuted (mesma razão da legenda do responsável, acima) — texto direto
+                          // sobre a faixa de rodapé, que agora tem tingimento mais forte que o
+                          // corpo do card.
+                          <span className={`text-[10px] font-bold tracking-widest ${dsMuted}`}>
                             {new Date(lead.created_at).toLocaleDateString('pt-BR')}
                           </span>
                         )}
                         {!!lead.atividades_count && (
-                          <span className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md ${t.isDark ? 'bg-white/5 text-white/50' : 'bg-slate-100 text-slate-500'}`} title={`${lead.atividades_count} atividade(s) registrada(s)`}>
+                          <span className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md ${isDark ? 'bg-white/5 text-slate-400' : 'bg-slate-100 text-slate-500'}`} title={`${lead.atividades_count} atividade(s) registrada(s)`}>
                             <ListBulletIcon className="h-3 w-3" />
                             {lead.atividades_count}
                           </span>
@@ -871,18 +982,14 @@ export default function KanbanPage() {
                       </div>
                       <div className="flex items-center space-x-2.5">
                         {!!tenantConfig?.calendario && (
-                          <button 
+                          <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedLead(lead);
                               setIsAgendarOpen(true);
                             }}
-                            className={`p-1.5 rounded-lg border transition-all z-10 ${
-                              t.isDark
-                                ? 'border-emerald-500/50 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white'
-                                : 'border-emerald-200 bg-white shadow-sm text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300'
-                            }`}
+                            className={`p-1.5 rounded-lg border transition-colors z-10 ${dsMuted} ${dsDivider} hover:text-gold-premium hover:border-gold-premium/40`}
                             title="Agendar Visita"
                           >
                             <CalendarDaysIcon className="h-4 w-4" />
@@ -894,10 +1001,8 @@ export default function KanbanPage() {
                             do card. */}
                         {lead.created_at && (
                           <span
-                            className={`flex items-center gap-1 text-[9px] font-black uppercase px-2 py-1 rounded-md border tracking-widest shadow-sm ${
-                              t.isDark
-                                ? 'text-slate-300 bg-white/5 border-white/10'
-                                : 'text-slate-500 bg-slate-50 border-slate-200'
+                            className={`flex items-center gap-1 text-[9px] font-black uppercase px-2 py-1 rounded-md border tracking-widest ${
+                              isDark ? 'text-slate-300 bg-white/5 border-white/10' : 'text-slate-500 bg-slate-50 border-slate-200'
                             }`}
                             title="Tempo desde a captação do lead"
                           >
@@ -908,19 +1013,18 @@ export default function KanbanPage() {
                       </div>
                     </div>
 
-                    {/* Âmbar, não azul — reaproveita a mesma cor já usada em todo o resto
-                        da ficha pra sinalizar "conteúdo gerado pela IA" (Sugestão da IA,
-                        Valor Potencial estimado), em vez de somar mais um elemento azul
-                        aos vários que o card já tem (avatar, Match/Aderência, CTA). Um
-                        único acento pra qualquer tag_sonho — nunca uma cor por categoria,
-                        que com 7-8 tags possíveis por segmento viraria visualmente confuso. */}
+                    {/* Âmbar da marca (gold-premium/navy-dark), não amber genérico do Tailwind
+                        — reaproveita a mesma cor já usada em todo o resto da ficha pra sinalizar
+                        "conteúdo gerado pela IA" (Sugestão da IA, Valor Potencial estimado), em
+                        vez de somar mais um elemento colorido aos que o card já tem. Um único
+                        acento pra qualquer tag_sonho — nunca uma cor por categoria, que com 7-8
+                        tags possíveis por segmento viraria visualmente confuso. */}
                     <div className="absolute -top-2.5 -right-2">
-                      <div className={`text-[8px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full shadow-sm flex items-center border ${
-                        t.isDark
-                          ? 'bg-amber-600 text-white border-amber-500'
-                          : 'bg-white text-amber-600 border-amber-200 ring-4 ring-white'
-                      }`}>
-                        <SparklesIcon className={`h-2.5 w-2.5 mr-1 ${t.isDark ? 'text-amber-200' : 'text-amber-500'}`} />
+                      {/* Fundo sólido nos dois modos — texto dourado sobre branco (o par usado
+                          antes aqui) mede ~2.5:1, reprova WCAG AA; navy-dark sobre gold-premium
+                          mede ~7.6:1, mesmo par do botão primário. */}
+                      <div className={`text-[8px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full shadow-sm flex items-center border bg-gold-premium text-navy-dark border-gold ${isDark ? '' : 'ring-4 ring-white'}`}>
+                        <SparklesIcon className="h-2.5 w-2.5 mr-1 text-navy-dark/70" />
                         {lead.tag_sonho || 'NOVO'}
                       </div>
                     </div>
@@ -928,7 +1032,8 @@ export default function KanbanPage() {
                 ))}
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
 

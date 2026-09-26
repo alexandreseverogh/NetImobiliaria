@@ -47,8 +47,8 @@ export default function EnrichedLeadData({ cache, showBadgesOnly = false }: Prop
     <div className="space-y-3">
       {!showBadgesOnly && (data.title || data.subtitle) && (
         <div className="mb-2">
-           {data.title && <div className={`text-xs font-black uppercase tracking-tight truncate ${t.isDark ? 'text-blue-100' : 'text-slate-800'}`}>{data.title}</div>}
-           {data.subtitle && <div className={`text-[10px] font-semibold truncate mt-0.5 ${t.isDark ? 'text-gray-400' : 'text-slate-500'}`}>{data.subtitle}</div>}
+           {data.title && <div className={`text-xs font-black uppercase tracking-tight truncate ${t.isDark ? 'text-slate-200' : 'text-slate-800'}`}>{data.title}</div>}
+           {data.subtitle && <div className={`text-[10px] font-semibold truncate mt-0.5 ${t.isDark ? 'text-slate-400' : 'text-slate-500'}`}>{data.subtitle}</div>}
         </div>
       )}
 
@@ -58,20 +58,20 @@ export default function EnrichedLeadData({ cache, showBadgesOnly = false }: Prop
             const isFullWidth = badge.full_width === true || (badge.full_width !== false && typeof badge.valor === 'string' && badge.valor.length > 25);
 
             return (
-              <div 
-                key={idx} 
+              <div
+                key={idx}
                 title={`${badge.label}: ${badge.valor}`}
                 className={`flex items-center text-[10.5px] ${isFullWidth ? 'w-full' : ''}`}
               >
-                <span className={`mr-1 flex items-center justify-center ${t.isDark ? 'opacity-70 text-gray-400' : 'text-blue-600'}`}>
+                <span className={`mr-1 flex items-center justify-center ${t.isDark ? 'opacity-70 text-slate-400' : 'text-slate-400'}`}>
                   {renderIcon(badge.icone)}
                 </span>
-                
-                <span className={`font-bold mr-1 uppercase text-[8.5px] tracking-wider ${t.isDark ? 'text-gray-500' : 'text-blue-400'}`}>
+
+                <span className={`font-bold mr-1 uppercase text-[8.5px] tracking-wider ${t.isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                   {badge.label}:
                 </span>
-                
-                <span className={`font-black tracking-tight truncate ${t.isDark ? 'text-gray-200' : 'text-slate-800'}`}>
+
+                <span className={`font-black tracking-tight truncate ${t.isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                   {badge.valor}
                 </span>
               </div>

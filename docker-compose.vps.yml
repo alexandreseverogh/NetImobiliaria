@@ -110,6 +110,13 @@ services:
       # LLM
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # Stripe — cobrança dos módulos billáveis (Campanhas/Mensageria/CRM), ver
+      # src/lib/stripe/ e /api/public/webhooks/stripe. Mesmo valor pra prod e
+      # staging enquanto a conta estiver em modo teste (sk_test_.../whsec_...);
+      # ao migrar pra cobrança real, staging deve continuar em modo teste
+      # (chave própria), nunca herdar a chave live de produção.
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       # Agente / Notificações
       PUBLIC_DOMAIN: "https://${PROD_DOMAIN}"
       EVOLUTION_API_URL: ${EVOLUTION_API_URL:-}
@@ -240,6 +247,9 @@ services:
       # LLM
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # Stripe — ver comentário equivalente em prod_app acima.
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       # Agente / Notificações
       PUBLIC_DOMAIN: "https://${STAGING_DOMAIN}"
       EVOLUTION_API_URL: ${EVOLUTION_API_URL:-}
