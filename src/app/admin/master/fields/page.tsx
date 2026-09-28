@@ -28,6 +28,7 @@ export default function FieldBuilderPage() {
   // (marketing-digital, pet, carros, master) ficavam inacessíveis nesta tela.
   const [segments, setSegments] = useState<SegmentOption[]>([])
   const [segmentsLoading, setSegmentsLoading] = useState(true)
+  const [accessDenied, setAccessDenied] = useState(false)
   const [segment, setSegment] = useState('')
   const [entity, setEntity] = useState('lead')
   const [fields, setFields] = useState<any[]>([])
@@ -55,6 +56,14 @@ export default function FieldBuilderPage() {
         // Default = 1º segmento real (ordem alfabética, já vem assim da API) — nunca uma
         // vertical específica escolhida de antemão no código.
         if (active.length > 0) setSegment(prev => prev || active[0].slug)
+      } else if (response.status === 401 || response.status === 403) {
+        // Bug real corrigido aqui: sem isto, uma conta sem acesso Master nunca tinha
+        // `segment` definido, o 2º useEffect (guardado por `if (!segment) return`) nunca
+        // chamava fetchFields(), e `loading` (só setado false DENTRO de fetchFields) ficava
+        // travado em true pra sempre — a tela mostrava "Sincronizando metadados..." como se
+        // estivesse carregando, indefinidamente, em vez de dizer que o acesso foi negado.
+        setAccessDenied(true)
+        setLoading(false)
       }
     } catch (error) {
       console.error('Erro ao buscar segmentos:', error)
@@ -123,6 +132,25 @@ export default function FieldBuilderPage() {
     const newOptions = [...newField.options]
     newOptions[index][key] = val
     setNewField({ ...newField, options: newOptions })
+  }
+
+  // Página Master-only de verdade (define schema de campo COMPARTILHADO entre todos os
+  // tenants de um segmento, não por tenant) — se a checagem de acesso do servidor rejeitar,
+  // nunca mostra o construtor, só o motivo.
+  if (accessDenied) {
+    return (
+      <div className="p-8 bg-slate-50 min-h-screen flex items-center justify-center">
+        <div className="max-w-md text-center bg-white p-10 rounded-3xl border border-slate-200 shadow-sm">
+          <SquaresPlusIcon className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+          <h1 className="text-xl font-black text-slate-800 mb-2">Acesso Restrito ao Master</h1>
+          <p className="text-slate-500 font-medium text-sm">
+            O Construtor de Campos define o schema de metadados de um segmento inteiro,
+            compartilhado por todas as empresas nele — por isso só o Master da plataforma
+            pode editá-lo.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (
