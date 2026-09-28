@@ -15,7 +15,7 @@ type Params = { params: { id: string } };
 export async function POST(request: NextRequest, { params }: Params) {
   try {
     // Verificar permissão de criação server-side
-    const denied = await requireApiPermission(request, 'campanhasmarketingdigital', 'CREATE');
+    const denied = await requireApiPermission(request, 'iniciativas-campanhas', 'CREATE');
     if (denied) return denied;
 
     const payload = getTokenPayload(request);
@@ -37,21 +37,32 @@ export async function POST(request: NextRequest, { params }: Params) {
     }
 
     const campaignIds = initiative.campaigns.map(c => c.id);
-    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    // Escopado ao PERÍODO DA PRÓPRIA INICIATIVA — mesmo bug e mesmo fix de
+    // /api/admin/campanhas/iniciativas/[id]/route.ts (2026-09-28): esta rota tinha uma cópia
+    // duplicada e independente da lógica antiga "últimos 30 dias fixos", nunca ligada ao fix
+    // da rota irmã. Achado ao vivo: o briefing gerado citava R$3.725,13 de gasto e CTR real
+    // pra uma iniciativa cujo período (01/10→31/12) ainda nem tinha começado — o texto da IA
+    // contradizia os R$0,00 já corretos exibidos na própria tela pelo GET já corrigido.
+    const rangeStart = initiative.startDate ?? new Date(0);
+    const rangeEnd   = initiative.endDate   ?? new Date();
+    const leadRangeEnd = initiative.endDate
+      ? new Date(initiative.endDate.toISOString().slice(0, 10) + 'T23:59:59.999Z')
+      : rangeEnd;
 
     // Fonte única de lead (WhatsApp + formulário + conversão real do Google) — antes só
     // WHATSAPP_CLICK, zerando leads (e inflando o CPL exibido) de iniciativas com campanha
-    // de Google real vinculada. Sem filtro de data (mesmo comportamento de sempre — all-time).
+    // de Google real vinculada.
     const [insightAgg, leadEvents] = await Promise.all([
       campaignIds.length > 0
         ? prisma.insight.aggregate({
-            where: { campaignId: { in: campaignIds }, date: { gte: since } },
+            where: { campaignId: { in: campaignIds }, date: { gte: rangeStart, lte: rangeEnd } },
             _sum: { impressions: true, clicks: true, spend: true, conversions: true, reach: true },
             _avg: { ctr: true, cpc: true },
           })
         : null,
       campaignIds.length > 0
-        ? getLeadEvents(payload.tenantId, { campaignIds, startDate: new Date(0), endDate: new Date() })
+        ? getLeadEvents(payload.tenantId, { campaignIds, startDate: rangeStart, endDate: leadRangeEnd })
         : [],
     ]);
     const leadsCount = sumLeads(leadEvents);

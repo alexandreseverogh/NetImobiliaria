@@ -146,7 +146,14 @@ export default function IniciativaDetailPage() {
   }
 
   function fmt(d: string | null) {
-    return d ? new Date(d).toLocaleDateString('pt-BR') : '—';
+    if (!d) return '—';
+    // Parse como data LOCAL, não UTC — startDate/endDate vêm de uma coluna @db.Date
+    // (date-only, "YYYY-MM-DD"). new Date(d) interpreta isso como meia-noite UTC; em
+    // qualquer fuso atrás de UTC (Brasil inteiro), toLocaleDateString mostra o dia
+    // anterior. Bug real, achado ao vivo: período 01/10→31/12 exibido como 30/09→30/12.
+    const [y, m, day] = d.slice(0, 10).split('-').map(Number);
+    if (!y || !m || !day) return new Date(d).toLocaleDateString('pt-BR');
+    return new Date(y, m - 1, day).toLocaleDateString('pt-BR');
   }
 
   if (loading) {

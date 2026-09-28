@@ -35,11 +35,30 @@ export async function GET(request: NextRequest, { params }: Params) {
 
     // Aggregate insights for all linked campaigns
     const campaignIds = initiative.campaigns.map(c => c.id);
-    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    // Escopado ao PERÍODO DA PRÓPRIA INICIATIVA — bug real corrigido (2026-09-28): a versão
+    // anterior sempre somava "últimos 30 dias a partir de agora", sem nenhuma relação com
+    // startDate/endDate. Numa iniciativa com período no FUTURO (ainda não começou), isso
+    // mostrava gasto/cliques/impressões de qualquer atividade recente das campanhas
+    // vinculadas — inclusive de ANTES da iniciativa existir — junto com "Decorrido: 0/91d"
+    // na mesma tela, uma contradição visível ao usuário. Sem startDate/endDate definidos
+    // (campos opcionais no formulário), cai no all-time — nunca aplica uma janela de 30 dias
+    // que o próprio usuário não escolheu.
+    const rangeStart = initiative.startDate ?? new Date(0);
+    const rangeEnd   = initiative.endDate   ?? new Date();
+    // Insight.date é sempre gravado à meia-noite por dia (sync real, agentMonitor.ts) — o
+    // fim de período (também meia-noite, coluna @db.Date) já inclui o dia inteiro por
+    // igualdade, sem precisar expandir. getLeadEvents compara contra created_at (timestamp
+    // real, qualquer hora do dia) — esse sim precisa expandir pro fim do dia, senão exclui
+    // lead capturado depois da meia-noite do último dia do período (mesma classe de bug já
+    // documentada e corrigida em aiInsights.ts/strategicBriefing.ts).
+    const leadRangeEnd = initiative.endDate
+      ? new Date(initiative.endDate.toISOString().slice(0, 10) + 'T23:59:59.999Z')
+      : rangeEnd;
 
     const insightAgg = campaignIds.length > 0
       ? await prisma.insight.aggregate({
-          where: { campaignId: { in: campaignIds }, date: { gte: since } },
+          where: { campaignId: { in: campaignIds }, date: { gte: rangeStart, lte: rangeEnd } },
           _sum: { impressions: true, clicks: true, spend: true, conversions: true, reach: true },
           _avg: { ctr: true, cpc: true, cpm: true },
         })
@@ -47,10 +66,8 @@ export async function GET(request: NextRequest, { params }: Params) {
 
     // Fonte única de lead (WhatsApp + formulário + conversão real do Google) — antes só
     // WHATSAPP_CLICK, zerando leads de iniciativas com campanha de Google real vinculada.
-    // Sem filtro de data (mesmo comportamento de sempre — all-time, diferente do since=30d
-    // usado só pra métricas de Insight acima).
     const leadsCount = campaignIds.length > 0
-      ? sumLeads(await getLeadEvents(payload.tenantId, { campaignIds, startDate: new Date(0), endDate: new Date() }))
+      ? sumLeads(await getLeadEvents(payload.tenantId, { campaignIds, startDate: rangeStart, endDate: leadRangeEnd }))
       : 0;
 
     return NextResponse.json({
@@ -77,7 +94,7 @@ export async function GET(request: NextRequest, { params }: Params) {
 export async function PATCH(request: NextRequest, { params }: Params) {
   try {
     // Verificar permissão de edição server-side
-    const denied = await requireApiPermission(request, 'campanhasmarketingdigital', 'UPDATE');
+    const denied = await requireApiPermission(request, 'iniciativas-campanhas', 'UPDATE');
     if (denied) return denied;
 
     const payload = getTokenPayload(request);
@@ -126,7 +143,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 export async function DELETE(request: NextRequest, { params }: Params) {
   try {
     // Verificar permissão de exclusão server-side
-    const denied = await requireApiPermission(request, 'campanhasmarketingdigital', 'DELETE');
+    const denied = await requireApiPermission(request, 'iniciativas-campanhas', 'DELETE');
     if (denied) return denied;
 
     const payload = getTokenPayload(request);

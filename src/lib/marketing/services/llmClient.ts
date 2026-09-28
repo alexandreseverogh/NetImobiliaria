@@ -234,6 +234,11 @@ async function makeOpenAICompatibleClient(
       const res = await postChatCompletion(baseURL, apiKey, {
         model,
         max_tokens: maxTokens,
+        // Gemini gasta o orçamento inteiro em "pensamento" interno antes de emitir texto
+        // visível (reasoning model por padrão) — confirmado ao vivo: sem isso, retorna
+        // finish_reason:'length' com completion_tokens:0 mesmo em prompt trivial. Ignorado sem
+        // erro pelos demais providers, então seguro deixar condicional só ao provider real.
+        ...(provider === 'gemini' ? { reasoning_effort: 'none' } : {}),
         messages: [{ role: 'user', content: prompt }],
       });
       return res.choices[0]?.message?.content || '';
@@ -263,6 +268,7 @@ async function makeOpenAICompatibleClient(
 
       // tools omitido quando vazio — mesma razão do branch Anthropic (rodada final do loop).
       const req: any = { model, max_tokens: maxTokens, messages: oaMessages };
+      if (provider === 'gemini') req.reasoning_effort = 'none'; // ver nota em complete() acima
       if (tools.length > 0) req.tools = tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
 
       // Nota: cheguei a testar um fallback aqui — se a API rejeitar por "tool call validation"
