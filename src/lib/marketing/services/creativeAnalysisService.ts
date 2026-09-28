@@ -66,7 +66,7 @@ function applyVariables(template: string, vars: Record<string, string>): string 
 
 async function getLlmConfig(): Promise<{ apiKey: string; model: string; provider: string; baseUrl?: string }> {
   let provider = 'anthropic';
-  let model    = 'claude-sonnet-4-6';
+  let model    = 'claude-sonnet-4-5';
   let apiKey   = '';
   let baseUrl: string | undefined;
 
@@ -130,21 +130,36 @@ async function callVisionLlm(
     rawText = msg.content[0]?.type === 'text' ? msg.content[0].text.trim() : '';
   } else {
     // ── OpenAI-compatible (OpenAI, Gemini via OpenAI-compat, Groq, DeepSeek…) ─
+    // Fetch cru, não o SDK `openai` — mesmo motivo documentado em llmClient.ts/
+    // postChatCompletion: o pacote quebra de forma reproduzível (400 "no body") contra o shim
+    // OpenAI-compat do Gemini, dentro do runtime RSC do Next.js/webpack. Replicado aqui pra não
+    // reintroduzir o mesmo bug já corrigido no motor de texto.
     if (!baseUrl) throw new Error(`baseUrl não encontrada para provider "${provider}" / modelo "${model}"`);
-    const { default: OpenAI } = await import('openai');
-    const client = new OpenAI({ apiKey, baseURL: baseUrl });
-    const res = await client.chat.completions.create({
-      model,
-      max_tokens: 800,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
-          { type: 'text', text: visionPrompt },
-        ] as any,
-      }],
+    const res = await fetch(`${baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        max_tokens: 800,
+        // Gemini (reasoning model por padrão) gasta o orçamento inteiro em "pensamento" interno
+        // antes de emitir texto visível — confirmado ao vivo: sem isso, finish_reason:'length'
+        // com completion_tokens:0, mesmo com max_tokens alto. Campo ignorado sem erro pelos
+        // demais providers (Groq/DeepSeek/OpenAI/Kimi/OpenRouter/Qwen), então seguro deixar
+        // condicional só ao provider real, sem quebrar os outros.
+        ...(provider === 'gemini' ? { reasoning_effort: 'none' } : {}),
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+            { type: 'text', text: visionPrompt },
+          ],
+        }],
+      }),
     });
-    rawText = res.choices[0]?.message?.content?.trim() ?? '';
+    const text = await res.text();
+    if (!res.ok) throw new Error(`LLM request failed (${res.status}): ${text.slice(0, 500) || '(corpo vazio)'}`);
+    const data = JSON.parse(text);
+    rawText = data.choices?.[0]?.message?.content?.trim() ?? '';
   }
 
   // Strip markdown code fences
@@ -227,7 +242,7 @@ export async function analyzeCreativeAsset(assetId: string): Promise<void> {
         throw new Error(
           `O modelo "${llmCfg.model}" (${llmCfg.provider}) não suporta análise de imagens (Vision). ` +
           `Configure um modelo com suporte Vision em Master → IA da Plataforma ` +
-          `(ex: claude-3-5-sonnet, gpt-4o, llama-4-scout-17b-16e-instruct).`
+          `(ex: claude-sonnet-4-5, gpt-4o, gemini-flash-latest).`
         );
       }
       // Re-lançar para cair no catch externo que grava analysis_status = 'failed'

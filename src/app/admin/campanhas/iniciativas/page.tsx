@@ -5,6 +5,8 @@ import { formatCurrency } from '@/lib/marketing-utils';
 import { PlusIcon, FlagIcon, ArrowRightIcon, CalendarIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
 import { CreateGuard } from '@/components/admin/PermissionGuard';
 import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector';
+import { FeatureHelpButton } from '@/components/marketing/FeatureHelpModal';
+import { INICIATIVAS_HELP } from '@/lib/marketing/featureHelpContent';
 
 type InitiativeStatus = 'PLANNED' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
 
@@ -76,7 +78,12 @@ export default function IniciativasPage() {
 
   function fmt(dateStr: string | null) {
     if (!dateStr) return '—';
-    return new Date(dateStr).toLocaleDateString('pt-BR');
+    // Mesmo fix de fuso da página de detalhe — startDate/endDate são date-only ("YYYY-MM-DD"),
+    // new Date(str) parseia como meia-noite UTC e exibiria o dia anterior em qualquer fuso
+    // atrás de UTC (Brasil inteiro).
+    const [y, m, day] = dateStr.slice(0, 10).split('-').map(Number);
+    if (!y || !m || !day) return new Date(dateStr).toLocaleDateString('pt-BR');
+    return new Date(y, m - 1, day).toLocaleDateString('pt-BR');
   }
 
   const selectCls = "bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all";
@@ -89,7 +96,10 @@ export default function IniciativasPage() {
         <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
           <div>
             <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.3em] mb-2">Campanhas</p>
-            <h1 className="text-3xl font-black text-gray-900 tracking-tight">Iniciativas de Marketing</h1>
+            <div className="flex items-center gap-1">
+              <h1 className="text-3xl font-black text-gray-900 tracking-tight">Iniciativas de Marketing</h1>
+              <FeatureHelpButton content={INICIATIVAS_HELP} />
+            </div>
             <p className="text-gray-500 mt-1 text-sm font-medium">Agrupe campanhas sob um objetivo e orçamento comuns</p>
           </div>
           <div className="flex items-center gap-3 flex-wrap">

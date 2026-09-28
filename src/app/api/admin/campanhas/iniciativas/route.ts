@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Verificar permissão de criação server-side
-    const denied = await requireApiPermission(request, 'campanhasmarketingdigital', 'CREATE');
+    const denied = await requireApiPermission(request, 'iniciativas-campanhas', 'CREATE');
     if (denied) return denied;
 
     const payload = getTokenPayload(request);

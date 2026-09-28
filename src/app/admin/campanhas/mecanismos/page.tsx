@@ -8,6 +8,8 @@ import {
 } from '@heroicons/react/24/outline'
 import { adminFetch } from '@/lib/auth/adminFetch'
 import { WhatsAppWebhookSection } from '@/components/crm/WhatsAppWebhookSection'
+import { FeatureHelpButton } from '@/components/marketing/FeatureHelpModal'
+import { MECANISMOS_HELP } from '@/lib/marketing/featureHelpContent'
 
 type Tab = 'B' | 'C' | 'D' | 'WA'
 
@@ -19,6 +21,7 @@ export default function MecanismosPage() {
       <div className="flex items-center gap-2 mb-1">
         <SignalIcon className="w-6 h-6 text-gray-700" />
         <h1 className="text-2xl font-bold tracking-tight text-gray-900">Mecanismos de Captura</h1>
+        <FeatureHelpButton content={MECANISMOS_HELP} />
       </div>
       <p className="text-sm text-gray-500 mb-6">
         Configure como leads externos chegam ao CRM — links rastreados, API, webhook, Meta Lead Ads ou WhatsApp.

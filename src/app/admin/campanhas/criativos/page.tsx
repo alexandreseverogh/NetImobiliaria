@@ -13,6 +13,8 @@ import { adminFetch } from '@/lib/auth/adminFetch';
 import { cn } from '@/lib/marketing-utils';
 import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector';
 import { ANGLE_LABELS as SHARED_ANGLE_LABELS } from '@/lib/marketing/angles';
+import { FeatureHelpButton } from '@/components/marketing/FeatureHelpModal';
+import { CRIATIVOS_HELP } from '@/lib/marketing/featureHelpContent';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface CreativeAsset {
@@ -1155,6 +1157,7 @@ export default function GaleriaCreativosPage() {
           <div className="flex items-center gap-2 mb-1">
             <PhotoIcon className="h-6 w-6 text-indigo-600" />
             <h1 className="text-2xl font-black text-slate-900">Galeria de Criativos</h1>
+            <FeatureHelpButton content={CRIATIVOS_HELP} className="ml-1" />
           </div>
           <p className="text-sm text-slate-500">
             Biblioteca inteligente com análise de IA — {total} criativo{total !== 1 ? 's' : ''}

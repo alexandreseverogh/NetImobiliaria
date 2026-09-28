@@ -13,7 +13,7 @@ type Params = { params: { id: string } };
 export async function POST(request: NextRequest, { params }: Params) {
   try {
     // Verificar permissão de edição server-side
-    const denied = await requireApiPermission(request, 'campanhasmarketingdigital', 'UPDATE');
+    const denied = await requireApiPermission(request, 'iniciativas-campanhas', 'UPDATE');
     if (denied) return denied;
 
     const payload = getTokenPayload(request);

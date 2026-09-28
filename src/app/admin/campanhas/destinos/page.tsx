@@ -7,6 +7,8 @@ import {
   CodeBracketIcon, ChevronDownIcon, ChevronUpIcon,
 } from '@heroicons/react/24/outline'
 import { adminFetch } from '@/lib/auth/adminFetch'
+import { FeatureHelpButton } from '@/components/marketing/FeatureHelpModal'
+import { DESTINOS_HELP } from '@/lib/marketing/featureHelpContent'
 
 type FieldType = 'text' | 'email' | 'tel' | 'textarea' | 'select'
 interface FieldDef { name: string; label: string; type: FieldType; required?: boolean; options?: string[] }
@@ -67,7 +69,10 @@ export default function DestinosPage() {
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Destinos de CTA</h1>
+          <div className="flex items-center gap-1">
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Destinos de CTA</h1>
+            <FeatureHelpButton content={DESTINOS_HELP} />
+          </div>
           <p className="text-sm text-gray-500 mt-1">
             Formulários hospedados, WhatsApp e links — captura de dados e geração de leads no CRM.
           </p>
