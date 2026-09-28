@@ -58,6 +58,8 @@ export default function ProductCockpitPage() {
   const [showOrderModal, setShowOrderModal] = useState(false)
   const [orderedFeatures, setOrderedFeatures] = useState<any[]>([])
   const [savingOrder, setSavingOrder]   = useState(false)
+  const [orderedCategories, setOrderedCategories] = useState<any[]>([])
+  const [savingCategoryOrder, setSavingCategoryOrder] = useState(false)
 
   // ── Ordenação de features ─────────────────────────────────────────────────
   const openOrderModal = () => {
@@ -108,6 +110,50 @@ export default function ProductCockpitPage() {
   }
   // ─────────────────────────────────────────────────────────────────────────
 
+  // ── Ordenação de categorias (as "opções agrupadoras" da sidebar) ───────────
+  // Mesmo padrão de moveFeatureUp/Down + saveFeatureOrder acima, aplicado à lista
+  // INTEIRA de categorias (não escopada a um módulo — é a ordem real de exibição
+  // usada por get_sidebar_menu_for_user, independente de qual módulo está selecionado
+  // nesta tela). REORDER_CATEGORIES_BULK já existia na API, sem UI que a chamasse.
+  const moveCategoryUp = (idx: number) => {
+    if (idx === 0) return
+    setOrderedCategories(prev => {
+      const next = [...prev]
+      ;[next[idx - 1], next[idx]] = [next[idx], next[idx - 1]]
+      return next
+    })
+  }
+
+  const moveCategoryDown = (idx: number) => {
+    setOrderedCategories(prev => {
+      if (idx >= prev.length - 1) return prev
+      const next = [...prev]
+      ;[next[idx], next[idx + 1]] = [next[idx + 1], next[idx]]
+      return next
+    })
+  }
+
+  const saveCategoryOrder = async () => {
+    setSavingCategoryOrder(true)
+    try {
+      const response = await post('/api/admin/master/cockpit', {
+        action:     'REORDER_CATEGORIES_BULK',
+        orderedIds: orderedCategories.map((c: any) => c.id),
+      })
+      if (response.ok) {
+        toast.success('Ordem das categorias salva!')
+        fetchData()
+      } else {
+        toast.error('Erro ao salvar ordem.')
+      }
+    } catch {
+      toast.error('Erro ao salvar ordem.')
+    } finally {
+      setSavingCategoryOrder(false)
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   const fetchData = async () => {
     try {
       const response = await get('/api/admin/master/cockpit')
@@ -116,7 +162,9 @@ export default function ProductCockpitPage() {
         setSegments(data.segments || [])
         setModules(data.modules || [])
         setSegmentModules(data.segmentModules || [])
-        setCategories(data.categories || [])
+        const cats: any[] = data.categories || []
+        setCategories(cats)
+        setOrderedCategories([...cats].sort((a: any, b: any) => (a.sort_order ?? 999) - (b.sort_order ?? 999)))
         setFeatures(data.features || [])
         setSemanticTags(data.semanticTags || [])
       }
@@ -266,21 +314,53 @@ export default function ProductCockpitPage() {
           <div className="flex items-center text-blue-900 font-black uppercase text-[10px] tracking-widest">
             <FolderIcon className="h-4 w-4 mr-2 text-blue-500" /> Categorias
           </div>
-          {/* As setas de ordenação estão na coluna Funcionalidades → */}
+          {/* Ordem aqui = ordem real na sidebar (opções agrupadoras), independente do módulo
+              selecionado à esquerda — por isso o botão aparece sempre que há categorias. */}
+          {orderedCategories.length > 1 && (
+            <button
+              onClick={saveCategoryOrder}
+              disabled={savingCategoryOrder}
+              className="flex items-center gap-1 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-[9px] font-black uppercase tracking-wider rounded-lg shadow-sm shadow-blue-500/30 disabled:opacity-50 transition-all"
+            >
+              {savingCategoryOrder ? 'Salvando...' : '✓ Salvar Ordem'}
+            </button>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {categories.map(cat => {
+          {orderedCategories.map((cat, idx) => {
             const isAssigned = cat.module_id === selectedModule;
             const isSelected = selectedCategory === cat.id;
             return (
-              <div key={cat.id} className={`flex items-center justify-between p-3 rounded-xl border ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-transparent hover:bg-slate-50'}`}>
-                <button onClick={() => setSelectedCategory(cat.id)} className="flex-1 text-left">
-                  <div className="font-bold text-xs text-slate-800">{cat.name}</div>
+              <div key={cat.id} className={`flex items-center gap-2 p-2.5 rounded-xl border ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-transparent hover:bg-slate-50'}`}>
+                {/* Setas ↑ / ↓ — ordem de exibição na sidebar */}
+                <div className="flex flex-col gap-0 shrink-0">
+                  <button
+                    onClick={() => moveCategoryUp(idx)}
+                    disabled={idx === 0}
+                    title="Mover para cima"
+                    className="p-0.5 rounded text-blue-400 hover:text-blue-700 hover:bg-blue-100 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+                  >
+                    <ChevronUpIcon className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => moveCategoryDown(idx)}
+                    disabled={idx === orderedCategories.length - 1}
+                    title="Mover para baixo"
+                    className="p-0.5 rounded text-blue-400 hover:text-blue-700 hover:bg-blue-100 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+                  >
+                    <ChevronDownIcon className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                <span className="text-[9px] font-black text-slate-300 w-4 shrink-0 text-center">{idx + 1}</span>
+
+                <button onClick={() => setSelectedCategory(cat.id)} className="flex-1 min-w-0 text-left">
+                  <div className="font-bold text-xs text-slate-800 truncate">{cat.name}</div>
                   {cat.module_id && cat.module_id !== selectedModule && <span className="text-[8px] text-orange-500 font-black uppercase">⚠️ Outro</span>}
                 </button>
-                <button 
+                <button
                   onClick={() => handleToggle('TOGGLE_MODULE_CATEGORY', selectedModule, cat.id, isAssigned)}
-                  className={`h-5 w-9 rounded-full relative transition-colors ${isAssigned ? 'bg-emerald-500' : 'bg-slate-200'}`}
+                  className={`h-5 w-9 rounded-full relative transition-colors shrink-0 ${isAssigned ? 'bg-emerald-500' : 'bg-slate-200'}`}
                 >
                   <span className={`absolute top-0.5 left-0.5 h-4 w-4 bg-white rounded-full transition-transform ${isAssigned ? 'translate-x-4' : ''}`} />
                 </button>
