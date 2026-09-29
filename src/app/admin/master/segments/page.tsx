@@ -624,37 +624,37 @@ export default function MasterSegmentsPage() {
                         <label className="block text-[9px] font-black text-teal-500 uppercase tracking-widest mb-1">Como chama o lead</label>
                         <input type="text" value={formData.vocabulary.lead_term}
                           onChange={e => setFormData({...formData, vocabulary: {...formData.vocabulary, lead_term: e.target.value}})}
-                          placeholder="interessado" className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-teal-500 outline-none text-xs" />
+                          placeholder="Opcional" className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-teal-500 outline-none text-xs" />
                       </div>
                       <div>
                         <label className="block text-[9px] font-black text-teal-500 uppercase tracking-widest mb-1">Como chama a conversão</label>
                         <input type="text" value={formData.vocabulary.conversion_term}
                           onChange={e => setFormData({...formData, vocabulary: {...formData.vocabulary, conversion_term: e.target.value}})}
-                          placeholder="visita" className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-teal-500 outline-none text-xs" />
+                          placeholder="Opcional" className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-teal-500 outline-none text-xs" />
                       </div>
                       <div>
                         <label className="block text-[9px] font-black text-teal-500 uppercase tracking-widest mb-1">Produto (singular)</label>
                         <input type="text" value={formData.vocabulary.product}
                           onChange={e => setFormData({...formData, vocabulary: {...formData.vocabulary, product: e.target.value}})}
-                          placeholder="imóvel" className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-teal-500 outline-none text-xs" />
+                          placeholder="Opcional" className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-teal-500 outline-none text-xs" />
                       </div>
                       <div>
                         <label className="block text-[9px] font-black text-teal-500 uppercase tracking-widest mb-1">Produto (plural)</label>
                         <input type="text" value={formData.vocabulary.products}
                           onChange={e => setFormData({...formData, vocabulary: {...formData.vocabulary, products: e.target.value}})}
-                          placeholder="imóveis" className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-teal-500 outline-none text-xs" />
+                          placeholder="Opcional" className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-teal-500 outline-none text-xs" />
                       </div>
                       {[
-                        { key: 'cta_terms' as const, label: 'CTAs típicos (vírgula)', placeholder: 'Ver oferta, Agendar visita' },
-                        { key: 'pain_points' as const, label: 'Dores comuns (vírgula)', placeholder: 'preço, financiamento' },
-                        { key: 'product_types' as const, label: 'Tipos de produto (vírgula)', placeholder: 'apartamento, casa' },
-                        { key: 'audience_terms' as const, label: 'Termos de audiência (vírgula)', placeholder: 'comprador, família' },
-                      ].map(({ key, label, placeholder }) => (
+                        { key: 'cta_terms' as const, label: 'CTAs típicos (vírgula)' },
+                        { key: 'pain_points' as const, label: 'Dores comuns (vírgula)' },
+                        { key: 'product_types' as const, label: 'Tipos de produto (vírgula)' },
+                        { key: 'audience_terms' as const, label: 'Termos de audiência (vírgula)' },
+                      ].map(({ key, label }) => (
                         <div key={key}>
                           <label className="block text-[9px] font-black text-teal-500 uppercase tracking-widest mb-1">{label}</label>
                           <input type="text" value={formData.vocabulary[key]}
                             onChange={e => setFormData({...formData, vocabulary: {...formData.vocabulary, [key]: e.target.value}})}
-                            placeholder={placeholder} className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-teal-500 outline-none text-xs" />
+                            placeholder="Opcional" className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-teal-500 outline-none text-xs" />
                         </div>
                       ))}
                     </div>
