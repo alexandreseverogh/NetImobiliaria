@@ -195,6 +195,7 @@ function AdminLayoutPrivateContent({
               menuItems={menuItems}
               loading={menuLoading}
               error={menuError}
+              reloadMenu={reloadMenu}
             />
           )}
 
