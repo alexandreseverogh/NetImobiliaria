@@ -27,19 +27,25 @@ function getCurrentUser(request: NextRequest): { userId: string, tenantId?: stri
   }
 }
 
-// LISTAR COLUNAS (ORDENADAS) — escopadas por tenant
+// LISTAR COLUNAS (ORDENADAS) — sempre escopadas pelo tenant da sessão, Master incluído
 export async function GET(request: NextRequest) {
   try {
     const currentUser = getCurrentUser(request)
     if (!currentUser) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-    const isMaster = currentUser.is_system_role === true
+    if (!currentUser.tenantId) {
+      return NextResponse.json({ error: 'Sessão sem contexto de tenant.' }, { status: 400 })
+    }
 
-    const { rows } = isMaster
-      ? await pool.query(`SELECT * FROM kanban_colunas WHERE ativa = true ORDER BY ordem ASC`)
-      : await pool.query(
-          `SELECT * FROM kanban_colunas WHERE ativa = true AND tenant_id = $1 ORDER BY ordem ASC`,
-          [currentUser.tenantId],
-        )
+    // Achado real (2026-09-29): o bypass `isMaster ? sem WHERE tenant_id : com WHERE` fazia
+    // Master ver as colunas de TODOS os tenants coladas num board só (mesma etiqueta "Lead
+    // Captado" repetida N vezes, uma por tenant, já que todo tenant nasce com o mesmo template
+    // de 7 colunas — ver seed em admin/master/tenants/route.ts). Master sempre tem `tenantId`
+    // real (próprio "Master Platform" por padrão, ou o tenant escolhido via /select-tenant) —
+    // escopar sempre por ele é o comportamento certo, igual qualquer outro usuário.
+    const { rows } = await pool.query(
+      `SELECT * FROM kanban_colunas WHERE ativa = true AND tenant_id = $1 ORDER BY ordem ASC`,
+      [currentUser.tenantId],
+    )
     return NextResponse.json({ success: true, colunas: rows })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -50,10 +56,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const currentUser = getCurrentUser(request)
-    if (!currentUser?.tenantId && !currentUser?.is_system_role) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+    if (!currentUser?.tenantId) {
+      return NextResponse.json({ error: 'Não autenticado ou sessão sem contexto de tenant.' }, { status: 401 })
     }
-    const isMaster = currentUser.is_system_role === true
 
     const body = await request.json()
     const { id, nome, titulo_exibicao, ordem, cor, icone, descricao, sla_hours } = body
@@ -71,7 +76,9 @@ export async function POST(request: NextRequest) {
     const requerValorEstimado = body.requer_valor_estimado === true && !isGanho && !isPerda
 
     if (id) {
-      // UPDATE — nunca em coluna de outro tenant
+      // UPDATE — nunca em coluna de outro tenant, Master incluído (mesmo achado do GET acima:
+      // sem o filtro, Master podia editar por acidente a coluna de QUALQUER tenant só sabendo
+      // o id, mesmo fora do contexto que a sessão dele está operando).
       const query = `
         UPDATE kanban_colunas
         SET
@@ -86,12 +93,10 @@ export async function POST(request: NextRequest) {
           is_perda = $9,
           requer_valor_estimado = $10,
           updated_at = NOW()
-        WHERE id = $11 ${!isMaster ? 'AND tenant_id = $12' : ''}
+        WHERE id = $11 AND tenant_id = $12
         RETURNING *
       `
-      const params = !isMaster
-        ? [nome, titulo_exibicao, ordem, cor, icone, descricao, sla_hours || 24, isGanho, isPerda, requerValorEstimado, id, currentUser.tenantId]
-        : [nome, titulo_exibicao, ordem, cor, icone, descricao, sla_hours || 24, isGanho, isPerda, requerValorEstimado, id]
+      const params = [nome, titulo_exibicao, ordem, cor, icone, descricao, sla_hours || 24, isGanho, isPerda, requerValorEstimado, id, currentUser.tenantId]
       const { rows } = await pool.query(query, params)
       if (rows.length === 0) return NextResponse.json({ error: 'Coluna não encontrada ou sem permissão.' }, { status: 404 })
       return NextResponse.json({ success: true, coluna: rows[0] })
@@ -114,19 +119,20 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const currentUser = getCurrentUser(request)
-    if (!currentUser?.tenantId && !currentUser?.is_system_role) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+    if (!currentUser?.tenantId) {
+      return NextResponse.json({ error: 'Não autenticado ou sessão sem contexto de tenant.' }, { status: 401 })
     }
-    const isMaster = currentUser.is_system_role === true
 
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
 
     if (!id) return NextResponse.json({ error: 'ID necessário' }, { status: 400 })
 
+    // Sempre escopado pelo tenant da sessão, Master incluído — mesmo achado do GET/UPDATE
+    // acima: sem isso, dava pra excluir a coluna de outro tenant só sabendo o id.
     const colCheck = await pool.query(
-      `SELECT id FROM kanban_colunas WHERE id = $1 ${!isMaster ? 'AND tenant_id = $2' : ''}`,
-      !isMaster ? [id, currentUser.tenantId] : [id],
+      `SELECT id FROM kanban_colunas WHERE id = $1 AND tenant_id = $2`,
+      [id, currentUser.tenantId],
     )
     if (colCheck.rows.length === 0) {
       return NextResponse.json({ error: 'Coluna não encontrada ou sem permissão.' }, { status: 404 })
