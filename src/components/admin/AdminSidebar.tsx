@@ -11,7 +11,10 @@ import {
   Bars3Icon,
   XMarkIcon,
   ChevronDownIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  ArrowsUpDownIcon,
+  ChevronUpIcon,
+  ArrowUturnLeftIcon
 } from '@heroicons/react/24/outline'
 
 interface AdminSidebarProps {
@@ -24,29 +27,97 @@ interface AdminSidebarProps {
   menuItems?: SidebarMenuWithChildren[]
   loading?: boolean
   error?: string | null
+  /** Recarrega a árvore de menu do consumidor (AdminLayoutContent etc.) — quando ausente,
+   *  cai no reloadMenu do hook interno deste componente (fallback seguro pra quem não passa
+   *  menuItems via prop e usa o hook diretamente). */
+  reloadMenu?: () => void
 }
 
-export default function AdminSidebar({ 
-  open, 
-  setOpen, 
-  user, 
-  onLogout, 
-  systemId = 'admin', 
+export default function AdminSidebar({
+  open,
+  setOpen,
+  user,
+  onLogout,
+  systemId = 'admin',
   theme,
   menuItems: propMenuItems,
   loading: propLoading,
-  error: propError
+  error: propError,
+  reloadMenu: propReloadMenu
 }: AdminSidebarProps) {
   const pathname = usePathname()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [expandedMenus, setExpandedMenus] = useState<string[]>([])
-  
+  const [showReorderModal, setShowReorderModal] = useState(false)
+  const [reorderCategories, setReorderCategories] = useState<{ id: string; name: string; icon: string | null }[]>([])
+  const [savingReorder, setSavingReorder] = useState(false)
+
   // Usar dados do hook interno, mas permitir sobrescrita via props
   const hookData = useSidebarMenu(systemId)
   const menuItems = propMenuItems || hookData.menuItems
   const loading = propLoading !== undefined ? propLoading : hookData.loading
   const error = propError !== undefined ? propError : hookData.error
   const activeTheme = theme || hookData.theme
+  const reloadMenu = propReloadMenu || hookData.reloadMenu
+
+  // ── Ordem pessoal das categorias da sidebar (por usuário logado) ───────────
+  const openReorderModal = () => {
+    setReorderCategories(menuItems.map(m => ({ id: m.id, name: m.name, icon: m.icon })))
+    setShowReorderModal(true)
+  }
+
+  const moveCategoryUp = (idx: number) => {
+    if (idx === 0) return
+    setReorderCategories(prev => {
+      const next = [...prev]
+      ;[next[idx - 1], next[idx]] = [next[idx], next[idx - 1]]
+      return next
+    })
+  }
+
+  const moveCategoryDown = (idx: number) => {
+    setReorderCategories(prev => {
+      if (idx >= prev.length - 1) return prev
+      const next = [...prev]
+      ;[next[idx], next[idx + 1]] = [next[idx + 1], next[idx]]
+      return next
+    })
+  }
+
+  const saveReorder = async () => {
+    setSavingReorder(true)
+    try {
+      const token = localStorage.getItem('admin-auth-token')
+      const res = await fetch('/api/admin/sidebar/category-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ orderedIds: reorderCategories.map(c => c.id) }),
+      })
+      if (res.ok) {
+        setShowReorderModal(false)
+        reloadMenu()
+      }
+    } finally {
+      setSavingReorder(false)
+    }
+  }
+
+  const restoreDefaultOrder = async () => {
+    setSavingReorder(true)
+    try {
+      const token = localStorage.getItem('admin-auth-token')
+      const res = await fetch('/api/admin/sidebar/category-order', {
+        method: 'DELETE',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      })
+      if (res.ok) {
+        setShowReorderModal(false)
+        reloadMenu()
+      }
+    } finally {
+      setSavingReorder(false)
+    }
+  }
 
   const isDark = activeTheme.mode === 'dark'
   const sidebarBg = isDark ? 'bg-[#020617] border-r border-white/5' : 'bg-white border-r border-gray-200'
@@ -329,6 +400,20 @@ export default function AdminSidebar({
           </div>
         </div>
 
+        {menuItems.length > 1 && (
+          <div className="px-6 pt-4 -mb-2">
+            <button
+              onClick={openReorderModal}
+              title="Personalizar a ordem das categorias na sua sidebar"
+              className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                isDark ? 'text-white/40 hover:text-white/70 hover:bg-white/5' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <ArrowsUpDownIcon className="h-3.5 w-3.5" /> Reordenar Menu
+            </button>
+          </div>
+        )}
+
         <nav className="flex-1 overflow-y-auto px-4 py-8 space-y-6 custom-scrollbar">
           {menuItems.map(item => renderMenuItem(item))}
         </nav>
@@ -342,6 +427,72 @@ export default function AdminSidebar({
            </button>
         </div>
       </aside>
+
+      {/* Modal: ordem PESSOAL das categorias — preferência individual do usuário logado,
+          distinta da ordem global curada pelo Master em /admin/master/cockpit. */}
+      {showReorderModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setShowReorderModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-5 border-b border-gray-100">
+              <h3 className="font-black text-slate-900 text-sm uppercase tracking-widest flex items-center gap-2">
+                <ArrowsUpDownIcon className="h-4 w-4 text-blue-500" /> Reordenar Menu
+              </h3>
+              <p className="text-[10px] text-slate-400 mt-1">
+                Só muda a sua própria sidebar — outros usuários continuam vendo a ordem padrão.
+              </p>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-1">
+              {reorderCategories.map((cat, idx) => (
+                <div key={cat.id} className="flex items-center gap-2 p-2 rounded-xl border border-transparent hover:bg-slate-50">
+                  <div className="flex flex-col gap-0 shrink-0">
+                    <button
+                      onClick={() => moveCategoryUp(idx)}
+                      disabled={idx === 0}
+                      title="Mover para cima"
+                      className="p-0.5 rounded text-blue-400 hover:text-blue-700 hover:bg-blue-100 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+                    >
+                      <ChevronUpIcon className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => moveCategoryDown(idx)}
+                      disabled={idx === reorderCategories.length - 1}
+                      title="Mover para baixo"
+                      className="p-0.5 rounded text-blue-400 hover:text-blue-700 hover:bg-blue-100 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+                    >
+                      <ChevronDownIcon className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <span className="text-[9px] font-black text-slate-300 w-4 shrink-0 text-center">{idx + 1}</span>
+                  <span className="flex-1 min-w-0 text-xs font-bold text-slate-800 truncate">{cat.name}</span>
+                </div>
+              ))}
+            </div>
+            <div className="p-4 border-t border-gray-100 flex items-center gap-2">
+              <button
+                onClick={restoreDefaultOrder}
+                disabled={savingReorder}
+                title="Voltar pra ordem padrão da plataforma"
+                className="flex items-center gap-1 px-3 py-2.5 text-slate-400 hover:text-slate-600 text-[9px] font-black uppercase tracking-wider rounded-xl hover:bg-slate-50 transition-all disabled:opacity-50"
+              >
+                <ArrowUturnLeftIcon className="h-3.5 w-3.5" /> Padrão
+              </button>
+              <button
+                onClick={() => setShowReorderModal(false)}
+                className="flex-1 py-2.5 text-slate-500 font-bold hover:bg-gray-100 rounded-xl transition-all text-xs"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={saveReorder}
+                disabled={savingReorder}
+                className="flex-[2] py-2.5 bg-blue-600 text-white font-black rounded-xl shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-all text-xs disabled:opacity-50"
+              >
+                {savingReorder ? 'Salvando...' : '✓ Salvar Ordem'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
