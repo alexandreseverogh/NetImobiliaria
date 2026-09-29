@@ -22,7 +22,8 @@ import {
   PencilSquareIcon,
   TrashIcon,
   ClockIcon,
-  BuildingOfficeIcon
+  BuildingOfficeIcon,
+  ExclamationTriangleIcon
 } from '@heroicons/react/24/outline'
 import { adminFetch } from '@/lib/auth/adminFetch'
 import DateInputPtBR from '@/components/ui/DateInputPtBR'
@@ -671,6 +672,39 @@ export default function KanbanPage() {
               allowSegment={false}
             />
           </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Alerta de "kanban não configurado" (pedido do usuário, 2026-09-29) — todo tenant NOVO já
+  // nasce com um template padrão de 7 colunas (seed em admin/master/tenants/route.ts), mas isso
+  // não cobre 100% dos casos: um tenant de bancada/teste criado por outro caminho, ou um tenant
+  // real que teve suas colunas apagadas, fica com `colunas.length === 0` — sem nenhuma coluna, o
+  // board não tem nem onde soltar um card, então mostrar o quadro vazio silenciosamente (como
+  // acontecia antes) é pior do que dizer claramente o que falta. Só decide depois que o fetch
+  // real já voltou (`!loading`) — nunca no instante inicial, antes da 1ª resposta da API.
+  if (!loading && colunas.length === 0) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center animate-in fade-in duration-500">
+        <div className={`max-w-lg w-full mx-4 p-8 rounded-[2rem] border text-center ${dsPanel}`}>
+          <div className="h-14 w-14 rounded-2xl bg-amber-500 flex items-center justify-center text-white mx-auto mb-5">
+            <ExclamationTriangleIcon className="h-7 w-7" />
+          </div>
+          <h2 className={`text-lg font-black tracking-tight mb-2 ${dsText}`}>
+            Kanban ainda não configurado
+          </h2>
+          <p className={`text-sm mb-6 ${dsMuted}`}>
+            Esta empresa ainda não tem nenhuma etapa (coluna) cadastrada no funil de leads —
+            configure ao menos uma para começar a usar o Kanban.
+          </p>
+          <a
+            href="/crm/config/kanban"
+            className={`inline-flex items-center px-6 py-3 text-sm font-bold rounded-2xl active:scale-95 ${dsPrimaryBtn}`}
+          >
+            <ListBulletIcon className="h-5 w-5 mr-2" />
+            Configurar etapas do Kanban
+          </a>
         </div>
       </div>
     )

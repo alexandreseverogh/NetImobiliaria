@@ -332,3 +332,45 @@ export async function sendSpecialistContactRequest(params: {
     html,
   })
 }
+
+// ── Notificação de texto livre (canal companheiro do WhatsApp) ─
+
+/**
+ * Envia por e-mail o mesmo texto (formato WhatsApp/markdown simples — `*negrito*`, quebras
+ * de linha) já montado pelos callers de `notifyWhatsApp()` (agentNotificador.ts). Existe
+ * porque o número configurado num tenant às vezes é o mesmo conectado à própria instância
+ * Evolution (self-chat) — cenário em que o WhatsApp pode retornar sucesso mas entregar a
+ * mensagem vazia (retry peer-to-self instável no protocolo). E-mail nunca sofre desse
+ * problema, e serve de canal de backup mesmo quando o WhatsApp falha por qualquer outro
+ * motivo (instância desconectada, credencial errada, etc.) — sempre disparado junto,
+ * nunca só como fallback condicional.
+ */
+export async function sendPlainTextNotification(params: {
+  to: string[]
+  subject: string
+  message: string
+}) {
+  if (params.to.length === 0) return
+
+  const bodyHtml = params.message
+    .split('\n')
+    .map(line => escapeHtml(line).replace(/\*(.+?)\*/g, '<strong>$1</strong>'))
+    .join('<br>')
+
+  const html = baseHtml(`
+    <div class="header">
+      <div class="header-icon">📊</div>
+      <h1>${escapeHtml(params.subject)}</h1>
+    </div>
+    <div class="body">
+      <div style="font-size:14px;line-height:1.7;color:#f1f5f9;">${bodyHtml}</div>
+    </div>
+  `)
+
+  await getTransporter().sendMail({
+    from: `"${process.env.SMTP_FROM_NAME || 'Trafego Pago'}" <${process.env.SMTP_USER}>`,
+    to: params.to.join(', '),
+    subject: params.subject,
+    html,
+  })
+}

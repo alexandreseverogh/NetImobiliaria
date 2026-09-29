@@ -67,8 +67,17 @@ export async function POST(request: NextRequest) {
 
     const currentUser = getCurrentUser(request)
     const tenantId = currentUser?.tenantId || null
-    const isMaster = currentUser?.is_system_role === true
+    if (!tenantId) {
+      return NextResponse.json(
+        { success: false, error: 'Não autenticado ou sessão sem contexto de tenant.' },
+        { status: 401 }
+      )
+    }
 
+    // Achado real (2026-09-29): o bypass de Master aqui deixava mover um lead de QUALQUER
+    // tenant, ou apontar pra uma coluna de QUALQUER tenant, só sabendo os ids — sempre escopa
+    // pelo tenant da sessão agora, Master incluído (mesmo padrão de kanban/colunas).
+    //
     // Verificar se o lead existe e pertence ao tenant — já traz junto o is_ganho da coluna
     // ATUAL (LEFT JOIN, nunca quebra a checagem de "lead não encontrado" se o lead ainda não
     // tiver linha em leads_kanban) numa única consulta, em vez de uma 2ª query separada só
@@ -78,8 +87,8 @@ export async function POST(request: NextRequest) {
        FROM leads_staging ls
        LEFT JOIN leads_kanban lk ON lk.lead_uuid = ls.lead_uuid
        LEFT JOIN kanban_colunas kc ON kc.id = lk.coluna_id
-       WHERE ls.lead_uuid = $1 ${!isMaster ? 'AND ls.tenant_id = $2' : ''}`,
-      !isMaster ? [lead_uuid, tenantId] : [lead_uuid]
+       WHERE ls.lead_uuid = $1 AND ls.tenant_id = $2`,
+      [lead_uuid, tenantId]
     )
     if (leadCheck.rows.length === 0) {
       return NextResponse.json(
@@ -94,8 +103,8 @@ export async function POST(request: NextRequest) {
 
     // Verificar se a coluna destino existe e está ativa (no tenant correto)
     const colCheck = await pool.query(
-      `SELECT id, nome, is_ganho FROM kanban_colunas WHERE id = $1 AND ativa = true ${!isMaster ? 'AND tenant_id = $2' : ''}`,
-      !isMaster ? [coluna_id, tenantId] : [coluna_id]
+      `SELECT id, nome, is_ganho FROM kanban_colunas WHERE id = $1 AND ativa = true AND tenant_id = $2`,
+      [coluna_id, tenantId]
     )
     if (colCheck.rows.length === 0) {
       return NextResponse.json(

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import prisma from '../prisma';
+import { sendPlainTextNotification } from '@/lib/google/emailService';
 
 const SLACK_WEBHOOK = process.env.SLACK_WEBHOOK_URL || '';
 const PUBLIC_DOMAIN = process.env.PUBLIC_DOMAIN || 'http://localhost:3001';
@@ -45,7 +46,55 @@ function normalizePhone(raw: string): string {
   return phone;
 }
 
+// Assunto legível a partir da 1ª linha da mensagem — todo caller de notifyWhatsApp já
+// monta um cabeçalho tipo "🤖 *Resumo do Ciclo*..."/"⚠️ *Alerta de Campanha*" na 1ª linha,
+// então não precisa de um parâmetro de assunto separado em cada um dos ~10 call sites.
+function deriveSubject(message: string): string {
+  const firstLine = (message.split('\n')[0] || 'Notificação').replace(/\*/g, '').trim();
+  return firstLine.slice(0, 150) || 'Notificação — Trafego Pago';
+}
+
+// Canal companheiro do WhatsApp — sempre disparado junto, nunca só como fallback condicional
+// (decisão do usuário: mais simples e cobre qualquer falha do WhatsApp, não só self-chat).
+// Falha aqui nunca derruba o envio de WhatsApp (best-effort, mesmo espírito do try/catch de
+// notifyWhatsApp logo abaixo).
+async function notifyEmail(message: string, tenantId?: string | null) {
+  if (!tenantId) return;
+  try {
+    // E-mail de contato do tenant (public.tenants.email_contato) é a fonte primária — é o
+    // endereço real de negócio cadastrado pra essa empresa, não um e-mail de usuário admin
+    // específico (que pode ser um fixture de teste, estar desatualizado, ou nem existir).
+    // Só cai no fallback de e-mails de admin quando o tenant não tem email_contato cadastrado.
+    const tenantRow = await prisma.$queryRaw<{ email_contato: string | null }[]>`
+      SELECT email_contato FROM public.tenants WHERE id = ${tenantId}::uuid LIMIT 1
+    `;
+    let to: string[] = tenantRow[0]?.email_contato ? [tenantRow[0].email_contato] : [];
+
+    if (to.length === 0) {
+      const rows = await prisma.$queryRaw<{ email: string }[]>`
+        SELECT DISTINCT u.email
+        FROM public.users u
+        JOIN public.user_tenant_membership utm ON utm.user_id = u.id
+        JOIN public.user_roles ur ON ur.id = utm.role_id
+        WHERE utm.tenant_id = ${tenantId}::uuid
+          AND ur.name ILIKE '%admin%'
+          AND u.ativo = true
+          AND u.email IS NOT NULL AND u.email <> ''
+      `;
+      to = rows.map(r => r.email);
+    }
+    if (to.length === 0) return;
+    await sendPlainTextNotification({ to, subject: deriveSubject(message), message });
+  } catch (err: any) {
+    console.error('Email notify error:', err.message || err);
+  }
+}
+
 export async function notifyWhatsApp(message: string, tenantId?: string | null) {
+  // Dispara o e-mail em paralelo, sem esperar nem depender do resultado do WhatsApp abaixo —
+  // ver notifyEmail() acima pro porquê (canal companheiro, não fallback condicional).
+  void notifyEmail(message, tenantId);
+
   let apiUrl = EVOLUTION_API_URL;
   let apiKey = EVOLUTION_API_KEY;
   let instance = EVOLUTION_INSTANCE;

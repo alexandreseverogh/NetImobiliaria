@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
-// last-restart: 2026-09-28 — bundle stale não refletia o botão novo "Reordenar Menu" no AdminSidebar, força restart
+// last-restart: 2026-09-29 (2) — notifyDigest passou a importar emailService.ts (nodemailer),
+// força restart limpo pra garantir que o processo de longa duração recarregue o import novo
 // Configurações baseadas no ambiente (sem TypeScript)
 const isDevelopment = process.env.NODE_ENV === 'development'
 const isProduction = process.env.NODE_ENV === 'production'
@@ -209,6 +210,14 @@ const nextConfig = {
   // Corrige o erro fatal "useSearchParams() should be wrapped in Suspense"
   // que afeta muitas páginas admin no build de produção (Next.js 14.1+)
   experimental: {
+    // Sem isso, src/instrumentation.ts NUNCA é carregado por esta versão do Next
+    // (14.x — o flag só virou default/estável na 15). Confirmado direto no código-fonte
+    // instalado (next/dist/server/config-shared.js: instrumentationHook default = false) e
+    // por ausência total de log ("Agent Monitor iniciado...") em meses de histórico do
+    // container netimobiliaria-app — o motor de sync/briefing automático de Campanhas
+    // (agentMonitor.ts) nunca chegou a rodar, mesmo já implementado e correto. Essencial
+    // tanto local (Docker e `npm run dev` direto) quanto na build de produção da VPS.
+    instrumentationHook: true,
     missingSuspenseWithCSRBailout: false,
     // pdf-parse (baseado em pdf.js) e mammoth fazem require/import dinâmico interno que o
     // bundler do webpack do Next quebra ao tentar empacotar (erro real observado: "Object.
@@ -216,7 +225,16 @@ const nextConfig = {
     // dentro da API route). Tratar como pacote externo faz o Next usar o require nativo do
     // Node em runtime em vez de tentar empacotar — padrão já documentado pra libs pdf.js em
     // Next.js. M4.3 RAG — import de PDF/DOCX na Base de Conhecimento.
-    serverComponentsExternalPackages: ['pdf-parse', 'mammoth'],
+    // google-ads-api → google-gax → @grpc/grpc-js dependem de módulos nativos do Node
+    // (stream, net, tls, http2...) que não existem no runtime Edge. `instrumentation.ts`
+    // (agentMonitor.ts) já checa `NEXT_RUNTIME !== 'nodejs'` e nunca EXECUTA esse caminho
+    // no Edge — mas com instrumentationHook ativado (linha acima), o Next tenta EMPACOTAR
+    // instrumentation.ts pros dois runtimes na build, e falha resolvendo 'stream' pro bundle
+    // Edge antes mesmo de chegar a rodar o guard. Mesmo remédio já usado acima pra pdf-parse/
+    // mammoth: tratar como pacote externo faz o Next usar require nativo do Node em runtime,
+    // sem tentar empacotar — nunca chega a ser resolvido/executado no bundle Edge de qualquer
+    // forma, então não tem custo real, só destrava a build.
+    serverComponentsExternalPackages: ['pdf-parse', 'mammoth', 'google-ads-api', 'google-gax', '@grpc/grpc-js', '@grpc/proto-loader'],
   },
 
   // Configurações de ambiente
@@ -324,10 +342,50 @@ const nextConfig = {
   */
 
   // Configurações de webpack
-  webpack: (config, { dev, isServer }) => {
+  webpack: (config, { dev, isServer, nextRuntime }) => {
     // Configurações específicas para produção
     if (!dev) {
       config.optimization.minimize = true
+    }
+
+    // instrumentationHook (acima) faz o Next tentar empacotar instrumentation.ts pros DOIS
+    // runtimes (edge + nodejs), mesmo o código só EXECUTAR no nodejs (guard explícito em
+    // instrumentation.ts: `if (process.env.NEXT_RUNTIME !== 'nodejs') return`) — confirmado
+    // ao vivo: "Agent Monitor iniciado..." aparece certinho no boot do server nodejs, o erro
+    // só surge depois, na tentativa (separada) de empacotar o bundle Edge do mesmo arquivo.
+    // A árvore de dependências (agentMonitor.ts → GoogleAdsAdapter.ts → google-ads-api →
+    // gaxios/google-auth-library/@grpc/grpc-js; e agentMonitor.ts → agentDecisor.ts →
+    // llmInvoker.ts → llmClient.ts → @anthropic-ai/sdk, que tem um recurso de agent-toolset
+    // usando `node:child_process`) usa módulos nativos do Node que não existem no Edge.
+    // Duas classes de erro diferentes, cada uma pedindo o remédio certo:
+    // (1) `require('modulo')` puro → resolve.fallback (fallback abaixo) resolve pra vazio.
+    // (2) `import 'node:modulo'` (esquema de URI) → resolve.fallback NUNCA intercepta isso
+    //     (o erro real é "UnhandledSchemeError", webpack rejeita o esquema `node:` ANTES de
+    //     chegar a resolver o módulo — não é falta de fallback, é falta de handler pro
+    //     esquema). Corrigido via `externals`: qualquer `node:xxx` vira um require externo
+    //     puro (nunca empacotado) — não importa se seria resolvível no Edge de verdade,
+    //     porque esse código nunca EXECUTA lá (o guard garante), só precisa sobreviver à
+    //     build. `require('module').builtinModules` cobre a lista completa de nomes reais
+    //     desta versão do Node, sem manutenção manual a cada novo pacote que aparecer.
+    const builtins = require('module').builtinModules
+    const externalizeNodeScheme = ({ request }, callback) => {
+      if (request && builtins.includes(request.replace(/^node:/, '')) && request.startsWith('node:')) {
+        return callback(null, `commonjs ${request}`)
+      }
+      callback()
+    }
+    config.externals = Array.isArray(config.externals)
+      ? [...config.externals, externalizeNodeScheme]
+      : config.externals
+        ? [config.externals, externalizeNodeScheme]
+        : [externalizeNodeScheme]
+
+    if (nextRuntime === 'edge') {
+      const fallback = { ...config.resolve.fallback }
+      for (const name of builtins) {
+        fallback[name] = false
+      }
+      config.resolve.fallback = fallback
     }
 
     // Deixar o Next.js gerenciar o devtool automaticamente

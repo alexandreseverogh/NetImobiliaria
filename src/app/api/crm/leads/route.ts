@@ -417,7 +417,9 @@ export async function GET(request: NextRequest) {
   try {
     const currentUser = getCurrentUser(request)
     const tenantId = currentUser?.tenantId || null
-    const isMaster = currentUser?.is_system_role === true
+    if (!tenantId) {
+      return NextResponse.json({ success: false, error: 'Não autenticado ou sessão sem contexto de tenant.' }, { status: 401 })
+    }
 
     const searchParams = new URL(request.url).searchParams
 
@@ -440,10 +442,11 @@ export async function GET(request: NextRequest) {
 
     const conditions: string[] = []
     const params: any[] = []
-    if (!isMaster) {
-      params.push(tenantId)
-      conditions.push(`l.tenant_id = $${params.length}`)
-    }
+    // Achado real (2026-09-29): o bypass de Master aqui misturava leads de TODOS os tenants no
+    // mesmo board do Kanban — sempre escopa pelo tenant da sessão agora, Master incluído (mesmo
+    // padrão aplicado em kanban/colunas e kanban/move).
+    params.push(tenantId)
+    conditions.push(`l.tenant_id = $${params.length}`)
     if (!includeDeleted) {
       conditions.push('l.deleted_at IS NULL')
     }

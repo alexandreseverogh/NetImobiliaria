@@ -35,17 +35,26 @@ function getCurrentUser(request: NextRequest): { userId: string, tenantId?: stri
 export async function GET(request: NextRequest) {
   try {
     const currentUser = getCurrentUser(request)
-    const tenantId = currentUser?.tenantId || null
-    const isMaster = currentUser?.is_system_role === true
+    if (!currentUser) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+    if (!currentUser.tenantId) {
+      return NextResponse.json({ error: 'Sessão sem contexto de tenant.' }, { status: 400 })
+    }
 
-    const params = !isMaster ? [tenantId] : []
+    // Achado real (2026-09-29): Master tinha um bypass total do filtro de tenant aqui
+    // (`!isMaster ? 'AND ... tenant_id = $1' : ''`) — em vez de operar no CONTEXTO do tenant
+    // atualmente selecionado (como o resto da plataforma), o funil somava colunas/leads de
+    // TODOS os tenants misturados. Master sempre tem `tenantId` real no JWT (próprio tenant
+    // "Master Platform" por padrão, ou o tenant escolhido via /select-tenant) — usar esse
+    // valor sempre, sem bypass, é estritamente mais correto: Master vê o funil do tenant que
+    // de fato está no contexto da sessão, igual qualquer outro usuário.
+    const params = [currentUser.tenantId]
 
     // Contagem por coluna do Kanban, só colunas ativas, na ordem real do funil.
     const statusQuery = `
       SELECT k.id, k.nome, k.titulo_exibicao, k.cor, k.ordem, count(lk.id)::int as total
       FROM kanban_colunas k
-      LEFT JOIN leads_kanban lk ON k.id = lk.coluna_id ${!isMaster ? 'AND lk.tenant_id = $1' : ''}
-      WHERE k.ativa = true ${!isMaster ? 'AND k.tenant_id = $1' : ''}
+      LEFT JOIN leads_kanban lk ON k.id = lk.coluna_id AND lk.tenant_id = $1
+      WHERE k.ativa = true AND k.tenant_id = $1
       GROUP BY k.id, k.nome, k.titulo_exibicao, k.cor, k.ordem
       ORDER BY k.ordem ASC
     `
