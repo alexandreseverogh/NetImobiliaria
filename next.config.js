@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-// last-restart: 2026-09-09 — Jest worker crash compilando rota nova next-best-action, força restart
+// last-restart: 2026-09-28 — bundle stale não refletia o botão novo "Reordenar Menu" no AdminSidebar, força restart
 // Configurações baseadas no ambiente (sem TypeScript)
 const isDevelopment = process.env.NODE_ENV === 'development'
 const isProduction = process.env.NODE_ENV === 'production'

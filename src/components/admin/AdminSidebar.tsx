@@ -60,6 +60,12 @@ export default function AdminSidebar({
   const activeTheme = theme || hookData.theme
   const reloadMenu = propReloadMenu || hookData.reloadMenu
 
+  // Reordenar Menu só faz sentido pra quem tem visão ampla da sidebar (Master, com acesso a
+  // tudo, ou admin de tenant, cuja sidebar já reflete o que ele mesmo administra) — mesmo
+  // critério de "admin" já usado no backend (get_sidebar_menu_for_user: role.name ILIKE
+  // '%admin%'). Um atendente/corretor comum não ganha esse controle.
+  const canReorderMenu = !!user?.is_system_role || !!user?.role_name?.toLowerCase().includes('admin')
+
   // ── Ordem pessoal das categorias da sidebar (por usuário logado) ───────────
   const openReorderModal = () => {
     setReorderCategories(menuItems.map(m => ({ id: m.id, name: m.name, icon: m.icon })))
@@ -400,7 +406,7 @@ export default function AdminSidebar({
           </div>
         </div>
 
-        {menuItems.length > 1 && (
+        {canReorderMenu && menuItems.length > 1 && (
           <div className="px-6 pt-4 -mb-2">
             <button
               onClick={openReorderModal}
