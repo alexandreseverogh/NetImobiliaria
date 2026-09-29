@@ -308,8 +308,15 @@ export default function ProductCockpitPage() {
         </div>
       </div>
 
-      {/* COLUNA 3: CATEGORIAS */}
-      <div className={`flex-shrink-0 w-80 flex flex-col bg-white rounded-2xl shadow-sm border transition-all duration-300 ${selectedModule ? 'border-blue-200 opacity-100' : 'opacity-50 pointer-events-none grayscale'}`}>
+      {/* COLUNA 3: CATEGORIAS — nunca bloqueada por pointer-events/opacity mesmo sem módulo
+          selecionado: reordenar (as setas + Salvar Ordem) é operação GLOBAL da sidebar,
+          independente de qual módulo está ativo à esquerda. Bug real encontrado testando ao
+          vivo — a coluna inteira herdava o mesmo bloqueio usado pela coluna de Features (que
+          SIM depende de uma categoria selecionada), então clique real de mouse nas setas não
+          fazia nada quando a tela abria sem nenhum módulo escolhido ainda (só um .click() via
+          JS, que ignora pointer-events-none, "funcionava"). Só o toggle de atribuição
+          (módulo→categoria) continua desabilitado sem módulo, individualmente. */}
+      <div className="flex-shrink-0 w-80 flex flex-col bg-white rounded-2xl shadow-sm border border-blue-200 transition-all duration-300">
         <div className="p-4 bg-blue-50/50 border-b border-blue-100 flex items-center justify-between">
           <div className="flex items-center text-blue-900 font-black uppercase text-[10px] tracking-widest">
             <FolderIcon className="h-4 w-4 mr-2 text-blue-500" /> Categorias
@@ -360,7 +367,9 @@ export default function ProductCockpitPage() {
                 </button>
                 <button
                   onClick={() => handleToggle('TOGGLE_MODULE_CATEGORY', selectedModule, cat.id, isAssigned)}
-                  className={`h-5 w-9 rounded-full relative transition-colors shrink-0 ${isAssigned ? 'bg-emerald-500' : 'bg-slate-200'}`}
+                  disabled={!selectedModule}
+                  title={!selectedModule ? 'Selecione um módulo à esquerda para atribuir' : undefined}
+                  className={`h-5 w-9 rounded-full relative transition-colors shrink-0 disabled:opacity-30 disabled:cursor-not-allowed ${isAssigned ? 'bg-emerald-500' : 'bg-slate-200'}`}
                 >
                   <span className={`absolute top-0.5 left-0.5 h-4 w-4 bg-white rounded-full transition-transform ${isAssigned ? 'translate-x-4' : ''}`} />
                 </button>
