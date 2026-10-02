@@ -8,7 +8,8 @@
 
 import pool from '@/lib/database/connection';
 import { angleLabel } from '../angles';
-import { resolveBenchmark } from '@/lib/intelligence/benchmarkResolver';
+import { resolveBenchmark, SEGMENT_SEED_DEFAULTS } from '@/lib/intelligence/benchmarkResolver';
+import { resolveSegment } from '@/lib/intelligence/segmentResolver';
 import { hasCrmModule } from './revenueAttributionService';
 
 // ─── Tipos ──────────────────────────────────────────────────────────────────
@@ -175,7 +176,14 @@ export async function getAngleInsights(
       ? withCpl.reduce((worst, a) => a.cpl! > worst.cpl! ? a : worst)
       : null;
 
-    const fitScaleMin = await resolveBenchmark('avg_fit_scale_min', tenantId, segmentId ?? null).catch(() => 40);
+    // Sem segmento explícito (visão geral do tenant), usa o segmento do próprio tenant em vez
+    // de resolver com segmentId=null (que sempre cai no aviso "BENCHMARK NÃO CONFIGURADO").
+    const effectiveSegmentId = segmentId
+      ?? (await resolveSegment(tenantId, clientId && clientId !== 'own' ? clientId : null).catch(() => null))?.id
+      ?? null;
+    const fitScaleMin = effectiveSegmentId
+      ? await resolveBenchmark('avg_fit_scale_min', tenantId, effectiveSegmentId).catch(() => 40)
+      : SEGMENT_SEED_DEFAULTS.avg_fit_scale_min.value;
     const textSummary = buildAngleTextSummary(angleStats, topAngle, worstAngle, periodDays, fitScaleMin);
 
     return { periodDays, angleStats, topAngle, worstAngle, textSummary, crmAvailable };
