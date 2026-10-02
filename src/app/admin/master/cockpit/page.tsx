@@ -36,6 +36,14 @@ export default function ProductCockpitPage() {
   const [segmentModules, setSegmentModules] = useState<any[]>([])
   const [categories, setCategories] = useState<any[]>([])
   const [features, setFeatures] = useState<any[]>([])
+  const [groups, setGroups] = useState<any[]>([])
+  const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set())
+  const toggleGroupExpanded = (id: number) =>
+    setExpandedGroups(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
 
   // Dados do Dicionário Semântico
   const [semanticTags, setSemanticTags] = useState<any[]>([])
@@ -62,11 +70,24 @@ export default function ProductCockpitPage() {
   const [savingCategoryOrder, setSavingCategoryOrder] = useState(false)
 
   // ── Ordenação de features ─────────────────────────────────────────────────
+  // Itens que a sidebar de fato ordena: features soltas (sem grupo) + grupos de abas, na mesma
+  // escala de sort_order. Empate desempata pelo nome, igual a get_sidebar_menu_for_user.
+  // Features que pertencem a um grupo ficam de fora — a posição delas é a do grupo.
+  const buildOrderedItems = (categoryId: number | null) => {
+    const plain = features
+      .filter((f: any) => !f.group_id && (!categoryId || f.category_id === categoryId))
+      .map((f: any) => ({ ...f, _kind: 'feature' }))
+    const grp = groups
+      .filter((g: any) => !categoryId || g.category_id === categoryId)
+      .map((g: any) => ({ ...g, _kind: 'group', slug: `grupo · ${g.tab_count} abas` }))
+    return [...plain, ...grp].sort(
+      (a: any, b: any) =>
+        (a.sort_order ?? 0) - (b.sort_order ?? 0) || String(a.name).localeCompare(String(b.name))
+    )
+  }
+
   const openOrderModal = () => {
-    const list = features
-      .filter(f => !selectedCategory || f.category_id === selectedCategory)
-      .sort((a: any, b: any) => (a.sort_order ?? 999) - (b.sort_order ?? 999))
-    setOrderedFeatures(list)
+    setOrderedFeatures(buildOrderedItems(selectedCategory))
     setShowOrderModal(true)
   }
 
@@ -92,8 +113,8 @@ export default function ProductCockpitPage() {
     setSavingOrder(true)
     try {
       const response = await post('/api/admin/master/cockpit', {
-        action:     'REORDER_FEATURES_BULK',
-        orderedIds: orderedFeatures.map((f: any) => f.id),
+        action:       'REORDER_ITEMS_BULK',
+        orderedItems: orderedFeatures.map((f: any) => ({ kind: f._kind, id: f.id })),
       })
       if (response.ok) {
         toast.success('Ordem das features salva!')
@@ -166,6 +187,7 @@ export default function ProductCockpitPage() {
         setCategories(cats)
         setOrderedCategories([...cats].sort((a: any, b: any) => (a.sort_order ?? 999) - (b.sort_order ?? 999)))
         setFeatures(data.features || [])
+        setGroups(data.groups || [])
         setSemanticTags(data.semanticTags || [])
       }
     } catch (error) {
@@ -186,11 +208,8 @@ export default function ProductCockpitPage() {
       setOrderedFeatures([])
       return
     }
-    const assigned = features
-      .filter((f: any) => f.category_id === selectedCategory)
-      .sort((a: any, b: any) => (a.sort_order ?? 999) - (b.sort_order ?? 999))
-    setOrderedFeatures(assigned)
-  }, [selectedCategory, features])
+    setOrderedFeatures(buildOrderedItems(selectedCategory))
+  }, [selectedCategory, features, groups])
 
   const handleToggle = async (action: string, sourceId: any, targetId: any, currentStatus: boolean) => {
     const isAssigned = !currentStatus;
@@ -405,7 +424,7 @@ export default function ProductCockpitPage() {
                 ↕ Arraste a ordem — na sidebar
               </p>
               {orderedFeatures.map((feat: any, idx: number) => (
-                <div key={feat.id} className="flex items-center gap-2 p-2.5 rounded-xl border border-emerald-100 bg-emerald-50/40 hover:bg-emerald-50 transition-colors">
+                <div key={`${feat._kind}-${feat.id}`} className="flex flex-wrap items-center gap-2 p-2.5 rounded-xl border border-emerald-100 bg-emerald-50/40 hover:bg-emerald-50 transition-colors">
                   {/* Setas ↑ / ↓ */}
                   <div className="flex flex-col gap-0 shrink-0">
                     <button
@@ -435,13 +454,42 @@ export default function ProductCockpitPage() {
                     <div className="text-[9px] font-mono text-emerald-600">{feat.slug}</div>
                   </div>
 
-                  {/* Toggle para desatribuir */}
-                  <button
-                    onClick={() => handleToggle('TOGGLE_CATEGORY_FEATURE', selectedCategory, feat.id, true)}
-                    className="h-5 w-9 rounded-full relative transition-colors bg-emerald-500 shrink-0"
-                  >
-                    <span className="absolute top-0.5 left-0.5 h-4 w-4 bg-white rounded-full transition-transform translate-x-4" />
-                  </button>
+                  {/* Toggle para desatribuir (grupos de abas só reordenam, não desatribuem aqui) */}
+                  {feat._kind === 'group' ? (
+                    <button
+                      onClick={() => toggleGroupExpanded(feat.id)}
+                      title="Ver as funcionalidades do grupo"
+                      className="flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-violet-600 bg-violet-50 hover:bg-violet-100 border border-violet-100 rounded px-1.5 py-0.5 shrink-0 transition-colors"
+                    >
+                      Grupo
+                      {expandedGroups.has(feat.id)
+                        ? <ChevronUpIcon className="h-3 w-3" />
+                        : <ChevronDownIcon className="h-3 w-3" />}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleToggle('TOGGLE_CATEGORY_FEATURE', selectedCategory, feat.id, true)}
+                      className="h-5 w-9 rounded-full relative transition-colors bg-emerald-500 shrink-0"
+                    >
+                      <span className="absolute top-0.5 left-0.5 h-4 w-4 bg-white rounded-full transition-transform translate-x-4" />
+                    </button>
+                  )}
+
+                  {/* Abas do grupo (somente leitura — a ordem interna é definida na gestão de grupos) */}
+                  {feat._kind === 'group' && expandedGroups.has(feat.id) && (
+                    <div className="basis-full mt-1 ml-10 space-y-1 border-l-2 border-violet-200 pl-3">
+                      {features
+                        .filter((f: any) => f.group_id === feat.id)
+                        .sort((a: any, b: any) => (a.sort_order_in_group ?? 0) - (b.sort_order_in_group ?? 0) || String(a.name).localeCompare(String(b.name)))
+                        .map((tab: any, tIdx: number) => (
+                          <div key={tab.id} className="flex items-center gap-2 text-[11px] text-slate-600">
+                            <span className="text-[9px] font-black text-slate-300 w-3 text-center">{tIdx + 1}</span>
+                            <span className="font-bold text-slate-700 truncate">{tab.name}</span>
+                            <span className="text-[9px] font-mono text-violet-500 truncate">{tab.slug}</span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
                 </div>
               ))}
               <div className="border-t border-slate-100 mt-2 pt-1" />
@@ -629,7 +677,7 @@ export default function ProductCockpitPage() {
               ) : (
                 orderedFeatures.map((feat: any, idx: number) => (
                   <div
-                    key={feat.id}
+                    key={`${feat._kind}-${feat.id}`}
                     className="flex items-center justify-between gap-3 p-3 rounded-2xl border border-slate-100 bg-slate-50 hover:border-blue-200 transition-all"
                   >
                     <div className="flex items-center gap-2 min-w-0">
