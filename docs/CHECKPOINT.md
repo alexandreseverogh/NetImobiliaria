@@ -1,5 +1,30 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-10-02 — **E-mail (SMTP) e WhatsApp (Evolution) funcionando em produção
+> e local; Cockpit passa a ordenar grupos de abas.**
+>
+> **SMTP:** causa raiz do erro `535` era senha de app gerada na conta errada (a de
+> `alexandreseverog@gmail.com` usada com outro `SMTP_USER`); senha de app é presa à conta que a
+> gerou. Local e VPS agora usam `alexandreseverog@gmail.com` + senha de app nova (GitHub Secrets
+> `SMTP_USER`/`SMTP_PASS` e `.env` da VPS atualizados). Formulário "Fale com um especialista"
+> (`/artemis4`) e digest/briefing por e-mail confirmados. Arquivos de diagnóstico removidos.
+>
+> **Evolution na VPS:** produção não tinha Evolution (tenant apontava `localhost:8081`, copiado do
+> dev). Novo serviço `evolution_api` em `docker-compose.vps.yml` (build via `Dockerfile.evolution`,
+> fora do deploy automático, UI só em `127.0.0.1:8081` por túnel SSH, banco `evolution` criado à
+> mão em `prod_db`, chave forte em `EVOLUTION_API_KEY` no `.env`). Instância `trafegopago-wpp`
+> pareada com `5581998000047`; tenant Marketing Digital agora usa `http://evolution_api:8080` e
+> envia alertas para `5581997930422` (números diferentes de propósito, evita o self-chat). Briefing
+> chegou por WhatsApp e e-mail.
+> **Pendente:** atualizar GitHub Secrets `EVOLUTION_API_KEY`/`EVOLUTION_API_URL`/`EVOLUTION_INSTANCE`
+> (o deploy regrava o `.env` a partir deles); webhook de entrada da Evolution→app (instância sem
+> webhook configurado); benchmarks `scale_ratio_cap`/`avg_fit_scale_min`/`scale_budget_*` não
+> cadastrados no banco de produção (avisos no log, usa defaults).
+>
+> **Cockpit:** painel "Funcionalidades" lista features soltas e grupos de abas
+> (`system_feature_groups`) numa lista única (`REORDER_ITEMS_BULK`); grupo expande e mostra suas abas.
+> Ordem do grupo "Análise de Campanhas" na produção já estava correta (`sort_order=5`).
+
 > **Atualizado em:** 2026-09-12 (continuação) — **Fix real: landing `/artemis4` não ocupava a
 > largura total em monitor 32" — `max-width` fixo do container, não bug de fundo quebrado.**
 >
