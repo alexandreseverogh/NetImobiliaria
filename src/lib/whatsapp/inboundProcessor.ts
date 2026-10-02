@@ -29,6 +29,20 @@ export interface NormalizedWhatsAppInbound {
   externalMessageId: string | null
 }
 
+/**
+ * O WhatsApp ainda entrega alguns celulares brasileiros no formato antigo (55 + DDD + 8 dígitos,
+ * sem o 9). Sem normalizar, o mesmo número vira dois leads/contatos (o Match Engine compara os
+ * últimos 10 dígitos, que diferem). Insere o 9 só em celular (8 dígitos começando em 6-9);
+ * fixo (começa em 2-5) e qualquer outro formato ficam como vieram.
+ */
+export function normalizeBrazilianMobile(phone: string): string {
+  const digits = phone.replace(/\D/g, '')
+  if (/^55\d{2}[6-9]\d{7}$/.test(digits)) {
+    return `${digits.slice(0, 4)}9${digits.slice(4)}`
+  }
+  return digits || phone
+}
+
 export interface InboundProcessResult {
   leadUuid: string | null
   mensageriaContactId: string | null
@@ -44,7 +58,8 @@ export interface InboundProcessResult {
 export async function processInboundWhatsAppMessage(
   input: NormalizedWhatsAppInbound,
 ): Promise<InboundProcessResult> {
-  const { tenantId, ownerClientId, phone, pushName, text, externalMessageId } = input
+  const { tenantId, ownerClientId, pushName, text, externalMessageId } = input
+  const phone = normalizeBrazilianMobile(input.phone)
 
   const refMatch = text?.match(/\[ref:([^\]]+)\]/)
   const ref = refMatch?.[1] || null
