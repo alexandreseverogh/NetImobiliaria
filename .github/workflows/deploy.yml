@@ -97,6 +97,7 @@ jobs:
             mkdir -p ~/net-imobiliaria/scripts/vps
             curl -fsSL "$REPO_RAW/Dockerfile.prod"                       -o ~/net-imobiliaria/Dockerfile.prod
             curl -fsSL "$REPO_RAW/Dockerfile.feed"                       -o ~/net-imobiliaria/Dockerfile.feed
+            curl -fsSL "$REPO_RAW/Dockerfile.evolution"                  -o ~/net-imobiliaria/Dockerfile.evolution
             curl -fsSL "$REPO_RAW/docker-compose.vps.yml"                -o ~/net-imobiliaria/docker-compose.vps.yml
             curl -fsSL "$REPO_RAW/scripts/vps/deploy-github.sh"          -o ~/net-imobiliaria/scripts/vps/deploy-github.sh
             curl -fsSL "$REPO_RAW/scripts/vps/apply-migrations.sh"       -o ~/net-imobiliaria/scripts/vps/apply-migrations.sh
