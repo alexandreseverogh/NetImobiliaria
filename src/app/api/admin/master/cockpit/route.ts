@@ -14,13 +14,18 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const [segmentsRes, modulesRes, segmentModulesRes, categoriesRes, featuresRes, tagsRes] = await Promise.all([
+    const [segmentsRes, modulesRes, segmentModulesRes, categoriesRes, featuresRes, tagsRes, groupsRes] = await Promise.all([
       pool.query('SELECT id, name, slug FROM system_segments ORDER BY name ASC'),
       pool.query('SELECT id, name, slug, icon FROM system_modules ORDER BY name ASC'),
       pool.query('SELECT segment_id, module_id FROM system_segment_modules'),
       pool.query('SELECT id, name, icon, module_id, sort_order FROM system_categorias ORDER BY COALESCE(sort_order, 999) ASC, name ASC'),
-      pool.query('SELECT id, name, slug, category_id, icon, sort_order FROM system_features ORDER BY COALESCE(sort_order, 999) ASC, name ASC'),
-      pool.query('SELECT * FROM system_role_tags ORDER BY display_name ASC')
+      pool.query('SELECT id, name, slug, category_id, icon, sort_order, group_id, sort_order_in_group FROM system_features ORDER BY COALESCE(sort_order, 999) ASC, name ASC'),
+      pool.query('SELECT * FROM system_role_tags ORDER BY display_name ASC'),
+      pool.query(`SELECT sfg.id, sfg.name, sfg.icon, sfg.category_id, COALESCE(sfg.sort_order, 0) AS sort_order,
+                         (SELECT COUNT(*) FROM system_features sf WHERE sf.group_id = sfg.id)::int AS tab_count
+                  FROM system_feature_groups sfg
+                  WHERE sfg.is_active = true
+                  ORDER BY COALESCE(sfg.sort_order, 0) ASC, sfg.name ASC`)
     ]);
 
     return NextResponse.json({ 
@@ -30,6 +35,7 @@ export async function GET(request: NextRequest) {
       segmentModules: segmentModulesRes.rows,
       categories: categoriesRes.rows,
       features: featuresRes.rows,
+      groups: groupsRes.rows,
       semanticTags: tagsRes.rows
     });
   } catch (error: any) {
@@ -96,6 +102,21 @@ export async function POST(request: NextRequest) {
       if (Array.isArray(orderedIds)) {
         for (let i = 0; i < orderedIds.length; i++) {
           await client.query('UPDATE system_features SET sort_order = $1 WHERE id = $2', [i, orderedIds[i]]);
+        }
+      }
+    }
+    else if (action === 'REORDER_ITEMS_BULK') {
+      // Features soltas e grupos de abas dividem a mesma escala de sort_order na sidebar
+      // (get_sidebar_menu_for_user), então são reordenados juntos numa lista única.
+      const { orderedItems } = body;
+      if (Array.isArray(orderedItems)) {
+        for (let i = 0; i < orderedItems.length; i++) {
+          const { kind, id } = orderedItems[i] || {};
+          if (kind === 'group') {
+            await client.query('UPDATE system_feature_groups SET sort_order = $1 WHERE id = $2', [i, id]);
+          } else if (kind === 'feature') {
+            await client.query('UPDATE system_features SET sort_order = $1 WHERE id = $2', [i, id]);
+          }
         }
       }
     }
