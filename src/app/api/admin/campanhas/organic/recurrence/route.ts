@@ -31,12 +31,15 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const { clientId: rawClientId, platform, format, caption, mediaUrls, mediaKind, startDate, endDate, daysOfWeek, timeslots } = body;
+    const { clientId: rawClientId, platform, format, caption, mediaUrls, mediaPool, mediaKind, startDate, endDate, daysOfWeek, timeslots } = body;
 
     if (!platform || !format) return NextResponse.json({ error: 'platform e format são obrigatórios' }, { status: 400 });
     if (!startDate) return NextResponse.json({ error: 'startDate é obrigatório' }, { status: 400 });
     if (!daysOfWeek?.length) return NextResponse.json({ error: 'Selecione ao menos um dia da semana' }, { status: 400 });
     if (!timeslots?.length) return NextResponse.json({ error: 'Informe ao menos um horário' }, { status: 400 });
+    if (mediaPool && (!Array.isArray(mediaPool) || mediaPool.some((p: any) => !Array.isArray(p) || p.length === 0))) {
+      return NextResponse.json({ error: 'Pool de criativos inválido — cada posição precisa ter ao menos 1 URL' }, { status: 400 });
+    }
 
     const clientId = rawClientId && rawClientId !== 'own' && rawClientId !== 'all' ? rawClientId : null;
 
@@ -47,6 +50,7 @@ export async function POST(request: NextRequest) {
       format,
       caption,
       mediaUrls: mediaUrls ?? [],
+      mediaPool: mediaPool ?? undefined,
       mediaKind,
       startDate,
       endDate: endDate || undefined,

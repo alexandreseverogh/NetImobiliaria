@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
-// last-restart: 2026-09-29 (2) — notifyDigest passou a importar emailService.ts (nodemailer),
-// força restart limpo pra garantir que o processo de longa duração recarregue o import novo
+// last-restart: 2026-10-06 — Prisma Client regenerado (campo mediaPool em
+// OrganicRecurrenceSchedule, FASE 16.H) depois do dev server já estar de pé; singleton
+// global de prisma.ts ficou preso na versão antiga do client até este restart limpo
 // Configurações baseadas no ambiente (sem TypeScript)
 const isDevelopment = process.env.NODE_ENV === 'development'
 const isProduction = process.env.NODE_ENV === 'production'
