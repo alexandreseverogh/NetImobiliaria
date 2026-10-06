@@ -659,15 +659,13 @@ comprovado em Campanhas (passe estreito, uma checkpoint por tela/grupo, aprovaç
 antes de seguir pra próxima, `DashboardHelpModal`-like: avaliar caso a caso antes de assumir
 que toda cor não-âmbar é bug).
 
-### 2. Outras Pendências
-
-- **⚠️ `docker-compose.vps.yml` ainda referencia `quay.io/minio/minio:latest`** — essa imagem
-  ficou bloqueada (a MinIO fechou acesso anônimo ao repo, confirmado 2026-10-06, não é
-  rate-limit). O ambiente local já foi corrigido com build próprio do código-fonte
-  (`docker/minio/Dockerfile`, ver `docs/CHECKPOINT.md` entrada de 2026-10-06) — falta aplicar a
-  mesma correção na VPS (trocar `image:` por `build: context: ./docker/minio`). Sem efeito
-  prático ainda (o container de produção está rodando, não precisou ser recriado), mas qualquer
-  reboot/redeploy/`docker compose pull` vai derrubar o MinIO de produção até isso ser corrigido.
+- **⚠️ Abrir PR `feature/ag-cockpit-camadas` → `main`** — o fix do MinIO (build próprio do
+  código-fonte, `docker/minio/Dockerfile`) já está aplicado e testado ponta a ponta tanto local
+  quanto na VPS real de produção (ver `docs/CHECKPOINT.md`, entradas 2026-10-06), mas só existe
+  nesta branch. Risco real: um deploy futuro de `main` sobrescreve `docker-compose.vps.yml` na
+  VPS via `curl` (mesmo que já esteja corrigido lá manualmente) — como `main` ainda referencia
+  `quay.io/minio/minio:latest` (bloqueado), isso reverteria a correção silenciosamente no
+  próximo deploy. Mergear fecha esse risco de vez.
 - **Sync Meta real**: validar `POST /insights/sync` com token de produção e campanhas reais
 - **Fluxo completo do CampaignWizard**: publicação no Meta após upload de criativos
 - **FASE 19 (blindagem contra mudança de API Meta/Google/TikTok) — 19.1 a 19.6 concluídas e
