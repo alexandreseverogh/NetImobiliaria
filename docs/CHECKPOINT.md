@@ -1,5 +1,80 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-10-06 — **Docker Desktop travado destravado (serviço parado sem o app
+> perceber) + MinIO deixou de ter imagem Docker pública em QUALQUER registry — resolvido com build
+> próprio direto do código-fonte oficial, mesmo padrão já usado pro Postgres+pgvector.**
+>
+> **Docker Desktop travado:** `Docker Desktop.exe` rodando sozinho, mas `com.docker.service`
+> (serviço Windows do motor) parado — pipe `docker_engine` inexistente, `docker ps` falhava.
+> Causa real: o app gráfico não religou o serviço sozinho depois de algum crash anterior. Não dava
+> pra religar via shell (sem privilégio de Administrador neste ambiente) — resolvido matando os
+> processos travados (`taskkill`) e reabrindo o Docker Desktop normalmente, que religou o serviço
+> sozinho dessa vez. Ambiente confirmado saudável antes de seguir (230GB livres, Hyper-V ativo, sem
+> reboot pendente) — não era isso.
+>
+> **Achado mais sério, descoberto ao tentar religar os containers do projeto depois do Docker
+> voltar:** TODAS as imagens locais (não só os containers) tinham sumido — `docker images` vazio.
+> Os 4 volumes de dados (`db_data`/`minio_data`/`redis_data`/`evolution_data`) sobreviveram
+> intactos (confirmado depois: 37 imóveis, 12 usuários, bucket MinIO com timestamp original de
+> 2026-10-05 — nenhum dado perdido). `docker compose up -d` tentou baixar tudo de novo e travou em
+> `quay.io/minio/minio:latest unauthorized: access to the requested resource is not authorized`.
+>
+> **Investigado a fundo, não assumido — é mudança de política da MinIO Inc., não rate-limit nem
+> bug local:** `minio/minio` já tinha saído do Docker Hub em 2026-09-17 (por isso o projeto já
+> usava quay.io como alternativa, registrado em comentário no `docker-compose.yml`). Confirmado
+> agora que **o próprio quay.io/minio/minio também fechou o acesso anônimo** — `curl` direto na API
+> do quay.io retorna `401 Requires authentication` até pra consultar METADADO do repositório, não é
+> rate-limit passageiro. Testadas e descartadas 3 alternativas antes de decidir buildar do fonte:
+> binário direto (`dl.min.io` → `410 Gone`), mirror Bitnami (`404`, descontinuado), GHCR (sem mirror
+> real, token anônimo rejeitado). O código-fonte, porém, segue 100% público — é AGPLv3, licença
+> copyleft que obriga a MinIO a manter o repositório aberto no GitHub mesmo tendo fechado a
+> distribuição de binário/imagem pronta.
+>
+> **Decisão do usuário: buildar a partir do código-fonte** — mais seguro que depender de qualquer
+> registry terceiro de novo (motivo real: Docker Hub e quay.io já provaram, nesta mesma sessão,
+> que podem fechar acesso sem aviso; o fonte via GitHub sob AGPLv3 não tem esse risco) e consistente
+> com o padrão já estabelecido no projeto pro Postgres+pgvector (`docker/postgres/Dockerfile`).
+>
+> **Implementado** — `docker/minio/Dockerfile` (novo, multi-stage): stage 1 (`golang:1.24-alpine`)
+> faz `git clone --branch RELEASE.2025-10-15T17-29-55Z --depth 1` do repo oficial (não tarball — um
+> `.git` real permite embutir commit/versão no binário do mesmo jeito que o build oficial faz, via
+> `buildscripts/gen-ldflags.go` da própria MinIO, replicado manualmente no Dockerfile já que o
+> script original depende de contexto de release que não existe aqui) e compila
+> (`CGO_ENABLED=0 go build -tags kqueue -trimpath --ldflags "..."`); stage 2 (`alpine:3.20`) só
+> copia o binário estaticamente linkado + `curl`/`ca-certificates` (o healthcheck do compose e
+> notificações HTTPS do MinIO precisam dos dois). `docker/minio/docker-entrypoint.sh` — cópia
+> verbatim do entrypoint oficial da mesma tag (`dockerscripts/docker-entrypoint.sh`).
+> `docker-compose.yml` — serviço `minio` trocado de `image: quay.io/minio/minio:latest` para
+> `build: context: ./docker/minio` + `image: ${MINIO_IMAGE:-netimob-minio:release-2025-10-15}`
+> (mesmo padrão de override via env var já usado em `POSTGRES_IMAGE`).
+>
+> **Testado ao vivo, ponta a ponta:** `minio --version` dentro do container confirma
+> `RELEASE.2025-10-15T17-29-55Z (commit-id=9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a)` — a versão
+> REAL da tag, não um placeholder "DEVELOPMENT.GOGET" (1ª tentativa, sem o `git clone`+ldflags,
+> tinha esse problema cosmético, corrigido antes de dar por encerrado) · healthcheck do compose
+> `healthy` · API S3 (`:9000/minio/health/live`) e Console Web (`:9001`) respondendo `200 OK` real ·
+> bucket `net-imobiliaria` confirmado presente dentro do volume, com conteúdo e timestamp
+> originais (nenhum dado novo, nenhum dado perdido) · stack inteira (`db`/`redis`/`evolution_api`/
+> `feed`/`translator`/`app`) religada em seguida — Postgres confirmou reuso do data-dir existente
+> nos próprios logs ("Skipping initialization", seguido de recovery normal via WAL por causa do
+> desligamento abrupto, não um `initdb` do zero) — `37 imóveis`/`12 usuários` confirmados via SQL
+> direto, batendo exato com o estado conhecido do projeto · app Next.js respondendo `HTTP 200` em
+> `localhost:3002`.
+>
+> **Pendência real, não atacada nesta sessão — risco de produção real, não teórico:**
+> `docker-compose.vps.yml` **ainda referencia `quay.io/minio/minio:latest`**, a mesma imagem que
+> está bloqueada. Não houve efeito prático ainda porque o container de produção já está rodando
+> (não precisou ser recriado) — mas qualquer evento que force recriação (reboot da VPS, redeploy,
+> `docker compose pull`, disco corrompido) vai bater no mesmo erro 401 e deixar o MinIO de produção
+> fora do ar até alguém aplicar a mesma correção lá. Não mexido ainda por decisão de escopo (sessão
+> focada em destravar o ambiente local) — aplicar o mesmo `docker/minio/Dockerfile` + trocar
+> `image:` por `build:` em `docker-compose.vps.yml` é o próximo passo recomendado, com prioridade
+> alta.
+>
+> **Novo arquivo não relacionado a esta correção, criado em sessão anterior e ainda não
+> commitado:** `prisma/migration-2026-10-06-tenant-artemis9-para-vps.sql` — fora do escopo desta
+> entrada, não tocado.
+
 > **Atualizado em:** 2026-10-02 — **E-mail (SMTP) e WhatsApp (Evolution) funcionando em produção
 > e local; Cockpit passa a ordenar grupos de abas.**
 >

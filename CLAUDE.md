@@ -661,6 +661,13 @@ que toda cor não-âmbar é bug).
 
 ### 2. Outras Pendências
 
+- **⚠️ `docker-compose.vps.yml` ainda referencia `quay.io/minio/minio:latest`** — essa imagem
+  ficou bloqueada (a MinIO fechou acesso anônimo ao repo, confirmado 2026-10-06, não é
+  rate-limit). O ambiente local já foi corrigido com build próprio do código-fonte
+  (`docker/minio/Dockerfile`, ver `docs/CHECKPOINT.md` entrada de 2026-10-06) — falta aplicar a
+  mesma correção na VPS (trocar `image:` por `build: context: ./docker/minio`). Sem efeito
+  prático ainda (o container de produção está rodando, não precisou ser recriado), mas qualquer
+  reboot/redeploy/`docker compose pull` vai derrubar o MinIO de produção até isso ser corrigido.
 - **Sync Meta real**: validar `POST /insights/sync` com token de produção e campanhas reais
 - **Fluxo completo do CampaignWizard**: publicação no Meta após upload de criativos
 - **FASE 19 (blindagem contra mudança de API Meta/Google/TikTok) — 19.1 a 19.6 concluídas e
