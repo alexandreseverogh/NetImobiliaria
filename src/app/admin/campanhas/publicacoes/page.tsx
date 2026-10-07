@@ -28,6 +28,32 @@ function formatDateOnlyPtBR(dateOnly: string): string {
   return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
 }
 
+// Badge de horário — usado na Lista e no modal "Ver criativo". Sempre mostra o horário real
+// (não só quando SCHEDULED): publicado já saiu, então mostra QUANDO saiu de verdade
+// (publishedAt pode divergir do agendado); os demais status com scheduledAt (SCHEDULED,
+// FAILED, e DRAFT — o estado que um post cai ao cancelar a recorrência que o gerou) mostram
+// o horário que estava/está previsto, nunca escondido.
+function ScheduleTimeBadge({ post }: { post: OrganicPost }) {
+  if (post.status === 'PUBLISHED' && post.publishedAt) {
+    return (
+      <span className="text-[10px] font-black text-emerald-600 uppercase tracking-wide bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">
+        ✅ Publicado {new Date(post.publishedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+      </span>
+    );
+  }
+  if (post.scheduledAt) {
+    const prefix = post.status === 'SCHEDULED' ? 'Agendado p/'
+      : post.status === 'FAILED' ? 'Horário previsto'
+      : 'Estava agendado p/'; // DRAFT (ex.: recorrência cancelada)
+    return (
+      <span className="text-[10px] font-black text-blue-600 uppercase tracking-wide bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
+        🗓 {prefix} {new Date(post.scheduledAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+      </span>
+    );
+  }
+  return null;
+}
+
 interface RecurrenceSchedule {
   id:         string;
   platform:   string;
@@ -56,6 +82,7 @@ interface OrganicPost {
   mediaUrls?: string[];
   mediaKind?: string | null;
   scheduledAt?: string | null;
+  publishedAt?: string | null;
   createdAt?: string;
 }
 
@@ -264,7 +291,7 @@ export default function PublicacoesPage() {
             </CreateGuard>
           </div>
         ) : view === 'calendar' ? (
-          <CalendarView posts={posts} onSelectPost={setPreviewPost} />
+          <CalendarView posts={posts} onSelectPost={setPreviewPost} onCancelPost={cancelPost} />
         ) : (
           <div className="space-y-3">
             {posts.map(p => {
@@ -282,11 +309,7 @@ export default function PublicacoesPage() {
                         <span className="text-[10px] font-black text-gray-400 uppercase tracking-wide bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-100">
                           {p.platform === 'facebook' ? '📘 Facebook' : '📸 Instagram'} · {p.format}
                         </span>
-                        {p.status === 'SCHEDULED' && p.scheduledAt && (
-                          <span className="text-[10px] font-black text-blue-600 uppercase tracking-wide bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
-                            🗓 {new Date(p.scheduledAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
-                          </span>
-                        )}
+                        <ScheduleTimeBadge post={p} />
                       </div>
                       {p.caption && <p className="text-sm text-gray-700 line-clamp-2">{p.caption}</p>}
                       {p.status === 'FAILED' && p.errorMessage && (
@@ -839,7 +862,11 @@ function RecurrenceComposer({ clientId, target, onClose, onSaved }: {
 
 /* ── Calendário ─────────────────────────────────────────────────────── */
 
-function CalendarView({ posts, onSelectPost }: { posts: OrganicPost[]; onSelectPost: (p: OrganicPost) => void }) {
+function CalendarView({ posts, onSelectPost, onCancelPost }: {
+  posts: OrganicPost[];
+  onSelectPost: (p: OrganicPost) => void;
+  onCancelPost: (id: string) => void;
+}) {
   const [month, setMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
 
   const year = month.getFullYear(), mon = month.getMonth();
@@ -885,11 +912,23 @@ function CalendarView({ posts, onSelectPost }: { posts: OrganicPost[]; onSelectP
                   {(byDay.get(day) ?? []).slice(0, 3).map(p => {
                     const sm = STATUS_META[p.status] ?? STATUS_META.DRAFT;
                     return (
-                      <button key={p.id} type="button" onClick={() => onSelectPost(p)}
-                        className={`block w-full text-left text-[9px] font-bold px-1 py-0.5 rounded truncate border hover:ring-1 hover:ring-indigo-300 transition-all ${sm.cls}`}
-                        title={`Ver criativo — ${p.platform} · ${p.status}${p.caption ? ' — ' + p.caption : ''}`}>
-                        {p.platform === 'facebook' ? '📘' : '📸'} {p.caption?.slice(0, 14) || p.format}
-                      </button>
+                      <div key={p.id} className="flex items-stretch gap-0.5">
+                        <button type="button" onClick={() => onSelectPost(p)}
+                          className={`flex-1 min-w-0 text-left text-[9px] font-bold px-1 py-0.5 rounded truncate border hover:ring-1 hover:ring-indigo-300 transition-all ${sm.cls}`}
+                          title={`Ver criativo — ${p.platform} · ${p.status}${p.caption ? ' — ' + p.caption : ''}`}>
+                          {p.platform === 'facebook' ? '📘' : '📸'} {p.caption?.slice(0, 14) || p.format}
+                        </button>
+                        {/* Só agendado faz sentido remover direto daqui — rascunho/falhou/publicado
+                           já têm os próprios fluxos (lista) ou não fazem sentido cancelar. */}
+                        {p.status === 'SCHEDULED' && (
+                          <button type="button"
+                            onClick={(e) => { e.stopPropagation(); onCancelPost(p.id); }}
+                            title="Remover esta publicação agendada"
+                            className="shrink-0 w-3.5 rounded border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-700 flex items-center justify-center transition-colors">
+                            <XMarkIcon className="h-2.5 w-2.5" />
+                          </button>
+                        )}
+                      </div>
                     );
                   })}
                   {(byDay.get(day)?.length ?? 0) > 3 && (
@@ -1009,11 +1048,7 @@ function CreativeViewModal({ post, onClose }: { post: OrganicPost; onClose: () =
             <span className="text-[10px] font-black text-gray-400 uppercase tracking-wide bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-100">
               {post.platform === 'facebook' ? '📘 Facebook' : '📸 Instagram'} · {post.format}
             </span>
-            {post.scheduledAt && (
-              <span className="text-[10px] font-black text-blue-600 uppercase tracking-wide bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
-                🗓 {new Date(post.scheduledAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
-              </span>
-            )}
+            <ScheduleTimeBadge post={post} />
           </div>
 
           {mediaUrls.length === 0 ? (

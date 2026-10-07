@@ -38,6 +38,7 @@ export interface OrganicPostRecord {
   mediaUrls:      string[];
   mediaKind:      string | null;
   scheduledAt:    string | null;
+  publishedAt:    string | null;
   createdAt:      string;
 }
 
@@ -192,6 +193,7 @@ function toRecord(p: any): OrganicPostRecord {
     mediaUrls:      (p.mediaUrls as string[]) ?? [],
     mediaKind:      p.mediaKind ?? null,
     scheduledAt:    p.scheduledAt ? (p.scheduledAt instanceof Date ? p.scheduledAt.toISOString() : p.scheduledAt) : null,
+    publishedAt:    p.publishedAt ? (p.publishedAt instanceof Date ? p.publishedAt.toISOString() : p.publishedAt) : null,
     createdAt:      (p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt) ?? new Date().toISOString(),
   };
 }
