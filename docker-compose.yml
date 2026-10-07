@@ -154,6 +154,14 @@ services:
       LIBRETRANSLATE_URL: "http://libretranslate:5000"
       # Usado apenas se cair no fallback HTTP (idealmente não precisa)
       NEXT_PUBLIC_API_URL: "http://app:3000"
+      # Achado real (2026-10-07): esta variável nunca existia no `environment:` deste serviço —
+      # `feed-cron-scheduler.js` sempre caía no fallback hardcoded `'your-secret-key'`
+      # (`src/app/api/cron/...`), enquanto `app` (acima) usa `dev-cron-secret-local` — os dois
+      # nunca batiam, então TODO cron chamado por este container contra `app` sempre recebia
+      # 401 (transbordo, organic-publish, mensageria/sla-check, audits, etc.), silenciosamente,
+      # desde sempre. Mesmo valor-fallback do serviço `app`, pra garantir consistência mesmo
+      # sem `CRON_SECRET` definido no shell do host.
+      CRON_SECRET: ${CRON_SECRET:-dev-cron-secret-local}
       # Windows/Docker: garante que scripts/watchers (se existirem) detectem mudanças
       CHOKIDAR_USEPOLLING: "true"
     volumes:
