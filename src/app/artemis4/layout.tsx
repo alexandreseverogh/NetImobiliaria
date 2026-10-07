@@ -20,10 +20,21 @@ const inter = Inter({
   display: 'swap',
 });
 
+/* URL pública real do domínio Artemis9 (ex: https://www.artemis9.com.br) — NUNCA o domínio
+   principal de imóveis (NEXT_PUBLIC_APP_URL), que serve conteúdo diferente na raiz. Gerada
+   automaticamente por scripts/vps/deploy-github.sh a partir de PROD_DOMAIN_ARTEMIS; cai em
+   NEXT_PUBLIC_APP_URL só como fallback de dev local (onde não há 2º domínio configurado). */
+const ARTEMIS_URL = process.env.NEXT_PUBLIC_APP_URL_ARTEMIS || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+const ARTEMIS_CANONICAL_PATH = '/artemis4'; // URL real da rota — ver redir em ops/Caddyfile
+
 export const metadata: Metadata = {
+  metadataBase: new URL(ARTEMIS_URL),
   title: 'Artemis9 — Saiba qual anúncio virou venda de verdade',
   description:
     'Plataforma brasileira que une Marketing Digital, CRM e Mensageria num ciclo fechado: o interessado chega identificado com a campanha que o trouxe, é respondido em segundos e o negócio fechado volta para o anúncio de origem.',
+  alternates: {
+    canonical: ARTEMIS_CANONICAL_PATH,
+  },
   openGraph: {
     title: 'Artemis9 — Saiba qual anúncio virou venda de verdade',
     description:
@@ -31,6 +42,28 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'pt_BR',
     siteName: 'Artemis9',
+    url: ARTEMIS_CANONICAL_PATH,
+  },
+};
+
+/* Dados estruturados (schema.org/Organization) — todo valor abaixo é real, extraído do
+   rodapé já publicado da própria página (components/Chrome.tsx), nunca inventado aqui.
+   Ajuda o Google a entender a entidade por trás da página (rich results, knowledge panel). */
+const organizationJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'Artemis9',
+  url: ARTEMIS_URL + ARTEMIS_CANONICAL_PATH,
+  logo: `${ARTEMIS_URL}/Assets/artemis4_light_b.png`,
+  description:
+    'Plataforma brasileira que une marketing digital, atendimento e vendas num ciclo fechado — para você saber exatamente qual anúncio virou dinheiro no caixa.',
+  email: 'contato@artemis9.com.br',
+  telephone: '+55-81-99800-0047',
+  address: {
+    '@type': 'PostalAddress',
+    addressLocality: 'Recife',
+    addressRegion: 'PE',
+    addressCountry: 'BR',
   },
 };
 
@@ -47,6 +80,12 @@ export default async function Artemis4Layout({
 
   return (
     <div className={`${spaceGrotesk.variable} ${inter.variable} min-h-screen bg-[#020c1b] text-white overflow-x-hidden antialiased font-[family-name:var(--font-body)]`}>
+      {/* Dados estruturados (schema.org) — ver organizationJsonLd acima */}
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+      />
       {/* Meta Pixel — só renderiza se pixelId estiver configurado */}
       {pixelId && (
         <Suspense fallback={null}>
