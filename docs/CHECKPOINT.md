@@ -1,8 +1,72 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-10-06 — **Docker Desktop travado destravado (serviço parado sem o app
-> perceber) + MinIO deixou de ter imagem Docker pública em QUALQUER registry — resolvido com build
-> próprio direto do código-fonte oficial, mesmo padrão já usado pro Postgres+pgvector.**
+> **Atualizado em:** 2026-10-07 — **Infra Meta real criada do zero para a página Artemis9
+> (Instagram, conta de anúncios, pixel) + SEO real implementado (`robots.txt`/`sitemap.xml`/
+> dados estruturados) para a landing `/artemis4`.**
+>
+> **Contexto:** usuário pediu ajuda para preencher Meta Pixel ID / Instagram Actor ID / Meta Ad
+> Account ID na tela de Tenants, com base na Página "Artemis9" do Facebook
+> (`alexandreseverog@gmail.com`). Investigado ao vivo via Browser pane (sessão real do usuário,
+> login dele, nunca tocado em senha) — nenhum dos 3 existia ainda: Instagram não conectado,
+> zero conta de anúncios, zero pixel. Criados os 3 do zero, guiando o usuário pelos passos que
+> envolviam dado sensível (senha de criação de conta Instagram, aceite de termos de anúncio) e
+> navegando eu mesmo pelo resto.
+>
+> **Valores reais confirmados** (sempre lidos do texto real da página, nunca da URL — a URL do
+> Business Suite usa um `asset_id` interno DIFERENTE do ID real exibido no campo
+> "Identificação"): Instagram `@artemis9oficial` → Actor ID `17841414838008758` · Conta de
+> anúncios "Artemis9" (moeda BRL, escolhida deliberadamente em vez do USD padrão — empresa
+> brasileira) → Ad Account ID `2142631373046447` · Pixel "Artemis9 - Pixel Site" → Pixel ID
+> `1668684714587498`. Confirmado no código (`metaAdsAdapter.ts`) que o Ad Account ID pode ser
+> salvo sem o prefixo `act_` — o adapter normaliza sozinho.
+> **Pendência do lado do usuário, não técnica:** a conta de anúncios criada não tem forma de
+> pagamento cadastrada ainda — não bloqueia o cadastro dos IDs, mas bloqueia rodar anúncio real
+> até ele mesmo adicionar um cartão (dado financeiro, nunca mexido por mim).
+>
+> **SEO — pedido separado na mesma sessão, motivado por uma pergunta sobre UTM:** esclarecido
+> para o usuário que UTM (`utm_source`/`utm_campaign`, já implementado extensivamente em 15
+> arquivos do sistema de atribuição de campanha) é sobre RASTREIO de origem de tráfego, não tem
+> relação com SEO/ranking no Google — são conceitos tecnicamente não relacionados. Auditado o
+> estado real de SEO antes de implementar qualquer coisa: `<title>`/`<meta description>`/Open
+> Graph já existiam na landing (`/artemis4`, já rebatizada "Artemis9" no conteúdo mesmo a pasta
+> ainda se chamar `artemis4`), mas `sitemap.xml`, `robots.txt` e dados estruturados
+> (JSON-LD/schema.org) não existiam em nenhum lugar do projeto.
+>
+> **Implementado:**
+> 1. `src/app/robots.ts` (convenção nativa do Next.js App Router) — bloqueia `/admin/`, `/crm/`,
+>    `/mensageria/`, `/api/`, `/login`, as rotas autenticadas de corretor
+>    (`/corretor/entrar|cadastro|areas-atuacao|imoveis|leads|pagamentos`), `/meu-perfil`,
+>    `/imovel-pdf/` e `/l/` (redirecionamento de CTA de campanha, tracking — não é conteúdo de
+>    navegação). Libera o resto. Regra única, válida pros dois domínios que o mesmo `prod_app`
+>    serve (nunca se quer indexar painel admin em nenhum dos dois).
+> 2. `src/app/sitemap.ts` — cobre as páginas públicas estáticas conhecidas (`/artemis4`,
+>    `/landpaging`, `/procurar-imovel`, `/mapa-imoveis`, `/anunciar-imovel`). **Decisão
+>    consciente de escopo, documentada no próprio arquivo:** não lista `/imoveis/[id]`
+>    individualmente — o app é multi-tenant/multi-domínio (o mesmo `prod_app` serve conteúdo de
+>    raiz diferente por domínio, ver `ops/Caddyfile`), e decidir se o sitemap deveria variar por
+>    domínio (Host) ou listar todo imóvel de todo tenant junto é uma decisão de arquitetura
+>    maior, fora do escopo deste pedido — fica registrado como extensão futura, não como
+>    esquecimento.
+> 3. **Achado real durante a implementação, corrigido:** `NEXT_PUBLIC_APP_URL` (a única env var
+>    de URL base que o projeto já tinha) sempre aponta pro domínio PRINCIPAL de imóveis — usar
+>    ela pra URL canônica/JSON-LD da landing Artemis9 faria o Google entender
+>    `imovtec.com.br/artemis4` como a URL oficial, não `artemis9.com.br/artemis4`. Nova env var
+>    `NEXT_PUBLIC_APP_URL_ARTEMIS` adicionada a `scripts/vps/deploy-github.sh` (gerada
+>    automaticamente a partir de `PROD_DOMAIN_ARTEMIS`, já existente — nada novo para configurar
+>    na VPS) + documentada em `.env.example`.
+> 4. `src/app/artemis4/layout.tsx` — `metadataBase` + `alternates.canonical` (usando a env var
+>    nova, com fallback pra `NEXT_PUBLIC_APP_URL` em dev local onde só existe 1 domínio) +
+>    `<script type="application/ld+json">` com schema.org `Organization`: nome, logo
+>    (`/Assets/artemis4_light_b.png`, confirmado 200 real), descrição, telefone e e-mail — todos
+>    os 5 valores **extraídos do rodapé já publicado da própria página**
+>    (`components/Chrome.tsx`), nunca inventados.
+>
+> **Testado ao vivo** (dev server já rodando do próprio usuário, porta 3000): `GET /robots.txt`
+> — texto exato esperado, incluindo a linha `Sitemap:` apontando pro sitemap real · `GET
+> /sitemap.xml` — XML válido, as 5 URLs com `lastmod`/`changefreq`/`priority` corretos · `GET
+> /artemis4` — `<link rel="canonical">` e JSON-LD confirmados via DOM real (não só leitura de
+> código), logo referenciado no JSON-LD confirmado `200 image/png` via fetch real · zero erro
+> novo no console do navegador. `npx tsc --noEmit`: zero erro nos 3 arquivos tocados/criados.
 >
 > **Docker Desktop travado:** `Docker Desktop.exe` rodando sozinho, mas `com.docker.service`
 > (serviço Windows do motor) parado — pipe `docker_engine` inexistente, `docker ps` falhava.
