@@ -7,8 +7,22 @@
  */
 
 import { prisma } from '@/lib/marketing/prisma';
+import { brDateParts, brInstant, nextCivilDay } from '@/lib/marketing/brazilTime';
 
 const HORIZON_DAYS = 14; // gera posts até 14 dias à frente
+
+// Achado real em produção (2026-10-07): os containers (prod_app/prod_feed) rodam com TZ=UTC
+// (confirmado ao vivo — `new Date().toString()` imprime "GMT+0000"), mas `daysOfWeek`/
+// `timeslots` são sempre informados pelo admin em horário de Brasília (é o único fuso que
+// esta plataforma atende). A versão anterior usava `Date.setHours()`/`.getDay()` puros —
+// métodos que operam no fuso DO PROCESSO, nunca no de Brasília — causando 2 efeitos
+// silenciosos e reais: (1) o "dia de hoje" calculado pelo servidor já virava o dia seguinte
+// assim que passava da meia-noite UTC (21h em Brasília), derrubando o 1º dia de qualquer
+// recorrência criada à noite; (2) o horário gravado em `scheduled_at` era 3h mais cedo do
+// que o admin digitou (22:40 digitado virava 22:40 UTC = 19:40 em Brasília, não 22:40).
+// Os helpers (`@/lib/marketing/brazilTime`, compartilhados com `campaigns/route.ts` — mesmo
+// achado existia no lançamento de campanha paga) sempre calculam/constroem em termos do
+// calendário e horário de Brasília, nunca do fuso do processo.
 
 export interface RecurrenceInput {
   tenantId:   string;
@@ -96,10 +110,12 @@ export async function updateRecurrenceStatus(
   if (!rec) return null;
 
   if (status === 'CANCELLED') {
-    // Cancela posts SCHEDULED futuros vinculados
-    await prisma.organicPost.updateMany({
+    // Remove definitivamente os posts SCHEDULED futuros vinculados — pedido explícito do
+    // usuário: cancelar a recorrência é remoção de verdade, nunca deixa rascunho pra trás
+    // (antes virava DRAFT e ficava poluindo lista/calendário sem nenhuma ação clara sobre
+    // o que fazer com aquilo).
+    await prisma.organicPost.deleteMany({
       where: { recurrenceId: id, status: 'SCHEDULED', scheduledAt: { gt: new Date() } },
-      data:  { status: 'DRAFT' },
     });
   }
 
@@ -142,15 +158,12 @@ async function generatePostsForSchedule(scheduleId: string): Promise<number> {
   const horizon   = new Date(); horizon.setDate(horizon.getDate() + HORIZON_DAYS);
   const from      = s.generatedUntil && s.generatedUntil > now ? s.generatedUntil : now;
 
-  // s.endDate vem do banco como meia-noite UTC do dia calendário configurado (coluna DATE),
-  // mas os slots abaixo (`dt`) são construídos em hora LOCAL do processo. Comparar s.endDate
-  // bruto contra um slot às 13h local sempre falhava em fuso negativo (UTC-3): 13h local =
-  // 16h UTC > 00h UTC do mesmo dia — derrubava silenciosamente TODO slot do último dia do
-  // período configurado (bug real: endDate virava exclusivo, sem nenhum log/erro). Corrigido
-  // construindo o fim do dia em hora LOCAL a partir do mesmo ano/mês/dia (lidos via getters
-  // UTC, que é como o valor foi persistido — nunca local, pra não reintroduzir o mesmo erro).
+  // s.endDate vem do banco como meia-noite UTC do dia calendário configurado (coluna DATE,
+  // lida via getters UTC — é como o valor foi persistido, nunca fuso local). "Fim do dia"
+  // precisa ser o fim do dia EM BRASÍLIA (23:59:59.999 -03:00), não no fuso do processo —
+  // ver nota de fuso no topo do arquivo.
   const endOfDayLocal = s.endDate
-    ? new Date(s.endDate.getUTCFullYear(), s.endDate.getUTCMonth(), s.endDate.getUTCDate(), 23, 59, 59, 999)
+    ? brInstant(s.endDate.getUTCFullYear(), s.endDate.getUTCMonth() + 1, s.endDate.getUTCDate(), 23, 59, 59, 999)
     : null;
   const until = endOfDayLocal && endOfDayLocal < horizon ? endOfDayLocal : horizon;
 
@@ -158,23 +171,27 @@ async function generatePostsForSchedule(scheduleId: string): Promise<number> {
 
   const daysOfWeek = s.daysOfWeek as number[];
   const timeslots  = s.timeslots  as string[];
-  const startDate  = s.startDate;
+  // s.startDate também é coluna DATE (meia-noite UTC do dia civil configurado) — comparado
+  // abaixo só por dia civil (ms de Date.UTC), nunca por instante, já que "dia de início" é
+  // um conceito de calendário, não de fuso.
+  const startDayUtcMs = Date.UTC(s.startDate.getUTCFullYear(), s.startDate.getUTCMonth(), s.startDate.getUTCDate());
 
-  // Coleta todos os slots de data/hora no intervalo [from, until]
+  // Coleta todos os slots de data/hora no intervalo [from, until], sempre em termos do
+  // calendário e horário de Brasília (nunca do fuso do processo — ver nota no topo).
   const slots: Date[] = [];
-  const cursor = new Date(from);
-  cursor.setHours(0, 0, 0, 0);
+  let { y, m, d } = brDateParts(from);
 
-  while (cursor <= until) {
-    if (cursor >= startDate && daysOfWeek.includes(cursor.getDay())) {
+  while (brInstant(y, m, d, 0, 0) <= until) {
+    const dayUtcMs = Date.UTC(y, m - 1, d);
+    const weekday  = new Date(dayUtcMs).getUTCDay(); // dia da semana é propriedade do calendário, não do fuso
+    if (dayUtcMs >= startDayUtcMs && daysOfWeek.includes(weekday)) {
       for (const slot of timeslots) {
         const [hh, mm] = slot.split(':').map(Number);
-        const dt = new Date(cursor);
-        dt.setHours(hh, mm, 0, 0);
-        if (dt > now && dt <= until) slots.push(new Date(dt));
+        const dt = brInstant(y, m, d, hh, mm);
+        if (dt > now && dt <= until) slots.push(dt);
       }
     }
-    cursor.setDate(cursor.getDate() + 1);
+    ({ y, m, d } = nextCivilDay(y, m, d));
   }
 
   if (slots.length === 0) return 0;
