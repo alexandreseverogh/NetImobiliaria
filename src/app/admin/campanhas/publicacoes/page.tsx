@@ -9,12 +9,32 @@ import { CreateGuard } from '@/components/admin/PermissionGuard';
 import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector';
 import DateInputPtBR from '@/components/ui/DateInputPtBR';
 
+// Frequência ideal de publicação orgânica, por rede/formato (posts por dia).
+// Fixo no código (não por segmento, diferente de CPL/CTR/benchmarks de campanha paga) —
+// é um comportamento de algoritmo da própria rede, igual pra qualquer segmento de negócio.
+// Só gera aviso (nunca bloqueia o agendamento).
+const IDEAL_DAILY_FREQUENCY: Record<string, Record<string, number>> = {
+  facebook:  { feed: 1, video: 1, reel: 1, story: 1 },
+  instagram: { feed: 1, video: 1, reel: 1, story: 3 },
+};
+
+// `r.startDate`/`r.endDate` chegam como string "YYYY-MM-DD" pura (sem hora). `new
+// Date("YYYY-MM-DD")` interpreta isso como meia-noite UTC — `.toLocaleDateString('pt-BR')`
+// depois converte pro fuso LOCAL do navegador (Brasil, UTC-3), exibindo um dia a menos do
+// que o real. Parseia os componentes direto, sem nenhuma conversão de fuso envolvida.
+function formatDateOnlyPtBR(dateOnly: string): string {
+  const [y, m, d] = dateOnly.split('-').map(Number);
+  if (!y || !m || !d) return dateOnly;
+  return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+}
+
 interface RecurrenceSchedule {
   id:         string;
   platform:   string;
   format:     string;
   caption:    string | null;
   mediaUrls:  string[];
+  mediaPool:  string[][] | null;
   startDate:  string;
   endDate:    string | null;
   daysOfWeek: number[];
@@ -33,8 +53,20 @@ interface OrganicPost {
   permalinkUrl: string | null;
   errorMessage: string | null;
   caption?: string | null;
+  mediaUrls?: string[];
+  mediaKind?: string | null;
   scheduledAt?: string | null;
   createdAt?: string;
+}
+
+// Mapeia o `format` real persistido no post (image/carousel/text/video/reel/story) pro
+// `postType` mais estreito que PostPreview entende ('feed' cobre image/carousel/text —
+// visualmente é a mesma moldura, só muda se tem mídia ou não).
+function toPreviewPostType(format: string): 'feed' | 'video' | 'reel' | 'story' {
+  if (format === 'video') return 'video';
+  if (format === 'reel')  return 'reel';
+  if (format === 'story') return 'story';
+  return 'feed';
 }
 
 interface OrganicTarget {
@@ -72,6 +104,7 @@ export default function PublicacoesPage() {
   const [insights, setInsights] = useState<Record<string, Record<string, number> | 'loading' | 'error'>>({});
   const [recurrences, setRecurrences]   = useState<RecurrenceSchedule[]>([]);
   const [recurrencesLoading, setRecurrencesLoading] = useState(false);
+  const [previewPost, setPreviewPost]   = useState<OrganicPost | null>(null);
 
   // isOwnSegment=true → default 'own' (Minha Empresa); não há modo "Todos" aqui.
   const { clients, loading: clientsLoading, clientFilter, setClientFilter } = useClientSelector('publicacoes', null, true);
@@ -231,7 +264,7 @@ export default function PublicacoesPage() {
             </CreateGuard>
           </div>
         ) : view === 'calendar' ? (
-          <CalendarView posts={posts} />
+          <CalendarView posts={posts} onSelectPost={setPreviewPost} />
         ) : (
           <div className="space-y-3">
             {posts.map(p => {
@@ -275,6 +308,12 @@ export default function PublicacoesPage() {
                       {ins === 'error' && <p className="text-[11px] text-amber-600 mt-1.5">Métricas indisponíveis (requer credenciais/permissões).</p>}
                     </div>
                     <div className="flex flex-col items-end gap-2 shrink-0">
+                      {(p.mediaUrls?.length ?? 0) > 0 && (
+                        <button onClick={() => setPreviewPost(p)}
+                          className="text-[11px] font-black text-gray-500 hover:text-gray-800 flex items-center gap-1">
+                          <PhotoIcon className="h-3.5 w-3.5" /> Ver criativo
+                        </button>
+                      )}
                       {p.permalinkUrl && (
                         <a href={p.permalinkUrl} target="_blank" rel="noopener noreferrer"
                           className="text-xs font-black text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
@@ -318,6 +357,9 @@ export default function PublicacoesPage() {
           onClose={() => setShowComposer(false)}
           onSaved={() => { setShowComposer(false); loadRecurrences(); load(); }}
         />
+      )}
+      {previewPost && (
+        <CreativeViewModal post={previewPost} onClose={() => setPreviewPost(null)} />
       )}
     </div>
   );
@@ -471,10 +513,13 @@ function RecurrencePanel({
                   <span className="text-[10px] text-gray-400">
                     {r.daysOfWeek.map(d => DAYS_LABEL[d]).join(', ')} · {r.timeslots.join(', ')}
                   </span>
+                  {r.mediaPool && r.mediaPool.length > 0 && (
+                    <span className="text-[10px] font-black text-indigo-500">↻ {r.mediaPool.length} criativos em rodízio</span>
+                  )}
                 </div>
                 <p className="text-xs text-gray-500">
-                  {new Date(r.startDate).toLocaleDateString('pt-BR')}
-                  {r.endDate ? ` → ${new Date(r.endDate).toLocaleDateString('pt-BR')}` : ' → sem fim'}
+                  {formatDateOnlyPtBR(r.startDate)}
+                  {r.endDate ? ` → ${formatDateOnlyPtBR(r.endDate)}` : ' → sem fim'}
                   {r.postsCount !== undefined && <span className="ml-2 text-gray-400">· {r.postsCount} posts gerados</span>}
                 </p>
                 {r.caption && <p className="text-[11px] text-gray-400 mt-0.5 truncate">{r.caption}</p>}
@@ -512,7 +557,9 @@ function RecurrenceComposer({ clientId, target, onClose, onSaved }: {
   const [platform, setPlatform] = useState<'facebook' | 'instagram'>('facebook');
   const [format, setFormat]     = useState<'feed' | 'video' | 'reel' | 'story'>('feed');
   const [caption, setCaption]   = useState('');
-  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+  // Pool de criativos — cada entrada é 1 URL = 1 post futuro. O rodízio round-robin
+  // distribui essas entradas pelos horários/dias gerados (backend: generatePostsForSchedule).
+  const [pool, setPool]           = useState<string[]>([]);
   const [urlInput, setUrlInput]   = useState('');
   const [uploading, setUploading] = useState(false);
   const [startDate, setStartDate] = useState('');
@@ -525,15 +572,20 @@ function RecurrenceComposer({ clientId, target, onClose, onSaved }: {
   const [saving, setSaving]         = useState(false);
   const [error, setError]           = useState('');
 
-  const resolvedFormat = format === 'feed'
-    ? (mediaUrls.length > 1 ? 'carousel' : mediaUrls.length === 1 ? 'image' : 'text')
-    : format;
+  const resolvedFormat = format === 'feed' ? (pool.length > 0 ? 'image' : 'text') : format;
 
   const canSave =
     !!startDate &&
     daysOfWeek.length > 0 &&
     timeslots.length > 0 &&
-    (caption.trim().length > 0 || mediaUrls.length > 0);
+    (caption.trim().length > 0 || pool.length > 0);
+
+  // Aviso (nunca bloqueia) quando a frequência diária configurada passa do recomendado
+  // pra essa rede/formato — ver IDEAL_DAILY_FREQUENCY no topo do arquivo.
+  const idealPerDay = IDEAL_DAILY_FREQUENCY[platform]?.[format] ?? 1;
+  const frequencyWarning = timeslots.length > idealPerDay
+    ? `${timeslots.length}x/dia é mais que o recomendado para ${platform === 'facebook' ? 'Facebook' : 'Instagram'} · ${format} (ideal: até ${idealPerDay}x/dia). Pode cansar a audiência e diluir o alcance orgânico.`
+    : null;
 
   function toggleDay(d: number) {
     setDaysOfWeek(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort());
@@ -556,7 +608,9 @@ function RecurrenceComposer({ clientId, target, onClose, onSaved }: {
         const res = await fetch('/api/admin/campanhas/organic/upload', { method: 'POST', body: fd });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Erro no upload');
-        setMediaUrls(prev => prev.includes(data.url) ? prev : [...prev, data.url]);
+        // Cada arquivo vira uma entrada NOVA no pool (1 post futuro próprio) — nunca
+        // deduplicamos aqui, já que o mesmo criativo pode legitimamente repetir no rodízio.
+        setPool(prev => [...prev, data.url]);
       }
     } catch (e: any) { setError(e.message); }
     finally { setUploading(false); }
@@ -574,7 +628,7 @@ function RecurrenceComposer({ clientId, target, onClose, onSaved }: {
         platform,
         format: resolvedFormat,
         caption: caption.trim() || undefined,
-        mediaUrls,
+        mediaPool: pool.length > 0 ? pool.map(url => [url]) : undefined,
         startDate,
         endDate: hasEndDate && endDate ? endDate : undefined,
         daysOfWeek,
@@ -657,9 +711,14 @@ function RecurrenceComposer({ clientId, target, onClose, onSaved }: {
               placeholder="Legenda (será igual em todas as ocorrências)" className={inputCls} />
           </div>
 
-          {/* Mídia */}
+          {/* Pool de criativos (rodízio) */}
           <div>
-            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Mídia (mesma em todas as ocorrências)</label>
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
+              Criativos — rodízio automático
+            </label>
+            <p className="text-[11px] text-gray-400 mb-2">
+              Adicione vários criativos: eles serão distribuídos em rodízio (1 por publicação, na ordem em que foram adicionados), repetindo o ciclo quando chegar ao fim da lista.
+            </p>
             <label className={`flex flex-col items-center justify-center w-full rounded-xl border-2 border-dashed cursor-pointer transition-all px-4 py-4 mb-3 ${
               uploading ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-gray-50 hover:border-indigo-300'
             }`}>
@@ -667,21 +726,22 @@ function RecurrenceComposer({ clientId, target, onClose, onSaved }: {
                 onChange={e => handleFileUpload(e.target.files)} />
               {uploading
                 ? <div className="flex items-center gap-2 text-indigo-600"><ArrowPathIcon className="h-5 w-5 animate-spin" /><span className="text-xs font-black">Enviando...</span></div>
-                : <><PhotoIcon className="h-7 w-7 text-gray-300 mb-1" /><p className="text-xs font-black text-gray-600">Arrastar ou clicar para enviar</p></>}
+                : <><PhotoIcon className="h-7 w-7 text-gray-300 mb-1" /><p className="text-xs font-black text-gray-600">Arrastar ou clicar para enviar (pode selecionar vários)</p></>}
             </label>
             <div className="flex gap-2 mb-2">
               <input value={urlInput} onChange={e => setUrlInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const u = urlInput.trim(); if (u && !mediaUrls.includes(u)) { setMediaUrls(p => [...p, u]); setUrlInput(''); } } }}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const u = urlInput.trim(); if (u) { setPool(p => [...p, u]); setUrlInput(''); } } }}
                 placeholder="Ou cole uma URL pública" className={inputCls} />
-              <button onClick={() => { const u = urlInput.trim(); if (u && !mediaUrls.includes(u)) { setMediaUrls(p => [...p, u]); setUrlInput(''); } }}
+              <button onClick={() => { const u = urlInput.trim(); if (u) { setPool(p => [...p, u]); setUrlInput(''); } }}
                 className="px-4 py-2.5 bg-gray-900 text-white text-xs font-black uppercase rounded-xl hover:bg-gray-700 shrink-0">Add</button>
             </div>
-            {mediaUrls.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {mediaUrls.map((u, i) => (
-                  <div key={i} className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg pl-2 pr-1 py-1">
-                    <span className="text-[11px] text-gray-600 max-w-[160px] truncate">{u.split('/').pop()}</span>
-                    <button onClick={() => setMediaUrls(mediaUrls.filter(x => x !== u))}><TrashIcon className="h-3.5 w-3.5 text-gray-400 hover:text-red-500" /></button>
+            {pool.length > 0 && (
+              <div className="space-y-1.5">
+                {pool.map((u, i) => (
+                  <div key={i} className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg pl-2.5 pr-1 py-1.5">
+                    <span className="shrink-0 w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-black flex items-center justify-center">{i + 1}</span>
+                    <span className="text-[11px] text-gray-600 truncate flex-1">{u.split('/').pop()}</span>
+                    <button onClick={() => setPool(pool.filter((_, j) => j !== i))}><TrashIcon className="h-3.5 w-3.5 text-gray-400 hover:text-red-500" /></button>
                   </div>
                 ))}
               </div>
@@ -746,7 +806,13 @@ function RecurrenceComposer({ clientId, target, onClose, onSaved }: {
             {timeslots.length > 0 && daysOfWeek.length > 0 && (
               <p className="text-[11px] text-indigo-600 mt-2 font-medium">
                 → {timeslots.length * daysOfWeek.length} publicação(ões) por semana
+                {pool.length > 0 && ` · alternando entre ${pool.length} criativo${pool.length > 1 ? 's' : ''}`}
               </p>
+            )}
+            {frequencyWarning && (
+              <div className="flex items-start gap-2 mt-2.5 p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-700">
+                <ExclamationTriangleIcon className="h-4 w-4 shrink-0 mt-0.5" />{frequencyWarning}
+              </div>
             )}
           </div>
 
@@ -756,7 +822,7 @@ function RecurrenceComposer({ clientId, target, onClose, onSaved }: {
             </div>
           )}
         </div>
-          <PostPreview platform={platform} postType={format} storyKind={storyKind} caption={caption} mediaUrls={mediaUrls} />
+          <PostPreview platform={platform} postType={format} storyKind={storyKind} caption={caption} mediaUrls={pool.slice(0, 1)} />
         </div>
 
         {/* Footer */}
@@ -773,7 +839,7 @@ function RecurrenceComposer({ clientId, target, onClose, onSaved }: {
 
 /* ── Calendário ─────────────────────────────────────────────────────── */
 
-function CalendarView({ posts }: { posts: OrganicPost[] }) {
+function CalendarView({ posts, onSelectPost }: { posts: OrganicPost[]; onSelectPost: (p: OrganicPost) => void }) {
   const [month, setMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
 
   const year = month.getFullYear(), mon = month.getMonth();
@@ -819,10 +885,11 @@ function CalendarView({ posts }: { posts: OrganicPost[] }) {
                   {(byDay.get(day) ?? []).slice(0, 3).map(p => {
                     const sm = STATUS_META[p.status] ?? STATUS_META.DRAFT;
                     return (
-                      <div key={p.id} className={`text-[9px] font-bold px-1 py-0.5 rounded truncate border ${sm.cls}`}
-                        title={`${p.platform} · ${p.status}${p.caption ? ' — ' + p.caption : ''}`}>
+                      <button key={p.id} type="button" onClick={() => onSelectPost(p)}
+                        className={`block w-full text-left text-[9px] font-bold px-1 py-0.5 rounded truncate border hover:ring-1 hover:ring-indigo-300 transition-all ${sm.cls}`}
+                        title={`Ver criativo — ${p.platform} · ${p.status}${p.caption ? ' — ' + p.caption : ''}`}>
                         {p.platform === 'facebook' ? '📘' : '📸'} {p.caption?.slice(0, 14) || p.format}
-                      </div>
+                      </button>
                     );
                   })}
                   {(byDay.get(day)?.length ?? 0) > 3 && (
@@ -840,7 +907,9 @@ function CalendarView({ posts }: { posts: OrganicPost[] }) {
 
 /* ── PostPreview compartilhado ─────────────────────────────────────── */
 
-function PostPreview({ platform, postType, storyKind = 'image', caption, mediaUrls }: {
+// Só o cartão (sem a moldura "Pré-visualização" + fundo cinza do PostPreview) — reaproveitado
+// também pelo CreativeViewModal, que já tem sua própria moldura de modal.
+function PlatformPostCard({ platform, postType, storyKind = 'image', caption, mediaUrls }: {
   platform:  'facebook' | 'instagram';
   postType:  'feed' | 'video' | 'reel' | 'story';
   storyKind?: 'image' | 'video';
@@ -852,9 +921,7 @@ function PostPreview({ platform, postType, storyKind = 'image', caption, mediaUr
   const isVertical   = postType === 'reel' || postType === 'story';
 
   return (
-    <div className="border-l border-gray-100 bg-gray-50 p-5 flex flex-col items-center">
-      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 self-start">Pré-visualização</p>
-
+    <>
       {platform === 'facebook' ? (
         <div className="w-full max-w-[280px] bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 p-3">
@@ -896,6 +963,96 @@ function PostPreview({ platform, postType, storyKind = 'image', caption, mediaUr
       {mediaUrls.length > 1 && (
         <p className="text-[10px] text-gray-400 mt-2">+{mediaUrls.length - 1} mídia(s) no carrossel</p>
       )}
+    </>
+  );
+}
+
+function PostPreview(props: {
+  platform:  'facebook' | 'instagram';
+  postType:  'feed' | 'video' | 'reel' | 'story';
+  storyKind?: 'image' | 'video';
+  caption:   string;
+  mediaUrls: string[];
+}) {
+  return (
+    <div className="border-l border-gray-100 bg-gray-50 p-5 flex flex-col items-center">
+      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 self-start">Pré-visualização</p>
+      <PlatformPostCard {...props} />
+    </div>
+  );
+}
+
+/* ── CreativeViewModal — "ver criativo" na Lista e no Calendário ──────── */
+
+function CreativeViewModal({ post, onClose }: { post: OrganicPost; onClose: () => void }) {
+  const sm         = STATUS_META[post.status] ?? STATUS_META.DRAFT;
+  const mediaUrls  = post.mediaUrls ?? [];
+  const postType   = toPreviewPostType(post.format);
+  const storyKind: 'image' | 'video' = post.mediaKind === 'video' ? 'video' : 'image';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-indigo-50 rounded-xl"><PhotoIcon className="h-4 w-4 text-indigo-600" /></div>
+            <h2 className="text-sm font-black text-gray-900">Criativo da publicação</h2>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><XMarkIcon className="h-5 w-5" /></button>
+        </div>
+
+        <div className="p-6 overflow-y-auto space-y-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide border ${sm.cls}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${sm.dot}`} />{sm.label}
+            </span>
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-wide bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-100">
+              {post.platform === 'facebook' ? '📘 Facebook' : '📸 Instagram'} · {post.format}
+            </span>
+            {post.scheduledAt && (
+              <span className="text-[10px] font-black text-blue-600 uppercase tracking-wide bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
+                🗓 {new Date(post.scheduledAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+              </span>
+            )}
+          </div>
+
+          {mediaUrls.length === 0 ? (
+            <div className="py-10 text-center">
+              <PhotoIcon className="h-10 w-10 text-gray-200 mx-auto mb-2" />
+              <p className="text-xs text-gray-400">Esta publicação é só texto — sem criativo.</p>
+              {post.caption && <p className="text-sm text-gray-700 mt-3 whitespace-pre-wrap break-words">{post.caption}</p>}
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-center bg-gray-50 rounded-xl p-5">
+                <PlatformPostCard
+                  platform={post.platform as 'facebook' | 'instagram'}
+                  postType={postType}
+                  storyKind={storyKind}
+                  caption={post.caption ?? ''}
+                  mediaUrls={mediaUrls}
+                />
+              </div>
+
+              {mediaUrls.length > 1 && (
+                <div>
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
+                    Todas as mídias ({mediaUrls.length})
+                  </p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {mediaUrls.map((u, i) => (
+                      <a key={i} href={u} target="_blank" rel="noopener noreferrer"
+                        className="block aspect-square rounded-lg overflow-hidden border border-gray-200 bg-gray-100 hover:ring-2 hover:ring-indigo-300 transition-all">
+                        <img src={u} alt={`Mídia ${i + 1}`} className="w-full h-full object-cover" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

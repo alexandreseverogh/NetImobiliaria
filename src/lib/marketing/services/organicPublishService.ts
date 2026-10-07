@@ -35,6 +35,8 @@ export interface OrganicPostRecord {
   permalinkUrl:   string | null;
   errorMessage:   string | null;
   caption:        string | null;
+  mediaUrls:      string[];
+  mediaKind:      string | null;
   scheduledAt:    string | null;
   createdAt:      string;
 }
@@ -159,9 +161,19 @@ export async function listOrganicPosts(
   if (opts.status)                      where.status = opts.status;
   if (opts.platform)                    where.platform = opts.platform;
 
+  // scheduledAt é o que importa pra ordem de uma agenda ("quando vai/foi ao ar"), não
+  // createdAt ("quando a linha entrou no banco") — posts de uma recorrência nascem em lote
+  // (createMany, timestamps praticamente idênticos, sem desempate definido entre eles) e um
+  // backfill posterior (ex.: completar um dia que faltou) insere com createdAt mais recente
+  // que os já existentes, mesmo tendo scheduledAt mais cedo — por createdAt isso bagunça a
+  // ordem visual. DESC (mais futuro/recente primeiro) em vez de ASC: com `take` limitado,
+  // ASC faria publicação antiga (já publicada/falhada há semanas) entupir o topo pra sempre
+  // conforme o histórico cresce, empurrando os próximos agendamentos pra fora do corte.
+  // `nulls: 'last'` explícito pro post sem agendamento (publicação manual imediata) nunca
+  // pular pro topo por acaso — Postgres DESC põe NULL primeiro por padrão, sem essa flag.
   const rows = await prisma.organicPost.findMany({
     where,
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ scheduledAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
     take: Math.min(100, Math.max(1, opts.limit ?? 30)),
   });
   return rows.map(toRecord);
@@ -177,6 +189,8 @@ function toRecord(p: any): OrganicPostRecord {
     permalinkUrl:   p.permalinkUrl ?? null,
     errorMessage:   p.errorMessage ?? null,
     caption:        p.caption ?? null,
+    mediaUrls:      (p.mediaUrls as string[]) ?? [],
+    mediaKind:      p.mediaKind ?? null,
     scheduledAt:    p.scheduledAt ? (p.scheduledAt instanceof Date ? p.scheduledAt.toISOString() : p.scheduledAt) : null,
     createdAt:      (p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt) ?? new Date().toISOString(),
   };

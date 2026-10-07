@@ -1,5 +1,130 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-10-06 — **Docker Desktop travado destravado (serviço parado sem o app
+> perceber) + MinIO deixou de ter imagem Docker pública em QUALQUER registry — resolvido com build
+> próprio direto do código-fonte oficial, mesmo padrão já usado pro Postgres+pgvector.**
+>
+> **Docker Desktop travado:** `Docker Desktop.exe` rodando sozinho, mas `com.docker.service`
+> (serviço Windows do motor) parado — pipe `docker_engine` inexistente, `docker ps` falhava.
+> Causa real: o app gráfico não religou o serviço sozinho depois de algum crash anterior. Não dava
+> pra religar via shell (sem privilégio de Administrador neste ambiente) — resolvido matando os
+> processos travados (`taskkill`) e reabrindo o Docker Desktop normalmente, que religou o serviço
+> sozinho dessa vez. Ambiente confirmado saudável antes de seguir (230GB livres, Hyper-V ativo, sem
+> reboot pendente) — não era isso.
+>
+> **Achado mais sério, descoberto ao tentar religar os containers do projeto depois do Docker
+> voltar:** TODAS as imagens locais (não só os containers) tinham sumido — `docker images` vazio.
+> Os 4 volumes de dados (`db_data`/`minio_data`/`redis_data`/`evolution_data`) sobreviveram
+> intactos (confirmado depois: 37 imóveis, 12 usuários, bucket MinIO com timestamp original de
+> 2026-10-05 — nenhum dado perdido). `docker compose up -d` tentou baixar tudo de novo e travou em
+> `quay.io/minio/minio:latest unauthorized: access to the requested resource is not authorized`.
+>
+> **Investigado a fundo, não assumido — é mudança de política da MinIO Inc., não rate-limit nem
+> bug local:** `minio/minio` já tinha saído do Docker Hub em 2026-09-17 (por isso o projeto já
+> usava quay.io como alternativa, registrado em comentário no `docker-compose.yml`). Confirmado
+> agora que **o próprio quay.io/minio/minio também fechou o acesso anônimo** — `curl` direto na API
+> do quay.io retorna `401 Requires authentication` até pra consultar METADADO do repositório, não é
+> rate-limit passageiro. Testadas e descartadas 3 alternativas antes de decidir buildar do fonte:
+> binário direto (`dl.min.io` → `410 Gone`), mirror Bitnami (`404`, descontinuado), GHCR (sem mirror
+> real, token anônimo rejeitado). O código-fonte, porém, segue 100% público — é AGPLv3, licença
+> copyleft que obriga a MinIO a manter o repositório aberto no GitHub mesmo tendo fechado a
+> distribuição de binário/imagem pronta.
+>
+> **Decisão do usuário: buildar a partir do código-fonte** — mais seguro que depender de qualquer
+> registry terceiro de novo (motivo real: Docker Hub e quay.io já provaram, nesta mesma sessão,
+> que podem fechar acesso sem aviso; o fonte via GitHub sob AGPLv3 não tem esse risco) e consistente
+> com o padrão já estabelecido no projeto pro Postgres+pgvector (`docker/postgres/Dockerfile`).
+>
+> **Implementado** — `docker/minio/Dockerfile` (novo, multi-stage): stage 1 (`golang:1.24-alpine`)
+> faz `git clone --branch RELEASE.2025-10-15T17-29-55Z --depth 1` do repo oficial (não tarball — um
+> `.git` real permite embutir commit/versão no binário do mesmo jeito que o build oficial faz, via
+> `buildscripts/gen-ldflags.go` da própria MinIO, replicado manualmente no Dockerfile já que o
+> script original depende de contexto de release que não existe aqui) e compila
+> (`CGO_ENABLED=0 go build -tags kqueue -trimpath --ldflags "..."`); stage 2 (`alpine:3.20`) só
+> copia o binário estaticamente linkado + `curl`/`ca-certificates` (o healthcheck do compose e
+> notificações HTTPS do MinIO precisam dos dois). `docker/minio/docker-entrypoint.sh` — cópia
+> verbatim do entrypoint oficial da mesma tag (`dockerscripts/docker-entrypoint.sh`).
+> `docker-compose.yml` — serviço `minio` trocado de `image: quay.io/minio/minio:latest` para
+> `build: context: ./docker/minio` + `image: ${MINIO_IMAGE:-netimob-minio:release-2025-10-15}`
+> (mesmo padrão de override via env var já usado em `POSTGRES_IMAGE`).
+>
+> **Testado ao vivo, ponta a ponta:** `minio --version` dentro do container confirma
+> `RELEASE.2025-10-15T17-29-55Z (commit-id=9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a)` — a versão
+> REAL da tag, não um placeholder "DEVELOPMENT.GOGET" (1ª tentativa, sem o `git clone`+ldflags,
+> tinha esse problema cosmético, corrigido antes de dar por encerrado) · healthcheck do compose
+> `healthy` · API S3 (`:9000/minio/health/live`) e Console Web (`:9001`) respondendo `200 OK` real ·
+> bucket `net-imobiliaria` confirmado presente dentro do volume, com conteúdo e timestamp
+> originais (nenhum dado novo, nenhum dado perdido) · stack inteira (`db`/`redis`/`evolution_api`/
+> `feed`/`translator`/`app`) religada em seguida — Postgres confirmou reuso do data-dir existente
+> nos próprios logs ("Skipping initialization", seguido de recovery normal via WAL por causa do
+> desligamento abrupto, não um `initdb` do zero) — `37 imóveis`/`12 usuários` confirmados via SQL
+> direto, batendo exato com o estado conhecido do projeto · app Next.js respondendo `HTTP 200` em
+> `localhost:3002`.
+>
+> **Pendência da VPS — RESOLVIDA na mesma sessão, ver continuação abaixo.**
+>
+> **Novo arquivo não relacionado a esta correção, criado em sessão anterior e ainda não
+> commitado:** `prisma/migration-2026-10-06-tenant-artemis9-para-vps.sql` — fora do escopo desta
+> entrada, não tocado.
+
+> **Atualizado em:** 2026-10-06 (continuação) — **A mesma correção do MinIO aplicada e testada
+> ponta a ponta na VPS real de produção** (`imovtec.com.br`), com o usuário executando os comandos
+> via SSH e colando cada resultado — nunca aplicado às cegas.
+>
+> **`docker-compose.vps.yml`** — mesma troca do arquivo local: `image: quay.io/minio/minio:latest`
+> → `build: context: ./docker/minio` + `image: ${MINIO_IMAGE:-netimob-minio:release-2025-10-15}`.
+> `scripts/vps/README.md` ganhou uma seção nova documentando que `minio` (igual `evolution_api`,
+> já documentado ali) não entra no deploy automático (`deploy-github.sh` só builda/reinicia
+> `prod_app`/`prod_feed` ou `staging_app`/`staging_feed` por nome) — rebuild é manual, via
+> `docker compose -f docker-compose.vps.yml up -d --build minio`. **Achado de arquitetura
+> confirmado olhando o compose da VPS:** MinIO é um único serviço/volume compartilhado entre
+> produção E staging — não existe uma instância isolada de staging pra esse componente
+> especificamente, diferente de `prod_app`/`staging_app`. Confirmado com o usuário antes de agir
+> (`AskUserQuestion`) que isso era aceitável, já que o teste local já tinha provado preservação de
+> dados na recriação do container.
+>
+> **Execução real, passo a passo, via SSH do próprio usuário** (sem eu ter acesso SSH — outra
+> decisão confirmada via `AskUserQuestion`, usuário preferiu rodar os comandos ele mesmo em vez de
+> eu criar um workflow do GitHub Actions pra isso): backup do compose atual antes de sobrescrever
+> (`docker-compose.vps.yml.bak-20261006-224450`, preservado) · arquivos novos buscados via
+> `curl` direto do raw.githubusercontent.com da branch `feature/ag-cockpit-camadas` (mesma técnica
+> já usada pelo `deploy.yml` oficial pra outros arquivos) · `diff` conferido ANTES de aplicar —
+> confirmado que só o bloco `minio:` mudou · build rodado (`docker compose build minio`) — **209s
+> na VPS real, mesmo resultado do build local** (18/18 etapas, mesma imagem final) · container
+> recreado (`up -d --no-deps minio`) — confirmação explícita do usuário via `AskUserQuestion` antes
+> desse passo específico (é o único que de fato toca o storage de produção rodando).
+>
+> **Prova de zero perda de dado, pelo caminho mais forte possível (a URL pública real, não um
+> comando interno):** capturado um objeto real do bucket ANTES (`imoveis/1/1_4e197819.jpg`, achado
+> via `docker exec ... ls` — a imagem oficial do MinIO antiga não tinha `find`/`grep`, só `ls`
+> básico, confirmado testando) — headers via `curl -sI https://imovtec.com.br/storage/net-
+> imobiliaria/imoveis/1/1_4e197819.jpg` salvos (`etag`, `content-length`, `last-modified`).
+> Depois do rebuild: **os 3 valores idênticos, byte a byte** (`etag: 4e197819fcbffe9ac15c0b9280
+> e84ee7`, `content-length: 417563`, `last-modified: 17 Set 2026` — mesmo arquivo original, nunca
+> reenviado). `minio --version` no container novo confirmou `RELEASE.2025-10-15T17-29-55Z
+> (commit-id=9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a)` — **exatamente o mesmo commit do build
+> local**, prova de reprodutibilidade do Dockerfile entre ambientes. `prod_app` confirmado
+> `healthy`, "Up 4 hours" (nunca reiniciou — `--no-deps` evitou cascata), logs dos últimos 10min
+> sem nenhuma menção a "minio"/"s3"/"error" — transição 100% silenciosa pro app.
+>
+> **Achado operacional, não do código — o terminal SSH do usuário duplicava/embaralhava comandos
+> colados** (provável bracketed-paste mode do cliente dele brigando com a latência da conexão) —
+> instruções de linha única, sem pipe, foram necessárias em vários pontos pra evitar comando
+> corrompido rodando em produção. Nenhum comando malformado chegou a executar de fato — cada
+> saída suspeita foi investigada e confirmada como eco visual, nunca execução real incorreta,
+> antes de seguir pro próximo passo.
+>
+> **Limpeza:** `/root/minio-antes.txt`/`/root/minio-depois.txt` (arquivos de comparação,
+> temporários) removidos da VPS; `docker-compose.vps.yml.bak-20261006-224450` mantido como rede de
+> segurança (reversível a qualquer momento).
+>
+> **Pendência real, não atacada:** esta correção está só na branch `feature/ag-cockpit-camadas`,
+> aplicada manualmente nesta VPS. Um deploy automático futuro de `main` (que ainda não tem o fix)
+> não sobrescreveria o `docker-compose.vps.yml` já corrigido na VPS (o script só faz
+> `curl`/sobrescreve o arquivo a cada deploy — então um deploy de uma branch SEM o fix reverteria
+> a correção silenciosamente). Abrir PR `feature/ag-cockpit-camadas` → `main` fecha esse risco de
+> vez.
+
 > **Atualizado em:** 2026-10-02 — **E-mail (SMTP) e WhatsApp (Evolution) funcionando em produção
 > e local; Cockpit passa a ordenar grupos de abas.**
 >

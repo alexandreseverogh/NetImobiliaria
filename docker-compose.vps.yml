@@ -22,13 +22,16 @@ services:
       retries: 5
 
   # Object Storage (S3-compatible, self-hosted)
-  # Achado real (2026-09-17): "minio/minio" foi removido do Docker Hub (API
-  # confirma "object not found" — não é rate-limit, o repositório não existe
-  # mais lá). Isso derrubou o 1º deploy real deste cutover, no passo de subir
-  # os containers. quay.io/minio/minio é o outro registry oficial do MinIO,
-  # confirmado puxando com sucesso na VPS antes desta correção.
+  # Buildado de docker/minio/Dockerfile (direto da fonte oficial, AGPLv3). "minio/minio" saiu
+  # do Docker Hub em 2026-09-17 (derrubou o 1º deploy real deste cutover); quay.io/minio/minio
+  # (a alternativa usada desde então) também passou a exigir login a partir de 2026-10-06 —
+  # confirmado 401 "Requires authentication" até pra metadado do repo, não é rate-limit. A
+  # MinIO fechou TODA distribuição pública de imagem pronta; o código-fonte segue público.
+  # Ver docker/minio/Dockerfile e docs/CHECKPOINT.md (entrada 2026-10-06) pro detalhe completo.
   minio:
-    image: quay.io/minio/minio:latest
+    build:
+      context: ./docker/minio
+    image: ${MINIO_IMAGE:-netimob-minio:release-2025-10-15}
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:

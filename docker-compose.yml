@@ -243,10 +243,13 @@ services:
         condition: service_healthy
 
   # Object Storage Local (MinIO) - Para testes rigorosos de S3
-  # "minio/minio" foi removido do Docker Hub (2026-09-17, confirmado via API —
-  # não é rate-limit). quay.io/minio/minio é o outro registry oficial do MinIO.
+  # Buildado de docker/minio/Dockerfile (direto da fonte oficial). "minio/minio" saiu do
+  # Docker Hub (2026-09-17) e, desde 2026-10-06, quay.io/minio/minio também exige login —
+  # a MinIO fechou toda distribuição pública de imagem pronta. Ver comentário do Dockerfile.
   minio:
-    image: quay.io/minio/minio:latest
+    build:
+      context: ./docker/minio
+    image: ${MINIO_IMAGE:-netimob-minio:release-2025-10-15}
     container_name: netimobiliaria-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"

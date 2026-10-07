@@ -345,6 +345,29 @@ export class MetaAdsAdapter implements AdNetworkService {
   }
 
   /**
+   * Reescreve a URL interna pro endpoint de verdade alcançável DESTE processo antes do
+   * self-fetch. `CDN_URL`/a URL gravada no post são sempre a pública (localhost:9000, pensada
+   * pro navegador e pro dev local) — mas quem baixa os bytes aqui pode estar rodando dentro
+   * de um container Docker, onde "localhost" aponta pro próprio container, não pro MinIO
+   * (outro container, só alcançável via `minio:9000` na rede interna). `S3_ENDPOINT` já é
+   * setado corretamente por ambiente (host: localhost:9000 — mesmo valor, rewrite vira
+   * no-op; container: minio:9000 — é o que resolve o bug real). Sem S3_ENDPOINT configurado,
+   * devolve a URL original (comportamento antigo preservado).
+   */
+  private resolveInternalFetchUrl(url: string): string {
+    const endpoint = process.env.S3_ENDPOINT;
+    if (!endpoint) return url;
+    try {
+      const target = new URL(endpoint);
+      const original = new URL(url);
+      original.protocol = target.protocol;
+      original.hostname = target.hostname;
+      original.port = target.port;
+      return original.toString();
+    } catch { return url; }
+  }
+
+  /**
    * Faz upload de uma foto para /{pageId}/photos.
    * - URL interna (localhost/MinIO local): baixa os bytes e envia como binário (`source`).
    * - URL pública: passa `url` para o Meta baixar diretamente.
@@ -358,7 +381,8 @@ export class MetaAdsAdapter implements AdNetworkService {
   ): Promise<{ id: string; post_id?: string }> {
     if (this.isInternalUrl(mediaUrl)) {
       // Baixa localmente e envia como binário — Meta não precisa acessar o MinIO
-      const imgResp = await axios.get(mediaUrl, { responseType: 'arraybuffer' });
+      const fetchUrl = this.resolveInternalFetchUrl(mediaUrl);
+      const imgResp = await axios.get(fetchUrl, { responseType: 'arraybuffer' });
       const buf     = Buffer.from(imgResp.data);
 
       // Detecta content-type a partir do header; fallback pela extensão da URL

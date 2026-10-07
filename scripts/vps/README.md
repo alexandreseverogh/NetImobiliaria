@@ -16,4 +16,13 @@ Pré-requisitos na VPS:
 - Docker + Docker Compose v2
 - Git
 
+**Serviços de infra que NÃO entram no deploy automático** (`deploy-github.sh` sobe só
+`prod_app`/`prod_feed` ou `staging_app`/`staging_feed` por nome) — rebuild manual quando o
+`Dockerfile` deles mudar:
+- `evolution_api` — `docker compose -f docker-compose.vps.yml up -d --build evolution_api`
+- `minio` (buildado de `docker/minio/Dockerfile`, direto da fonte oficial — ver comentário no
+  `docker-compose.vps.yml` e `docs/CHECKPOINT.md`, entrada 2026-10-06) —
+  `docker compose -f docker-compose.vps.yml up -d --build minio`. **Compartilhado entre
+  produção e staging** (1 único container/volume) — recriar afeta as duas, não é isolável.
+
 

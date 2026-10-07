@@ -17,6 +17,9 @@ export interface RecurrenceInput {
   format:     string;
   caption?:   string;
   mediaUrls?: string[];
+  /** Pool de criativos para rodízio — cada posição é 1 post (pode ter >1 URL p/ carrossel).
+   *  Quando preenchido, tem prioridade sobre `mediaUrls` (que vira só fallback legado). */
+  mediaPool?: string[][];
   mediaKind?: string;
   startDate:  string;   // YYYY-MM-DD
   endDate?:   string;   // YYYY-MM-DD, opcional
@@ -33,6 +36,7 @@ export interface RecurrenceRecord {
   format:      string;
   caption:     string | null;
   mediaUrls:   string[];
+  mediaPool:   string[][] | null;
   mediaKind:   string | null;
   startDate:   string;
   endDate:     string | null;
@@ -52,6 +56,7 @@ export async function createRecurrence(input: RecurrenceInput): Promise<Recurren
       format:     input.format,
       caption:    input.caption ?? null,
       mediaUrls:  input.mediaUrls ?? [],
+      mediaPool:  input.mediaPool && input.mediaPool.length > 0 ? input.mediaPool : undefined,
       mediaKind:  input.mediaKind ?? null,
       startDate:  new Date(input.startDate),
       endDate:    input.endDate ? new Date(input.endDate) : null,
@@ -136,7 +141,18 @@ async function generatePostsForSchedule(scheduleId: string): Promise<number> {
   const now       = new Date();
   const horizon   = new Date(); horizon.setDate(horizon.getDate() + HORIZON_DAYS);
   const from      = s.generatedUntil && s.generatedUntil > now ? s.generatedUntil : now;
-  const until     = s.endDate && s.endDate < horizon ? s.endDate : horizon;
+
+  // s.endDate vem do banco como meia-noite UTC do dia calendário configurado (coluna DATE),
+  // mas os slots abaixo (`dt`) são construídos em hora LOCAL do processo. Comparar s.endDate
+  // bruto contra um slot às 13h local sempre falhava em fuso negativo (UTC-3): 13h local =
+  // 16h UTC > 00h UTC do mesmo dia — derrubava silenciosamente TODO slot do último dia do
+  // período configurado (bug real: endDate virava exclusivo, sem nenhum log/erro). Corrigido
+  // construindo o fim do dia em hora LOCAL a partir do mesmo ano/mês/dia (lidos via getters
+  // UTC, que é como o valor foi persistido — nunca local, pra não reintroduzir o mesmo erro).
+  const endOfDayLocal = s.endDate
+    ? new Date(s.endDate.getUTCFullYear(), s.endDate.getUTCMonth(), s.endDate.getUTCDate(), 23, 59, 59, 999)
+    : null;
+  const until = endOfDayLocal && endOfDayLocal < horizon ? endOfDayLocal : horizon;
 
   if (from >= until) return 0;
 
@@ -182,14 +198,24 @@ async function generatePostsForSchedule(scheduleId: string): Promise<number> {
     return 0;
   }
 
+  // Pool de criativos (rodízio round-robin) — quando ausente/vazio, cai no comportamento
+  // legado (s.mediaUrls fixo repetido em toda ocorrência). O índice de rodízio é a
+  // contagem de posts JÁ gerados por esta recorrência (não um contador à parte) — garante
+  // continuidade do rodízio entre chamadas sucessivas do cron, sem precisar de coluna extra.
+  const pool = (s.mediaPool as string[][] | null) ?? [];
+  let rotationCursor = 0;
+  if (pool.length > 0) {
+    rotationCursor = await prisma.organicPost.count({ where: { recurrenceId: s.id } });
+  }
+
   await prisma.organicPost.createMany({
-    data: newSlots.map(dt => ({
+    data: newSlots.map((dt, i) => ({
       tenantId:     s.tenantId,
       clientId:     s.clientId,
       platform:     s.platform,
       format:       s.format,
       caption:      s.caption,
-      mediaUrls:    s.mediaUrls as any,
+      mediaUrls:    (pool.length > 0 ? pool[(rotationCursor + i) % pool.length] : (s.mediaUrls as any)) as any,
       mediaKind:    s.mediaKind,
       status:       'SCHEDULED',
       scheduledAt:  dt,
@@ -215,6 +241,7 @@ function toRecord(r: any): RecurrenceRecord {
     format:     r.format,
     caption:    r.caption ?? null,
     mediaUrls:  (r.mediaUrls as string[]) ?? [],
+    mediaPool:  (r.mediaPool as string[][]) ?? null,
     mediaKind:  r.mediaKind ?? null,
     startDate:  (r.startDate instanceof Date ? r.startDate : new Date(r.startDate)).toISOString().slice(0, 10),
     endDate:    r.endDate ? (r.endDate instanceof Date ? r.endDate : new Date(r.endDate)).toISOString().slice(0, 10) : null,

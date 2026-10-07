@@ -72,6 +72,7 @@ model OrganicRecurrenceSchedule {
   format         String   @db.VarChar(20)
   caption        String?
   mediaUrls      Json     @default("[]") @map("media_urls")
+  mediaPool      Json?    @map("media_pool")  // array de arrays de URL — rodízio round-robin
   mediaKind      String?  @map("media_kind") @db.VarChar(10)
   startDate      DateTime @map("start_date") @db.Date
   endDate        DateTime? @map("end_date") @db.Date
