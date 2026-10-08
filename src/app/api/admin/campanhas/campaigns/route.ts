@@ -6,6 +6,8 @@ import { getNetworkServiceForTenant } from '@/lib/marketing/networks/factory';
 import type { NetworkCode } from '@/lib/marketing/networks/types';
 import { normalizeAngle } from '@/lib/marketing/angles';
 import { getLeadEvents, leadsByCampaign } from '@/lib/marketing/services/leadEvents';
+import { startOfDayBR, endOfDayBR } from '@/lib/marketing/brazilTime';
+import { resolveCampaignNetworkCodes } from '@/lib/marketing/networkFilterUtils';
 
 // Início "de sempre" pra métrica cumulativa (sem filtro de período) — mesmo padrão de
 // EPOCH_START já usado em hookSaturationService.ts.
@@ -133,8 +135,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Código real da rede (meta/google/tiktok...) por campanha — expõe pro front-end filtrar/
+    // exibir corretamente; mesmo resolvedor já usado por dashboard/full e demais endpoints de
+    // dashboard (fallback 'meta' pra campanha legada sem network_id).
+    const networkCodeMap = await resolveCampaignNetworkCodes(
+      campaigns.map(c => ({ id: c.id, networkId: c.networkId })),
+    );
+
     const enriched = campaigns.map(c => ({
       ...c,
+      networkCode: networkCodeMap.get(c.id) ?? 'meta',
       angleSource: angleSourceMap[c.id] ?? null,
       metrics: metricsMap[c.id] ?? null,
       adSets: c.adSets.map(as => ({
@@ -250,8 +260,17 @@ export async function POST(request: NextRequest) {
         campaignId: campaign.id,
         name: adSetName || `${name} - AdSet`,
         dailyBudget: Math.round((dailyBudget || 0) * 100),
-        startTime: new Date(startTime),
-        endTime: endTime ? new Date(endTime) : null,
+        // `startTime`/`endTime` chegam do wizard como "YYYY-MM-DD" (sem hora) — `new
+        // Date("YYYY-MM-DD")` interpreta isso como meia-noite UTC, não meia-noite em
+        // Brasília. Como este valor vira `start_time`/`end_time` do Ad Set na Meta
+        // (`metaAdsAdapter.ts`), e a Meta trata esse campo como timestamp UTC literal (não
+        // reinterpreta pelo fuso da conta — confirmado na doc oficial), meia-noite UTC real
+        // é 21h de Brasília do dia ANTERIOR: a campanha começava ~3h antes do esperado, e —
+        // mais grave — TERMINAVA ~3h antes da meia-noite real do dia de fim escolhido,
+        // cortando fora quase o último dia inteiro de veiculação pretendido. Mesmo achado/
+        // mesma correção já aplicada em `organicRecurrenceService.ts` (2026-10-07).
+        startTime: startOfDayBR(startTime),
+        endTime: endTime ? endOfDayBR(endTime) : null,
         optimizationGoal: optimizationGoal || 'LINK_CLICKS',
         billingEvent: billingEvent || 'IMPRESSIONS',
         ageMin: ageMin || 18,

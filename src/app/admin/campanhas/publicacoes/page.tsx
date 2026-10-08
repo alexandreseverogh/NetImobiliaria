@@ -22,10 +22,52 @@ const IDEAL_DAILY_FREQUENCY: Record<string, Record<string, number>> = {
 // Date("YYYY-MM-DD")` interpreta isso como meia-noite UTC — `.toLocaleDateString('pt-BR')`
 // depois converte pro fuso LOCAL do navegador (Brasil, UTC-3), exibindo um dia a menos do
 // que o real. Parseia os componentes direto, sem nenhuma conversão de fuso envolvida.
+// Achado real (2026-10-08): nada impedia colar qualquer texto no campo "Ou cole uma URL
+// pública" (Composer e RecorrenceComposer) — uma URL blob:/data: (válida só na memória da
+// aba que a criou) ou qualquer string malformada entrava direto em mediaUrls/mediaPool e
+// ficava permanentemente quebrada pra qualquer outra sessão/reload ("Erro ao carregar
+// prévia", sem nenhuma pista do porquê). Confirmado ao vivo que o upload normal nunca
+// produz isso (retorna sempre URL http(s) real do storage) — o risco é só o campo de texto
+// livre. Validação mínima: só aceita http(s) de verdade, rejeita blob:/data:/caminho relativo.
+function isValidPublicMediaUrl(u: string): boolean {
+  try {
+    const parsed = new URL(u);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 function formatDateOnlyPtBR(dateOnly: string): string {
   const [y, m, d] = dateOnly.split('-').map(Number);
   if (!y || !m || !d) return dateOnly;
   return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+}
+
+// Badge de horário — usado na Lista e no modal "Ver criativo". Sempre mostra o horário real
+// (não só quando SCHEDULED): publicado já saiu, então mostra QUANDO saiu de verdade
+// (publishedAt pode divergir do agendado); os demais status com scheduledAt (SCHEDULED,
+// FAILED, e DRAFT — o estado que um post cai ao cancelar a recorrência que o gerou) mostram
+// o horário que estava/está previsto, nunca escondido.
+function ScheduleTimeBadge({ post }: { post: OrganicPost }) {
+  if (post.status === 'PUBLISHED' && post.publishedAt) {
+    return (
+      <span className="text-[10px] font-black text-emerald-600 uppercase tracking-wide bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">
+        ✅ Publicado {new Date(post.publishedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+      </span>
+    );
+  }
+  if (post.scheduledAt) {
+    const prefix = post.status === 'SCHEDULED' ? 'Agendado p/'
+      : post.status === 'FAILED' ? 'Horário previsto'
+      : 'Estava agendado p/'; // DRAFT (ex.: recorrência cancelada)
+    return (
+      <span className="text-[10px] font-black text-blue-600 uppercase tracking-wide bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
+        🗓 {prefix} {new Date(post.scheduledAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+      </span>
+    );
+  }
+  return null;
 }
 
 interface RecurrenceSchedule {
@@ -56,6 +98,7 @@ interface OrganicPost {
   mediaUrls?: string[];
   mediaKind?: string | null;
   scheduledAt?: string | null;
+  publishedAt?: string | null;
   createdAt?: string;
 }
 
@@ -244,8 +287,14 @@ export default function PublicacoesPage() {
           onStatusChange={updateRecurrenceStatus}
         />
 
-        {/* List */}
-        {loading ? (
+        {/* List / Calendário — o Calendário busca os próprios dados, escopados ao mês
+            visível (ver CalendarView) — deliberadamente fora do guard de loading/vazio da
+            Lista abaixo, que depende de um fetch diferente (os "mais recentes", com corte);
+            antes disso o Calendário sequer montava enquanto a Lista estivesse vazia/carregando,
+            mesmo quando o mês visível tinha publicação real. */}
+        {view === 'calendar' ? (
+          <CalendarView clientFilter={clientFilter} onSelectPost={setPreviewPost} onCancelPost={cancelPost} />
+        ) : loading ? (
           <div className="space-y-3">
             {[...Array(3)].map((_, i) => <div key={i} className="bg-white rounded-2xl border border-gray-100 h-24 animate-pulse" />)}
           </div>
@@ -263,8 +312,6 @@ export default function PublicacoesPage() {
               </button>
             </CreateGuard>
           </div>
-        ) : view === 'calendar' ? (
-          <CalendarView posts={posts} onSelectPost={setPreviewPost} />
         ) : (
           <div className="space-y-3">
             {posts.map(p => {
@@ -282,11 +329,7 @@ export default function PublicacoesPage() {
                         <span className="text-[10px] font-black text-gray-400 uppercase tracking-wide bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-100">
                           {p.platform === 'facebook' ? '📘 Facebook' : '📸 Instagram'} · {p.format}
                         </span>
-                        {p.status === 'SCHEDULED' && p.scheduledAt && (
-                          <span className="text-[10px] font-black text-blue-600 uppercase tracking-wide bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
-                            🗓 {new Date(p.scheduledAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
-                          </span>
-                        )}
+                        <ScheduleTimeBadge post={p} />
                       </div>
                       {p.caption && <p className="text-sm text-gray-700 line-clamp-2">{p.caption}</p>}
                       {p.status === 'FAILED' && p.errorMessage && (
@@ -532,9 +575,9 @@ function RecurrencePanel({
                       ? <><PlayCircleIcon className="h-3.5 w-3.5" /> Retomar</>
                       : <><PauseCircleIcon className="h-3.5 w-3.5" /> Pausar</>}
                   </button>
-                  <button onClick={() => { if (confirm('Cancelar esta recorrência e remover os posts futuros?')) onStatusChange(r.id, 'CANCELLED'); }}
+                  <button onClick={() => { if (confirm('Remover esta recorrência e excluir permanentemente todas as publicações que estavam programadas (ainda não publicadas)? Essa ação não pode ser desfeita.')) onStatusChange(r.id, 'CANCELLED'); }}
                     className="text-[11px] font-black text-red-400 hover:text-red-600 flex items-center gap-1 ml-1">
-                    <XMarkIcon className="h-3.5 w-3.5" /> Cancelar
+                    <TrashIcon className="h-3.5 w-3.5" /> Remover
                   </button>
                 </div>
               )}
@@ -589,6 +632,19 @@ function RecurrenceComposer({ clientId, target, onClose, onSaved }: {
 
   function toggleDay(d: number) {
     setDaysOfWeek(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort());
+  }
+
+  // Mesma validação do Composer de publicação única — ver isValidPublicMediaUrl.
+  function addPoolUrl() {
+    const u = urlInput.trim();
+    if (!u) return;
+    if (!isValidPublicMediaUrl(u)) {
+      setError('URL inválida — precisa ser um link público http(s). Links temporários (blob:/data:) não funcionam fora desta aba.');
+      return;
+    }
+    setPool(p => [...p, u]);
+    setUrlInput('');
+    setError('');
   }
 
   function addTime() {
@@ -730,9 +786,9 @@ function RecurrenceComposer({ clientId, target, onClose, onSaved }: {
             </label>
             <div className="flex gap-2 mb-2">
               <input value={urlInput} onChange={e => setUrlInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const u = urlInput.trim(); if (u) { setPool(p => [...p, u]); setUrlInput(''); } } }}
-                placeholder="Ou cole uma URL pública" className={inputCls} />
-              <button onClick={() => { const u = urlInput.trim(); if (u) { setPool(p => [...p, u]); setUrlInput(''); } }}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addPoolUrl(); } }}
+                placeholder="Ou cole uma URL pública (https://...)" className={inputCls} />
+              <button onClick={addPoolUrl}
                 className="px-4 py-2.5 bg-gray-900 text-white text-xs font-black uppercase rounded-xl hover:bg-gray-700 shrink-0">Add</button>
             </div>
             {pool.length > 0 && (
@@ -839,13 +895,49 @@ function RecurrenceComposer({ clientId, target, onClose, onSaved }: {
 
 /* ── Calendário ─────────────────────────────────────────────────────── */
 
-function CalendarView({ posts, onSelectPost }: { posts: OrganicPost[]; onSelectPost: (p: OrganicPost) => void }) {
+function CalendarView({ clientFilter, onSelectPost, onCancelPost }: {
+  clientFilter: string;
+  onSelectPost: (p: OrganicPost) => void;
+  onCancelPost: (id: string) => Promise<void>;
+}) {
   const [month, setMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
+  const [posts, setPosts]     = useState<OrganicPost[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const year = month.getFullYear(), mon = month.getMonth();
   const firstWeekday = new Date(year, mon, 1).getDay();
   const daysInMonth  = new Date(year, mon + 1, 0).getDate();
   const monthLabel   = month.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+  // Busca escopada ao MÊS visível, não "os N mais recentes" (o corte que a Lista usa) — é
+  // o que garante que 2 ou mais programações (Facebook + Instagram, por exemplo) no mesmo
+  // dia nunca percam uma pra fora do corte por causa de histórico/futuro distante competindo
+  // pelo mesmo limite global. Ver organicPublishService.listOrganicPosts.
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const from = new Date(year, mon, 1, 0, 0, 0, 0);
+      const to   = new Date(year, mon + 1, 0, 23, 59, 59, 999);
+      const params = new URLSearchParams();
+      if (clientFilter !== 'all') params.set('clientId', clientFilter);
+      params.set('scheduledFrom', from.toISOString());
+      params.set('scheduledTo', to.toISOString());
+      const res  = await fetch(`/api/admin/campanhas/organic?${params}`);
+      const data = await res.json();
+      if (res.ok) setPosts(data.posts ?? []);
+    } catch { /* noop — fica com o estado anterior */ }
+    finally { setLoading(false); }
+  }, [year, mon, clientFilter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleCancel(id: string) {
+    await onCancelPost(id);
+    // onCancelPost já confirma com o usuário e chama o DELETE real (mesma função da Lista,
+    // reaproveitada) — aqui só reflete o resultado no estado PRÓPRIO deste componente (que
+    // vive isolado do array da Lista desde que passou a buscar seu próprio recorte por mês).
+    setPosts(p => p.filter(x => x.id !== id));
+  }
 
   // Agrupa posts (agendados pela data agendada; demais pela criação) por dia do mês exibido
   const byDay = new Map<number, OrganicPost[]>();
@@ -869,7 +961,10 @@ function CalendarView({ posts, onSelectPost }: { posts: OrganicPost[]; onSelectP
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
       <div className="flex items-center justify-between mb-4">
         <button onClick={() => setMonth(new Date(year, mon - 1, 1))} className="px-3 py-1.5 rounded-lg text-sm font-black text-gray-500 hover:bg-gray-100">←</button>
-        <h2 className="text-sm font-black text-gray-900 capitalize">{monthLabel}</h2>
+        <h2 className="text-sm font-black text-gray-900 capitalize flex items-center gap-2">
+          {monthLabel}
+          {loading && <span className="inline-block h-3 w-3 rounded-full border-2 border-gray-200 border-t-indigo-500 animate-spin" />}
+        </h2>
         <button onClick={() => setMonth(new Date(year, mon + 1, 1))} className="px-3 py-1.5 rounded-lg text-sm font-black text-gray-500 hover:bg-gray-100">→</button>
       </div>
       <div className="grid grid-cols-7 gap-1">
@@ -885,11 +980,25 @@ function CalendarView({ posts, onSelectPost }: { posts: OrganicPost[]; onSelectP
                   {(byDay.get(day) ?? []).slice(0, 3).map(p => {
                     const sm = STATUS_META[p.status] ?? STATUS_META.DRAFT;
                     return (
-                      <button key={p.id} type="button" onClick={() => onSelectPost(p)}
-                        className={`block w-full text-left text-[9px] font-bold px-1 py-0.5 rounded truncate border hover:ring-1 hover:ring-indigo-300 transition-all ${sm.cls}`}
-                        title={`Ver criativo — ${p.platform} · ${p.status}${p.caption ? ' — ' + p.caption : ''}`}>
-                        {p.platform === 'facebook' ? '📘' : '📸'} {p.caption?.slice(0, 14) || p.format}
-                      </button>
+                      <div key={p.id} className="flex items-stretch gap-0.5">
+                        <button type="button" onClick={() => onSelectPost(p)}
+                          className={`flex-1 min-w-0 text-left text-[9px] font-bold px-1 py-0.5 rounded truncate border hover:ring-1 hover:ring-indigo-300 transition-all ${sm.cls}`}
+                          title={`Ver criativo — ${p.platform} · ${p.status}${p.caption ? ' — ' + p.caption : ''}`}>
+                          {p.platform === 'facebook' ? '📘' : '📸'} {p.caption?.slice(0, 14) || p.format}
+                        </button>
+                        {/* Remoção direta pra qualquer publicação que ainda NÃO foi ao ar
+                           (agendada, rascunho ou que falhou ao publicar) — mesmo conjunto que
+                           o próprio DELETE já aceita (ver cancelOrganicPost); publicada fica
+                           de fora de propósito, é histórico real, não dá pra desfazer. */}
+                        {['SCHEDULED', 'DRAFT', 'FAILED'].includes(p.status) && (
+                          <button type="button"
+                            onClick={(e) => { e.stopPropagation(); handleCancel(p.id); }}
+                            title="Remover esta publicação"
+                            className="shrink-0 w-3.5 rounded border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-700 flex items-center justify-center transition-colors">
+                            <XMarkIcon className="h-2.5 w-2.5" />
+                          </button>
+                        )}
+                      </div>
                     );
                   })}
                   {(byDay.get(day)?.length ?? 0) > 3 && (
@@ -1009,11 +1118,7 @@ function CreativeViewModal({ post, onClose }: { post: OrganicPost; onClose: () =
             <span className="text-[10px] font-black text-gray-400 uppercase tracking-wide bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-100">
               {post.platform === 'facebook' ? '📘 Facebook' : '📸 Instagram'} · {post.format}
             </span>
-            {post.scheduledAt && (
-              <span className="text-[10px] font-black text-blue-600 uppercase tracking-wide bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
-                🗓 {new Date(post.scheduledAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
-              </span>
-            )}
+            <ScheduleTimeBadge post={post} />
           </div>
 
           {mediaUrls.length === 0 ? (
@@ -1043,7 +1148,10 @@ function CreativeViewModal({ post, onClose }: { post: OrganicPost; onClose: () =
                     {mediaUrls.map((u, i) => (
                       <a key={i} href={u} target="_blank" rel="noopener noreferrer"
                         className="block aspect-square rounded-lg overflow-hidden border border-gray-200 bg-gray-100 hover:ring-2 hover:ring-indigo-300 transition-all">
-                        <img src={u} alt={`Mídia ${i + 1}`} className="w-full h-full object-cover" />
+                        {/* MediaThumb (não <img> cru) — mesmo tratamento de erro do card
+                           principal acima; antes, um objeto perdido aqui mostrava o ícone
+                           nativo de imagem quebrada do navegador, sem nenhuma explicação. */}
+                        <MediaThumb url={u} isVideo={false} className="w-full h-full" />
                       </a>
                     ))}
                   </div>
@@ -1087,15 +1195,21 @@ function MediaThumb({ url, isVideo, className, rounded }: { url?: string; isVide
     );
   }
   if (errored) {
+    // Achado real (2026-10-08): confirmado com dado já existente neste banco que esse estado
+    // aparece quando o objeto genuinamente não existe mais no storage (404 real, não um bug
+    // no upload/render — testado ao vivo com upload novo, renderiza perfeitamente). Antes não
+    // dava nenhuma pista do porquê; agora expõe a URL (tooltip sempre, texto visível quando
+    // cabe) pra o admin confirmar se é mesmo um objeto perdido e decidir remover a publicação.
     return (
-      <div className={`bg-gray-100 flex flex-col items-center justify-center border border-dashed border-gray-300 p-4 text-center ${rounded ?? ''} ${className ?? ''}`}>
-        <PhotoIcon className="h-8 w-8 text-gray-400 mb-1" />
+      <div title={url} className={`bg-gray-100 flex flex-col items-center justify-center border border-dashed border-gray-300 p-2 text-center overflow-hidden ${rounded ?? ''} ${className ?? ''}`}>
+        <PhotoIcon className="h-8 w-8 text-gray-400 mb-1 shrink-0" />
         <span className="text-[10px] font-medium text-gray-500">Erro ao carregar prévia</span>
+        <span className="text-[8px] text-gray-400 break-all line-clamp-2 mt-0.5">{url}</span>
       </div>
     );
   }
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={url} alt="" onError={() => setErrored(true)} className={`object-cover ${rounded ?? ''} ${className ?? ''}`} />;
+  return <img src={url} alt="" title={url} onError={() => setErrored(true)} className={`object-cover ${rounded ?? ''} ${className ?? ''}`} />;
 }
 
 function Composer({ clientId, igLast24h, target, onClose, onPublished }: { clientId: string; igLast24h: number; target: OrganicTarget | null; onClose: () => void; onPublished: () => void }) {
@@ -1159,7 +1273,12 @@ function Composer({ clientId, igLast24h, target, onClose, onPublished }: { clien
 
   function addUrl() {
     const u = urlInput.trim();
-    if (u && !mediaUrls.includes(u)) { setMediaUrls([...mediaUrls, u]); setUrlInput(''); }
+    if (!u) return;
+    if (!isValidPublicMediaUrl(u)) {
+      setError('URL inválida — precisa ser um link público http(s). Links temporários (blob:/data:) não funcionam fora desta aba.');
+      return;
+    }
+    if (!mediaUrls.includes(u)) { setMediaUrls([...mediaUrls, u]); setUrlInput(''); setError(''); }
   }
 
   async function handleFileUpload(files: FileList | null) {

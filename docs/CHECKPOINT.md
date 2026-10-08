@@ -1,5 +1,107 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-10-07 (continuação) — **Bug real de fuso horário encontrado e
+> corrigido (orgânico + campanhas pagas) + 2 melhorias de UI em Publicações Orgânicas + plano
+> documentado pra canal Messenger/Instagram Direct no Mensageria.**
+>
+> **Contexto:** usuário reportou que publicações orgânicas agendadas pra Artemis9 (a tenant
+> cujo setup Meta foi concluído na entrada anterior deste mesmo dia) não estavam saindo
+> automaticamente no horário programado, mesmo o prazo já tendo "expirado".
+>
+> **Investigação real (não hipotética), passo a passo:** confirmado via SSH real na VPS
+> (`docker exec net-imobiliaria-prod_app-1 node -e "console.log(new Date().toString(),
+> Intl.DateTimeFormat().resolvedOptions().timeZone)"`) que os containers de produção rodam em
+> **TZ=UTC**. `organicRecurrenceService.ts` (`generatePostsForSchedule`) usava
+> `Date.setHours()`/`.getDay()` puros — métodos que operam no fuso DO PROCESSO, nunca no de
+> Brasília (único fuso que esta plataforma atende) — causando 2 efeitos reais, confirmados
+> contra dados reais colados pelo usuário via SSH: (1) o "dia de hoje" calculado pelo servidor
+> já virava o dia seguinte assim que passava da meia-noite UTC (21h em Brasília) — derrubava
+> silenciosamente o 1º dia de qualquer recorrência criada à noite (explicou por que nenhum
+> post nasceu pro dia 06/10, dia em que o usuário criou as 2 recorrências reais por volta das
+> 22:38 BRT); (2) o horário gravado em `scheduled_at` saía 3h mais cedo do que o digitado
+> (22:40 digitado virava 22:40 UTC = 19:40 em Brasília).
+>
+> **Descartada a hipótese inicial (CRON_SECRET divergente entre `prod_app`/`prod_feed`)** —
+> os dois batiam (`segredo_cron_prod` nos dois, confirmado via `printenv` real na VPS) — só
+> achada e corrigida como bug **local-only**: `docker-compose.yml` (dev) nunca declarava
+> `CRON_SECRET` no serviço `feed`, caindo no fallback hardcoded do script
+> (`'your-secret-key'`) enquanto `app` usa `'dev-cron-secret-local'` — os dois nunca batiam,
+> TODO cron local (transbordo, organic-publish, mensageria/sla-check, audits) recebia 401
+> silenciosamente, sempre. Confirmado via `cron_debug.txt` (log do próprio `transbordo/
+> route.ts`, já commitado no projeto) mostrando "Unauthorized" a cada 5min, continuamente,
+> desde Oct 6. Corrigido (`CRON_SECRET: ${CRON_SECRET:-dev-cron-secret-local}` no serviço
+> `feed`) — zero efeito em produção, só no ambiente local.
+>
+> **Corrigido (`src/lib/marketing/brazilTime.ts`, novo módulo compartilhado —
+> `startOfDayBR`/`endOfDayBR`/`brInstant`/`brDateParts`/`nextCivilDay`, offset fixo `-03:00`,
+> Brasil não adota horário de verão desde 2019):**
+> 1. `organicRecurrenceService.ts` — geração de slot de recorrência agora sempre calcula/
+>    constrói em termos do calendário e horário de Brasília. **Testado ao vivo** reproduzindo
+>    o cenário real exato (criação simulada às 22:38 BRT): antes do fix, pulava pro dia
+>    seguinte; depois, gera corretamente o slot de hoje no horário certo
+>    (`scheduled_at=2026-10-07T01:40:00.000Z` = `2026-10-06 22:40` em Brasília, exato).
+> 2. Cancelar uma recorrência agora **remove definitivamente** os posts `SCHEDULED` futuros
+>    vinculados, em vez de rebaixá-los pra `DRAFT` (deixava lixo pra trás sem ação clara
+>    sobre o que fazer com aquilo — achado a partir de um pedido explícito do usuário,
+>    "o botão remover deverá já remover definitivamente"). Testado: 14 posts agendados →
+>    cancelar → 0 restante, nenhum rascunho órfão.
+> 3. **Achado adicional, mesma classe de bug, numa superfície diferente e mais grave:**
+>    `campaigns/route.ts` (lançamento de **campanha paga**, Meta) tinha o mesmo
+>    `new Date("YYYY-MM-DD")` pro `startTime`/`endTime` do Ad Set. Confirmado via doc oficial
+>    da Meta (WebFetch) que `start_time`/`end_time` são tratados como timestamp UTC **literal**
+>    pela API (não reinterpretados pelo fuso da conta) — diferente do `adset_schedule`
+>    (dias/hora recorrente), que a própria Meta já interpreta no fuso da CONTA de anúncios,
+>    sem nenhuma aritmética nossa envolvida (nunca teve esse risco). Resultado real do bug:
+>    uma campanha configurada pra terminar em 31/10 na prática terminava em **30/10 às 21h**
+>    — cortando fora quase o último dia inteiro de veiculação pretendido pelo cliente.
+>    Testado isolado (`ts-node`): antes do fix, fim real 30/10 21:00 BRT; depois, 31/10
+>    23:59:59 — o dia completo. Google Ads/Performance Max conferido e confirmado sem esse
+>    risco — não enviamos nenhuma data, Google decide default no fuso da própria conta.
+>
+> **2 melhorias de UI em `/admin/campanhas/publicacoes`, pedidas pelo usuário:**
+> - `organicPublishService.ts` expõe `publishedAt` (já existia na tabela desde sempre, nunca
+>   tinha chegado ao frontend). Lista: badge de horário antes só aparecia pra `SCHEDULED`;
+>   agora aparece sempre, com rótulo certo por status — "Agendado p/..." / "Estava agendado
+>   p/..." (rascunho de recorrência cancelada — hoje inalcançável depois do fix do item 2
+>   acima, mas o branch fica como defesa) / "Publicado DD/MM, HH:MM" usando o horário REAL
+>   de publicação, não o agendado (útil já que um caso real teve 3h de atraso entre os dois).
+> - Calendário: botão "×" inline ao lado de cada publicação `AGENDADO`, remove direto (com
+>   confirmação) sem precisar abrir o modal "Ver criativo" antes. Testado ao vivo no
+>   navegador (sessão real injetada, tenant Artemis9 local): clique disparou o `DELETE` real,
+>   chip sumiu do dia, confirmado no banco (`count=0`).
+>
+> **Verificação de produção, passo a passo com o usuário via SSH/paste** (ele rodando os
+> comandos, eu interpretando o resultado — nunca acesso direto à VPS): confirmado
+> `CRON_SECRET` idêntico nos 2 containers reais (`net-imobiliaria-prod_app-1`/
+> `net-imobiliaria-prod_feed-1`, nomes reais com prefixo do projeto Compose — diferente do
+> que eu tinha assumido inicialmente, corrigido os comandos passados ao usuário) · query real
+> confirmando 20 posts `SCHEDULED` da Artemis9 com `scheduled_at` 3h adiantado (prova direta
+> do bug, antes do fix) · depois da limpeza manual do usuário via UI (cancelou as 2
+> recorrências reais pelo botão de item, que **já era** hard-delete desde sempre — só o
+> cancelamento em lote da recorrência inteira era soft, esclarecido na conversa) ·
+> `count(*)=0` de `DRAFT` órfão confirmado em produção ao final (nada a limpar).
+>
+> **Novo documento `docs/PLANO_MENSAGERIA_MESSENGER_INSTAGRAM.md`** — plano detalhado (não
+> implementado, só documentado pra quando houver demanda de negócio real) de como integrar
+> Messenger/Instagram Direct como canal novo no Mensageria, a partir de uma pergunta do
+> usuário sobre viabilidade/redundância frente ao WhatsApp já existente. Achados-chave que
+> tornam a implementação futura mais segura/rápida quando for a hora: (1) `channel_type` já é
+> `text` livre sem CHECK/enum — zero migração pro valor em si; (2) `ingestMessage()` já é
+> 100% agnóstico de canal; (3) o Page Access Token já obtido pela publicação orgânica (FASE
+> 16) é reutilizável, só precisa de permissão adicional (`pages_messaging`/
+> `instagram_manage_messages`, exige novo App Review da Meta — maior risco real de prazo,
+> não de arquitetura); (4) gap real identificado: Messenger/Instagram identificam o usuário
+> por PSID/IGSID, não telefone/e-mail — `mensageria.contacts` precisaria de 2 colunas
+> aditivas (`platform`/`platform_user_id`) e uma decisão consciente de "promoção a lead"
+> deliberada (nunca automática, diferente do WhatsApp) quando telefone/e-mail não existem.
+> Confirmado em código (`CTA_TYPES`, `src/lib/marketing-utils.ts`) que **hoje não há nenhum
+> vazamento de lead** — o wizard nem oferece esse CTA ainda, então não é bug a corrigir, só
+> oportunidade a avaliar quando aparecer demanda concreta.
+>
+> **Commits desta entrada:** `f566e11` (fix CRON_SECRET local), `5ab4240` (fix fuso horário
+> orgânico+pago+cancelamento definitivo), `0c4fa7b` (UI publicações orgânicas) — push feito
+> pra `feature/ag-cockpit-camadas`.
+
 > **Atualizado em:** 2026-10-07 — **Infra Meta real criada do zero para a página Artemis9
 > (Instagram, conta de anúncios, pixel) + SEO real implementado (`robots.txt`/`sitemap.xml`/
 > dados estruturados) para a landing `/artemis4`.**

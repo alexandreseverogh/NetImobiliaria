@@ -38,6 +38,7 @@ export interface OrganicPostRecord {
   mediaUrls:      string[];
   mediaKind:      string | null;
   scheduledAt:    string | null;
+  publishedAt:    string | null;
   createdAt:      string;
 }
 
@@ -153,13 +154,39 @@ export async function cancelOrganicPost(tenantId: string, id: string): Promise<b
 /** Lista publicações orgânicas do tenant, com filtros opcionais. */
 export async function listOrganicPosts(
   tenantId: string,
-  opts: { clientId?: string | null; status?: string; platform?: string; limit?: number } = {},
+  opts: {
+    clientId?: string | null; status?: string; platform?: string; limit?: number;
+    /** Janela de data (ex.: 1º–último dia do mês visível no calendário) — quando presente,
+     *  o corte de `take` deixa de valer sobre "os N mais recentes de todo o histórico" e
+     *  passa a valer só dentro da janela, que já é naturalmente pequena. Ver nota abaixo. */
+    scheduledFrom?: Date; scheduledTo?: Date;
+  } = {},
 ): Promise<OrganicPostRecord[]> {
   const where: any = { tenantId };
   if (opts.clientId === 'own')          where.clientId = null;
   else if (opts.clientId)               where.clientId = opts.clientId;
   if (opts.status)                      where.status = opts.status;
   if (opts.platform)                    where.platform = opts.platform;
+
+  // Achado real (2026-10-08): a visão de Calendário reaproveitava esta mesma listagem — com
+  // o corte de 30 linhas acima (pensado pra lista "mais recentes primeiro") e SEM nenhum
+  // filtro de data, 2 recorrências (Facebook + Instagram) geravam os posts corretamente no
+  // banco, mas bastava haver histórico suficiente (publicado/rascunho/falhado de testes
+  // anteriores, ou posts futuros de outra recorrência mais distante) competindo pelo mesmo
+  // corte global pra um dia do mês visto no calendário silenciosamente perder uma das duas
+  // redes — sem erro nenhum, o post simplesmente nunca chegava no array enviado ao cliente.
+  // Com uma janela de data explícita, filtra ANTES de ordenar/cortar — o resultado já fica
+  // naturalmente pequeno (agenda de 1 mês), então o `take` aqui vira só uma rede de
+  // segurança bem mais folgada, nunca o gargalo real.
+  if (opts.scheduledFrom && opts.scheduledTo) {
+    where.OR = [
+      { scheduledAt: { gte: opts.scheduledFrom, lte: opts.scheduledTo } },
+      // Post sem agendamento (publicação manual imediata) é agrupado pelo cliente por
+      // createdAt quando não tem scheduledAt — mesmo critério usado aqui pra não excluir
+      // da janela um post que deveria aparecer no mês.
+      { scheduledAt: null, createdAt: { gte: opts.scheduledFrom, lte: opts.scheduledTo } },
+    ];
+  }
 
   // scheduledAt é o que importa pra ordem de uma agenda ("quando vai/foi ao ar"), não
   // createdAt ("quando a linha entrou no banco") — posts de uma recorrência nascem em lote
@@ -174,7 +201,9 @@ export async function listOrganicPosts(
   const rows = await prisma.organicPost.findMany({
     where,
     orderBy: [{ scheduledAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
-    take: Math.min(100, Math.max(1, opts.limit ?? 30)),
+    take: opts.scheduledFrom && opts.scheduledTo
+      ? 500 // já filtrado por 1 mês — nunca deveria sequer chegar perto disso
+      : Math.min(100, Math.max(1, opts.limit ?? 30)),
   });
   return rows.map(toRecord);
 }
@@ -192,6 +221,7 @@ function toRecord(p: any): OrganicPostRecord {
     mediaUrls:      (p.mediaUrls as string[]) ?? [],
     mediaKind:      p.mediaKind ?? null,
     scheduledAt:    p.scheduledAt ? (p.scheduledAt instanceof Date ? p.scheduledAt.toISOString() : p.scheduledAt) : null,
+    publishedAt:    p.publishedAt ? (p.publishedAt instanceof Date ? p.publishedAt.toISOString() : p.publishedAt) : null,
     createdAt:      (p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt) ?? new Date().toISOString(),
   };
 }
