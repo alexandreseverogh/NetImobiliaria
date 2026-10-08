@@ -19,9 +19,11 @@ import { ClassicFunnelChart } from '@/components/marketing/charts/ClassicFunnelC
 import { CplTimelineChart }  from '@/components/marketing/charts/CplTimelineChart';
 import { StageFunnelWidget } from '@/components/marketing/StageFunnelWidget';
 import { PredictionChart } from '@/components/marketing/charts/PredictionChart';
-import { ArrowPathIcon, SparklesIcon, ClockIcon, SunIcon, MoonIcon, CalendarDaysIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, SparklesIcon, ClockIcon, SunIcon, MoonIcon, CalendarDaysIcon, RectangleStackIcon } from '@heroicons/react/24/outline';
 import { DashboardHelpButton, HelpHint } from '@/components/marketing/DashboardHelpModal';
 import { adminFetch } from '@/lib/auth/adminFetch';
+import { useAuth } from '@/hooks/useAuth';
+import CampanhasModal from '@/components/marketing/CampanhasModal';
 import { CampaignLifecycleBadge } from '@/components/marketing/CampaignLifecycleBadge';
 import type { LifecycleStatus } from '@/lib/marketing/services/campaignLifecycleTypes';
 import { ExecuteGuard } from '@/components/admin/PermissionGuard';
@@ -54,6 +56,28 @@ import { FarolSection } from '@/components/marketing/dashboard/FarolSection';
 //  MAIN COMPONENT
 // ═════════════════════════════════════════════════════════════════════════════
 function DashboardPage() {
+  const { user } = useAuth();
+
+  /* master detectado via is_system_role — mesmo padrão já usado em /admin/campanhas/nova,
+   * reaproveitado aqui pra alimentar o CampanhasModal (único componente, sem lógica própria
+   * duplicada nesta página). */
+  const isMaster = React.useMemo(() => {
+    if (user?.is_system_role === true) return true;
+    try {
+      const stored = localStorage.getItem('admin-user-data');
+      if (stored) return JSON.parse(stored).is_system_role === true;
+    } catch { /* ignore parse errors */ }
+    return false;
+  }, [user?.is_system_role]);
+
+  /* ── Consultar campanhas modal (mesmo componente usado em /admin/campanhas/nova —
+   * nenhuma lógica de busca/renderização de campanha é duplicada aqui) ── */
+  const [showConsultarModal, setShowConsultarModal] = useState(false);
+
+  useEffect(() => {
+    adminFetch('/api/admin/campanhas/campaigns?clientId=own').catch(() => {});
+  }, []);
+
   const [data, setData]                     = useState<DashboardFullData | null>(null);
   const [cplTimeline, setCplTimeline]       = useState<CplTimelineData | null>(null);
   const [funnelData7, setFunnelData7]       = useState<FunnelData7 | null>(null);
@@ -115,6 +139,14 @@ function DashboardPage() {
   const [segmentDashLoading, setSegmentDashLoading] = useState(false);
 
   const isSegmentMode = clientFilter === 'segment';
+
+  // Props do CampanhasModal — derivadas do mesmo clientFilter já usado em todo o resto do
+  // dashboard, nunca um estado de cliente paralelo.
+  const consultarEffectiveClientId = (clientFilter && clientFilter !== 'own' && clientFilter !== 'segment') ? clientFilter : null;
+  const consultarCampaignFor: 'own' | 'client' = consultarEffectiveClientId ? 'client' : 'own';
+  const consultarClientName = consultarEffectiveClientId
+    ? clients.find(c => c.id === consultarEffectiveClientId)?.name
+    : undefined;
 
   // Ao trocar cliente ou segmento:
   //  1. Limpa campanha/adset selecionados — IDs do contexto anterior são inválidos aqui
@@ -679,26 +711,45 @@ function DashboardPage() {
         {/* ── Conteúdo — só exibe quando há segmento ativo e NÃO é modo segmento ── */}
         {activeSegment && !isSegmentMode && <>
         
-        {/* ── Layer Navigation (Tabs) ── */}
-        <div className="flex p-1 mb-8 rounded-xl w-fit border transition-all" style={{ backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }}>
+        {/* ── Layer Navigation (Tabs) + Consultar Campanhas ── */}
+        <div className="flex items-center gap-3 mb-8 flex-wrap">
+          {/* Consultar Campanhas — mesmo CampanhasModal de /admin/campanhas/nova, antecede
+              as 3 abas de visão; estilo neutro (não é um "layer" a mais) seguindo o mesmo
+              padrão visual do container das abas (fundo/borda tema-aware), com o acento
+              dourado único da página só no hover. */}
           <button
-             onClick={() => setActiveLayer('COMMAND')}
-             className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-colors', activeLayer === 'COMMAND' ? 'bg-gold-premium text-navy-dark' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
+             onClick={() => setShowConsultarModal(true)}
+             className={cn(
+               'flex items-center gap-2 px-5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest border transition-colors',
+               isDark
+                 ? 'text-slate-300 border-white/10 bg-black/20 hover:border-gold-premium/60 hover:text-gold-premium'
+                 : 'text-slate-600 border-black/5 bg-white/80 hover:border-gold-premium/60 hover:text-amber-700'
+             )}
           >
-             Visão Executiva
+            <RectangleStackIcon className="h-4 w-4" />
+            Consultar Campanhas
           </button>
-          <button
-             onClick={() => setActiveLayer('ANALYTICS')}
-             className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-colors', activeLayer === 'ANALYTICS' ? 'bg-gold-premium text-navy-dark' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
-          >
-             Análise de Dados
-          </button>
-          <button
-             onClick={() => setActiveLayer('DEEP_DIVE')}
-             className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-colors', activeLayer === 'DEEP_DIVE' ? 'bg-gold-premium text-navy-dark' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
-          >
-             Inteligência Profunda
-          </button>
+
+          <div className="flex p-1 rounded-xl w-fit border transition-all" style={{ backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }}>
+            <button
+               onClick={() => setActiveLayer('COMMAND')}
+               className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-colors', activeLayer === 'COMMAND' ? 'bg-gold-premium text-navy-dark' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
+            >
+               Visão Executiva
+            </button>
+            <button
+               onClick={() => setActiveLayer('ANALYTICS')}
+               className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-colors', activeLayer === 'ANALYTICS' ? 'bg-gold-premium text-navy-dark' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
+            >
+               Análise de Dados
+            </button>
+            <button
+               onClick={() => setActiveLayer('DEEP_DIVE')}
+               className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-colors', activeLayer === 'DEEP_DIVE' ? 'bg-gold-premium text-navy-dark' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
+            >
+               Inteligência Profunda
+            </button>
+          </div>
         </div>
 
         {activeLayer === 'COMMAND' && (
@@ -818,6 +869,26 @@ function DashboardPage() {
         {/* Fecha {activeSegment && <> ... </>} */}
         </>}
       </div>
+
+      {/* ── Modal: Consultar Campanhas (mesmo componente/lógica de /admin/campanhas/nova) —
+          isDark repassado pra seguir o mesmo claro/escuro já ativo nesta página; /nova não
+          tem toggle de tema, então lá o modal segue sempre claro (prop default). Período/
+          rede/campanha herdados como VALOR INICIAL do filtro ativo nesta página — /nova nunca
+          passa essas props (não tem esses filtros na própria tela), então lá o modal continua
+          sem filtro nenhum ao abrir, como sempre foi. ── */}
+      <CampanhasModal
+        isOpen={showConsultarModal}
+        onClose={() => setShowConsultarModal(false)}
+        effectiveClientId={consultarEffectiveClientId}
+        campaignFor={consultarCampaignFor}
+        clientName={consultarClientName}
+        isMaster={isMaster}
+        isDark={isDark}
+        initialPeriodStart={segmentPeriodStart}
+        initialPeriodEnd={segmentPeriodEnd}
+        initialNetwork={networkFilter || null}
+        initialCampaignId={selectedCampaign || null}
+      />
     </div>
   );
 }

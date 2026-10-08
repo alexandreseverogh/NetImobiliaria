@@ -271,8 +271,14 @@ export default function PublicacoesPage() {
           onStatusChange={updateRecurrenceStatus}
         />
 
-        {/* List */}
-        {loading ? (
+        {/* List / Calendário — o Calendário busca os próprios dados, escopados ao mês
+            visível (ver CalendarView) — deliberadamente fora do guard de loading/vazio da
+            Lista abaixo, que depende de um fetch diferente (os "mais recentes", com corte);
+            antes disso o Calendário sequer montava enquanto a Lista estivesse vazia/carregando,
+            mesmo quando o mês visível tinha publicação real. */}
+        {view === 'calendar' ? (
+          <CalendarView clientFilter={clientFilter} onSelectPost={setPreviewPost} onCancelPost={cancelPost} />
+        ) : loading ? (
           <div className="space-y-3">
             {[...Array(3)].map((_, i) => <div key={i} className="bg-white rounded-2xl border border-gray-100 h-24 animate-pulse" />)}
           </div>
@@ -290,8 +296,6 @@ export default function PublicacoesPage() {
               </button>
             </CreateGuard>
           </div>
-        ) : view === 'calendar' ? (
-          <CalendarView posts={posts} onSelectPost={setPreviewPost} onCancelPost={cancelPost} />
         ) : (
           <div className="space-y-3">
             {posts.map(p => {
@@ -862,17 +866,49 @@ function RecurrenceComposer({ clientId, target, onClose, onSaved }: {
 
 /* ── Calendário ─────────────────────────────────────────────────────── */
 
-function CalendarView({ posts, onSelectPost, onCancelPost }: {
-  posts: OrganicPost[];
+function CalendarView({ clientFilter, onSelectPost, onCancelPost }: {
+  clientFilter: string;
   onSelectPost: (p: OrganicPost) => void;
-  onCancelPost: (id: string) => void;
+  onCancelPost: (id: string) => Promise<void>;
 }) {
   const [month, setMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
+  const [posts, setPosts]     = useState<OrganicPost[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const year = month.getFullYear(), mon = month.getMonth();
   const firstWeekday = new Date(year, mon, 1).getDay();
   const daysInMonth  = new Date(year, mon + 1, 0).getDate();
   const monthLabel   = month.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+  // Busca escopada ao MÊS visível, não "os N mais recentes" (o corte que a Lista usa) — é
+  // o que garante que 2 ou mais programações (Facebook + Instagram, por exemplo) no mesmo
+  // dia nunca percam uma pra fora do corte por causa de histórico/futuro distante competindo
+  // pelo mesmo limite global. Ver organicPublishService.listOrganicPosts.
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const from = new Date(year, mon, 1, 0, 0, 0, 0);
+      const to   = new Date(year, mon + 1, 0, 23, 59, 59, 999);
+      const params = new URLSearchParams();
+      if (clientFilter !== 'all') params.set('clientId', clientFilter);
+      params.set('scheduledFrom', from.toISOString());
+      params.set('scheduledTo', to.toISOString());
+      const res  = await fetch(`/api/admin/campanhas/organic?${params}`);
+      const data = await res.json();
+      if (res.ok) setPosts(data.posts ?? []);
+    } catch { /* noop — fica com o estado anterior */ }
+    finally { setLoading(false); }
+  }, [year, mon, clientFilter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleCancel(id: string) {
+    await onCancelPost(id);
+    // onCancelPost já confirma com o usuário e chama o DELETE real (mesma função da Lista,
+    // reaproveitada) — aqui só reflete o resultado no estado PRÓPRIO deste componente (que
+    // vive isolado do array da Lista desde que passou a buscar seu próprio recorte por mês).
+    setPosts(p => p.filter(x => x.id !== id));
+  }
 
   // Agrupa posts (agendados pela data agendada; demais pela criação) por dia do mês exibido
   const byDay = new Map<number, OrganicPost[]>();
@@ -896,7 +932,10 @@ function CalendarView({ posts, onSelectPost, onCancelPost }: {
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
       <div className="flex items-center justify-between mb-4">
         <button onClick={() => setMonth(new Date(year, mon - 1, 1))} className="px-3 py-1.5 rounded-lg text-sm font-black text-gray-500 hover:bg-gray-100">←</button>
-        <h2 className="text-sm font-black text-gray-900 capitalize">{monthLabel}</h2>
+        <h2 className="text-sm font-black text-gray-900 capitalize flex items-center gap-2">
+          {monthLabel}
+          {loading && <span className="inline-block h-3 w-3 rounded-full border-2 border-gray-200 border-t-indigo-500 animate-spin" />}
+        </h2>
         <button onClick={() => setMonth(new Date(year, mon + 1, 1))} className="px-3 py-1.5 rounded-lg text-sm font-black text-gray-500 hover:bg-gray-100">→</button>
       </div>
       <div className="grid grid-cols-7 gap-1">
@@ -922,7 +961,7 @@ function CalendarView({ posts, onSelectPost, onCancelPost }: {
                            já têm os próprios fluxos (lista) ou não fazem sentido cancelar. */}
                         {p.status === 'SCHEDULED' && (
                           <button type="button"
-                            onClick={(e) => { e.stopPropagation(); onCancelPost(p.id); }}
+                            onClick={(e) => { e.stopPropagation(); handleCancel(p.id); }}
                             title="Remover esta publicação agendada"
                             className="shrink-0 w-3.5 rounded border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-700 flex items-center justify-center transition-colors">
                             <XMarkIcon className="h-2.5 w-2.5" />

@@ -7,6 +7,7 @@ import type { NetworkCode } from '@/lib/marketing/networks/types';
 import { normalizeAngle } from '@/lib/marketing/angles';
 import { getLeadEvents, leadsByCampaign } from '@/lib/marketing/services/leadEvents';
 import { startOfDayBR, endOfDayBR } from '@/lib/marketing/brazilTime';
+import { resolveCampaignNetworkCodes } from '@/lib/marketing/networkFilterUtils';
 
 // Início "de sempre" pra métrica cumulativa (sem filtro de período) — mesmo padrão de
 // EPOCH_START já usado em hookSaturationService.ts.
@@ -134,8 +135,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Código real da rede (meta/google/tiktok...) por campanha — expõe pro front-end filtrar/
+    // exibir corretamente; mesmo resolvedor já usado por dashboard/full e demais endpoints de
+    // dashboard (fallback 'meta' pra campanha legada sem network_id).
+    const networkCodeMap = await resolveCampaignNetworkCodes(
+      campaigns.map(c => ({ id: c.id, networkId: c.networkId })),
+    );
+
     const enriched = campaigns.map(c => ({
       ...c,
+      networkCode: networkCodeMap.get(c.id) ?? 'meta',
       angleSource: angleSourceMap[c.id] ?? null,
       metrics: metricsMap[c.id] ?? null,
       adSets: c.adSets.map(as => ({

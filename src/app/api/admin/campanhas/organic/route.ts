@@ -21,10 +21,17 @@ export async function GET(request: NextRequest) {
     // 'segment'/'all' = sem filtro de cliente; 'own' preservado; UUID preservado
     const clientId = rawClientId === 'segment' || rawClientId === 'all' ? undefined : rawClientId;
 
+    // Janela de data opcional (ex.: visão de Calendário, 1º–último dia do mês visível) —
+    // ver organicPublishService.listOrganicPosts pro porquê isso existe.
+    const scheduledFromRaw = searchParams.get('scheduledFrom');
+    const scheduledToRaw   = searchParams.get('scheduledTo');
+
     const posts = await listOrganicPosts(payload.tenantId, {
       clientId,
       status:   searchParams.get('status')   || undefined,
       platform: searchParams.get('platform') || undefined,
+      scheduledFrom: scheduledFromRaw ? new Date(scheduledFromRaw) : undefined,
+      scheduledTo:   scheduledToRaw   ? new Date(scheduledToRaw)   : undefined,
     });
 
     return NextResponse.json({ posts });

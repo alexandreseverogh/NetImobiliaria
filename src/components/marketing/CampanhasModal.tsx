@@ -22,11 +22,12 @@ import {
   MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
 import { adminFetch } from '@/lib/auth/adminFetch';
-import { cn } from '@/lib/marketing-utils';
+import { cn, NETWORK_LABELS } from '@/lib/marketing-utils';
 import { ANGLE_OPTIONS, angleLabel } from '@/lib/marketing/angles';
 import { PencilIcon, CheckIcon } from '@heroicons/react/24/outline';
 import ClientSelector, { type ClientOption, type ClientFilterValue } from '@/components/crm/ClientSelector';
 import DateInputPtBR from '@/components/ui/DateInputPtBR';
+import SafeImage from '@/components/common/SafeImage';
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -71,6 +72,9 @@ interface CampaignData {
   funnelStage?: string | null;
   specialAdCategory?: string | null;
   metaCampaignId?: string | null;
+  // Código real da rede (meta/google/tiktok...), resolvido no servidor via ad_networks —
+  // nunca mais assumir "Meta Ads" fixo (ver networkLabel() mais abaixo).
+  networkCode?: string;
   createdAt: string;
   updatedAt: string;
   adSets: AdSetData[];
@@ -216,8 +220,8 @@ function extractInterests(interests: unknown): string[] {
 }
 
 function networkLabel(campaign: CampaignData): string {
-  if (campaign.metaCampaignId) return 'Meta Ads';
-  return 'Meta Ads'; // default — todos os lançamentos são via Meta
+  const code = campaign.networkCode ?? 'meta';
+  return NETWORK_LABELS[code] ?? (code.charAt(0).toUpperCase() + code.slice(1));
 }
 
 const CREATIVE_TYPE_MAP: Record<string, string> = {
@@ -234,35 +238,73 @@ function fmtCreativeType(ct: string | null | undefined): string {
   return CREATIVE_TYPE_MAP[ct] || ct.replace(/_/g, ' ');
 }
 
+// ── Theming ───────────────────────────────────────────────────────
+// CampanhasModal é aberto tanto de /admin/campanhas/nova (sempre claro, sem conceito de
+// tema) quanto de /admin/campanhas/dashboard (que tem o toggle claro/escuro próprio) —
+// `isDark` é opcional (default false) pra preservar 100% o visual já existente em nova,
+// e só entra em jogo quando o chamador passa o tema ativo do dashboard.
+
+type BadgeTone = 'emerald' | 'amber' | 'red' | 'gray' | 'sky' | 'violet' | 'indigo' | 'teal' | 'rose' | 'yellow' | 'orange' | 'blue';
+
+const BADGE_TONE_DARK: Record<BadgeTone, string> = {
+  emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+  amber:   'bg-amber-500/10 text-amber-400 border-amber-500/30',
+  red:     'bg-red-500/10 text-red-400 border-red-500/30',
+  gray:    'bg-white/5 text-slate-400 border-white/10',
+  sky:     'bg-sky-500/10 text-sky-400 border-sky-500/30',
+  violet:  'bg-violet-500/10 text-violet-400 border-violet-500/30',
+  indigo:  'bg-indigo-500/10 text-indigo-400 border-indigo-500/30',
+  teal:    'bg-teal-500/10 text-teal-400 border-teal-500/30',
+  rose:    'bg-rose-500/10 text-rose-400 border-rose-500/30',
+  yellow:  'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
+  orange:  'bg-orange-500/10 text-orange-400 border-orange-500/30',
+  blue:    'bg-blue-500/10 text-blue-400 border-blue-500/30',
+};
+const BADGE_TONE_LIGHT: Record<BadgeTone, string> = {
+  emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  amber:   'bg-amber-50 text-amber-700 border-amber-200',
+  red:     'bg-red-50 text-red-700 border-red-200',
+  gray:    'bg-gray-100 text-gray-500 border-gray-200',
+  sky:     'bg-sky-50 text-sky-700 border-sky-200',
+  violet:  'bg-violet-50 text-violet-700 border-violet-200',
+  indigo:  'bg-indigo-50 text-indigo-700 border-indigo-200',
+  teal:    'bg-teal-50 text-teal-700 border-teal-200',
+  rose:    'bg-rose-50 text-rose-700 border-rose-200',
+  yellow:  'bg-yellow-50 text-yellow-700 border-yellow-200',
+  orange:  'bg-orange-50 text-orange-700 border-orange-200',
+  blue:    'bg-blue-50 text-blue-700 border-blue-200',
+};
+
+function badgeCls(tone: BadgeTone, isDark: boolean): string {
+  return isDark ? BADGE_TONE_DARK[tone] : BADGE_TONE_LIGHT[tone];
+}
+
 // ── Status Badge ──────────────────────────────────────────────────
 // Values come from DB; status = Campaign.status | lifecycle_status
 
-function StatusBadge({ status }: { status: string }) {
-  const cfg: Record<string, { label: string; cls: string }> = {
+function StatusBadge({ status, isDark = false }: { status: string; isDark?: boolean }) {
+  const cfg: Record<string, { label: string; tone: BadgeTone }> = {
     // campaign.status
-    ACTIVE:            { label: 'Ativa',           cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    PAUSED:            { label: 'Pausada',          cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-    DELETED:           { label: 'Removida',         cls: 'bg-red-50 text-red-700 border-red-200' },
-    ARCHIVED:          { label: 'Arquivada',        cls: 'bg-gray-100 text-gray-500 border-gray-200' },
+    ACTIVE:            { label: 'Ativa',           tone: 'emerald' },
+    PAUSED:            { label: 'Pausada',          tone: 'amber' },
+    DELETED:           { label: 'Removida',         tone: 'red' },
+    ARCHIVED:          { label: 'Arquivada',        tone: 'gray' },
     // lifecycle_status
-    DRAFT:             { label: 'Rascunho',         cls: 'bg-sky-50 text-sky-700 border-sky-200' },
-    LEARNING:          { label: 'Aprendizado',      cls: 'bg-violet-50 text-violet-700 border-violet-200' },
-    LEARNING_LIMITED:  { label: 'Aprend. Limitado', cls: 'bg-violet-50 text-violet-600 border-violet-200' },
-    IN_PROCESS:        { label: 'Em andamento',     cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-    STABLE:            { label: 'Estável',          cls: 'bg-teal-50 text-teal-700 border-teal-200' },
-    COMPLETED:         { label: 'Concluída',        cls: 'bg-teal-50 text-teal-600 border-teal-200' },
-    KILLED:            { label: 'Encerrada',        cls: 'bg-rose-50 text-rose-700 border-rose-200' },
-    UNDER_REVIEW:      { label: 'Em revisão',       cls: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
-    WITH_ISSUES:       { label: 'Com problemas',    cls: 'bg-orange-50 text-orange-700 border-orange-200' },
+    DRAFT:             { label: 'Rascunho',         tone: 'sky' },
+    LEARNING:          { label: 'Aprendizado',      tone: 'violet' },
+    LEARNING_LIMITED:  { label: 'Aprend. Limitado', tone: 'violet' },
+    IN_PROCESS:        { label: 'Em andamento',     tone: 'indigo' },
+    STABLE:            { label: 'Estável',          tone: 'teal' },
+    COMPLETED:         { label: 'Concluída',        tone: 'teal' },
+    KILLED:            { label: 'Encerrada',        tone: 'rose' },
+    UNDER_REVIEW:      { label: 'Em revisão',       tone: 'yellow' },
+    WITH_ISSUES:       { label: 'Com problemas',    tone: 'orange' },
   };
-  const { label, cls } = cfg[status] ?? {
-    label: status.replace(/_/g, ' '),
-    cls: 'bg-gray-100 text-gray-500 border-gray-200',
-  };
+  const { label, tone } = cfg[status] ?? { label: status.replace(/_/g, ' '), tone: 'gray' as BadgeTone };
   return (
     <span className={cn(
       'inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border',
-      cls,
+      badgeCls(tone, isDark),
     )}>
       {label}
     </span>
@@ -272,24 +314,24 @@ function StatusBadge({ status }: { status: string }) {
 // ── Funnel Badge ──────────────────────────────────────────────────
 // funnelStage values from DB: TOF | MOF | BOF | TOPO | MEIO | FUNDO
 
-function FunnelBadge({ stage }: { stage: string }) {
-  const MAP: Record<string, { label: string; cls: string }> = {
-    TOF:    { label: 'Topo de Funil',  cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-    TOPO:   { label: 'Topo de Funil',  cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-    TOP:    { label: 'Topo de Funil',  cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-    MOF:    { label: 'Meio de Funil',  cls: 'bg-violet-50 text-violet-700 border-violet-200' },
-    MEIO:   { label: 'Meio de Funil',  cls: 'bg-violet-50 text-violet-700 border-violet-200' },
-    MIDDLE: { label: 'Meio de Funil',  cls: 'bg-violet-50 text-violet-700 border-violet-200' },
-    BOF:    { label: 'Fundo de Funil', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
-    FUNDO:  { label: 'Fundo de Funil', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
-    BOTTOM: { label: 'Fundo de Funil', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
+function FunnelBadge({ stage, isDark = false }: { stage: string; isDark?: boolean }) {
+  const MAP: Record<string, { label: string; tone: BadgeTone }> = {
+    TOF:    { label: 'Topo de Funil',  tone: 'indigo' },
+    TOPO:   { label: 'Topo de Funil',  tone: 'indigo' },
+    TOP:    { label: 'Topo de Funil',  tone: 'indigo' },
+    MOF:    { label: 'Meio de Funil',  tone: 'violet' },
+    MEIO:   { label: 'Meio de Funil',  tone: 'violet' },
+    MIDDLE: { label: 'Meio de Funil',  tone: 'violet' },
+    BOF:    { label: 'Fundo de Funil', tone: 'rose' },
+    FUNDO:  { label: 'Fundo de Funil', tone: 'rose' },
+    BOTTOM: { label: 'Fundo de Funil', tone: 'rose' },
   };
   const entry = MAP[stage];
   if (!entry) return null;
   return (
     <span className={cn(
       'inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border',
-      entry.cls,
+      badgeCls(entry.tone, isDark),
     )}>
       {entry.label}
     </span>
@@ -305,11 +347,12 @@ function FunnelBadge({ stage }: { stage: string }) {
  *   sem angle → amber   (sem classificação — call-to-action)
  *   legacy    → violet  (dados anteriores à FASE 14d)
  */
-function AngleBadge({ campaignId, angle, angleSource, onUpdated }: {
+function AngleBadge({ campaignId, angle, angleSource, onUpdated, isDark = false }: {
   campaignId: string;
   angle?: string | null;
   angleSource?: string | null;
   onUpdated: (newAngle: string | null, newSource: string | null) => void;
+  isDark?: boolean;
 }) {
   const [editing,  setEditing]  = useState(false);
   const [saving,   setSaving]   = useState(false);
@@ -335,7 +378,10 @@ function AngleBadge({ campaignId, angle, angleSource, onUpdated }: {
           value={selected}
           onChange={e => setSelected(e.target.value)}
           autoFocus
-          className="text-[10px] font-semibold border border-blue-300 rounded-md px-1.5 py-0.5 bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-400"
+          className={cn(
+            'text-[10px] font-semibold border rounded-md px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400',
+            isDark ? 'border-blue-500/40 bg-navy-light text-slate-200' : 'border-blue-300 bg-white text-gray-800',
+          )}
         >
           <option value="">Sem ângulo</option>
           {ANGLE_OPTIONS.map(o => (
@@ -345,7 +391,7 @@ function AngleBadge({ campaignId, angle, angleSource, onUpdated }: {
         <button
           onClick={save}
           disabled={saving}
-          className="p-0.5 rounded text-blue-600 hover:bg-blue-50"
+          className={cn('p-0.5 rounded', isDark ? 'text-blue-400 hover:bg-blue-500/10' : 'text-blue-600 hover:bg-blue-50')}
         >
           <CheckIcon className="h-3.5 w-3.5" />
         </button>
@@ -355,13 +401,16 @@ function AngleBadge({ campaignId, angle, angleSource, onUpdated }: {
 
   // Visual state
   const hasAngle = !!angle;
-  const badgeCls = !hasAngle
-    ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+  const tone: BadgeTone = !hasAngle
+    ? 'amber'
     : angleSource === 'declared'
-    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+    ? 'emerald'
     : angleSource === 'llm_auto'
-    ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-    : 'bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100';
+    ? 'blue'
+    : 'violet';
+  const hoverCls = isDark
+    ? (!hasAngle ? 'hover:bg-amber-500/20' : angleSource === 'declared' ? 'hover:bg-emerald-500/20' : angleSource === 'llm_auto' ? 'hover:bg-blue-500/20' : 'hover:bg-violet-500/20')
+    : (!hasAngle ? 'hover:bg-amber-100' : angleSource === 'declared' ? 'hover:bg-emerald-100' : angleSource === 'llm_auto' ? 'hover:bg-blue-100' : 'hover:bg-violet-100');
 
   const badgeTitle = !hasAngle
     ? 'Sem ângulo — clique para classificar'
@@ -379,7 +428,8 @@ function AngleBadge({ campaignId, angle, angleSource, onUpdated }: {
     <span
       className={cn(
         'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border cursor-pointer transition-colors',
-        badgeCls,
+        badgeCls(tone, isDark),
+        hoverCls,
       )}
       title={badgeTitle}
       onClick={() => { setSelected(angle ?? ''); setEditing(true); }}
@@ -392,20 +442,24 @@ function AngleBadge({ campaignId, angle, angleSource, onUpdated }: {
 
 // ── Classify Banner (FASE 14d) ────────────────────────────────────
 
-function ClassifyBanner({ count, onClassify, onDismiss }: {
+function ClassifyBanner({ count, onClassify, onDismiss, isDark = false }: {
   count: number;
   onClassify: () => void;
   onDismiss: () => void;
+  isDark?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 bg-blue-50 border border-blue-200 rounded-2xl px-5 py-3.5 mb-6">
+    <div className={cn(
+      'flex items-center justify-between gap-4 rounded-2xl px-5 py-3.5 mb-6 border',
+      isDark ? 'bg-blue-500/10 border-blue-500/30' : 'bg-blue-50 border-blue-200',
+    )}>
       <div className="flex items-center gap-3 min-w-0">
-        <SparklesIcon className="h-5 w-5 text-blue-600 shrink-0" />
+        <SparklesIcon className={cn('h-5 w-5 shrink-0', isDark ? 'text-blue-400' : 'text-blue-600')} />
         <div className="min-w-0">
-          <p className="text-sm font-black text-blue-900">
+          <p className={cn('text-sm font-black', isDark ? 'text-blue-300' : 'text-blue-900')}>
             {count} campanha{count !== 1 ? 's' : ''} sem ângulo classificado
           </p>
-          <p className="text-xs text-blue-600 mt-0.5 hidden sm:block">
+          <p className={cn('text-xs mt-0.5 hidden sm:block', isDark ? 'text-blue-400' : 'text-blue-600')}>
             Use a IA para classificar automaticamente pelo nome da campanha.
           </p>
         </div>
@@ -420,7 +474,10 @@ function ClassifyBanner({ count, onClassify, onDismiss }: {
         </button>
         <button
           onClick={onDismiss}
-          className="p-1 text-blue-400 hover:text-blue-700 transition-colors rounded-lg hover:bg-blue-100"
+          className={cn(
+            'p-1 transition-colors rounded-lg',
+            isDark ? 'text-blue-400 hover:text-blue-200 hover:bg-blue-500/20' : 'text-blue-400 hover:text-blue-700 hover:bg-blue-100',
+          )}
           title="Dispensar"
         >
           <XMarkIcon className="h-4 w-4" />
@@ -447,10 +504,11 @@ const CONF_DOT: Record<string, string> = {
   low:    'bg-red-400',
 };
 
-function ClassifyModal({ isOpen, onClose, onDone }: {
+function ClassifyModal({ isOpen, onClose, onDone, isDark = false }: {
   isOpen: boolean;
   onClose: () => void;
   onDone: () => void;
+  isDark?: boolean;
 }) {
   const [step, setStep]               = useState<ClassifyStep>('loading');
   const [results, setResults]         = useState<ClassifyResultLocal[]>([]);
@@ -527,32 +585,40 @@ function ClassifyModal({ isOpen, onClose, onDone }: {
   }
 
   return (
-    <AnimatePresence>
-      {isOpen && (
+    <>
+    {/* Sem AnimatePresence/exit — mesmo risco já corrigido no modal principal: a animação
+        de saída podia nunca completar, deixando este overlay (z-[60], tela cheia) preso no
+        DOM pra sempre em opacity:0, bloqueando clique em tudo por trás mesmo depois de
+        "fechado". */}
+    {isOpen && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
-          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-950/60 backdrop-blur-sm"
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-950/60"
         >
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"
+            className={cn(
+              'rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden',
+              isDark ? 'bg-navy-light' : 'bg-white',
+            )}
           >
             {/* Header */}
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+            <div className={cn('px-6 py-4 flex items-center justify-between shrink-0 border-b', isDark ? 'border-[rgba(255,255,255,0.06)]' : 'border-gray-100')}>
               <div className="flex items-center gap-2">
-                <SparklesIcon className="h-5 w-5 text-blue-600" />
-                <h3 className="text-base font-black text-gray-900">Classificar Ângulos com IA</h3>
+                <SparklesIcon className={cn('h-5 w-5', isDark ? 'text-blue-400' : 'text-blue-600')} />
+                <h3 className={cn('text-base font-black', isDark ? 'text-slate-100' : 'text-gray-900')}>Classificar Ângulos com IA</h3>
               </div>
               {step !== 'saving' && (
                 <button
                   onClick={onClose}
-                  className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all"
+                  className={cn(
+                    'p-1 rounded-lg transition-all',
+                    isDark ? 'text-slate-500 hover:text-slate-200 hover:bg-white/5' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100',
+                  )}
                 >
                   <XMarkIcon className="h-5 w-5" />
                 </button>
@@ -566,12 +632,12 @@ function ClassifyModal({ isOpen, onClose, onDone }: {
               {step === 'loading' && (
                 <div className="flex flex-col items-center justify-center py-20 gap-4">
                   <div className="relative w-12 h-12">
-                    <div className="w-12 h-12 rounded-full border-4 border-blue-100 border-t-blue-600 animate-spin" />
-                    <SparklesIcon className="h-5 w-5 text-blue-600 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                    <div className={cn('w-12 h-12 rounded-full border-4 animate-spin', isDark ? 'border-blue-500/20 border-t-blue-400' : 'border-blue-100 border-t-blue-600')} />
+                    <SparklesIcon className={cn('h-5 w-5 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2', isDark ? 'text-blue-400' : 'text-blue-600')} />
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-black text-gray-800">Analisando campanhas...</p>
-                    <p className="text-xs text-gray-400 mt-1">A IA está lendo os nomes e inferindo o ângulo de comunicação.</p>
+                    <p className={cn('text-sm font-black', isDark ? 'text-slate-200' : 'text-gray-800')}>Analisando campanhas...</p>
+                    <p className={cn('text-xs mt-1', isDark ? 'text-slate-500' : 'text-gray-400')}>A IA está lendo os nomes e inferindo o ângulo de comunicação.</p>
                   </div>
                 </div>
               )}
@@ -580,14 +646,17 @@ function ClassifyModal({ isOpen, onClose, onDone }: {
               {step === 'review' && (
                 <div className="p-6 space-y-4">
                   {classifyError && (
-                    <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs text-red-700 font-medium">
+                    <div className={cn(
+                      'flex items-center gap-2 rounded-xl px-4 py-3 text-xs font-medium border',
+                      isDark ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-red-50 border-red-200 text-red-700',
+                    )}>
                       <ExclamationCircleIcon className="h-4 w-4 shrink-0" />
                       {classifyError}
                     </div>
                   )}
 
                   {results.length === 0 && !classifyError && (
-                    <p className="text-sm text-center text-gray-400 py-10">
+                    <p className={cn('text-sm text-center py-10', isDark ? 'text-slate-500' : 'text-gray-400')}>
                       Nenhuma campanha sem ângulo encontrada.
                     </p>
                   )}
@@ -595,47 +664,55 @@ function ClassifyModal({ isOpen, onClose, onDone }: {
                   {results.length > 0 && (
                     <>
                       <div className="flex items-center justify-between flex-wrap gap-2">
-                        <p className="text-sm font-bold text-gray-700">
+                        <p className={cn('text-sm font-bold', isDark ? 'text-slate-300' : 'text-gray-700')}>
                           {results.length} campanha{results.length !== 1 ? 's' : ''} para classificar
                         </p>
                         {lowConfidenceCount > 0 && (
-                          <span className="flex items-center gap-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+                          <span className={cn(
+                            'flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-lg border',
+                            isDark ? 'text-amber-400 bg-amber-500/10 border-amber-500/30' : 'text-amber-700 bg-amber-50 border-amber-200',
+                          )}>
                             <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
                             {lowConfidenceCount} com baixa confiança — verifique
                           </span>
                         )}
                       </div>
 
-                      <div className="border border-gray-100 rounded-xl overflow-hidden">
+                      <div className={cn('rounded-xl overflow-hidden border', isDark ? 'border-[rgba(255,255,255,0.06)]' : 'border-gray-100')}>
                         <table className="w-full text-xs">
                           <thead>
-                            <tr className="bg-gray-50 border-b border-gray-100">
-                              <th className="text-left px-4 py-2.5 font-black text-gray-500 uppercase tracking-wider text-[10px]">
+                            <tr className={cn('border-b', isDark ? 'bg-black/20 border-[rgba(255,255,255,0.06)]' : 'bg-gray-50 border-gray-100')}>
+                              <th className={cn('text-left px-4 py-2.5 font-black uppercase tracking-wider text-[10px]', isDark ? 'text-slate-500' : 'text-gray-500')}>
                                 Campanha
                               </th>
-                              <th className="text-left px-4 py-2.5 font-black text-gray-500 uppercase tracking-wider text-[10px] w-48">
+                              <th className={cn('text-left px-4 py-2.5 font-black uppercase tracking-wider text-[10px] w-48', isDark ? 'text-slate-500' : 'text-gray-500')}>
                                 Ângulo sugerido
                               </th>
                               <th className="px-3 py-2.5 w-8" />
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-gray-50">
+                          <tbody className={cn('divide-y', isDark ? 'divide-[rgba(255,255,255,0.04)]' : 'divide-gray-50')}>
                             {results.map(r => (
                               <tr
                                 key={r.id}
                                 className={cn(
                                   'transition-colors',
-                                  r.confidence === 'low' ? 'bg-amber-50/40' : 'bg-white hover:bg-gray-50/50',
+                                  r.confidence === 'low'
+                                    ? (isDark ? 'bg-amber-500/5' : 'bg-amber-50/40')
+                                    : (isDark ? 'bg-transparent hover:bg-white/[0.03]' : 'bg-white hover:bg-gray-50/50'),
                                 )}
                               >
-                                <td className="px-4 py-2.5 text-gray-800 font-medium truncate max-w-[220px]" title={r.name}>
+                                <td className={cn('px-4 py-2.5 font-medium truncate max-w-[220px]', isDark ? 'text-slate-200' : 'text-gray-800')} title={r.name}>
                                   {r.name}
                                 </td>
                                 <td className="px-4 py-2.5">
                                   <select
                                     value={editedAngles[r.id] ?? r.suggestedAngle}
                                     onChange={e => setEditedAngles(prev => ({ ...prev, [r.id]: e.target.value }))}
-                                    className="w-full text-xs font-semibold border border-gray-200 rounded-lg px-2 py-1 bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-400 appearance-none"
+                                    className={cn(
+                                      'w-full text-xs font-semibold rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 appearance-none border',
+                                      isDark ? 'border-white/10 bg-navy text-slate-200' : 'border-gray-200 bg-white text-gray-800',
+                                    )}
                                   >
                                     {ANGLE_OPTIONS.map(o => (
                                       <option key={o.value} value={o.value}>{o.label}</option>
@@ -654,7 +731,7 @@ function ClassifyModal({ isOpen, onClose, onDone }: {
                         </table>
                       </div>
 
-                      <div className="flex items-center gap-4 text-[10px] text-gray-400">
+                      <div className={cn('flex items-center gap-4 text-[10px]', isDark ? 'text-slate-500' : 'text-gray-400')}>
                         <span className="flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />Alta confiança
                         </span>
@@ -673,14 +750,14 @@ function ClassifyModal({ isOpen, onClose, onDone }: {
               {/* Saving */}
               {step === 'saving' && (
                 <div className="flex flex-col items-center justify-center py-16 px-8 gap-5">
-                  <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                  <div className={cn('w-full rounded-full h-2 overflow-hidden', isDark ? 'bg-white/5' : 'bg-gray-100')}>
                     <motion.div
                       className="h-full bg-blue-500 rounded-full"
                       animate={{ width: `${progress}%` }}
                       transition={{ duration: 0.3 }}
                     />
                   </div>
-                  <p className="text-sm font-black text-gray-700">
+                  <p className={cn('text-sm font-black', isDark ? 'text-slate-300' : 'text-gray-700')}>
                     Salvando classificações... {Math.round(progress)}%
                   </p>
                 </div>
@@ -690,13 +767,13 @@ function ClassifyModal({ isOpen, onClose, onDone }: {
               {step === 'done' && (
                 <div className="p-6 space-y-5">
                   <div className="text-center py-2">
-                    <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm">
-                      <CheckIcon className="h-7 w-7 text-emerald-600" />
+                    <div className={cn('w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm', isDark ? 'bg-emerald-500/10' : 'bg-emerald-50')}>
+                      <CheckIcon className={cn('h-7 w-7', isDark ? 'text-emerald-400' : 'text-emerald-600')} />
                     </div>
-                    <p className="text-base font-black text-gray-900">
+                    <p className={cn('text-base font-black', isDark ? 'text-slate-100' : 'text-gray-900')}>
                       {savedCount} campanha{savedCount !== 1 ? 's' : ''} classificada{savedCount !== 1 ? 's' : ''}
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">
+                    <p className={cn('text-xs mt-1', isDark ? 'text-slate-500' : 'text-gray-400')}>
                       Os dados já estão disponíveis em Cross-Insights → Performance por Ângulo.
                     </p>
                   </div>
@@ -704,9 +781,9 @@ function ClassifyModal({ isOpen, onClose, onDone }: {
                   {summary.length > 0 && (
                     <div className="grid grid-cols-2 gap-2">
                       {summary.map(([ang, count]) => (
-                        <div key={ang} className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-3.5 py-2.5">
-                          <span className="text-xs font-bold text-gray-700 truncate">{angleLabel(ang)}</span>
-                          <span className="text-sm font-black text-gray-900 shrink-0 ml-2">{count}</span>
+                        <div key={ang} className={cn('flex items-center justify-between rounded-xl px-3.5 py-2.5 border', isDark ? 'bg-white/[0.03] border-[rgba(255,255,255,0.06)]' : 'bg-gray-50 border-gray-100')}>
+                          <span className={cn('text-xs font-bold truncate', isDark ? 'text-slate-300' : 'text-gray-700')}>{angleLabel(ang)}</span>
+                          <span className={cn('text-sm font-black shrink-0 ml-2', isDark ? 'text-slate-100' : 'text-gray-900')}>{count}</span>
                         </div>
                       ))}
                     </div>
@@ -717,12 +794,15 @@ function ClassifyModal({ isOpen, onClose, onDone }: {
 
             {/* Footer */}
             {(step === 'review' || step === 'done') && (
-              <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 shrink-0">
+              <div className={cn('px-6 py-4 flex items-center justify-end gap-3 shrink-0 border-t', isDark ? 'border-[rgba(255,255,255,0.06)]' : 'border-gray-100')}>
                 {step === 'review' && (
                   <>
                     <button
                       onClick={onClose}
-                      className="px-4 py-2 text-sm font-bold text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all"
+                      className={cn(
+                        'px-4 py-2 text-sm font-bold rounded-xl transition-all',
+                        isDark ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100',
+                      )}
                     >
                       Cancelar
                     </button>
@@ -739,7 +819,10 @@ function ClassifyModal({ isOpen, onClose, onDone }: {
                 {step === 'done' && (
                   <button
                     onClick={onClose}
-                    className="px-5 py-2 bg-gray-900 text-white rounded-xl text-sm font-black hover:bg-gray-700 transition-all"
+                    className={cn(
+                      'px-5 py-2 rounded-xl text-sm font-black transition-all',
+                      isDark ? 'bg-white/10 text-slate-100 hover:bg-white/15' : 'bg-gray-900 text-white hover:bg-gray-700',
+                    )}
                   >
                     Fechar
                   </button>
@@ -748,29 +831,42 @@ function ClassifyModal({ isOpen, onClose, onDone }: {
             )}
           </motion.div>
         </motion.div>
-      )}
-    </AnimatePresence>
+    )}
+    </>
   );
 }
 
 // ── Creative Image Thumb ──────────────────────────────────────────
 
-function CreativeThumb({ url, index }: { url: string; index: number }) {
+function CreativeThumb({ url, index, isDark = false }: { url: string; index: number; isDark?: boolean }) {
   const [broken, setBroken] = useState(false);
   if (broken) {
     return (
-      <div className="w-[68px] h-[68px] rounded-xl border border-gray-100 shrink-0 bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
-        <PhotoIcon className="h-5 w-5 text-gray-300" />
+      <div className={cn(
+        'w-[68px] h-[68px] rounded-xl border shrink-0 flex items-center justify-center',
+        isDark ? 'border-white/10 bg-white/5' : 'border-gray-100 bg-gradient-to-br from-gray-50 to-gray-100',
+      )}>
+        <PhotoIcon className={cn('h-5 w-5', isDark ? 'text-slate-600' : 'text-gray-300')} />
       </div>
     );
   }
   return (
-    <div className="w-[68px] h-[68px] rounded-xl overflow-hidden border border-gray-100 shrink-0 bg-gray-100 shadow-sm">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
+    <div className={cn(
+      'w-[68px] h-[68px] rounded-xl overflow-hidden border shrink-0 shadow-sm relative',
+      isDark ? 'border-white/10 bg-white/5' : 'border-gray-100 bg-gray-100',
+    )}>
+      {/* SafeImage (next/image) redimensiona no servidor — os arquivos reais em
+          CreativeAsset.storage_url são originais de até ~3MB, pesados demais pra
+          baixar só pra exibir 68x68px; isso também evita o bloqueio silencioso do
+          otimizador do Next pra host MinIO não configurado em remotePatterns, e lida
+          com blob:/caminho relativo automaticamente (mesmo padrão já usado nas
+          fotos de imóveis, ver next.config.js). */}
+      <SafeImage
         src={url}
         alt={`Criativo ${index + 1}`}
-        className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+        fill
+        sizes="68px"
+        className="object-cover hover:scale-105 transition-transform duration-300"
         onError={() => setBroken(true)}
       />
     </div>
@@ -780,7 +876,7 @@ function CreativeThumb({ url, index }: { url: string; index: number }) {
 // ── Creative Strip ────────────────────────────────────────────────
 // Order: headline/body text FIRST, then thumbnails
 
-function CreativesStrip({ ads }: { ads: AdData[] }) {
+function CreativesStrip({ ads, isDark = false }: { ads: AdData[]; isDark?: boolean }) {
   // Prefer CDN asset URLs over blob URLs
   const allImages = ads.flatMap(ad =>
     (ad.assetUrls && ad.assetUrls.length > 0) ? ad.assetUrls : (ad.images ?? [])
@@ -792,26 +888,29 @@ function CreativesStrip({ ads }: { ads: AdData[] }) {
     <div className="space-y-3">
       {/* Text content FIRST */}
       {firstAd && (firstAd.headline || firstAd.body) && (
-        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 space-y-1">
+        <div className={cn('rounded-xl p-3 space-y-1 border', isDark ? 'bg-white/[0.03] border-white/5' : 'bg-slate-50 border-slate-100')}>
           {firstAd.headline && (
-            <p className="text-xs font-bold text-gray-900 line-clamp-1">{firstAd.headline}</p>
+            <p className={cn('text-xs font-bold line-clamp-1', isDark ? 'text-slate-100' : 'text-gray-900')}>{firstAd.headline}</p>
           )}
           {firstAd.body && (
-            <p className="text-[11px] text-gray-500 line-clamp-3 leading-relaxed">{firstAd.body}</p>
+            <p className={cn('text-[11px] line-clamp-3 leading-relaxed', isDark ? 'text-slate-400' : 'text-gray-500')}>{firstAd.body}</p>
           )}
           <div className="flex items-center gap-2 pt-0.5 flex-wrap">
             {firstAd.ctaType && (
-              <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[9px] font-black uppercase tracking-wider">
+              <span className={cn('px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider', isDark ? 'bg-indigo-500/15 text-indigo-300' : 'bg-indigo-100 text-indigo-700')}>
                 {firstAd.ctaType.replace(/_/g, ' ')}
               </span>
             )}
             {firstAd.creativeType && (
-              <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-[9px] font-bold uppercase tracking-wider">
+              <span className={cn('px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider', isDark ? 'bg-white/5 text-slate-400' : 'bg-gray-100 text-gray-500')}>
                 {fmtCreativeType(firstAd.creativeType)}
               </span>
             )}
             {firstAd.linkUrl && (
-              <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[9px] font-bold truncate max-w-[140px]" title={firstAd.linkUrl}>
+              <span className={cn(
+                'px-2 py-0.5 rounded text-[9px] font-bold truncate max-w-[140px] border',
+                isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-emerald-50 text-emerald-700 border-emerald-200',
+              )} title={firstAd.linkUrl}>
                 {firstAd.linkUrl.replace(/^https?:\/\//, '').split('/')[0]}
               </span>
             )}
@@ -822,10 +921,10 @@ function CreativesStrip({ ads }: { ads: AdData[] }) {
       {/* Thumbnails SECOND */}
       {allImages.length > 0 ? (
         <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-0.5 px-0.5">
-          {allImages.map((url, i) => <CreativeThumb key={i} url={url} index={i} />)}
+          {allImages.map((url, i) => <CreativeThumb key={`${i}-${url}`} url={url} index={i} isDark={isDark} />)}
         </div>
       ) : (
-        <div className="flex items-center gap-2 text-gray-400 py-1">
+        <div className={cn('flex items-center gap-2 py-1', isDark ? 'text-slate-600' : 'text-gray-400')}>
           <PhotoIcon className="h-4 w-4 shrink-0" />
           <span className="text-[11px] font-medium">Sem imagens vinculadas</span>
         </div>
@@ -844,8 +943,8 @@ interface ScheduleDisplayProps {
 }
 
 function ScheduleDisplay({
-  scheduleDays, scheduleStartHour, scheduleEndHour, scheduleTimeSlots,
-}: ScheduleDisplayProps) {
+  scheduleDays, scheduleStartHour, scheduleEndHour, scheduleTimeSlots, isDark = false,
+}: ScheduleDisplayProps & { isDark?: boolean }) {
   // Custom per-day slots — formato real do Meta (adset_schedule): array de
   // { days: number[], start_minute, end_minute, timezone_type } — uma entrada pode cobrir
   // vários dias de uma vez, e os horários são em MINUTOS desde meia-noite, não horas cheias
@@ -877,17 +976,20 @@ function ScheduleDisplay({
       expanded.sort((a, b) => a.day - b.day);
       return (
         <div className="space-y-2">
-          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-violet-50 border border-violet-200 rounded-md text-[10px] font-black text-violet-700 uppercase tracking-wider">
+          <div className={cn(
+            'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border',
+            isDark ? 'bg-violet-500/10 border-violet-500/30 text-violet-400' : 'bg-violet-50 border-violet-200 text-violet-700',
+          )}>
             Personalizado por dia
           </div>
           <div className="grid grid-cols-4 gap-1">
             {expanded.map((slot, i) => (
-              <div key={i} className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5 text-center">
-                <p className="text-[9px] font-black text-indigo-600 uppercase tracking-wider">
+              <div key={i} className={cn('rounded-lg px-2 py-1.5 text-center border', isDark ? 'bg-white/[0.03] border-white/5' : 'bg-slate-50 border-slate-100')}>
+                <p className={cn('text-[9px] font-black uppercase tracking-wider', isDark ? 'text-indigo-400' : 'text-indigo-600')}>
                   {DAY_LABELS[slot.day] ?? `D${slot.day}`}
                 </p>
-                <p className="text-[10px] font-semibold text-gray-700 leading-tight mt-0.5">
-                  {fmtMinutes(slot.startMin)}<span className="text-gray-400">–</span>{fmtMinutes(slot.endMin)}
+                <p className={cn('text-[10px] font-semibold leading-tight mt-0.5', isDark ? 'text-slate-300' : 'text-gray-700')}>
+                  {fmtMinutes(slot.startMin)}<span className={isDark ? 'text-slate-600' : 'text-gray-400'}>–</span>{fmtMinutes(slot.endMin)}
                 </p>
               </div>
             ))}
@@ -900,11 +1002,15 @@ function ScheduleDisplay({
   // Uniform schedule (mesmo horário todo dia veiculado)
   const allDays = !scheduleDays?.length || scheduleDays.length === 7;
   const hasCustomHours = scheduleStartHour != null || scheduleEndHour != null;
+  const arrowCls = isDark ? 'text-slate-600' : 'text-gray-400';
 
   return (
     <div className="space-y-2">
       {allDays ? (
-        <span className="inline-flex items-center px-2.5 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-[10px] font-black text-indigo-600 uppercase tracking-wider">
+        <span className={cn(
+          'inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border',
+          isDark ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400' : 'bg-indigo-50 border-indigo-200 text-indigo-600',
+        )}>
           Todos os dias
         </span>
       ) : (
@@ -914,7 +1020,7 @@ function ScheduleDisplay({
               'w-7 h-7 flex items-center justify-center rounded-md text-[10px] font-black',
               scheduleDays?.includes(i)
                 ? 'bg-gold-premium text-navy-dark shadow-sm shadow-gold-premium/30'
-                : 'bg-gray-100 text-gray-400',
+                : (isDark ? 'bg-white/5 text-slate-600' : 'bg-gray-100 text-gray-400'),
             )}>
               {d.slice(0, 2)}
             </span>
@@ -922,10 +1028,10 @@ function ScheduleDisplay({
         </div>
       )}
       {/* Sempre mostra um horário — sem restrição configurada = veiculação o dia inteiro */}
-      <p className="text-[11px] font-semibold text-gray-600">
+      <p className={cn('text-[11px] font-semibold', isDark ? 'text-slate-400' : 'text-gray-600')}>
         {hasCustomHours
-          ? <>{fmtHour(scheduleStartHour)} <span className="text-gray-400">→</span> {fmtHour(scheduleEndHour)}</>
-          : <>00:00 <span className="text-gray-400">→</span> 24:00 <span className="text-gray-400 font-medium">(dia todo)</span></>}
+          ? <>{fmtHour(scheduleStartHour)} <span className={arrowCls}>→</span> {fmtHour(scheduleEndHour)}</>
+          : <>00:00 <span className={arrowCls}>→</span> 24:00 <span className={cn('font-medium', arrowCls)}>(dia todo)</span></>}
       </p>
     </div>
   );
@@ -933,7 +1039,7 @@ function ScheduleDisplay({
 
 // ── Campaign Card ─────────────────────────────────────────────────
 
-function CampaignCard({ campaign, index }: { campaign: CampaignData; index: number }) {
+function CampaignCard({ campaign, index, isDark = false }: { campaign: CampaignData; index: number; isDark?: boolean }) {
   const [interestsExpanded, setInterestsExpanded] = useState(false);
   // FASE 14/14d — ângulo + fonte editáveis localmente sem recarregar a lista
   const [localAngle, setLocalAngle]             = useState<string | null>(campaign.declaredAngle ?? null);
@@ -951,21 +1057,28 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
   const totalAds  = campaign.adSets.reduce((n, as) => n + as.ads.length, 0);
   const network   = networkLabel(campaign);
 
+  const labelCls = cn('text-[9px] font-black uppercase tracking-widest mb-1.5', isDark ? 'text-slate-500' : 'text-gray-400');
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(index * 0.035, 0.25), type: 'spring', stiffness: 280, damping: 30 }}
-      className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden hover:shadow-md hover:border-gray-200 transition-all duration-200 flex flex-col"
+      className={cn(
+        'rounded-2xl shadow-sm overflow-hidden transition-all duration-200 flex flex-col border',
+        isDark
+          ? 'bg-navy-light border-[rgba(255,255,255,0.06)] hover:shadow-[0_4px_20px_rgba(0,0,0,0.25)] hover:border-white/10'
+          : 'bg-white border-gray-100 hover:shadow-md hover:border-gray-200',
+      )}
     >
       {/* ── Header ── */}
-      <div className="px-5 pt-5 pb-4 border-b border-gray-50">
+      <div className={cn('px-5 pt-5 pb-4 border-b', isDark ? 'border-[rgba(255,255,255,0.05)]' : 'border-gray-50')}>
         {/* Badges row */}
         <div className="flex items-start justify-between gap-2 mb-2.5">
           <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
-            <StatusBadge status={campaign.status} />
+            <StatusBadge status={campaign.status} isDark={isDark} />
             {campaign.lifecycleStatus && campaign.lifecycleStatus !== campaign.status && (
-              <StatusBadge status={campaign.lifecycleStatus} />
+              <StatusBadge status={campaign.lifecycleStatus} isDark={isDark} />
             )}
             {/* FASE 14/14d — ângulo de comunicação (sempre visível, editável inline) */}
             <AngleBadge
@@ -973,16 +1086,20 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
               angle={localAngle}
               angleSource={localAngleSource}
               onUpdated={(a, s) => { setLocalAngle(a); setLocalAngleSource(s); }}
+              isDark={isDark}
             />
-            {campaign.funnelStage && <FunnelBadge stage={campaign.funnelStage} />}
+            {campaign.funnelStage && <FunnelBadge stage={campaign.funnelStage} isDark={isDark} />}
           </div>
           {/* Network chip + Meta ID */}
           <div className="flex items-center gap-1.5 shrink-0">
-            <span className="px-2 py-0.5 bg-blue-50 border border-blue-200 rounded-md text-[10px] font-black text-blue-700 uppercase tracking-wider whitespace-nowrap">
+            <span className={cn('px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider whitespace-nowrap border', badgeCls('blue', isDark))}>
               {network}
             </span>
             {campaign.metaCampaignId && (
-              <span className="text-[9px] font-bold text-gray-400 bg-gray-50 border border-gray-200 rounded px-1.5 py-0.5 font-mono hidden sm:inline-block select-all">
+              <span className={cn(
+                'text-[9px] font-bold rounded px-1.5 py-0.5 font-mono hidden sm:inline-block select-all border',
+                isDark ? 'text-slate-500 bg-white/5 border-white/10' : 'text-gray-400 bg-gray-50 border-gray-200',
+              )}>
                 {campaign.metaCampaignId.slice(0, 12)}…
               </span>
             )}
@@ -990,14 +1107,14 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
         </div>
 
         {/* Campaign name */}
-        <h3 className="text-sm font-black text-gray-900 leading-snug mb-2">
-          <span className="text-gray-400 font-bold">CAMPANHA </span>
+        <h3 className={cn('text-sm font-black leading-snug mb-2', isDark ? 'text-slate-100' : 'text-gray-900')}>
+          <span className={cn('font-bold', isDark ? 'text-slate-500' : 'text-gray-400')}>CAMPANHA </span>
           {campaign.name}
         </h3>
 
         {/* Objetivo */}
         <div className="flex items-center gap-3 flex-wrap">
-          <span className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-[11px] font-bold text-indigo-700">
+          <span className={cn('flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold border', badgeCls('indigo', isDark))}>
             <RocketLaunchIcon className="h-3 w-3 shrink-0" />
             {objectiveLabel(campaign.objective)}
           </span>
@@ -1006,35 +1123,38 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
 
       {/* ── AdSet section ── */}
       {adSet && (
-        <div className="px-5 py-4 border-b border-gray-50 space-y-4 flex-1">
+        <div className={cn('px-5 py-4 border-b space-y-4 flex-1', isDark ? 'border-[rgba(255,255,255,0.05)]' : 'border-gray-50')}>
           {/* Budget, Criação & Período — mesmo peso visual nos 3 */}
           <div className="flex items-stretch gap-3">
-            <div className="flex-1 bg-gradient-to-br from-indigo-50 to-indigo-100/50 border border-indigo-100 rounded-xl px-3 py-2.5">
-              <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-0.5">
+            <div className={cn(
+              'flex-1 rounded-xl px-3 py-2.5 border',
+              isDark ? 'bg-indigo-500/10 border-indigo-500/20' : 'bg-gradient-to-br from-indigo-50 to-indigo-100/50 border-indigo-100',
+            )}>
+              <p className={cn('text-[9px] font-black uppercase tracking-widest mb-0.5', isDark ? 'text-indigo-400' : 'text-indigo-400')}>
                 Orçamento diário
               </p>
-              <p className="text-base font-black text-indigo-800 leading-tight">
+              <p className={cn('text-base font-black leading-tight', isDark ? 'text-indigo-300' : 'text-indigo-800')}>
                 {fmtBudget(adSet.dailyBudget)}
               </p>
             </div>
-            <div className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
-              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">
+            <div className={cn('flex-1 rounded-xl px-3 py-2.5 border', isDark ? 'bg-white/[0.03] border-white/5' : 'bg-slate-50 border-slate-100')}>
+              <p className={cn('text-[9px] font-black uppercase tracking-widest mb-0.5', isDark ? 'text-slate-500' : 'text-gray-400')}>
                 Criada em
               </p>
-              <p className="text-[11px] font-bold text-gray-700 leading-snug">
+              <p className={cn('text-[11px] font-bold leading-snug', isDark ? 'text-slate-300' : 'text-gray-700')}>
                 {fmtDate(campaign.createdAt)}
               </p>
             </div>
-            <div className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
-              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">
+            <div className={cn('flex-1 rounded-xl px-3 py-2.5 border', isDark ? 'bg-white/[0.03] border-white/5' : 'bg-slate-50 border-slate-100')}>
+              <p className={cn('text-[9px] font-black uppercase tracking-widest mb-0.5', isDark ? 'text-slate-500' : 'text-gray-400')}>
                 Período
               </p>
-              <p className="text-[11px] font-bold text-gray-700 leading-snug">
+              <p className={cn('text-[11px] font-bold leading-snug', isDark ? 'text-slate-300' : 'text-gray-700')}>
                 {fmtDate(adSet.startTime)}{' '}
-                <span className="text-gray-400">→</span>{' '}
+                <span className={isDark ? 'text-slate-600' : 'text-gray-400'}>→</span>{' '}
                 {adSet.endTime
-                  ? <span className="text-gray-700">{fmtDate(adSet.endTime)}</span>
-                  : <span className="text-gray-400 font-medium">sem data final</span>}
+                  ? <span className={isDark ? 'text-slate-300' : 'text-gray-700'}>{fmtDate(adSet.endTime)}</span>
+                  : <span className={cn('font-medium', isDark ? 'text-slate-600' : 'text-gray-400')}>sem data final</span>}
               </p>
             </div>
           </div>
@@ -1043,34 +1163,34 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
               filtro de período: cumulativo desde sempre até agora. "Campanhas Ativas" fica de
               fora (métrica de portfólio, não de campanha individual). */}
           {campaign.metrics && (
-            <div className="bg-slate-50/70 border border-slate-100 rounded-xl px-3 py-2.5">
-              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
+            <div className={cn('rounded-xl px-3 py-2.5 border', isDark ? 'bg-white/[0.02] border-white/5' : 'bg-slate-50/70 border-slate-100')}>
+              <p className={cn('text-[9px] font-black uppercase tracking-widest mb-1.5', isDark ? 'text-slate-500' : 'text-gray-400')}>
                 Desempenho Acumulado
               </p>
               <div className="grid grid-cols-4 gap-1.5">
-                <div className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-2 text-center">
-                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Gasto</p>
-                  <p className="text-[11px] font-black text-slate-800 mt-0.5 leading-tight">
+                <div className={cn('rounded-lg px-2 py-2 text-center border', isDark ? 'bg-white/[0.03] border-white/5' : 'bg-slate-50 border-slate-100')}>
+                  <p className={cn('text-[8px] font-black uppercase tracking-wider', isDark ? 'text-slate-500' : 'text-slate-400')}>Gasto</p>
+                  <p className={cn('text-[11px] font-black mt-0.5 leading-tight', isDark ? 'text-slate-200' : 'text-slate-800')}>
                     {fmtCurrency(campaign.metrics.spend)}
                   </p>
                 </div>
-                <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-2 py-2 text-center">
-                  <p className="text-[8px] font-black text-indigo-400 uppercase tracking-wider leading-tight">Sinais Interesse</p>
-                  <p className="text-[11px] font-black text-indigo-700 mt-0.5 leading-tight">
+                <div className={cn('rounded-lg px-2 py-2 text-center border', isDark ? 'bg-indigo-500/10 border-indigo-500/20' : 'bg-indigo-50 border-indigo-100')}>
+                  <p className={cn('text-[8px] font-black uppercase tracking-wider leading-tight', isDark ? 'text-indigo-400' : 'text-indigo-400')}>Sinais Interesse</p>
+                  <p className={cn('text-[11px] font-black mt-0.5 leading-tight', isDark ? 'text-indigo-300' : 'text-indigo-700')}>
                     {campaign.metrics.leads}
                   </p>
                 </div>
-                <div className="bg-teal-50 border border-teal-100 rounded-lg px-2 py-2 text-center">
-                  <p className="text-[8px] font-black text-teal-500 uppercase tracking-wider">Custo/Sinal</p>
-                  <p className="text-[11px] font-black text-teal-700 mt-0.5 leading-tight">
+                <div className={cn('rounded-lg px-2 py-2 text-center border', isDark ? 'bg-teal-500/10 border-teal-500/20' : 'bg-teal-50 border-teal-100')}>
+                  <p className={cn('text-[8px] font-black uppercase tracking-wider', isDark ? 'text-teal-400' : 'text-teal-500')}>Custo/Sinal</p>
+                  <p className={cn('text-[11px] font-black mt-0.5 leading-tight', isDark ? 'text-teal-300' : 'text-teal-700')}>
                     {campaign.metrics.cpl !== null ? fmtCurrency(campaign.metrics.cpl) : '—'}
                   </p>
                 </div>
-                <div className="bg-amber-50 border border-amber-100 rounded-lg px-2 py-2 text-center">
-                  <p className="text-[8px] font-black text-amber-500 uppercase tracking-wider">
+                <div className={cn('rounded-lg px-2 py-2 text-center border', isDark ? 'bg-amber-500/10 border-amber-500/20' : 'bg-amber-50 border-amber-100')}>
+                  <p className={cn('text-[8px] font-black uppercase tracking-wider', isDark ? 'text-amber-400' : 'text-amber-500')}>
                     {campaign.metrics.hookRate !== null ? 'Hook Rate' : 'CTR'}
                   </p>
-                  <p className="text-[11px] font-black text-amber-700 mt-0.5 leading-tight">
+                  <p className={cn('text-[11px] font-black mt-0.5 leading-tight', isDark ? 'text-amber-300' : 'text-amber-700')}>
                     {(campaign.metrics.hookRate ?? campaign.metrics.ctr) !== null
                       ? `${(campaign.metrics.hookRate ?? campaign.metrics.ctr)!.toFixed(2)}%`
                       : '—'}
@@ -1082,14 +1202,14 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
 
           {/* Público */}
           <div>
-            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
+            <p className={labelCls}>
               Público-alvo
             </p>
             <div className="flex flex-wrap gap-1.5">
-              <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-[11px] font-bold text-slate-700">
+              <span className={cn('px-2.5 py-1 rounded-lg text-[11px] font-bold', isDark ? 'bg-white/5 text-slate-300' : 'bg-slate-100 text-slate-700')}>
                 {adSet.ageMin}–{adSet.ageMax} anos
               </span>
-              <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-[11px] font-bold text-slate-700">
+              <span className={cn('px-2.5 py-1 rounded-lg text-[11px] font-bold', isDark ? 'bg-white/5 text-slate-300' : 'bg-slate-100 text-slate-700')}>
                 {genderLabel(adSet.genders)}
               </span>
             </div>
@@ -1099,10 +1219,10 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
               alcançado, é para QUAL AÇÃO o Meta otimiza a veiculação. */}
           {adSet.optimizationGoal && (
             <div>
-              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
+              <p className={labelCls}>
                 Otimizado para
               </p>
-              <span className="inline-block px-2.5 py-1 bg-slate-100 rounded-lg text-[11px] font-bold text-slate-700">
+              <span className={cn('inline-block px-2.5 py-1 rounded-lg text-[11px] font-bold', isDark ? 'bg-white/5 text-slate-300' : 'bg-slate-100 text-slate-700')}>
                 {adSet.optimizationGoal.replace(/_/g, ' ')}
               </span>
             </div>
@@ -1110,7 +1230,7 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
 
           {/* Programação */}
           <div>
-            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
+            <p className={labelCls}>
               Programação
             </p>
             <ScheduleDisplay
@@ -1118,22 +1238,23 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
               scheduleStartHour={adSet.scheduleStartHour}
               scheduleEndHour={adSet.scheduleEndHour}
               scheduleTimeSlots={adSet.scheduleTimeSlots}
+              isDark={isDark}
             />
           </div>
 
           {/* Localização */}
           <div>
-            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
+            <p className={labelCls}>
               Localização
             </p>
             <div className="flex flex-wrap gap-1">
               {locations.slice(0, 5).map((loc, i) => (
-                <span key={i} className="flex items-center gap-1 px-2 py-0.5 bg-sky-50 border border-sky-200 rounded-md text-[10px] font-bold text-sky-700">
+                <span key={i} className={cn('flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border', badgeCls('sky', isDark))}>
                   <MapPinIcon className="h-2.5 w-2.5 shrink-0" />{loc}
                 </span>
               ))}
               {locations.length > 5 && (
-                <span className="px-2 py-0.5 bg-gray-100 rounded-md text-[10px] font-bold text-gray-500">
+                <span className={cn('px-2 py-0.5 rounded-md text-[10px] font-bold', isDark ? 'bg-white/5 text-slate-400' : 'bg-gray-100 text-gray-500')}>
                   +{locations.length - 5}
                 </span>
               )}
@@ -1147,14 +1268,18 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
                 onClick={() => setInterestsExpanded(p => !p)}
                 className="flex items-center gap-1.5 mb-1.5 group"
               >
-                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest group-hover:text-gray-600 transition-colors">
+                <p className={cn(
+                  'text-[9px] font-black uppercase tracking-widest transition-colors',
+                  isDark ? 'text-slate-500 group-hover:text-slate-300' : 'text-gray-400 group-hover:text-gray-600',
+                )}>
                   Interesses
                 </p>
-                <span className="text-[9px] font-bold text-gray-400 bg-gray-100 rounded-full px-1.5 py-0.5">
+                <span className={cn('text-[9px] font-bold rounded-full px-1.5 py-0.5', isDark ? 'bg-white/5 text-slate-500' : 'bg-gray-100 text-gray-400')}>
                   {interests.length}
                 </span>
                 <ChevronDownIcon className={cn(
-                  'h-3 w-3 text-gray-400 transition-transform',
+                  'h-3 w-3 transition-transform',
+                  isDark ? 'text-slate-500' : 'text-gray-400',
                   interestsExpanded && 'rotate-180',
                 )} />
               </button>
@@ -1168,7 +1293,7 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
                   >
                     <div className="flex flex-wrap gap-1 pt-0.5">
                       {interests.map((int, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-violet-50 border border-violet-200 rounded-md text-[10px] font-bold text-violet-700">
+                        <span key={i} className={cn('px-2 py-0.5 rounded-md text-[10px] font-bold border', badgeCls('violet', isDark))}>
                           {int}
                         </span>
                       ))}
@@ -1179,14 +1304,17 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
               {!interestsExpanded && (
                 <div className="flex flex-wrap gap-1">
                   {interests.slice(0, 4).map((int, i) => (
-                    <span key={i} className="px-2 py-0.5 bg-violet-50 border border-violet-200 rounded-md text-[10px] font-bold text-violet-700">
+                    <span key={i} className={cn('px-2 py-0.5 rounded-md text-[10px] font-bold border', badgeCls('violet', isDark))}>
                       {int}
                     </span>
                   ))}
                   {interests.length > 4 && (
                     <button
                       onClick={() => setInterestsExpanded(true)}
-                      className="px-2 py-0.5 bg-gray-100 hover:bg-violet-50 rounded-md text-[10px] font-bold text-gray-500 hover:text-violet-700 transition-colors"
+                      className={cn(
+                        'px-2 py-0.5 rounded-md text-[10px] font-bold transition-colors',
+                        isDark ? 'bg-white/5 text-slate-400 hover:bg-violet-500/10 hover:text-violet-400' : 'bg-gray-100 text-gray-500 hover:bg-violet-50 hover:text-violet-700',
+                      )}
                     >
                       +{interests.length - 4} mais
                     </button>
@@ -1199,16 +1327,16 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
       )}
 
       {/* ── Criativos ── */}
-      <div className="px-5 py-4 bg-gradient-to-b from-white to-gray-50/50">
-        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2.5">
+      <div className={cn('px-5 py-4', isDark ? 'bg-white/[0.015]' : 'bg-gradient-to-b from-white to-gray-50/50')}>
+        <p className={cn('text-[9px] font-black uppercase tracking-widest mb-2.5', isDark ? 'text-slate-500' : 'text-gray-400')}>
           Criativos
           {totalAds > 0 && (
-            <span className="ml-1.5 px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-bold">
+            <span className={cn('ml-1.5 px-1.5 py-0.5 rounded font-bold', isDark ? 'bg-white/5 text-slate-400' : 'bg-gray-100 text-gray-500')}>
               {totalAds} anúncio{totalAds !== 1 ? 's' : ''}
             </span>
           )}
         </p>
-        <CreativesStrip ads={allAds} />
+        <CreativesStrip ads={allAds} isDark={isDark} />
       </div>
     </motion.div>
   );
@@ -1216,37 +1344,40 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
 
 // ── Skeleton ──────────────────────────────────────────────────────
 
-function CardSkeleton() {
+function CardSkeleton({ isDark = false }: { isDark?: boolean }) {
+  const block  = isDark ? 'bg-white/5' : 'bg-gray-100';
+  const border = isDark ? 'border-[rgba(255,255,255,0.06)]' : 'border-gray-100';
+  const divider = isDark ? 'border-[rgba(255,255,255,0.05)]' : 'border-gray-50';
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden animate-pulse">
-      <div className="px-5 pt-5 pb-4 border-b border-gray-50 space-y-3">
+    <div className={cn('rounded-2xl shadow-sm overflow-hidden animate-pulse border', isDark ? 'bg-navy-light' : 'bg-white', border)}>
+      <div className={cn('px-5 pt-5 pb-4 border-b space-y-3', divider)}>
         <div className="flex justify-between gap-3">
           <div className="flex gap-2">
-            <div className="h-5 w-14 bg-gray-100 rounded-md" />
-            <div className="h-5 w-20 bg-gray-100 rounded-md" />
+            <div className={cn('h-5 w-14 rounded-md', block)} />
+            <div className={cn('h-5 w-20 rounded-md', block)} />
           </div>
-          <div className="h-5 w-16 bg-blue-50 rounded-md" />
+          <div className={cn('h-5 w-16 rounded-md', isDark ? 'bg-blue-500/10' : 'bg-blue-50')} />
         </div>
-        <div className="h-4 w-52 bg-gray-100 rounded" />
-        <div className="h-6 w-36 bg-indigo-50 rounded-lg" />
+        <div className={cn('h-4 w-52 rounded', block)} />
+        <div className={cn('h-6 w-36 rounded-lg', isDark ? 'bg-indigo-500/10' : 'bg-indigo-50')} />
       </div>
       <div className="px-5 py-4 space-y-4">
         <div className="flex gap-3">
-          <div className="flex-1 h-16 bg-indigo-50/60 rounded-xl" />
-          <div className="flex-1 h-16 bg-slate-50 rounded-xl" />
+          <div className={cn('flex-1 h-16 rounded-xl', isDark ? 'bg-indigo-500/10' : 'bg-indigo-50/60')} />
+          <div className={cn('flex-1 h-16 rounded-xl', isDark ? 'bg-white/[0.03]' : 'bg-slate-50')} />
         </div>
         <div className="space-y-1.5">
-          <div className="h-2.5 w-20 bg-gray-100 rounded" />
+          <div className={cn('h-2.5 w-20 rounded', block)} />
           <div className="flex gap-1">
-            {[0,1,2,3,4,5,6].map(i => <div key={i} className="w-7 h-7 bg-gray-100 rounded-md" />)}
+            {[0,1,2,3,4,5,6].map(i => <div key={i} className={cn('w-7 h-7 rounded-md', block)} />)}
           </div>
         </div>
-        <div className="h-3 w-32 bg-gray-100 rounded" />
+        <div className={cn('h-3 w-32 rounded', block)} />
       </div>
-      <div className="px-5 py-4 border-t border-gray-50 space-y-3">
-        <div className="h-16 w-full bg-slate-50 rounded-xl" />
+      <div className={cn('px-5 py-4 border-t space-y-3', divider)}>
+        <div className={cn('h-16 w-full rounded-xl', isDark ? 'bg-white/[0.03]' : 'bg-slate-50')} />
         <div className="flex gap-2">
-          {[1, 2, 3].map(i => <div key={i} className="w-[68px] h-[68px] bg-gray-100 rounded-xl" />)}
+          {[1, 2, 3].map(i => <div key={i} className={cn('w-[68px] h-[68px] rounded-xl', block)} />)}
         </div>
       </div>
     </div>
@@ -1256,8 +1387,8 @@ function CardSkeleton() {
 // ── Pagination ────────────────────────────────────────────────────
 
 function Pagination({
-  total, page, perPage, onChange,
-}: { total: number; page: number; perPage: number; onChange: (p: number) => void }) {
+  total, page, perPage, onChange, isDark = false,
+}: { total: number; page: number; perPage: number; onChange: (p: number) => void; isDark?: boolean }) {
   const pages = Math.ceil(total / perPage);
   if (pages <= 1) return null;
 
@@ -1273,21 +1404,24 @@ function Pagination({
   }
 
   return (
-    <div className="flex items-center justify-between mt-10 pt-6 border-t border-gray-200">
-      <p className="text-xs font-medium text-gray-500">
+    <div className={cn('flex items-center justify-between mt-10 pt-6 border-t', isDark ? 'border-[rgba(255,255,255,0.08)]' : 'border-gray-200')}>
+      <p className={cn('text-xs font-medium', isDark ? 'text-slate-500' : 'text-gray-500')}>
         Mostrando {Math.min((page - 1) * perPage + 1, total)}–{Math.min(page * perPage, total)} de {total} campanha{total !== 1 ? 's' : ''}
       </p>
       <div className="flex items-center gap-1">
         <button
           onClick={() => onChange(page - 1)}
           disabled={page === 1}
-          className="p-2 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+          className={cn(
+            'p-2 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed',
+            isDark ? 'text-slate-500 hover:text-white hover:bg-white/5' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100',
+          )}
         >
           <ChevronLeftIcon className="h-4 w-4" />
         </button>
         {pageNums.map((n, i) =>
           n === '…' ? (
-            <span key={`ellipsis-${i}`} className="px-1 text-gray-400 text-sm select-none">…</span>
+            <span key={`ellipsis-${i}`} className={cn('px-1 text-sm select-none', isDark ? 'text-slate-600' : 'text-gray-400')}>…</span>
           ) : (
             <button
               key={n}
@@ -1296,7 +1430,7 @@ function Pagination({
                 'w-8 h-8 rounded-lg text-sm font-bold transition-all',
                 n === page
                   ? 'bg-gold-premium text-navy-dark shadow-sm shadow-gold-premium/30'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
+                  : (isDark ? 'text-slate-400 hover:bg-white/5 hover:text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'),
               )}
             >
               {n}
@@ -1306,7 +1440,10 @@ function Pagination({
         <button
           onClick={() => onChange(page + 1)}
           disabled={page === pages}
-          className="p-2 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+          className={cn(
+            'p-2 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed',
+            isDark ? 'text-slate-500 hover:text-white hover:bg-white/5' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100',
+          )}
         >
           <ChevronRightIcon className="h-4 w-4" />
         </button>
@@ -1326,6 +1463,20 @@ export interface CampanhasModalProps {
   clientName?: string;
   /** Se true, não aplica filtro de clientId (master vê tudo) */
   isMaster?: boolean;
+  /** Tema claro/escuro do chamador — /admin/campanhas/nova não tem toggle de tema (sempre
+   * claro, default false); /admin/campanhas/dashboard repassa o próprio isDark ativo. */
+  isDark?: boolean;
+  /** Filtros ativos da página que abriu o modal — todos opcionais e só preenchidos por
+   * /admin/campanhas/dashboard (que tem período/rede/campanha na própria tela); /nova nunca
+   * passa nenhum destes, então o modal continua exatamente como antes lá (sem filtro nenhum
+   * ao abrir). Servem só como VALOR INICIAL — o usuário pode ajustar/limpar livremente dentro
+   * do modal sem afetar a página de origem (mesmo princípio já usado pro pivot de cliente). */
+  initialPeriodStart?: string | null;
+  initialPeriodEnd?: string | null;
+  /** Código de rede (meta/google/tiktok...) ativo no filtro da página, se houver. */
+  initialNetwork?: string | null;
+  /** Campanha única selecionada no filtro da página, se houver — escopa a lista a só ela. */
+  initialCampaignId?: string | null;
 }
 
 // Presets de período — mesma lógica de "Hoje/7d/15d/30d" do dashboard, adaptados
@@ -1338,13 +1489,18 @@ const PERIOD_PRESETS = [
 ];
 
 export default function CampanhasModal({
-  isOpen, onClose, effectiveClientId, campaignFor, clientName, isMaster = false,
+  isOpen, onClose, effectiveClientId, campaignFor, clientName, isMaster = false, isDark = false,
+  initialPeriodStart = null, initialPeriodEnd = null, initialNetwork = null, initialCampaignId = null,
 }: CampanhasModalProps) {
   const [campaigns, setCampaigns] = useState<CampaignData[]>([]);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
   const [search, setSearch]       = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [networkFilter, setNetworkFilter] = useState<string>('');
+  // Escopo a 1 campanha só (herdado do filtro da página) — diferente de `search`, que é
+  // texto livre; este é um id exato, com affordance própria pra limpar (ver JSX abaixo).
+  const [campaignIdFilter, setCampaignIdFilter] = useState<string | null>(null);
   const [page, setPage]           = useState(1);
   // FASE 14d — classificação em lote
   const [showClassifyModal, setShowClassifyModal] = useState(false);
@@ -1396,14 +1552,25 @@ export default function CampanhasModal({
     }
   }, [localClientFilter, isMaster]);
 
-  // Reseta o estado do modal só na transição de abertura — pivotar cliente/período
-  // DENTRO do modal já aberto não deve reiniciar busca/status/página sozinho.
+  // Reseta o estado do modal só na transição de abertura — pivotar cliente/período/rede/
+  // campanha DENTRO do modal já aberto não deve reiniciar busca/status/página sozinho.
+  // Período/rede/campanha nascem com o valor ATIVO na página de origem (initialX props) —
+  // nunca travados nele: o usuário pode ajustar ou limpar livremente aqui dentro sem
+  // nenhum efeito na página por trás (mesmo princípio já usado pro pivot de cliente).
   useEffect(() => {
     if (isOpen) {
       setLocalClientFilter(campaignFor === 'client' && effectiveClientId ? effectiveClientId : 'own');
       setSearch('');
       setStatusFilter('');
-      clearPeriod();
+      setNetworkFilter(initialNetwork || '');
+      setCampaignIdFilter(initialCampaignId || null);
+      if (initialPeriodStart && initialPeriodEnd) {
+        setQuickPeriod('');
+        setPeriodStart(initialPeriodStart);
+        setPeriodEnd(initialPeriodEnd);
+      } else {
+        clearPeriod();
+      }
       setPage(1);
       setClassifyDismissed(false);
     }
@@ -1437,7 +1604,7 @@ export default function CampanhasModal({
   }, [isOpen, isMaster]);
 
   // Reset to page 1 when filters change
-  useEffect(() => { setPage(1); }, [search, statusFilter, periodStart, periodEnd]);
+  useEffect(() => { setPage(1); }, [search, statusFilter, networkFilter, campaignIdFilter, periodStart, periodEnd]);
 
   // Close on Escape
   useEffect(() => {
@@ -1446,6 +1613,22 @@ export default function CampanhasModal({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [isOpen, onClose]);
+
+  // Trava o scroll da página de baixo enquanto o modal (fixed inset-0, tela cheia) está
+  // aberto e restaura exatamente a posição de scroll anterior ao fechar — sem isso, a
+  // página por trás podia ser rolada (scroll chaining) enquanto o modal estava aberto, e ao
+  // fechar o usuário caía numa posição diferente de onde tinha saído, dando a impressão de
+  // "não retornou pra página de onde veio".
+  useEffect(() => {
+    if (!isOpen) return;
+    const scrollY = window.scrollY;
+    const { overflow } = document.body.style;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = overflow;
+      window.scrollTo(0, scrollY);
+    };
+  }, [isOpen]);
 
   // FASE 14d — contagem para o banner de classificação
   const unclassifiedCount = campaigns.filter(c => !c.declaredAngle).length;
@@ -1467,14 +1650,28 @@ export default function CampanhasModal({
     });
   }
 
-  const hasActiveFilters = !!(search || statusFilter || periodStart || periodEnd);
+  const hasActiveFilters = !!(search || statusFilter || networkFilter || campaignIdFilter || periodStart || periodEnd);
 
   const filtered = campaigns.filter(c => {
-    const matchSearch  = !search       || c.name.toLowerCase().includes(search.trim().toLowerCase());
-    const matchStatus  = !statusFilter || c.status === statusFilter;
-    const matchPeriod  = overlapsPeriod(c);
-    return matchSearch && matchStatus && matchPeriod;
+    const matchSearch   = !search          || c.name.toLowerCase().includes(search.trim().toLowerCase());
+    const matchStatus   = !statusFilter    || c.status === statusFilter;
+    const matchNetwork  = !networkFilter   || (c.networkCode ?? 'meta') === networkFilter;
+    const matchCampaign = !campaignIdFilter || c.id === campaignIdFilter;
+    const matchPeriod   = overlapsPeriod(c);
+    return matchSearch && matchStatus && matchNetwork && matchCampaign && matchPeriod;
   });
+
+  // Redes realmente presentes no conjunto carregado — o seletor só aparece com ≥2 (mesmo
+  // gate já usado no filtro de rede da página principal: 1 rede só seria ruído).
+  const availableNetworkCodes = Array.from(new Set(campaigns.map(c => c.networkCode ?? 'meta'))).sort();
+
+  function clearAllFilters() {
+    setSearch('');
+    setStatusFilter('');
+    setNetworkFilter('');
+    setCampaignIdFilter(null);
+    clearPeriod();
+  }
 
   const totalFiltered = filtered.length;
   const paginated     = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
@@ -1499,43 +1696,58 @@ export default function CampanhasModal({
     : pivotedClientName || 'Minha Empresa';
 
   return (
-    <AnimatePresence>
-      {isOpen && (
+    <>
+    {/* Sem AnimatePresence/exit de propósito — confirmado ao vivo (framer-motion 11, este
+        componente) que a animação de saída às vezes nunca dispara o callback que faz o
+        AnimatePresence desmontar o nó: o overlay fica pra sempre no DOM em opacity:0,
+        invisível mas ainda com pointer-events, bloqueando qualquer clique no resto da
+        página por trás — exatamente o sintoma relatado ("Retornar não volta pra página
+        anterior", já que a página de fato está lá, só inacessível). `isOpen && (...)` sem
+        AnimatePresence garante desmontagem instantânea e incondicional no fechamento —
+        perde só a animação de saída (150ms), mantém a de entrada. */}
+    {isOpen && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
-          className="fixed inset-0 z-50 flex flex-col bg-gray-950/50 backdrop-blur-[2px]"
+          className="fixed inset-0 z-50 flex flex-col bg-gray-950/50"
         >
           <motion.div
             initial={{ opacity: 0, y: 28, scale: 0.99 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.99 }}
             transition={{ type: 'spring', stiffness: 300, damping: 32 }}
-            className="flex flex-col w-full h-full bg-gray-50 overflow-hidden"
+            className={cn('flex flex-col w-full h-full overflow-hidden', isDark ? 'bg-navy' : 'bg-gray-50')}
           >
             {/* ── Modal header ── */}
-            <div className="shrink-0 bg-white border-b border-gray-100 shadow-[0_1px_4px_rgba(0,0,0,.06)]">
+            <div className={cn(
+              'shrink-0 border-b',
+              isDark ? 'bg-navy-light border-[rgba(255,255,255,0.06)]' : 'bg-white border-gray-100 shadow-[0_1px_4px_rgba(0,0,0,.06)]',
+            )}>
               <div className="max-w-7xl mx-auto px-6 py-4">
                 <div className="flex items-center justify-between gap-4">
                   {/* ← Retornar + title */}
                   <div className="flex items-center gap-4 min-w-0">
                     <button
+                      type="button"
                       onClick={onClose}
-                      className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-black text-gray-600 border border-gray-200 hover:border-gray-300 hover:text-gray-900 hover:bg-gray-50 transition-all shrink-0 active:scale-95"
+                      className={cn(
+                        'flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-black border transition-all shrink-0 active:scale-95',
+                        isDark
+                          ? 'text-slate-300 border-white/10 hover:border-white/20 hover:text-white hover:bg-white/5'
+                          : 'text-gray-600 border-gray-200 hover:border-gray-300 hover:text-gray-900 hover:bg-gray-50',
+                      )}
                     >
                       <ArrowLeftIcon className="h-4 w-4" />
                       Retornar
                     </button>
                     <div className="min-w-0">
-                      <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.3em] mb-0.5">
+                      <p className={cn('text-[10px] font-black uppercase tracking-[0.3em] mb-0.5', isDark ? 'text-indigo-400' : 'text-indigo-600')}>
                         {contextSubtitle}
                       </p>
-                      <h2 className="text-xl font-black text-gray-900 tracking-tight flex items-baseline gap-2">
+                      <h2 className={cn('text-xl font-black tracking-tight flex items-baseline gap-2', isDark ? 'text-slate-100' : 'text-gray-900')}>
                         {contextTitle}
                         {!loading && campaigns.length > 0 && (
-                          <span className="text-sm font-bold text-gray-400">
+                          <span className={cn('text-sm font-bold', isDark ? 'text-slate-500' : 'text-gray-400')}>
                             ({totalFiltered}
                             {totalFiltered !== campaigns.length && `/${campaigns.length}`})
                           </span>
@@ -1548,14 +1760,17 @@ export default function CampanhasModal({
                   <div className="flex items-center gap-2 shrink-0">
                     {/* Busca por nome (texto livre — filtra por substring, pode retornar 0) */}
                     <div className="relative hidden md:block">
-                      <MagnifyingGlassIcon className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                      <MagnifyingGlassIcon className={cn('pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5', isDark ? 'text-slate-500' : 'text-gray-400')} />
                       <input
                         type="text"
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                         disabled={loading || campaigns.length === 0}
                         placeholder={loading ? 'Carregando…' : `Buscar por nome (${campaigns.length})`}
-                        className="py-2 pl-8 pr-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed w-[220px]"
+                        className={cn(
+                          'py-2 pl-8 pr-3 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed w-[220px] border',
+                          isDark ? 'bg-black/20 border-white/10 text-slate-200 placeholder:text-slate-600' : 'bg-gray-50 border-gray-200 text-gray-700',
+                        )}
                       />
                     </div>
 
@@ -1564,7 +1779,10 @@ export default function CampanhasModal({
                       <select
                         value={statusFilter}
                         onChange={e => setStatusFilter(e.target.value)}
-                        className="py-2 pl-3 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all appearance-none shadow-sm cursor-pointer"
+                        className={cn(
+                          'py-2 pl-3 pr-8 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all appearance-none shadow-sm cursor-pointer border',
+                          isDark ? 'bg-black/20 border-white/10 text-slate-200' : 'bg-gray-50 border-gray-200 text-gray-700',
+                        )}
                       >
                         <option value="">Todos status</option>
                         <option value="ACTIVE">Ativas</option>
@@ -1572,14 +1790,38 @@ export default function CampanhasModal({
                         <option value="ARCHIVED">Arquivadas</option>
                         <option value="DELETED">Removidas</option>
                       </select>
-                      <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                      <ChevronDownIcon className={cn('pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5', isDark ? 'text-slate-500' : 'text-gray-400')} />
                     </div>
+
+                    {/* Rede filter — só aparece com ≥2 redes reais no conjunto carregado,
+                        mesmo gate já usado no filtro de rede da página principal. */}
+                    {availableNetworkCodes.length > 1 && (
+                      <div className="relative hidden md:block">
+                        <select
+                          value={networkFilter}
+                          onChange={e => setNetworkFilter(e.target.value)}
+                          className={cn(
+                            'py-2 pl-3 pr-8 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all appearance-none shadow-sm cursor-pointer border',
+                            isDark ? 'bg-black/20 border-white/10 text-slate-200' : 'bg-gray-50 border-gray-200 text-gray-700',
+                          )}
+                        >
+                          <option value="">Todas redes</option>
+                          {availableNetworkCodes.map(code => (
+                            <option key={code} value={code}>{NETWORK_LABELS[code] ?? code}</option>
+                          ))}
+                        </select>
+                        <ChevronDownIcon className={cn('pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5', isDark ? 'text-slate-500' : 'text-gray-400')} />
+                      </div>
+                    )}
 
                     {/* Refresh */}
                     <button
                       onClick={fetchCampaigns}
                       disabled={loading}
-                      className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all disabled:opacity-40"
+                      className={cn(
+                        'p-2 rounded-xl transition-all disabled:opacity-40',
+                        isDark ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100',
+                      )}
                       title="Atualizar lista"
                     >
                       <ArrowPathIcon className={cn('h-5 w-5', loading && 'animate-spin')} />
@@ -1590,46 +1832,75 @@ export default function CampanhasModal({
                 {/* Mobile filters */}
                 <div className="mt-3 md:hidden flex gap-2">
                   <div className="relative flex-1">
-                    <MagnifyingGlassIcon className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                    <MagnifyingGlassIcon className={cn('pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5', isDark ? 'text-slate-500' : 'text-gray-400')} />
                     <input
                       type="text"
                       value={search}
                       onChange={e => setSearch(e.target.value)}
                       disabled={loading || campaigns.length === 0}
                       placeholder={loading ? 'Carregando…' : 'Buscar por nome'}
-                      className="w-full py-2.5 pl-8 pr-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:opacity-50"
+                      className={cn(
+                        'w-full py-2.5 pl-8 pr-3 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:opacity-50 border',
+                        isDark ? 'bg-black/20 border-white/10 text-slate-200' : 'bg-gray-50 border-gray-200 text-gray-700',
+                      )}
                     />
                   </div>
                   <div className="relative">
                     <select
                       value={statusFilter}
                       onChange={e => setStatusFilter(e.target.value)}
-                      className="h-full py-2 pl-3 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-600 appearance-none cursor-pointer"
+                      className={cn(
+                        'h-full py-2 pl-3 pr-8 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-600 appearance-none cursor-pointer border',
+                        isDark ? 'bg-black/20 border-white/10 text-slate-200' : 'bg-gray-50 border-gray-200',
+                      )}
                     >
                       <option value="">Status</option>
                       <option value="ACTIVE">Ativas</option>
                       <option value="PAUSED">Pausadas</option>
                       <option value="ARCHIVED">Arquivadas</option>
                     </select>
-                    <ChevronDownIcon className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                    <ChevronDownIcon className={cn('pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5', isDark ? 'text-slate-500' : 'text-gray-400')} />
                   </div>
                 </div>
 
-                {/* ── Pivot: Cliente + Período de veiculação ── */}
-                <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-4 flex-wrap">
-                  {!isMaster && (
-                    <ClientSelector
-                      value={localClientFilter}
-                      onChange={setLocalClientFilter}
-                      clients={clientOptions}
-                      loading={clientsLoading}
-                      variant="toggle"
-                    />
-                  )}
+                {/* ── Pivot: Cliente + Campanha (herdada) + Período de veiculação ── */}
+                <div className={cn('mt-3 pt-3 border-t flex items-center justify-between gap-4 flex-wrap', isDark ? 'border-[rgba(255,255,255,0.06)]' : 'border-gray-100')}>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {!isMaster && (
+                      <ClientSelector
+                        value={localClientFilter}
+                        onChange={setLocalClientFilter}
+                        clients={clientOptions}
+                        loading={clientsLoading}
+                        variant="toggle"
+                      />
+                    )}
+
+                    {/* Escopo de campanha herdado do filtro da página — nunca criado aqui
+                        dentro, só removível (botão "Ver todas") pra não duplicar o seletor
+                        de campanha que já existe na página de origem. */}
+                    {campaignIdFilter && (
+                      <div className={cn(
+                        'flex items-center gap-2 rounded-xl px-3 py-1.5 border text-xs font-bold',
+                        isDark ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300' : 'bg-indigo-50 border-indigo-200 text-indigo-700',
+                      )}>
+                        <span className="truncate max-w-[200px]">
+                          Campanha: {campaigns.find(c => c.id === campaignIdFilter)?.name ?? '—'}
+                        </span>
+                        <button
+                          onClick={() => setCampaignIdFilter(null)}
+                          title="Ver todas as campanhas"
+                          className={cn('shrink-0', isDark ? 'text-indigo-400 hover:text-indigo-200' : 'text-indigo-500 hover:text-indigo-800')}
+                        >
+                          <XMarkIcon className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Container discreto — agrupa label + range + presets do período */}
-                  <div className="flex flex-col gap-1.5 bg-gray-50/70 border border-gray-100 rounded-xl px-3 py-2">
-                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                  <div className={cn('flex flex-col gap-1.5 rounded-xl px-3 py-2 border', isDark ? 'bg-black/20 border-white/5' : 'bg-gray-50/70 border-gray-100')}>
+                    <span className={cn('text-[9px] font-black uppercase tracking-widest', isDark ? 'text-slate-500' : 'text-gray-400')}>
                       Período de veiculação
                     </span>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -1642,18 +1913,24 @@ export default function CampanhasModal({
                         <DateInputPtBR
                           value={periodStart}
                           onChange={iso => { setPeriodStart(iso); setQuickPeriod(''); }}
-                          className="w-full py-2 pl-3 pr-7 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
+                          className={cn(
+                            'w-full py-2 pl-3 pr-7 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all border',
+                            isDark ? 'bg-navy-light border-white/10 text-slate-200' : 'bg-white border-gray-200 text-gray-700',
+                          )}
                         />
                       </div>
-                      <span className="text-gray-300 text-xs font-bold">→</span>
+                      <span className={cn('text-xs font-bold', isDark ? 'text-slate-600' : 'text-gray-300')}>→</span>
                       <div className="w-[120px] shrink-0">
                         <DateInputPtBR
                           value={periodEnd}
                           onChange={iso => { setPeriodEnd(iso); setQuickPeriod(''); }}
-                          className="w-full py-2 pl-3 pr-7 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
+                          className={cn(
+                            'w-full py-2 pl-3 pr-7 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all border',
+                            isDark ? 'bg-navy-light border-white/10 text-slate-200' : 'bg-white border-gray-200 text-gray-700',
+                          )}
                         />
                       </div>
-                      <div className="flex gap-1 rounded-lg p-1 border border-gray-200 bg-white">
+                      <div className={cn('flex gap-1 rounded-lg p-1 border', isDark ? 'border-white/10 bg-navy-light' : 'border-gray-200 bg-white')}>
                         {PERIOD_PRESETS.map(p => (
                           <button
                             key={p.value}
@@ -1662,7 +1939,7 @@ export default function CampanhasModal({
                               'px-2.5 py-1.5 rounded-md text-xs font-black transition-colors',
                               quickPeriod === p.value
                                 ? 'bg-gold-premium text-navy-dark'
-                                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50',
+                                : (isDark ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'),
                             )}
                           >
                             {p.label}
@@ -1673,7 +1950,10 @@ export default function CampanhasModal({
                         <button
                           onClick={clearPeriod}
                           title="Limpar período"
-                          className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-white rounded-lg transition-all"
+                          className={cn(
+                            'p-1.5 rounded-lg transition-all',
+                            isDark ? 'text-slate-500 hover:text-slate-200 hover:bg-white/5' : 'text-gray-400 hover:text-gray-700 hover:bg-white',
+                          )}
                         >
                           <XMarkIcon className="h-3.5 w-3.5" />
                         </button>
@@ -1690,15 +1970,18 @@ export default function CampanhasModal({
 
                 {/* Error */}
                 {error && (
-                  <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-2xl px-5 py-4 mb-8">
-                    <ExclamationCircleIcon className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+                  <div className={cn(
+                    'flex items-start gap-3 rounded-2xl px-5 py-4 mb-8 border',
+                    isDark ? 'bg-red-500/10 border-red-500/30' : 'bg-red-50 border-red-200',
+                  )}>
+                    <ExclamationCircleIcon className={cn('h-5 w-5 shrink-0 mt-0.5', isDark ? 'text-red-400' : 'text-red-500')} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-red-700">Erro ao carregar campanhas</p>
-                      <p className="text-xs text-red-500 mt-0.5 break-words">{error}</p>
+                      <p className={cn('text-sm font-bold', isDark ? 'text-red-400' : 'text-red-700')}>Erro ao carregar campanhas</p>
+                      <p className={cn('text-xs mt-0.5 break-words', isDark ? 'text-red-500' : 'text-red-500')}>{error}</p>
                     </div>
                     <button
                       onClick={fetchCampaigns}
-                      className="shrink-0 text-xs font-black text-red-600 hover:text-red-800 uppercase tracking-widest transition-colors"
+                      className={cn('shrink-0 text-xs font-black uppercase tracking-widest transition-colors', isDark ? 'text-red-400 hover:text-red-300' : 'text-red-600 hover:text-red-800')}
                     >
                       Tentar novamente
                     </button>
@@ -1711,26 +1994,30 @@ export default function CampanhasModal({
                     count={unclassifiedCount}
                     onClassify={() => setShowClassifyModal(true)}
                     onDismiss={() => setClassifyDismissed(true)}
+                    isDark={isDark}
                   />
                 )}
 
                 {/* Skeletons */}
                 {loading && (
                   <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {[1,2,3,4,5,6].map(i => <CardSkeleton key={i} />)}
+                    {[1,2,3,4,5,6].map(i => <CardSkeleton key={i} isDark={isDark} />)}
                   </div>
                 )}
 
                 {/* Empty state */}
                 {!loading && !error && totalFiltered === 0 && (
                   <div className="flex flex-col items-center justify-center py-28 text-center">
-                    <div className="w-24 h-24 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-3xl flex items-center justify-center mb-6 shadow-sm">
-                      <RocketLaunchIcon className="h-12 w-12 text-indigo-300" />
+                    <div className={cn(
+                      'w-24 h-24 rounded-3xl flex items-center justify-center mb-6 shadow-sm',
+                      isDark ? 'bg-indigo-500/10' : 'bg-gradient-to-br from-indigo-50 to-indigo-100',
+                    )}>
+                      <RocketLaunchIcon className={cn('h-12 w-12', isDark ? 'text-indigo-400' : 'text-indigo-300')} />
                     </div>
-                    <p className="text-lg font-black text-gray-700 mb-2">
+                    <p className={cn('text-lg font-black mb-2', isDark ? 'text-slate-200' : 'text-gray-700')}>
                       {hasActiveFilters ? 'Nenhuma campanha encontrada' : 'Nenhuma campanha lançada ainda'}
                     </p>
-                    <p className="text-sm text-gray-400 max-w-xs leading-relaxed">
+                    <p className={cn('text-sm max-w-xs leading-relaxed', isDark ? 'text-slate-500' : 'text-gray-400')}>
                       {hasActiveFilters
                         ? 'Ajuste os filtros de busca, status ou período.'
                         : `Use "Configurar Campanha" para lançar ${
@@ -1739,8 +2026,11 @@ export default function CampanhasModal({
                     </p>
                     {hasActiveFilters && (
                       <button
-                        onClick={() => { setSearch(''); setStatusFilter(''); clearPeriod(); }}
-                        className="mt-5 px-5 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:border-gray-300 hover:text-gray-900 transition-all shadow-sm"
+                        onClick={clearAllFilters}
+                        className={cn(
+                          'mt-5 px-5 py-2 rounded-xl text-sm font-bold transition-all shadow-sm border',
+                          isDark ? 'bg-white/5 border-white/10 text-slate-300 hover:border-white/20 hover:text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-900',
+                        )}
                       >
                         Limpar filtros
                       </button>
@@ -1753,7 +2043,7 @@ export default function CampanhasModal({
                   <>
                     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                       {paginated.map((campaign, i) => (
-                        <CampaignCard key={campaign.id} campaign={campaign} index={i} />
+                        <CampaignCard key={campaign.id} campaign={campaign} index={i} isDark={isDark} />
                       ))}
                     </div>
                     <Pagination
@@ -1761,6 +2051,7 @@ export default function CampanhasModal({
                       page={page}
                       perPage={ITEMS_PER_PAGE}
                       onChange={p => { setPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      isDark={isDark}
                     />
                   </>
                 )}
@@ -1768,18 +2059,21 @@ export default function CampanhasModal({
             </div>
           </motion.div>
         </motion.div>
-      )}
+    )}
 
-      {/* FASE 14d — Modal de classificação em lote (z-[60], acima do modal principal) */}
-      <ClassifyModal
-        isOpen={showClassifyModal}
-        onClose={() => setShowClassifyModal(false)}
-        onDone={() => {
-          setShowClassifyModal(false);
-          setClassifyDismissed(true);
-          fetchCampaigns(); // atualiza badges após classificação
-        }}
-      />
-    </AnimatePresence>
+    {/* FASE 14d — Modal de classificação em lote (z-[60]); cada um (este e o principal
+        acima) controla a própria desmontagem via isOpen direto, sem AnimatePresence — ver
+        comentário no topo do return. */}
+    <ClassifyModal
+      isOpen={showClassifyModal}
+      onClose={() => setShowClassifyModal(false)}
+      onDone={() => {
+        setShowClassifyModal(false);
+        setClassifyDismissed(true);
+        fetchCampaigns(); // atualiza badges após classificação
+      }}
+      isDark={isDark}
+    />
+    </>
   );
 }
