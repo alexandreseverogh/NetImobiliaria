@@ -22,6 +22,22 @@ const IDEAL_DAILY_FREQUENCY: Record<string, Record<string, number>> = {
 // Date("YYYY-MM-DD")` interpreta isso como meia-noite UTC — `.toLocaleDateString('pt-BR')`
 // depois converte pro fuso LOCAL do navegador (Brasil, UTC-3), exibindo um dia a menos do
 // que o real. Parseia os componentes direto, sem nenhuma conversão de fuso envolvida.
+// Achado real (2026-10-08): nada impedia colar qualquer texto no campo "Ou cole uma URL
+// pública" (Composer e RecorrenceComposer) — uma URL blob:/data: (válida só na memória da
+// aba que a criou) ou qualquer string malformada entrava direto em mediaUrls/mediaPool e
+// ficava permanentemente quebrada pra qualquer outra sessão/reload ("Erro ao carregar
+// prévia", sem nenhuma pista do porquê). Confirmado ao vivo que o upload normal nunca
+// produz isso (retorna sempre URL http(s) real do storage) — o risco é só o campo de texto
+// livre. Validação mínima: só aceita http(s) de verdade, rejeita blob:/data:/caminho relativo.
+function isValidPublicMediaUrl(u: string): boolean {
+  try {
+    const parsed = new URL(u);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 function formatDateOnlyPtBR(dateOnly: string): string {
   const [y, m, d] = dateOnly.split('-').map(Number);
   if (!y || !m || !d) return dateOnly;
@@ -559,9 +575,9 @@ function RecurrencePanel({
                       ? <><PlayCircleIcon className="h-3.5 w-3.5" /> Retomar</>
                       : <><PauseCircleIcon className="h-3.5 w-3.5" /> Pausar</>}
                   </button>
-                  <button onClick={() => { if (confirm('Cancelar esta recorrência e remover os posts futuros?')) onStatusChange(r.id, 'CANCELLED'); }}
+                  <button onClick={() => { if (confirm('Remover esta recorrência e excluir permanentemente todas as publicações que estavam programadas (ainda não publicadas)? Essa ação não pode ser desfeita.')) onStatusChange(r.id, 'CANCELLED'); }}
                     className="text-[11px] font-black text-red-400 hover:text-red-600 flex items-center gap-1 ml-1">
-                    <XMarkIcon className="h-3.5 w-3.5" /> Cancelar
+                    <TrashIcon className="h-3.5 w-3.5" /> Remover
                   </button>
                 </div>
               )}
@@ -616,6 +632,19 @@ function RecurrenceComposer({ clientId, target, onClose, onSaved }: {
 
   function toggleDay(d: number) {
     setDaysOfWeek(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort());
+  }
+
+  // Mesma validação do Composer de publicação única — ver isValidPublicMediaUrl.
+  function addPoolUrl() {
+    const u = urlInput.trim();
+    if (!u) return;
+    if (!isValidPublicMediaUrl(u)) {
+      setError('URL inválida — precisa ser um link público http(s). Links temporários (blob:/data:) não funcionam fora desta aba.');
+      return;
+    }
+    setPool(p => [...p, u]);
+    setUrlInput('');
+    setError('');
   }
 
   function addTime() {
@@ -757,9 +786,9 @@ function RecurrenceComposer({ clientId, target, onClose, onSaved }: {
             </label>
             <div className="flex gap-2 mb-2">
               <input value={urlInput} onChange={e => setUrlInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const u = urlInput.trim(); if (u) { setPool(p => [...p, u]); setUrlInput(''); } } }}
-                placeholder="Ou cole uma URL pública" className={inputCls} />
-              <button onClick={() => { const u = urlInput.trim(); if (u) { setPool(p => [...p, u]); setUrlInput(''); } }}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addPoolUrl(); } }}
+                placeholder="Ou cole uma URL pública (https://...)" className={inputCls} />
+              <button onClick={addPoolUrl}
                 className="px-4 py-2.5 bg-gray-900 text-white text-xs font-black uppercase rounded-xl hover:bg-gray-700 shrink-0">Add</button>
             </div>
             {pool.length > 0 && (
@@ -957,12 +986,14 @@ function CalendarView({ clientFilter, onSelectPost, onCancelPost }: {
                           title={`Ver criativo — ${p.platform} · ${p.status}${p.caption ? ' — ' + p.caption : ''}`}>
                           {p.platform === 'facebook' ? '📘' : '📸'} {p.caption?.slice(0, 14) || p.format}
                         </button>
-                        {/* Só agendado faz sentido remover direto daqui — rascunho/falhou/publicado
-                           já têm os próprios fluxos (lista) ou não fazem sentido cancelar. */}
-                        {p.status === 'SCHEDULED' && (
+                        {/* Remoção direta pra qualquer publicação que ainda NÃO foi ao ar
+                           (agendada, rascunho ou que falhou ao publicar) — mesmo conjunto que
+                           o próprio DELETE já aceita (ver cancelOrganicPost); publicada fica
+                           de fora de propósito, é histórico real, não dá pra desfazer. */}
+                        {['SCHEDULED', 'DRAFT', 'FAILED'].includes(p.status) && (
                           <button type="button"
                             onClick={(e) => { e.stopPropagation(); handleCancel(p.id); }}
-                            title="Remover esta publicação agendada"
+                            title="Remover esta publicação"
                             className="shrink-0 w-3.5 rounded border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-700 flex items-center justify-center transition-colors">
                             <XMarkIcon className="h-2.5 w-2.5" />
                           </button>
@@ -1117,7 +1148,10 @@ function CreativeViewModal({ post, onClose }: { post: OrganicPost; onClose: () =
                     {mediaUrls.map((u, i) => (
                       <a key={i} href={u} target="_blank" rel="noopener noreferrer"
                         className="block aspect-square rounded-lg overflow-hidden border border-gray-200 bg-gray-100 hover:ring-2 hover:ring-indigo-300 transition-all">
-                        <img src={u} alt={`Mídia ${i + 1}`} className="w-full h-full object-cover" />
+                        {/* MediaThumb (não <img> cru) — mesmo tratamento de erro do card
+                           principal acima; antes, um objeto perdido aqui mostrava o ícone
+                           nativo de imagem quebrada do navegador, sem nenhuma explicação. */}
+                        <MediaThumb url={u} isVideo={false} className="w-full h-full" />
                       </a>
                     ))}
                   </div>
@@ -1161,15 +1195,21 @@ function MediaThumb({ url, isVideo, className, rounded }: { url?: string; isVide
     );
   }
   if (errored) {
+    // Achado real (2026-10-08): confirmado com dado já existente neste banco que esse estado
+    // aparece quando o objeto genuinamente não existe mais no storage (404 real, não um bug
+    // no upload/render — testado ao vivo com upload novo, renderiza perfeitamente). Antes não
+    // dava nenhuma pista do porquê; agora expõe a URL (tooltip sempre, texto visível quando
+    // cabe) pra o admin confirmar se é mesmo um objeto perdido e decidir remover a publicação.
     return (
-      <div className={`bg-gray-100 flex flex-col items-center justify-center border border-dashed border-gray-300 p-4 text-center ${rounded ?? ''} ${className ?? ''}`}>
-        <PhotoIcon className="h-8 w-8 text-gray-400 mb-1" />
+      <div title={url} className={`bg-gray-100 flex flex-col items-center justify-center border border-dashed border-gray-300 p-2 text-center overflow-hidden ${rounded ?? ''} ${className ?? ''}`}>
+        <PhotoIcon className="h-8 w-8 text-gray-400 mb-1 shrink-0" />
         <span className="text-[10px] font-medium text-gray-500">Erro ao carregar prévia</span>
+        <span className="text-[8px] text-gray-400 break-all line-clamp-2 mt-0.5">{url}</span>
       </div>
     );
   }
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={url} alt="" onError={() => setErrored(true)} className={`object-cover ${rounded ?? ''} ${className ?? ''}`} />;
+  return <img src={url} alt="" title={url} onError={() => setErrored(true)} className={`object-cover ${rounded ?? ''} ${className ?? ''}`} />;
 }
 
 function Composer({ clientId, igLast24h, target, onClose, onPublished }: { clientId: string; igLast24h: number; target: OrganicTarget | null; onClose: () => void; onPublished: () => void }) {
@@ -1233,7 +1273,12 @@ function Composer({ clientId, igLast24h, target, onClose, onPublished }: { clien
 
   function addUrl() {
     const u = urlInput.trim();
-    if (u && !mediaUrls.includes(u)) { setMediaUrls([...mediaUrls, u]); setUrlInput(''); }
+    if (!u) return;
+    if (!isValidPublicMediaUrl(u)) {
+      setError('URL inválida — precisa ser um link público http(s). Links temporários (blob:/data:) não funcionam fora desta aba.');
+      return;
+    }
+    if (!mediaUrls.includes(u)) { setMediaUrls([...mediaUrls, u]); setUrlInput(''); setError(''); }
   }
 
   async function handleFileUpload(files: FileList | null) {

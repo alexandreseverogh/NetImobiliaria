@@ -110,12 +110,17 @@ export async function updateRecurrenceStatus(
   if (!rec) return null;
 
   if (status === 'CANCELLED') {
-    // Remove definitivamente os posts SCHEDULED futuros vinculados — pedido explícito do
-    // usuário: cancelar a recorrência é remoção de verdade, nunca deixa rascunho pra trás
-    // (antes virava DRAFT e ficava poluindo lista/calendário sem nenhuma ação clara sobre
-    // o que fazer com aquilo).
+    // Remove definitivamente TODOS os posts pendentes vinculados — pedido explícito do
+    // usuário: remover a recorrência é remoção de verdade, nunca deixa resíduo pra trás.
+    // Achado real (2026-10-08): o filtro anterior só pegava `status='SCHEDULED' AND
+    // scheduledAt > now` — um post cuja tentativa de publicação FALHOU (token Meta
+    // inválido/expirado, por exemplo) fica com `status='FAILED'`, fora desse filtro, e
+    // sobrevivia ao "cancelar" mesmo nunca tendo saído de verdade; o mesmo valia pra um post
+    // SCHEDULED cujo horário já tinha passado mas o cron ainda não tinha processado (corrida
+    // com o polling de 5 em 5 min). "Programada" cobre qualquer coisa que NUNCA chegou a
+    // publicar — só PUBLISHED (histórico real, já foi ao ar) fica de fora.
     await prisma.organicPost.deleteMany({
-      where: { recurrenceId: id, status: 'SCHEDULED', scheduledAt: { gt: new Date() } },
+      where: { recurrenceId: id, status: { in: ['DRAFT', 'SCHEDULED', 'FAILED', 'PUBLISHING'] } },
     });
   }
 
