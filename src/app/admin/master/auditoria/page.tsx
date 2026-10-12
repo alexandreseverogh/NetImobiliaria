@@ -33,7 +33,8 @@ export default function GlobalAuditPage() {
       const response = await get('/api/admin/master/audit/types')
       if (response.ok) {
         const data = await response.json()
-        setActionTypes(data.types || [])
+        // A rota retorna `{ actions: [...] }` (nome do campo na tabela audit_logs), não `types`.
+        setActionTypes(data.actions || [])
       }
     } catch (error) {
       console.error('Erro ao buscar tipos de ação:', error)
@@ -45,15 +46,22 @@ export default function GlobalAuditPage() {
       setLoading(true)
       const queryParams = new URLSearchParams({
         limit: '100',
-        start_date: filters.startDate ? `${filters.startDate} 00:00:00` : '',
-        end_date: filters.endDate ? `${filters.endDate} 23:59:59` : '',
-        action: filters.actionType
+        // A rota espera `startDate`/`endDate` (camelCase) — enviar `start_date`/`end_date`
+        // fazia o filtro de período ser silenciosamente ignorado.
+        startDate: filters.startDate ? `${filters.startDate} 00:00:00` : '',
+        endDate: filters.endDate ? `${filters.endDate} 23:59:59` : '',
       })
-      
+      // 'ALL' é só o valor do placeholder do dropdown ("Todos os Eventos") — nunca deve virar
+      // um filtro real; a rota faz `action = $N` literal, e nenhuma linha tem action='ALL',
+      // então mandar isso sempre zerava a lista inteira, mesmo sem nenhum período selecionado.
+      if (filters.actionType !== 'ALL') {
+        queryParams.set('action', filters.actionType)
+      }
+
       const response = await get(`/api/admin/master/audit?${queryParams.toString()}`)
       if (response.ok) {
         const data = await response.json()
-        setLogs(data.logs)
+        setLogs(data.logs || [])
       }
     } catch (error) {
       console.error('Erro ao buscar logs:', error)

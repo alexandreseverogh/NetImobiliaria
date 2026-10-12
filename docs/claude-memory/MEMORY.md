@@ -24,4 +24,5 @@
 - [Storage MinIO](project_storage_minio.md) — Cliente único s3-client.ts; prefixos: tenants/ imoveis/, criativos/, organic/; ensureBucket automático
 - [FASE 16 Orgânico](project_fase16_organico.md) — Postagem orgânica FB+IG concluída; upload MinIO; agendamento cron 5min; migrações pendentes na VPS
 - [Nav Landing](feedback_landing_nav.md) — CTAs de landing para /admin/login usam <a> nativo, não Next <Link> (trava navegação na main thread)
-- [Verificação Visual no Navegador — Resolvida](project_browser_auth_unlock.md) — useAuth lê token do localStorage, não do cookie; playbook pra sessão autenticada real
+- [Verificação Visual no Navegador — Resolvida](project_browser_auth_unlock.md) — useAuth lê token do localStorage, não do cookie; playbook pra sessão autenticada real (só usar se o usuário pedir — ver feedback abaixo)
+- [Usuário testa, não Claude](feedback_user_tests_not_claude.md) — depois de implementar, sempre pedir pro usuário testar; nunca validar sozinho no navegador por padrão
