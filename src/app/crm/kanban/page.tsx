@@ -554,6 +554,45 @@ export default function KanbanPage() {
     return true
   })
 
+  // Valor "efetivo" de 1 lead — mesma prioridade real > estimado já usada no badge do card
+  // (nunca soma os dois juntos, senão um negócio já fechado contaria 2x).
+  // O driver pg devolve coluna NUMERIC como STRING (não número) — somar direto fazia
+  // concatenação de texto em vez de soma matemática ("0" + "1000.00" = "01000.00", e com
+  // 2+ leads com valor isso corrompe pra um número inválido, renderizado como "R$ NaN").
+  // Number(...) força a conversão antes de qualquer soma; Number.isFinite cobre o caso raro
+  // de a string vir genuinamente malformada (nunca propaga NaN pra frente).
+  const leadEffectiveValue = (l: Lead) => {
+    const raw = l.valor_venda ?? l.valor_venda_estimado
+    if (raw == null) return 0
+    const n = Number(raw)
+    return Number.isFinite(n) ? n : 0
+  }
+
+  // Soma do valor de uma coluna inteira (mesmo conjunto já filtrado por busca/dono/data que
+  // a contagem do header já usa — filterLeads).
+  const columnValueSum = (col: Coluna) => filterLeads(col).reduce((sum, l) => sum + leadEffectiveValue(l), 0)
+
+  // KPIs de "Total do ano/mês até hoje" — pedido do usuário (2026-10-12): são um resumo fixo
+  // de negócio, não um 3º filtro manipulável; por isso ignoram searchTerm/filterOwnerId/
+  // filterDateFrom/filterDateTo de propósito e olham todo o board (exceto leads excluídos,
+  // mesmo critério padrão do resto da tela sem "Mostrar excluídos" ativo).
+  const yearMonthTotals = useMemo(() => {
+    const now = new Date()
+    const startOfYear = `${now.getFullYear()}-01-01`
+    const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+    let leadsYTD = 0, leadsMTD = 0, valueYTD = 0, valueMTD = 0
+    for (const l of leads) {
+      if (l.deleted_at) continue
+      const d = localDateIso(l.created_at)
+      if (!d) continue
+      const value = leadEffectiveValue(l)
+      if (d >= startOfYear) { leadsYTD++; valueYTD += value }
+      if (d >= startOfMonth) { leadsMTD++; valueMTD += value }
+    }
+    return { leadsYTD, leadsMTD, valueYTD, valueMTD }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leads])
+
   // Exclusão de lead (docs/CHECKPOINT.md, 2026-08-14) — regra decidida pelo usuário: sem
   // atividade registrada, o servidor exclui de vez; com atividade, exclui de forma reversível
   // (lixeira) e devolve mode:'soft'|'hard' pra sabermos qual mensagem mostrar.
@@ -810,6 +849,35 @@ export default function KanbanPage() {
             />
           </div>
         </div>
+
+        {/* 4 KPIs fixos (ano/mês corrente até hoje) — item 2, pedido 2026-10-12. Resumo de
+            negócio, não um filtro manipulável: deliberadamente ignora busca/dono/período
+            selecionados acima (ver comentário de yearMonthTotals). */}
+        <div className={`flex flex-wrap items-center gap-4 pl-4 ml-1 border-l ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
+          {/* items-end — o valor fica alinhado à direita do próprio label (pedido do
+              usuário, 2026-10-12), não solto à esquerda embaixo dele. */}
+          <div className="flex flex-col items-end min-w-[72px]">
+            <span className={`text-[9px] font-black uppercase tracking-wide ${dsFaint}`}>Leads no Ano</span>
+            <span className={`text-sm font-black ${dsText}`}>{yearMonthTotals.leadsYTD}</span>
+          </div>
+          <div className="flex flex-col items-end min-w-[72px]">
+            <span className={`text-[9px] font-black uppercase tracking-wide ${dsFaint}`}>Leads no Mês</span>
+            <span className={`text-sm font-black ${dsText}`}>{yearMonthTotals.leadsMTD}</span>
+          </div>
+          <div className="flex flex-col items-end min-w-[90px]">
+            <span className={`text-[9px] font-black uppercase tracking-wide ${dsFaint}`}>Valor no Ano</span>
+            <span className="text-sm font-black text-gold-premium">
+              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(yearMonthTotals.valueYTD)}
+            </span>
+          </div>
+          <div className="flex flex-col items-end min-w-[90px]">
+            <span className={`text-[9px] font-black uppercase tracking-wide ${dsFaint}`}>Valor no Mês</span>
+            <span className="text-sm font-black text-gold-premium">
+              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(yearMonthTotals.valueMTD)}
+            </span>
+          </div>
+        </div>
+
         {hasActiveFilters && (
           <button
             onClick={clearFilters}
@@ -869,6 +937,14 @@ export default function KanbanPage() {
                   <span className="px-2 py-0.5 rounded-md text-[10px] font-black text-white shadow-sm" style={{ backgroundColor: col.cor }}>
                     {filterLeads(col).length}
                   </span>
+                  {/* Total de valor da coluna (item 1, pedido 2026-10-12) — mesma prioridade
+                      real>estimado do badge individual do card; some quando é zero (coluna
+                      sem nenhum lead com valor informado) pra não poluir o header à toa. */}
+                  {columnValueSum(col) > 0 && (
+                    <span className={`text-[10px] font-bold ${dsFaint}`}>
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(columnValueSum(col))}
+                    </span>
+                  )}
                 </div>
                 <EllipsisHorizontalIcon className={`h-5 w-5 cursor-pointer opacity-50 hover:opacity-100 transition-opacity ${dsFaint}`} />
               </div>

@@ -11,6 +11,7 @@ import ErrorBoundary from '@/components/admin/ErrorBoundary'
 import SessionWarningModal from '@/components/SessionWarningModal'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useSidebarMenu } from '@/hooks/useSidebarMenu'
+import { useFeatureAccessLog } from '@/hooks/useFeatureAccessLog'
 
 export default function AdminLayoutContent({
   children,
@@ -102,6 +103,10 @@ function AdminLayoutPrivateContent({
   useEffect(() => {
     reloadMenu()
   }, [pathname, reloadMenu])
+
+  // Log de acesso a funcionalidade (navegação) — só dispara com usuário confirmado,
+  // nunca durante o loading/redirect de sessão inválida.
+  useFeatureAccessLog(pathname, !!user)
 
   // Sistema de aviso de sessão (somente admin privado)
   const { showWarning, timeRemaining, renewSession, logout: sessionLogout, dismissWarning } = useSessionWarning({

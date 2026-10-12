@@ -34,6 +34,17 @@ function isImage(name: string) {
   return dot !== -1 && IMAGE_EXTS.has(name.slice(dot).toLowerCase());
 }
 
+/** "Google" → "Rede Google não contratada..."; "Google" + "TikTok" → "Redes Google e TikTok
+ *  não contratadas..."; 3+ nomes → lista com vírgulas e "e" antes do último. */
+function formatUncontractedNetworksMessage(names: string[]): string {
+  const list =
+    names.length <= 1
+      ? names.join('')
+      : `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}`;
+  const plural = names.length > 1;
+  return `${plural ? 'Redes' : 'Rede'} ${list} ${plural ? 'não contratadas' : 'não contratada'} para lançamento de campanhas.`;
+}
+
 /* ══════════════════════════════════════════════════════════
    PAGE
 ══════════════════════════════════════════════════════════ */
@@ -74,6 +85,19 @@ export default function NovaCampanhaPage() {
   const [filter, setFilter]                 = useState('');
   const [loadingFolder, setLoadingFolder]   = useState(false);
   const [folderError, setFolderError]       = useState('');
+  // Proporção real de cada imagem (largura/altura), capturada ao carregar — usada pra dar à
+  // célula da grade a MESMA proporção da foto (em vez de um quadrado fixo), eliminando a
+  // faixa cinza lateral que `object-contain` dentro de `aspect-square` deixava em qualquer
+  // criativo vertical (9:16/4:5, o formato real mais comum de Stories/Reels). Enquanto a
+  // imagem não carregou, cai no quadrado (1/1) como placeholder neutro.
+  const [imageAspect, setImageAspect] = useState<Record<string, number>>({});
+  function handleImageLoad(name: string, e: React.SyntheticEvent<HTMLImageElement>) {
+    const el = e.currentTarget;
+    if (!el.naturalWidth || !el.naturalHeight) return;
+    setImageAspect(prev =>
+      prev[name] ? prev : { ...prev, [name]: el.naturalWidth / el.naturalHeight },
+    );
+  }
   // FASE 6: mapa nome→File para upload silencioso na biblioteca
   const [fileObjects, setFileObjects]       = useState<Map<string, File>>(new Map());
   // FASE 6: promessa de upload iniciada ao abrir o wizard; resolvida antes do submit
@@ -159,6 +183,18 @@ export default function NovaCampanhaPage() {
     const s = networkStatus[code];
     return !!s && s.contracted && s.connected;
   }
+
+  // Nomes (na mesma ordem dos 3 botões) de toda rede que o tenant genuinamente NÃO contratou
+  // — distinto de "contratada mas sem credencial conectada", que já tem aviso próprio (tooltip
+  // + TokenExpiryBanner) e não entra nesta frase.
+  const NETWORK_DISPLAY_NAME: Record<string, string> = { meta: 'Meta', tiktok: 'TikTok', google: 'Google' };
+  const uncontractedNetworkLabels = useMemo(
+    () =>
+      Object.entries(NETWORK_DISPLAY_NAME)
+        .filter(([code]) => networkStatus[code]?.contracted === false)
+        .map(([, label]) => label),
+    [networkStatus],
+  );
 
   /* ── Consultar campanhas modal ──────────────────────── */
   const [showConsultarModal, setShowConsultarModal] = useState(false);
@@ -338,6 +374,7 @@ export default function NovaCampanhaPage() {
         selectedImages={selected}
         clientId={effectiveClientId}
         onClose={() => setShowWizard(false)}
+        onExit={() => router.push('/admin/campanhas/dashboard')}
         onSuccess={handleSuccess}
         getAssetIds={() => uploadPromiseRef.current}
         networks={networksRaw}
@@ -396,12 +433,25 @@ export default function NovaCampanhaPage() {
 
         {/* ── Header ── */}
         <div className="mb-8">
-          <button
-            onClick={() => router.back()}
-            className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 mb-4 transition-colors"
-          >
-            <ArrowLeftIcon className="h-4 w-4" /> Voltar
-          </button>
+          <div className="flex items-center justify-between mb-4">
+            <button
+              onClick={() => router.back()}
+              className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"
+            >
+              <ArrowLeftIcon className="h-4 w-4" /> Voltar
+            </button>
+            <button
+              onClick={() => {
+                if (selected.length > 0 && !confirm('Sair agora descarta os criativos selecionados. Deseja continuar?')) return;
+                router.push('/admin/campanhas/dashboard');
+              }}
+              title="Sair e voltar à área administrativa"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-gray-200 bg-white text-xs font-bold text-gray-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-colors"
+            >
+              <XMarkIcon className="h-4 w-4" />
+              Sair
+            </button>
+          </div>
 
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
@@ -677,7 +727,7 @@ export default function NovaCampanhaPage() {
 
           {/* Image grid */}
           {allImages.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 items-start">
               {filtered.map((image, i) => {
                 const isSelected = selected.some(s => s.name === image.name);
                 const isDisabled = !isSelected && selected.length >= 6;
@@ -696,11 +746,15 @@ export default function NovaCampanhaPage() {
                       isDisabled && 'opacity-40 cursor-not-allowed'
                     )}
                   >
-                    <div className="relative aspect-square overflow-hidden">
+                    <div
+                      className="relative overflow-hidden bg-gray-50"
+                      style={{ aspectRatio: imageAspect[image.name] ?? 1 }}
+                    >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={image.url}
                         alt={image.name}
+                        onLoad={e => handleImageLoad(image.name, e)}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
                       <div className={cn(
@@ -839,6 +893,11 @@ export default function NovaCampanhaPage() {
               );
             })()}
             </div>
+            {networksLoaded && uncontractedNetworkLabels.length > 0 && (
+              <p className="text-xs font-medium text-amber-600 max-w-md text-right">
+                {formatUncontractedNetworksMessage(uncontractedNetworkLabels)}
+              </p>
+            )}
           </div>
         </div>
 

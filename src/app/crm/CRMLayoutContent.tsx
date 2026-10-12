@@ -9,6 +9,7 @@ import LoadingSpinner from '@/components/admin/LoadingSpinner'
 import ErrorBoundary from '@/components/admin/ErrorBoundary'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useSidebarMenu } from '@/hooks/useSidebarMenu'
+import { useFeatureAccessLog } from '@/hooks/useFeatureAccessLog'
 import { ClockIcon } from '@heroicons/react/24/outline'
 
 interface CrmGateStatus {
@@ -69,6 +70,10 @@ export default function CRMLayoutContent({
 
   const isConfigIaRoute = pathname?.startsWith('/crm/config/ia')
   const crmBlocked = !!crmStatus && !crmStatus.ready && !isConfigIaRoute
+
+  // Log de acesso a funcionalidade — o CRM tem layout próprio (não passa por
+  // AdminLayoutContent), por isso precisa do mesmo hook aqui também.
+  useFeatureAccessLog(pathname, !!user)
 
   // Aplica a classe 'dark' no <html> para que o useTheme funcione em todas as páginas filhas
   useEffect(() => {
