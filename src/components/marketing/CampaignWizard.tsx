@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { createCampaign, getMetaIdentity, getWhatsAppConfig, type Creative } from '@/lib/marketing-api';
 import { cn, OBJECTIVES, CTA_TYPES, DAYS_OF_WEEK, formatCurrency, networkLabel } from '@/lib/marketing-utils';
 import { LocationPicker, type LocationEntry } from './LocationPicker';
+import DateInputPtBR from '@/components/ui/DateInputPtBR';
 import { ANGLE_OPTIONS, angleLabel } from '@/lib/marketing/angles';
 import {
   ShieldCheckIcon, BoltIcon, XMarkIcon, RocketLaunchIcon, ChevronDownIcon,
@@ -64,6 +65,13 @@ interface Props {
    * reaproveitando os mesmos criativos já selecionados.
    */
   onSwitchToGoogle?: () => void;
+  /**
+   * "Sair" no cabeçalho — abandona a campanha inteira e sai pra fora do fluxo, diferente de
+   * "Voltar aos Criativos" (que só retorna à Fase 1, mantendo as imagens já escolhidas). Sem
+   * esse callback, cai no mesmo `onClose` — ainda assim fecha o overlay e devolve a sidebar
+   * principal, só não pula direto pro dashboard.
+   */
+  onExit?: () => void;
 }
 
 /* ── AutoChip ────────────────────────────────────────────── */
@@ -109,10 +117,18 @@ function Label({ children, className }: { children: React.ReactNode; className?:
 /* ══════════════════════════════════════════════════════════
    MAIN WIZARD COMPONENT — FASE 2 (configuração da campanha)
 ══════════════════════════════════════════════════════════ */
-export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, onSuccess, clientId, getAssetIds, initialValues, networks, onSwitchToGoogle }: Props) {
+export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, onSuccess, clientId, getAssetIds, initialValues, networks, onSwitchToGoogle, onExit }: Props) {
   const selectedImages = selectedImagesProp ?? [];
   const [step, setStep]             = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  // Passos cujo "Próximo"/"Lançar" já foi tentado com erro — só a partir daí os campos
+  // obrigatórios ficam vermelhos; evita abrir um passo em branco já gritando erro.
+  const [attemptedSteps, setAttemptedSteps] = useState<Set<number>>(new Set());
+
+  function handleExit() {
+    if (!confirm('Sair agora descarta os dados preenchidos nesta campanha. Deseja continuar?')) return;
+    (onExit ?? onClose)();
+  }
 
   // Iniciativas disponíveis para vincular (PLANNED/ACTIVE do cliente/own)
   const [initiatives, setInitiatives] = useState<{ id: string; name: string; status: string }[]>([]);
@@ -265,6 +281,84 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
 
   function updateForm(updates: Partial<typeof form>) {
     setForm(prev => ({ ...prev, ...updates }));
+  }
+
+  // Validação dos campos realmente indispensáveis pra lançar a campanha — índices de `step`
+  // batendo com STEPS (1=Tipo, 2=Texto & CTA, 3=Público, 4=Orçamento). Deliberadamente NÃO
+  // exaustiva: nome da campanha, pixel, interesses, ângulo e iniciativa continuam opcionais,
+  // cada um já com uma explicação própria na tela ("Opcional...", fallback automático etc.).
+  const validationErrors = useMemo(() => {
+    const errors: { field: string; message: string; step: number }[] = [];
+
+    if (selectedImages.length > 1 && !form.creativeType) {
+      errors.push({ field: 'creativeType', message: 'Escolha o formato do anúncio.', step: 1 });
+    }
+
+    if (!form.body.trim()) {
+      errors.push({ field: 'body', message: 'O texto do anúncio é obrigatório.', step: 2 });
+    }
+    if (!form.headline.trim()) {
+      errors.push({ field: 'headline', message: 'O título/headline é obrigatório.', step: 2 });
+    }
+    if (form.ctaType === 'WHATSAPP_MESSAGE') {
+      if (!form.whatsappNumber.trim()) {
+        errors.push({ field: 'whatsappNumber', message: 'Informe o número de WhatsApp.', step: 2 });
+      }
+      if (!form.whatsappMessage.trim()) {
+        errors.push({ field: 'whatsappMessage', message: 'Informe a mensagem pré-preenchida.', step: 2 });
+      }
+    } else if (!form.linkUrl.trim()) {
+      errors.push({ field: 'linkUrl', message: 'Informe a URL de destino.', step: 2 });
+    }
+
+    if (!form.ageMin || !form.ageMax || isNaN(form.ageMin) || isNaN(form.ageMax) || form.ageMin > form.ageMax) {
+      errors.push({ field: 'ageRange', message: 'Informe uma faixa etária válida (mínimo até máximo).', step: 3 });
+    }
+
+    if (!form.dailyBudget || isNaN(form.dailyBudget) || form.dailyBudget <= 0) {
+      errors.push({ field: 'dailyBudget', message: 'Informe um orçamento diário maior que zero.', step: 4 });
+    }
+    if (!form.startTime) {
+      errors.push({ field: 'startTime', message: 'Informe a data de início.', step: 4 });
+    }
+    if (form.endTime && form.startTime && form.endTime < form.startTime) {
+      errors.push({ field: 'endTime', message: 'A data de fim não pode ser anterior à data de início.', step: 4 });
+    }
+    if (!form.scheduleDays || form.scheduleDays.length === 0) {
+      errors.push({ field: 'scheduleDays', message: 'Selecione pelo menos um dia de veiculação.', step: 4 });
+    }
+
+    return errors;
+  }, [form, selectedImages.length]);
+
+  const errorsByField = useMemo(() => {
+    const map: Record<string, string> = {};
+    validationErrors.forEach(e => { map[e.field] = e.message; });
+    return map;
+  }, [validationErrors]);
+
+  const currentStepErrors = useMemo(
+    () => validationErrors.filter(e => e.step === step),
+    [validationErrors, step],
+  );
+  const showErrorsForStep = attemptedSteps.has(step);
+
+  function goNext() {
+    if (currentStepErrors.length > 0) {
+      setAttemptedSteps(prev => new Set(prev).add(step));
+      return;
+    }
+    setStep(step + 1);
+  }
+
+  function attemptSubmit() {
+    if (validationErrors.length > 0) {
+      const affectedSteps = new Set(validationErrors.map(e => e.step));
+      setAttemptedSteps(prev => new Set([...Array.from(prev), ...Array.from(affectedSteps)]));
+      setStep(Math.min(...Array.from(affectedSteps)));
+      return;
+    }
+    handleSubmit();
   }
 
   function buildLocationsPayload(entries: LocationEntry[]) {
@@ -425,9 +519,19 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
             <h3 className="text-lg font-black text-gray-900">{STEPS[step].label}</h3>
             <p className="text-sm text-gray-500">{STEPS[step].desc}</p>
           </div>
-          <span className="text-sm font-medium text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
-            {step + 1} / {STEPS.length}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
+              {step + 1} / {STEPS.length}
+            </span>
+            <button
+              onClick={handleExit}
+              title="Sair e voltar à área administrativa"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-colors"
+            >
+              <XMarkIcon className="h-4 w-4" />
+              Sair
+            </button>
+          </div>
         </div>
 
         {/* Scrollable step content */}
@@ -442,10 +546,10 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
               className="max-w-4xl"
             >
               {step === 0 && <StepNetwork   form={form} updateForm={updateForm} networks={networks} onSwitchToGoogle={onSwitchToGoogle} />}
-              {step === 1 && <StepType      form={form} updateForm={updateForm} selectedImages={selectedImages} hookAlert={hookAlert} clientId={clientId} />}
-              {step === 2 && <StepTextCta   form={form} updateForm={updateForm} autoFields={autoFields} hookTextHint={initialValues?.hookText} isPrefilled={!!(initialValues?.body || initialValues?.headline)} />}
-              {step === 3 && <StepTargeting form={form} updateForm={updateForm} clientId={clientId} suggestedInterests={autoFields.suggestedInterests} />}
-              {step === 4 && <StepBudget    form={form} updateForm={updateForm} />}
+              {step === 1 && <StepType      form={form} updateForm={updateForm} selectedImages={selectedImages} hookAlert={hookAlert} clientId={clientId} errors={errorsByField} showErrors={showErrorsForStep} />}
+              {step === 2 && <StepTextCta   form={form} updateForm={updateForm} autoFields={autoFields} hookTextHint={initialValues?.hookText} isPrefilled={!!(initialValues?.body || initialValues?.headline)} errors={errorsByField} showErrors={showErrorsForStep} />}
+              {step === 3 && <StepTargeting form={form} updateForm={updateForm} clientId={clientId} suggestedInterests={autoFields.suggestedInterests} errors={errorsByField} showErrors={showErrorsForStep} />}
+              {step === 4 && <StepBudget    form={form} updateForm={updateForm} errors={errorsByField} showErrors={showErrorsForStep} />}
               {step === 5 && <StepObjective form={form} updateForm={updateForm} autoFields={autoFields} initiatives={initiatives} />}
               {step === 6 && <StepReview    form={form} selectedImages={selectedImages} autoFields={autoFields} initiatives={initiatives} />}
             </motion.div>
@@ -462,33 +566,60 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
           </button>
 
           {step < STEPS.length - 1 ? (
-            <button
-              onClick={() => setStep(step + 1)}
-              className="px-8 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-navy-dark bg-gold-premium hover:bg-gold transition-colors"
-            >
-              Próximo →
-            </button>
+            <div className="flex flex-col items-end gap-1.5">
+              {showErrorsForStep && currentStepErrors.length > 0 && (
+                <p className="text-xs text-red-600 font-medium">
+                  {currentStepErrors.length === 1
+                    ? currentStepErrors[0].message
+                    : `${currentStepErrors.length} campos obrigatórios precisam ser preenchidos nesta etapa.`}
+                </p>
+              )}
+              <button
+                onClick={goNext}
+                className={cn(
+                  'px-8 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest transition-colors',
+                  showErrorsForStep && currentStepErrors.length > 0
+                    ? 'bg-red-50 text-red-500 border border-red-200 hover:bg-red-100'
+                    : 'text-navy-dark bg-gold-premium hover:bg-gold',
+                )}
+              >
+                Próximo →
+              </button>
+            </div>
           ) : (
-            <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className={cn(
-                'inline-flex items-center gap-2 px-8 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest transition-colors disabled:opacity-60',
-                submitting ? 'bg-slate-400 text-white' : 'bg-gold-premium text-navy-dark hover:bg-gold',
+            <div className="flex flex-col items-end gap-1.5">
+              {validationErrors.length > 0 && (
+                <p className="text-xs text-red-600 font-medium">
+                  {validationErrors.length === 1
+                    ? validationErrors[0].message
+                    : `${validationErrors.length} campos obrigatórios ainda precisam ser preenchidos.`}
+                </p>
               )}
-            >
-              {submitting ? (
-                <>
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  Lançando...
-                </>
-              ) : (
-                <>
-                  <RocketLaunchIcon className="h-4 w-4" />
-                  Lançar Campanha
-                </>
-              )}
-            </button>
+              <button
+                onClick={attemptSubmit}
+                disabled={submitting}
+                className={cn(
+                  'inline-flex items-center gap-2 px-8 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest transition-colors disabled:opacity-60',
+                  submitting
+                    ? 'bg-slate-400 text-white'
+                    : validationErrors.length > 0
+                      ? 'bg-red-50 text-red-500 border border-red-200 hover:bg-red-100'
+                      : 'bg-gold-premium text-navy-dark hover:bg-gold',
+                )}
+              >
+                {submitting ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Lançando...
+                  </>
+                ) : (
+                  <>
+                    <RocketLaunchIcon className="h-4 w-4" />
+                    Lançar Campanha
+                  </>
+                )}
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -727,7 +858,7 @@ const HOOK_LABELS_PT: Record<string, string> = {
    STEP 1 — TIPO
 ══════════════════════════════════════════════════════════ */
 
-function StepType({ form, updateForm, selectedImages, hookAlert, clientId }: any) {
+function StepType({ form, updateForm, selectedImages, hookAlert, clientId, errors = {}, showErrors }: any) {
   /* Single image: show preview + name field */
   if (selectedImages.length === 1) {
     return (
@@ -792,8 +923,11 @@ function StepType({ form, updateForm, selectedImages, hookAlert, clientId }: any
   /* Multiple images: show format cards */
   return (
     <div className="space-y-8">
-      <Section title="Formato do Anúncio">
-        <div className="grid grid-cols-2 gap-5">
+      <Section title="Formato do Anúncio *">
+        <div className={cn(
+          'grid grid-cols-2 gap-5 rounded-2xl',
+          showErrors && errors.creativeType && 'ring-1 ring-red-300 p-1',
+        )}>
           {[
             { value: 'CAROUSEL',     emoji: '🎠', label: 'Carrossel',          desc: 'Múltiplas imagens deslizáveis em um único anúncio' },
             { value: 'SINGLE_IMAGE', emoji: '📸', label: 'Múltiplos Anúncios', desc: 'Um anúncio separado para cada imagem' },
@@ -814,6 +948,9 @@ function StepType({ form, updateForm, selectedImages, hookAlert, clientId }: any
             </button>
           ))}
         </div>
+        {showErrors && errors.creativeType && (
+          <p className="text-xs text-red-600 font-medium">{errors.creativeType}</p>
+        )}
       </Section>
       <Section title="Identificação">
         <div>
@@ -836,7 +973,7 @@ function StepType({ form, updateForm, selectedImages, hookAlert, clientId }: any
    STEP 2 — TEXTO & CTA
 ══════════════════════════════════════════════════════════ */
 
-function StepTextCta({ form, updateForm, autoFields, hookTextHint, isPrefilled }: any) {
+function StepTextCta({ form, updateForm, autoFields, hookTextHint, isPrefilled, errors = {}, showErrors }: any) {
   const isAutoWhatsapp = !!autoFields?.whatsappNumber && form.whatsappNumber === autoFields.whatsappNumber;
   const isAutoMessage  = !!autoFields?.whatsappMessage && form.whatsappMessage === autoFields.whatsappMessage;
 
@@ -874,8 +1011,14 @@ function StepTextCta({ form, updateForm, autoFields, hookTextHint, isPrefilled }
             onChange={e => updateForm({ body: e.target.value })}
             placeholder="Escreva o texto principal do seu anúncio..."
             rows={5}
-            className={cn(inputCls, 'w-full resize-none')}
+            className={cn(
+              inputCls, 'w-full resize-none',
+              showErrors && errors.body && 'border-red-400 focus:ring-red-400',
+            )}
           />
+          {showErrors && errors.body && (
+            <p className="text-xs text-red-600 font-medium mt-1.5">{errors.body}</p>
+          )}
           {hookTextHint && (
             <div className="mt-2 flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
               <span className="text-xs shrink-0 mt-0.5">🪝</span>
@@ -888,14 +1031,20 @@ function StepTextCta({ form, updateForm, autoFields, hookTextHint, isPrefilled }
           )}
         </div>
         <div className="max-w-lg">
-          <Label>Título / Headline</Label>
+          <Label>Título / Headline *</Label>
           <input
             type="text"
             value={form.headline}
             onChange={e => updateForm({ headline: e.target.value })}
             placeholder="Título curto e impactante"
-            className={cn(inputCls, 'w-full')}
+            className={cn(
+              inputCls, 'w-full',
+              showErrors && errors.headline && 'border-red-400 focus:ring-red-400',
+            )}
           />
+          {showErrors && errors.headline && (
+            <p className="text-xs text-red-600 font-medium mt-1.5">{errors.headline}</p>
+          )}
         </div>
       </Section>
 
@@ -917,7 +1066,7 @@ function StepTextCta({ form, updateForm, autoFields, hookTextHint, isPrefilled }
           <div className="grid grid-cols-2 gap-6">
             <div>
               <div className="flex items-center gap-2 mb-1.5">
-                <Label className="mb-0">Número WhatsApp (com DDI+DDD)</Label>
+                <Label className="mb-0">Número WhatsApp (com DDI+DDD) *</Label>
                 {isAutoWhatsapp && <AutoChip label="configurações" />}
               </div>
               <input
@@ -925,20 +1074,32 @@ function StepTextCta({ form, updateForm, autoFields, hookTextHint, isPrefilled }
                 value={form.whatsappNumber}
                 onChange={e => updateForm({ whatsappNumber: e.target.value })}
                 placeholder="5581999999999"
-                className={cn(inputCls, 'w-full')}
+                className={cn(
+                  inputCls, 'w-full',
+                  showErrors && errors.whatsappNumber && 'border-red-400 focus:ring-red-400',
+                )}
               />
+              {showErrors && errors.whatsappNumber && (
+                <p className="text-xs text-red-600 font-medium mt-1.5">{errors.whatsappNumber}</p>
+              )}
             </div>
             <div>
               <div className="flex items-center gap-2 mb-1.5">
-                <Label className="mb-0">Mensagem Pré-preenchida</Label>
+                <Label className="mb-0">Mensagem Pré-preenchida *</Label>
                 {isAutoMessage && <AutoChip label="configurações" />}
               </div>
               <textarea
                 value={form.whatsappMessage}
                 onChange={e => updateForm({ whatsappMessage: e.target.value })}
                 rows={2}
-                className={cn(inputCls, 'w-full resize-none')}
+                className={cn(
+                  inputCls, 'w-full resize-none',
+                  showErrors && errors.whatsappMessage && 'border-red-400 focus:ring-red-400',
+                )}
               />
+              {showErrors && errors.whatsappMessage && (
+                <p className="text-xs text-red-600 font-medium mt-1.5">{errors.whatsappMessage}</p>
+              )}
             </div>
           </div>
         ) : (
@@ -970,17 +1131,24 @@ function StepTextCta({ form, updateForm, autoFields, hookTextHint, isPrefilled }
               </div>
             )}
             <div>
-              <Label>URL de Destino</Label>
+              <Label>URL de Destino *</Label>
               <input
                 type="url"
                 value={form.linkUrl}
                 onChange={e => updateForm({ linkUrl: e.target.value })}
                 placeholder="https://seusite.com.br"
-                className={cn(inputCls, 'w-full')}
+                className={cn(
+                  inputCls, 'w-full',
+                  showErrors && errors.linkUrl && 'border-red-400 focus:ring-red-400',
+                )}
               />
-              <p className="text-[11px] text-gray-400 mt-1.5">
-                Pré-preenchido com o site da conta. Selecione um destino acima ou edite manualmente.
-              </p>
+              {showErrors && errors.linkUrl ? (
+                <p className="text-xs text-red-600 font-medium mt-1.5">{errors.linkUrl}</p>
+              ) : (
+                <p className="text-[11px] text-gray-400 mt-1.5">
+                  Pré-preenchido com o site da conta. Selecione um destino acima ou edite manualmente.
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -993,7 +1161,7 @@ function StepTextCta({ form, updateForm, autoFields, hookTextHint, isPrefilled }
    STEP 3 — PÚBLICO
 ══════════════════════════════════════════════════════════ */
 
-function StepTargeting({ form, updateForm, clientId, suggestedInterests }: any) {
+function StepTargeting({ form, updateForm, clientId, suggestedInterests, errors = {}, showErrors }: any) {
   const [showInterests, setShowInterests] = useState(false);
   const hasInterests = form.interests.length > 0;
 
@@ -1008,17 +1176,22 @@ function StepTargeting({ form, updateForm, clientId, suggestedInterests }: any) 
       <Section title="Demográfico">
         <div className="grid grid-cols-2 gap-8">
           <div>
-            <Label>Faixa Etária</Label>
+            <Label>Faixa Etária *</Label>
             <div className="flex items-center gap-3">
               <input type="number" value={form.ageMin}
                 onChange={e => updateForm({ ageMin: parseInt(e.target.value) })}
-                min={13} max={65} className={cn(inputCls, 'w-24')} />
+                min={13} max={65}
+                className={cn(inputCls, 'w-24', showErrors && errors.ageRange && 'border-red-400 focus:ring-red-400')} />
               <span className="text-gray-400 text-sm">até</span>
               <input type="number" value={form.ageMax}
                 onChange={e => updateForm({ ageMax: parseInt(e.target.value) })}
-                min={13} max={65} className={cn(inputCls, 'w-24')} />
+                min={13} max={65}
+                className={cn(inputCls, 'w-24', showErrors && errors.ageRange && 'border-red-400 focus:ring-red-400')} />
               <span className="text-gray-400 text-sm">anos</span>
             </div>
+            {showErrors && errors.ageRange && (
+              <p className="text-xs text-red-600 font-medium mt-1.5">{errors.ageRange}</p>
+            )}
           </div>
           <div>
             <Label>Gênero</Label>
@@ -1310,64 +1483,10 @@ function InterestsPicker({ interests, onChange, clientId, suggestedInterests }: 
 }
 
 /* ══════════════════════════════════════════════════════════
-   DATE INPUT — dd/mm/aaaa mask, stores ISO YYYY-MM-DD
-══════════════════════════════════════════════════════════ */
-
-function DateInput({ value, onChange, placeholder, className }: {
-  value: string; onChange: (iso: string) => void; placeholder?: string; className?: string;
-}) {
-  function toDisplay(iso: string) {
-    if (!iso || iso.length < 10) return '';
-    const [y, m, d] = iso.split('-');
-    if (!y || !m || !d) return '';
-    return `${d}/${m}/${y}`;
-  }
-
-  const [local, setLocal] = useState(() => toDisplay(value));
-
-  useEffect(() => {
-    const display = toDisplay(value);
-    setLocal(prev => {
-      // Only sync if the ISO value changed externally (avoid fighting with user typing)
-      const prevISO = prev.length === 10
-        ? `${prev.slice(6)}-${prev.slice(3,5)}-${prev.slice(0,2)}`
-        : '';
-      return prevISO !== value ? display : prev;
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
-
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const raw = e.target.value.replace(/\D/g, '').slice(0, 8);
-    let fmt = raw;
-    if (raw.length >= 3) fmt = raw.slice(0, 2) + '/' + raw.slice(2);
-    if (raw.length >= 5) fmt = raw.slice(0, 2) + '/' + raw.slice(2, 4) + '/' + raw.slice(4);
-    setLocal(fmt);
-    if (raw.length === 8) {
-      // dd/mm/yyyy → YYYY-MM-DD
-      onChange(`${raw.slice(4)}-${raw.slice(2, 4)}-${raw.slice(0, 2)}`);
-    } else {
-      onChange('');
-    }
-  }
-
-  return (
-    <input
-      type="text"
-      value={local}
-      onChange={handleChange}
-      placeholder={placeholder ?? 'dd/mm/aaaa'}
-      maxLength={10}
-      className={cn(inputCls, className)}
-    />
-  );
-}
-
-/* ══════════════════════════════════════════════════════════
    STEP 4 — ORÇAMENTO
 ══════════════════════════════════════════════════════════ */
 
-function StepBudget({ form, updateForm }: any) {
+function StepBudget({ form, updateForm, errors = {}, showErrors }: any) {
   const scheduleMode = (form.scheduleMode || 'uniform') as 'uniform' | 'perday';
   const perDaySlots  = (form.perDaySlots  || {}) as Record<number, { start: number; end: number }>;
 
@@ -1406,36 +1525,46 @@ function StepBudget({ form, updateForm }: any) {
       <Section title="Investimento">
         <div className="grid grid-cols-2 gap-8">
           <div>
-            <Label>Orçamento Diário</Label>
+            <Label>Orçamento Diário *</Label>
             <div className="flex items-center gap-2">
               <span className="text-gray-500 font-semibold text-sm">R$</span>
               <input type="number" value={form.dailyBudget}
                 onChange={e => updateForm({ dailyBudget: parseFloat(e.target.value) })}
-                min={1} step={1} className={cn(inputCls, 'w-32')} />
+                min={1} step={1}
+                className={cn(inputCls, 'w-32', showErrors && errors.dailyBudget && 'border-red-400 focus:ring-red-400')} />
               <span className="text-gray-400 text-sm">/ dia</span>
             </div>
-            <p className="text-xs text-gray-400 mt-1.5">
-              Estimativa mensal:{' '}
-              <span className="text-indigo-600 font-semibold">{formatCurrency(form.dailyBudget * 30)}</span>
-            </p>
+            {showErrors && errors.dailyBudget ? (
+              <p className="text-xs text-red-600 font-medium mt-1.5">{errors.dailyBudget}</p>
+            ) : (
+              <p className="text-xs text-gray-400 mt-1.5">
+                Estimativa mensal:{' '}
+                <span className="text-indigo-600 font-semibold">{formatCurrency(form.dailyBudget * 30)}</span>
+              </p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>Data Início</Label>
-              <DateInput
+              <Label>Data Início *</Label>
+              <DateInputPtBR
                 value={form.startTime}
                 onChange={v => updateForm({ startTime: v })}
-                className="w-full"
+                className={cn(inputCls, 'w-full', showErrors && errors.startTime && 'border-red-400 focus:ring-red-400')}
               />
+              {showErrors && errors.startTime && (
+                <p className="text-xs text-red-600 font-medium mt-1.5">{errors.startTime}</p>
+              )}
             </div>
             <div>
               <Label>Data Fim (opcional)</Label>
-              <DateInput
+              <DateInputPtBR
                 value={form.endTime}
                 onChange={v => updateForm({ endTime: v })}
-                placeholder="Sem data fim"
-                className="w-full"
+                className={cn(inputCls, 'w-full', showErrors && errors.endTime && 'border-red-400 focus:ring-red-400')}
               />
+              {showErrors && errors.endTime && (
+                <p className="text-xs text-red-600 font-medium mt-1.5">{errors.endTime}</p>
+              )}
             </div>
           </div>
         </div>
@@ -1468,10 +1597,14 @@ function StepBudget({ form, updateForm }: any) {
           </button>
         </div>
 
+        {showErrors && errors.scheduleDays && (
+          <p className="text-xs text-red-600 font-medium -mt-3">{errors.scheduleDays}</p>
+        )}
+
         {scheduleMode === 'uniform' ? (
           <div className="grid grid-cols-2 gap-8">
             <div>
-              <Label>Dias da Semana</Label>
+              <Label>Dias da Semana *</Label>
               <div className="flex gap-2 flex-wrap">
                 {DAYS_OF_WEEK.map(day => (
                   <button key={day.value} onClick={() => toggleDay(day.value)}
