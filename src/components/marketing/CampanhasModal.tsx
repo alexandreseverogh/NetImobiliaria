@@ -5,7 +5,7 @@
  * v2: imagens via CreativeAsset, paginação, badges corretos, layout corrigido.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   XMarkIcon,
@@ -75,6 +75,10 @@ interface CampaignData {
   // Código real da rede (meta/google/tiktok...), resolvido no servidor via ad_networks —
   // nunca mais assumir "Meta Ads" fixo (ver networkLabel() mais abaixo).
   networkCode?: string;
+  // Correção P2 (docs/PLANO_INTEGRACAO_JEV.md §5.2) — necessário pra resolver o segmento real
+  // da campanha (e assim as opções de ângulo corretas) no editor inline. Já vem do Prisma
+  // (campo real de Campaign), só faltava declarar no tipo.
+  clientId?: string | null;
   createdAt: string;
   updatedAt: string;
   adSets: AdSetData[];
@@ -347,8 +351,10 @@ function FunnelBadge({ stage, isDark = false }: { stage: string; isDark?: boolea
  *   sem angle → amber   (sem classificação — call-to-action)
  *   legacy    → violet  (dados anteriores à FASE 14d)
  */
-function AngleBadge({ campaignId, angle, angleSource, onUpdated, isDark = false }: {
+function AngleBadge({ campaignId, clientId, angle, angleSource, onUpdated, isDark = false }: {
   campaignId: string;
+  // Correção P2 — resolve as opções reais do SEGMENTO desta campanha, nunca ANGLE_OPTIONS fixo.
+  clientId?: string | null;
   angle?: string | null;
   angleSource?: string | null;
   onUpdated: (newAngle: string | null, newSource: string | null) => void;
@@ -357,6 +363,26 @@ function AngleBadge({ campaignId, angle, angleSource, onUpdated, isDark = false 
   const [editing,  setEditing]  = useState(false);
   const [saving,   setSaving]   = useState(false);
   const [selected, setSelected] = useState(angle ?? '');
+  const [options, setOptions]   = useState<{ slug: string; label: string }[]>(ANGLE_OPTIONS.map(o => ({ slug: o.value, label: o.label })));
+  const optionsFetched = useRef(false);
+
+  // Busca as opções reais do segmento ao entrar em modo de edição (lazy — evita 1 fetch por
+  // card renderizado na lista inteira de campanhas). Fallback: mantém ANGLE_OPTIONS legado se
+  // o segmento ainda não tiver ângulos próprios cadastrados ou se a chamada falhar.
+  useEffect(() => {
+    if (!editing || optionsFetched.current) return;
+    optionsFetched.current = true;
+    const qs = clientId ? `?clientId=${clientId}` : '';
+    adminFetch(`/api/admin/campanhas/segment-defaults${qs}`, { credentials: 'include' } as any)
+      .then(async res => {
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data.allowedAngles) && data.allowedAngles.length > 0) {
+          setOptions(data.allowedAngles);
+        }
+      })
+      .catch(() => { /* mantém o fallback legado já setado */ });
+  }, [editing, clientId]);
 
   async function save() {
     setSaving(true);
@@ -384,8 +410,8 @@ function AngleBadge({ campaignId, angle, angleSource, onUpdated, isDark = false 
           )}
         >
           <option value="">Sem ângulo</option>
-          {ANGLE_OPTIONS.map(o => (
-            <option key={o.value} value={o.value}>{o.label}</option>
+          {options.map(o => (
+            <option key={o.slug} value={o.slug}>{o.label}</option>
           ))}
         </select>
         <button
@@ -494,8 +520,14 @@ type ClassifyStep = 'loading' | 'review' | 'saving' | 'done';
 interface ClassifyResultLocal {
   id: string;
   name: string;
-  suggestedAngle: string;
+  // Correção P1 (docs/PLANO_INTEGRACAO_JEV.md §5.2) — pode vir null quando o LLM não acerta
+  // nenhum slug da taxonomia real do segmento; nunca mais força um valor fora dela.
+  suggestedAngle: string | null;
   confidence: 'high' | 'medium' | 'low';
+  // Opções reais do segmento desta campanha especificamente — cada linha da tabela de revisão
+  // pode pertencer a um segmento diferente (campanhas de clientes distintos no mesmo lote).
+  allowedAngles: { slug: string; label: string }[];
+  isLegacyFallback: boolean;
 }
 
 const CONF_DOT: Record<string, string> = {
@@ -548,10 +580,11 @@ function ClassifyModal({ isOpen, onClose, onDone, isDark = false }: {
   async function handleSave() {
     setStep('saving');
     setProgress(0);
-    const assignments = results.map(r => ({
-      id: r.id,
-      angle: editedAngles[r.id] ?? r.suggestedAngle,
-    }));
+    // Correção P1 — r.suggestedAngle pode ser null (nenhum match na taxonomia real do
+    // segmento); só envia pra salvar quando há de fato um ângulo escolhido (editado ou sugerido).
+    const assignments = results
+      .map(r => ({ id: r.id, angle: editedAngles[r.id] ?? r.suggestedAngle }))
+      .filter((a): a is { id: string; angle: string } => !!a.angle);
 
     const interval = setInterval(() => {
       setProgress(p => (p < 85 ? p + 8 : p));
@@ -707,15 +740,19 @@ function ClassifyModal({ isOpen, onClose, onDone, isDark = false }: {
                                 </td>
                                 <td className="px-4 py-2.5">
                                   <select
-                                    value={editedAngles[r.id] ?? r.suggestedAngle}
+                                    value={editedAngles[r.id] ?? r.suggestedAngle ?? ''}
                                     onChange={e => setEditedAngles(prev => ({ ...prev, [r.id]: e.target.value }))}
                                     className={cn(
                                       'w-full text-xs font-semibold rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 appearance-none border',
                                       isDark ? 'border-white/10 bg-navy text-slate-200' : 'border-gray-200 bg-white text-gray-800',
                                     )}
                                   >
-                                    {ANGLE_OPTIONS.map(o => (
-                                      <option key={o.value} value={o.value}>{o.label}</option>
+                                    {!(editedAngles[r.id] ?? r.suggestedAngle) && (
+                                      <option value="">Sem ângulo</option>
+                                    )}
+                                    {/* Correção P1 — opções reais do segmento DESTA campanha, nunca ANGLE_OPTIONS fixo */}
+                                    {r.allowedAngles.map(o => (
+                                      <option key={o.slug} value={o.slug}>{o.label}</option>
                                     ))}
                                   </select>
                                 </td>
@@ -1083,6 +1120,7 @@ function CampaignCard({ campaign, index, isDark = false }: { campaign: CampaignD
             {/* FASE 14/14d — ângulo de comunicação (sempre visível, editável inline) */}
             <AngleBadge
               campaignId={campaign.id}
+              clientId={campaign.clientId}
               angle={localAngle}
               angleSource={localAngleSource}
               onUpdated={(a, s) => { setLocalAngle(a); setLocalAngleSource(s); }}

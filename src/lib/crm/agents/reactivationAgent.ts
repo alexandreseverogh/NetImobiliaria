@@ -34,7 +34,22 @@ export const reactivationAgent: CrmAgent = {
   trigger: 'SCHEDULED_SCAN',
   paramHints: [
     { key: 'dias_inatividade', label: 'Dias sem contato até sugerir reativação', default: String(DIAS_INATIVIDADE_DEFAULT) },
-    { key: 'requer_revisao_extra', label: 'Nunca enviar automático mesmo aprovado (true/false)', default: 'false' },
+    // Correção P4 (docs/PLANO_INTEGRACAO_JEV.md §5.2) — era texto livre com instrução
+    // "true/false" só no label; o código compara com igualdade estrita de string
+    // (`=== 'true'`), então qualquer digitação fora disso ("sim", "Sim", "1") sempre virava
+    // `false` silenciosamente — exatamente o tipo de segmento sensível (ex.: Saúde) que este
+    // parâmetro protege não podia se dar ao luxo de errar. Agora é um Choice de 2 opções
+    // fechadas — a UI vira <select>, nunca mais aceita um valor que o código não reconhece.
+    {
+      key: 'requer_revisao_extra',
+      label: 'Exigir aprovação humana mesmo com o agente ativo',
+      default: 'false',
+      type: 'choice',
+      options: [
+        { value: 'false', label: 'Não — pode enviar automático (padrão)' },
+        { value: 'true',  label: 'Sim — sempre exigir aprovação humana (PIN)' },
+      ],
+    },
   ],
 
   async findCandidates(): Promise<CrmAgentCandidate[]> {

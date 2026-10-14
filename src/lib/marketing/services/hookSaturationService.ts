@@ -2,6 +2,7 @@ import pool from '@/lib/database/connection';
 import { resolveSegment } from '@/lib/intelligence/segmentResolver';
 import { resolveBenchmarks } from '@/lib/intelligence/benchmarkResolver';
 import { getLeadEvents, sumLeads } from './leadEvents';
+import { getSegmentHookTypes } from './creativeTaxonomyResolver';
 
 export interface HookStat {
   hookType: string;
@@ -37,14 +38,23 @@ export const HOOK_LABELS: Record<string, string> = {
   other:        'Outro',
 };
 
-// Enum real de hook_type (mesmo do prompt creative_vision_analysis) — "price"/"investment"/
-// "lifestyle"/"family"/"social"/"luxury" são valores do campo ANGLE, nunca de hook_type; nunca
-// devem entrar numa lista de "hooks pra experimentar" (bug real corrigido nesta sessão: a
-// sugestão de diversificação usava Object.keys(HOOK_LABELS) inteiro, então podia sortear um
-// desses valores de angle como se fosse um hook de verdade).
-export const REAL_HOOK_TYPES = [
+// Correção P3 (docs/PLANO_INTEGRACAO_JEV.md §5.2) — era um enum fixo, independente de
+// `segment_hook_type_terms` (a mesma fonte já usada por creativeAnalysisService.ts) — um
+// segundo lugar com a MESMA taxonomia hardcoded, que ficaria desalinhado assim que um
+// segmento customizasse seus próprios hooks. Mantido como fallback legado (rede de
+// segurança, mesmo padrão de angleResolver.ts) pra quando um segmento não tiver taxonomia
+// própria cadastrada — nunca deveria acontecer após a migração de backfill, mas defensivo.
+const LEGACY_REAL_HOOK_TYPES = [
   'urgency', 'curiosity', 'social_proof', 'benefit', 'story', 'problem',
 ] as const;
+
+/** Slugs de hook reais do segmento (nunca 'other', que não é um hook pra "experimentar"). */
+async function resolveRealHookSlugs(segmentId: string | null | undefined): Promise<string[]> {
+  if (!segmentId) return [...LEGACY_REAL_HOOK_TYPES];
+  const options = await getSegmentHookTypes(segmentId).catch(() => []);
+  if (options.length === 0) return [...LEGACY_REAL_HOOK_TYPES];
+  return options.map(o => o.slug).filter(slug => slug !== 'other');
+}
 
 // Subconjunto de REAL_HOOK_TYPES sustentável só com o que está visível na própria imagem, sem
 // precisar de nenhum fato externo verificável (contagem de clientes, estoque restante, resultado
@@ -78,6 +88,12 @@ export async function getHookSaturation(
   tenantId: string,
   clientId?: string | null,
 ): Promise<HookSaturationResult> {
+  const segment = await resolveSegment(tenantId, clientId ?? null).catch(() => null);
+  const realHookSlugs = await resolveRealHookSlugs(segment?.id ?? null);
+  const segmentHookOptions = segment ? await getSegmentHookTypes(segment.id).catch(() => []) : [];
+  const labelFor = (slug: string) =>
+    segmentHookOptions.find(o => o.slug === slug)?.label ?? HOOK_LABELS[slug] ?? slug;
+
   const params: unknown[] = [tenantId];
   const clientWhere = buildClientWhere(params, clientId, 'ca.client_id');
 
@@ -120,7 +136,7 @@ export async function getHookSaturation(
 
   const hookStats: HookStat[] = rows.map((r: any) => ({
     hookType: r.hook_type,
-    label: HOOK_LABELS[r.hook_type] ?? r.hook_type,
+    label: labelFor(r.hook_type),
     count: r.creative_count,
     share: Math.round((r.creative_count / total) * 100),
     avgCtr: r.avg_ctr != null ? Number(r.avg_ctr) : null,
@@ -131,11 +147,12 @@ export async function getHookSaturation(
   // alerta em ≥50%: amarelo (50-69%), vermelho (≥70%)
   const saturationAlert = dominant.share >= 50;
 
-  // Só sorteia entre hooks REAIS (nunca um valor de angle) pra sugerir como alternativa.
-  const missing = REAL_HOOK_TYPES
+  // Só sorteia entre hooks REAIS do segmento (nunca um valor de angle, nunca um slug que o
+  // segmento não tenha cadastrado) pra sugerir como alternativa.
+  const missing = realHookSlugs
     .filter(k => k !== dominant.hookType && !hookStats.find(h => h.hookType === k));
   const suggestion = saturationAlert && missing.length > 0
-    ? `Experimente hooks de ${missing.slice(0, 2).map(k => HOOK_LABELS[k]).join(' ou ')} para diversificar`
+    ? `Experimente hooks de ${missing.slice(0, 2).map(labelFor).join(' ou ')} para diversificar`
     : saturationAlert
     ? 'Varie os tipos de hook para reduzir a saturação'
     : null;
@@ -230,15 +247,20 @@ export async function getHookSuggestionContext(
   const minLeads = benchmarks.min_leads_scale || 5;
   const minDays  = benchmarks.min_days_running || 3;
 
+  // Correção P3 — slugs reais do SEGMENTO (não mais o enum fixo REAL_HOOK_TYPES), pra nunca
+  // ficar desalinhado assim que um segmento customizar os próprios hooks. Parametrizado (nunca
+  // interpolado como literal SQL cru, diferente da versão anterior deste arquivo).
+  const realHookSlugsForContext = await resolveRealHookSlugs(segment?.id ?? null);
+
   // Campanhas por hook real (nunca 'other') — pra checar maturidade de sinal.
-  const params: unknown[] = [tenantId];
+  const params: unknown[] = [tenantId, realHookSlugsForContext];
   const clientWhere = buildClientWhere(params, clientId, 'ca.client_id');
   const { rows: campaignRows } = await pool.query<{ hook_type: string; campaign_id: string | null }>(`
     SELECT an.hook_type, ca.campaign_id
     FROM campanhasmarketingdigital."CreativeAsset" ca
     JOIN campanhasmarketingdigital."CreativeAnalysis" an ON an.asset_id = ca.id
     WHERE ca.tenant_id = $1::uuid
-      AND an.hook_type = ANY(ARRAY[${REAL_HOOK_TYPES.map(h => `'${h}'`).join(',')}])
+      AND an.hook_type = ANY($2::text[])
       AND ca.campaign_id IS NOT NULL
       ${clientWhere}
   `, params);
@@ -271,8 +293,13 @@ export async function getHookSuggestionContext(
     }
   }
 
+  // Correção P3 — SAFE_COLD_START_HOOKS continua sendo uma regra de negócio legítima em
+  // código (quais categorias são seguras sugerir sem dado externo verificável — não varia por
+  // segmento), mas intersectada contra a taxonomia REAL do segmento: nunca sugere um slug que
+  // o segmento não tenha cadastrado, mesmo que o nome genérico ("curiosity") coincida.
+  const realSlugSet = new Set(realHookSlugsForContext);
   const missingSafeHooks = SAFE_COLD_START_HOOKS
-    .filter(k => !saturation.hookStats.find(h => h.hookType === k));
+    .filter(k => realSlugSet.has(k) && !saturation.hookStats.find(h => h.hookType === k));
 
   let scenes: HookSuggestionScene[] = [];
   if (!historyHook) {

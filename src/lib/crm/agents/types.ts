@@ -64,6 +64,25 @@ export interface CrmAgentParamHint {
    *  foi configurado — nunca dois números diferentes pro "padrão" (um documentado na UI, outro
    *  no código) que podem divergir silenciosamente com o tempo. */
   default: string
+  /**
+   * Correção P4 (docs/PLANO_INTEGRACAO_JEV.md §5.2/§5.3) — tipo do parâmetro, pra a UI
+   * (SegmentAgentesModal.tsx, /crm/config/agentes) renderizar o editor certo em vez de só
+   * 2 inputs de texto livre:
+   *   'scalar' (padrão, omitido = scalar) — texto livre, comportamento de sempre.
+   *   'choice' — lista fechada de opções (ex.: um booleano codificado como string, ou uma
+   *     categoria). `options` descreve os valores reais aceitos pelo código do agente — a UI
+   *     vira um <select>, o Master nunca mais digita um valor que o código não reconhece.
+   *   'score' — escala ordenada de N níveis. `levels` descreve cada posição; o significado
+   *     exato do número (ex.: "nível mínimo pra pular revisão humana") é do próprio agente,
+   *     nunca inferido pela UI.
+   * Em ambos os casos o valor persistido em params[key] continua sendo uma STRING simples
+   * (schema do banco não muda — params já é JSONB livre) — só a UI de edição muda.
+   */
+  type?: 'scalar' | 'choice' | 'score'
+  /** Só relevante quando type === 'choice'. */
+  options?: { value: string; label: string }[]
+  /** Só relevante quando type === 'score'. */
+  levels?: { value: number; label: string }[]
 }
 
 export interface CrmAgent {
