@@ -12,7 +12,17 @@ import { XMarkIcon, CheckCircleIcon, PlusIcon, TrashIcon, QuestionMarkCircleIcon
 import { cn } from '@/lib/marketing-utils';
 import { AgentesAceleracaoHelp } from '@/components/crm/AgentesAceleracaoHelp';
 
-interface ParamHint { key: string; label: string; default: string }
+// Correção P4 (docs/PLANO_INTEGRACAO_JEV.md §5.2/§5.3) — espelha CrmAgentParamHint
+// (src/lib/crm/agents/types.ts); UI passa a renderizar <select> estruturado quando o hint
+// declara type:'choice'/'score', em vez de só 2 inputs de texto livre pra todo parâmetro.
+interface ParamHint {
+  key: string;
+  label: string;
+  default: string;
+  type?: 'scalar' | 'choice' | 'score';
+  options?: { value: string; label: string }[];
+  levels?: { value: number; label: string }[];
+}
 interface CatalogAgent { key: string; label: string; description: string; paramHints?: ParamHint[] }
 interface AgentConfig { agent_key: string; ativo: boolean; params: Record<string, any> }
 interface Segment { id: string; name: string; slug: string }
@@ -194,19 +204,37 @@ export function SegmentAgentesModal({ segment, onClose }: Props) {
                     </label>
 
                     <div className="space-y-1.5">
-                      {paramEntries.map(([pKey, pVal], i) => (
-                        <div key={i} className="flex items-center gap-1.5">
-                          <input value={pKey} onChange={e => renameParamKey(agent.key, pKey, e.target.value)}
-                            placeholder="parâmetro"
-                            className="w-1/3 px-2 py-1 rounded-lg border border-gray-200 text-xs font-mono text-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                      {paramEntries.map(([pKey, pVal], i) => {
+                        // Correção P4 — se este parâmetro tem um hint com type:'choice'/'score',
+                        // o valor nunca é texto livre: <select> com as opções reais do agente.
+                        const hint = (agent.paramHints ?? []).find(h => h.key === pKey);
+                        const valueInput = hint?.type === 'choice' ? (
+                          <select value={String(pVal)} onChange={e => setParam(agent.key, pKey, e.target.value)}
+                            className="flex-1 px-2 py-1 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-400">
+                            {hint.options?.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                          </select>
+                        ) : hint?.type === 'score' ? (
+                          <select value={String(pVal)} onChange={e => setParam(agent.key, pKey, e.target.value)}
+                            className="flex-1 px-2 py-1 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-400">
+                            {hint.levels?.map(l => <option key={l.value} value={String(l.value)}>{l.label}</option>)}
+                          </select>
+                        ) : (
                           <input value={String(pVal)} onChange={e => setParam(agent.key, pKey, e.target.value)}
                             placeholder="valor"
                             className="flex-1 px-2 py-1 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-400" />
-                          <button onClick={() => removeParam(agent.key, pKey)} className="text-gray-300 hover:text-red-500 p-1">
-                            <TrashIcon className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ))}
+                        );
+                        return (
+                          <div key={i} className="flex items-center gap-1.5">
+                            <input value={pKey} onChange={e => renameParamKey(agent.key, pKey, e.target.value)}
+                              placeholder="parâmetro"
+                              className="w-1/3 px-2 py-1 rounded-lg border border-gray-200 text-xs font-mono text-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                            {valueInput}
+                            <button onClick={() => removeParam(agent.key, pKey)} className="text-gray-300 hover:text-red-500 p-1">
+                              <TrashIcon className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        );
+                      })}
                       <button onClick={() => addParam(agent.key)}
                         className="flex items-center gap-1 text-[11px] font-bold text-gray-400 hover:text-orange-600">
                         <PlusIcon className="h-3 w-3" /> Adicionar parâmetro

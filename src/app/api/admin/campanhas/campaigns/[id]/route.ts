@@ -3,7 +3,7 @@ import { prisma } from '@/lib/marketing/prisma';
 import pool from '@/lib/database/connection';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { requireApiPermission } from '@/lib/auth/apiPermissions';
-import { normalizeAngle } from '@/lib/marketing/angles';
+import { normalizeAngleForScope } from '@/lib/marketing/services/angleResolver';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,9 +48,16 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
     const updateData: any = {};
 
-    // Campo: ângulo declarado (FASE 14)
+    // Campo: ângulo declarado (FASE 14) — correção P2 (docs/PLANO_INTEGRACAO_JEV.md §5.2):
+    // valida contra a taxonomia real do SEGMENTO da campanha (via clientId dela), não mais
+    // contra os 8 valores fixos legados. Resolve o escopo pelo cliente/tenant da própria
+    // campanha (nunca do body — clientId não é editável por este PATCH).
     if ('declaredAngle' in body) {
-      updateData.declaredAngle = normalizeAngle(body.declaredAngle);
+      updateData.declaredAngle = await normalizeAngleForScope(
+        body.declaredAngle,
+        payload.tenantId,
+        campaign.clientId,
+      );
     }
 
     if (Object.keys(updateData).length === 0) {

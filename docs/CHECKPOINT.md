@@ -1,5 +1,214 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-10-14 — **Planejamento de integração do Jev (TypeSafe AI, pilares
+> Choice/Score/Noul) iniciado em `docs/PLANO_INTEGRACAO_JEV.md`, e os 5 pré-requisitos reais
+> de hardcode legado identificados nesse planejamento (P1-P5) corrigidos e testados
+> rigorosamente nesta mesma sessão — nenhuma chamada real ao Jev feita ainda (Fase 0 do plano,
+> validação de acesso à API, segue pendente).**
+>
+> **Contexto:** usuário ratificou a regra de zero hardcode em toda a aplicação e pediu
+> mapeamento de onde cada pilar do Jev seria parametrizado por UI, por segmento/tenant. A
+> investigação (2 agentes de mapeamento + verificação direta de código/banco) achou 5
+> violações REAIS do princípio, pré-existentes, independentes do Jev — corrigidas nesta sessão
+> antes de qualquer wiring com a tecnologia terceira.
+>
+> **P1 — `angleClassifierService.ts` (classificador em lote de ângulo, FASE 14d) nunca usava
+> `segment_angle_terms`, só os 8 valores fixos de `angles.ts`.** Confirmado com dado real: o
+> segmento "Imobiliário" tem 6 ângulos próprios (`diferencial_construtora`,
+> `financiamento_facilitado`, `localizacao_premium`, `urgencia_unidades`, `valor_mensalidade` —
+> nenhum dos 8 legados), e "Gestão de Marketing Digital" tem outros 6 completamente diferentes
+> (`case_de_sucesso`, `crescimento_vendas`, `diagnostico_gratuito`, `preco_transparente`,
+> `roi_comprovado`, `terceirizar_gestao`) — o classificador generativo nunca poderia ter
+> acertado nenhum desses, sempre caía num valor errado da taxonomia genérica. **Corrigido**
+> (`angleClassifierService.ts`): `classifyCampaignAngles` agrupa campanhas por segmento
+> efetivo (via `client_id`→`resolveSegment`) antes de montar os lotes; `classifyBatch` injeta
+> as opções REAIS do segmento no prompt (novo `{{angle_options}}`) e nunca força um valor fora
+> da taxonomia pra dentro dela (antes: fallback `'other'` sempre; agora: `null` honesto se não
+> houver match — `'other'` pode nem existir num catálogo customizado). Fallback transparente
+> pra taxonomia legada só quando o segmento genuinamente não tem nenhum ângulo cadastrado
+> (`isLegacyFallback`), mesmo padrão já usado pelo Wizard desde FASE 18.2.
+> **Achado de brinde, bug pré-existente e independente de P1:** o caminho `campaignIds`
+> explícito de `classifyCampaignAngles` sempre falhava (`operator does not exist: text =
+> uuid`) — `Campaign.id` é `text`, não `uuid`, e o código fazia `id = ANY($2::uuid[])`; nunca
+> tinha sido exercitado porque a UI de produção só chama esse modo sem IDs explícitos.
+> Corrigido pra `::text[]`.
+> **Novo módulo `src/lib/marketing/services/angleResolver.ts`** — `resolveAngleScope`/
+> `matchAngle`/`normalizeAngleForScope`, único ponto de resolução de ângulo por escopo
+> (tenant+cliente→segmento), reaproveitado em todos os pontos corrigidos nesta sessão (P1, P2,
+> e a unificação de `angle` no Vision em P3) — nunca duplicado.
+>
+> **P2 — mais sério que UI: o BACKEND (`POST`/`PATCH /api/admin/campanhas/campaigns`) só
+> aceitava os 8 valores fixos de `angles.ts`, mesmo quando a UI do Wizard já mostrava
+> corretamente o ângulo do segmento (`autoFields.allowedAngles`, já dirigido por dado desde
+> FASE 18.2).** Ou seja: selecionar um ângulo customizado do segmento no Wizard e salvar fazia
+> o servidor **descartar silenciosamente** o valor (`normalizeAngle()` síncrono, só reconhece
+> os 8 legados), persistindo `NULL`. **Corrigido:** as 2 rotas passaram a usar
+> `normalizeAngleForScope` (assíncrono, ciente de segmento). `CampanhasModal.tsx` — `AngleBadge`
+> (editor inline na tela "Consultar Campanhas") e `ClassifyModal` (revisão da classificação em
+> lote) também corrigidos pra usar as opções reais por campanha (`campaign.clientId` adicionado
+> ao tipo `CampaignData`, antes ausente apesar de já vir do Prisma).
+>
+> **P3 — `creativeAnalysisService.ts` (Vision de criativos) tinha 3 problemas simultâneos:**
+> (a) `angle` extraído pelo Vision era uma **3ª fonte desalinhada** (nem `angles.ts`, nem
+> `segment_angle_terms`) — confirmado com dado real: os criativos já analisados do tenant
+> Marketing Digital têm `angle='lifestyle'`/`'investment'` (valores legados), completamente
+> fora dos 6 ângulos reais do segmento dele; (b) `hook_type` tinha enum hardcoded em TS
+> (`VALID_HOOK_TYPES`); (c) `cta_style` **nunca teve validação nenhuma**, nem em código nem em
+> tabela — e o prompt `creative_vision_analysis` (global, `segment_id=NULL`) listava os 4
+> enums como texto fixo, igual para qualquer segmento.
+> **Corrigido** — `prisma/migration-2026-10-14-creative-taxonomy-por-segmento.sql`: 3 tabelas
+> novas (`segment_hook_type_terms`, `segment_cta_style_terms`,
+> `segment_creative_boolean_checks`), com backfill da taxonomia atual em TODO segmento ativo
+> (zero regressão — 49+35+35 linhas inseridas, 7 segmentos × 7/5/5 valores); prompt
+> `creative_vision_analysis` reescrito com `{{angle_options}}`/`{{hook_options}}`/
+> `{{cta_options}}`/`{{boolean_checks_context}}` em vez dos enums fixos no texto. Novo módulo
+> `creativeTaxonomyResolver.ts` (mesmo padrão de `angleResolver.ts`). `creativeAnalysisService.ts`
+> resolve o segmento real do asset (via `tenant_id`/`client_id`, ambos já existentes na tabela
+> `CreativeAsset`) e clampa as 3 dimensões contra a taxonomia certa — `hook_type`/`cta_style`/
+> `angle` agora `string | null` (antes `string`, sempre forçado); sem match, `null` honesto.
+> **Achado de brinde, mesma classe de hardcode duplicado:** `hookSaturationService.ts` tinha a
+> MESMA taxonomia de hook fixa (`REAL_HOOK_TYPES`), usada em 2 pontos (`getHookSaturation` pra
+> sugerir hooks "a experimentar"; `getHookSuggestionContext` num filtro SQL `ANY(ARRAY[...])`
+> com os 6 valores literalmente interpolados na query). Corrigida também — ambas as funções
+> resolvem o segmento (já tinham `tenantId`/`clientId` disponíveis) e usam os slugs reais;
+> `SAFE_COLD_START_HOOKS` (regra de negócio legítima — quais hooks são seguros sugerir sem dado
+> externo verificável) mantida em código, mas intersectada contra a taxonomia real do segmento.
+> **Decisão de escopo, não atacada:** `emotional_tone` deliberadamente deixado de fora (sem
+> enum, sem tabela) — pendente de decisão de produto com o usuário (vira catálogo fechado por
+> segmento ou fica livre?), registrado como item aberto no plano Jev §8.
+>
+> **P4 — `CrmAgentParamHint` (Agentes de Aceleração do CRM) só suportava parâmetro escalar
+> (`default: string`) — sem variante de Choice/Score, a UI (`SegmentAgentesModal.tsx` Master +
+> `/crm/config/agentes` tenant) sempre renderizava 2 inputs de texto livre, mesmo pra um
+> booleano codificado como string.** Achado real: `reactivationAgent.ts`'s
+> `requer_revisao_extra` é comparado com igualdade estrita (`=== 'true'`) — digitar "sim"/
+> "Sim"/"1" sempre silenciosamente virava `false`, exatamente no parâmetro que protege
+> segmentos sensíveis (ex. Saúde) contra envio automático sem aprovação humana. **Corrigido:**
+> `CrmAgentParamHint` ganhou `type?:'scalar'|'choice'|'score'` + `options`/`levels`; aplicado no
+> parâmetro real `requer_revisao_extra` (2 opções fechadas); os 2 editores (`SegmentAgentesModal.tsx`
+> e `/crm/config/agentes`) renderizam `<select>` quando o hint declara `type`. Schema do banco
+> (`params JSONB`) não mudou — só a camada de aplicação/UI.
+>
+> **P5 — confirmado: `/crm/config/agentes` existe** (`src/app/crm/config/agentes/page.tsx`).
+>
+> **Testado rigorosamente, ponta a ponta, contra dado e produção real, com reversão
+> byte-exata de todo estado tocado:**
+> - P1/P2: tenant real "CRM SOZINHO — IMOBILIÁRIO" (segmento Imobiliário real, 5 ângulos
+>   próprios) — campanha de teste criada → `preview` retornou as opções REAIS do segmento
+>   (`isLegacyFallback:false`) → LLM real (Groq, após achar e contornar um bug não-relacionado,
+>   ver abaixo) classificou corretamente como `financiamento_facilitado` (confiança alta) →
+>   `confirm` persistiu → `PATCH` com ângulo real aceito, com valor inventado rejeitado
+>   (`null`), e **com o ângulo legado `luxury` (válido no código antigo) corretamente
+>   rejeitado** — o teste decisivo de regressão. Testado também o caminho de fallback: tenant
+>   temporariamente movido pra o segmento "Master Platform" (0 ângulos cadastrados) →
+>   `isLegacyFallback:true`, `luxury` passou a ser aceito, ângulo real do Imobiliário passou a
+>   ser rejeitado. Tudo revertido (campanha apagada, segmento do tenant restaurado).
+> - **Achado durante o teste, não relacionado a P1-P5:** a config LLM GLOBAL de Campanhas
+>   (`Settings` com `tenant_id IS NULL`) tinha a API key do Gemini salva como o texto
+>   MASCARADO da UI (`AIzaSyBV••••••••••••`, bullets reais, não asteriscos) em vez da chave de
+>   verdade — bloqueava TODA chamada de LLM do módulo de Campanhas nesta base, não só o teste.
+>   Capturado o valor exato em base64, trocado temporariamente por uma chave Groq real (do
+>   próprio tenant de teste) só pra rodar os testes, restaurado byte-a-byte depois (confirmado
+>   via `encode(...,  'base64')` idêntico antes/depois). Não corrigido de propósito — fora do
+>   escopo de P1-P5, fica registrado pro usuário decidir se quer uma chave Gemini real aí.
+> - P3: segmento "Gestão de Marketing Digital" (6 ângulos reais, diferentes do Imobiliário) —
+>   `resolveAngleScope`/`getSegmentHookTypes`/`getSegmentCtaStyles` retornaram a taxonomia real
+>   (`isLegacyFallback:false`); `matchAngle('roi_comprovado', ...)` aceito, `matchAngle(
+>   'lifestyle', ...)` (legado) **corretamente rejeitado**, valor inventado rejeitado — mesmo
+>   padrão de P1/P2. `getHookSaturation`/`getHookSuggestionContext` rodados contra o único
+>   criativo real já analisado deste tenant — zero crash, rótulos/sugestões corretos, usando a
+>   taxonomia do segmento. Não foi feita uma chamada real ao Vision LLM (custo/risco) — testada
+>   toda a lógica de resolução/injeção/clamp isoladamente, que é a parte nova.
+> - P4: os 5 agentes reais do segmento Imobiliário (já ativos em produção) — `GET` confirmou
+>   `type:"choice"`+`options` expostos corretamente pela API; `PUT` trocando
+>   `requer_revisao_extra` pra `"true"` persistiu a string exata que o código do agente espera;
+>   restaurado ao estado original (`"false"`), confirmado idêntico via SQL.
+> - `npx tsc --noEmit`: **zero erros em todo o projeto**, verificado 3 vezes ao longo da sessão
+>   (após P1/P2, após P4, após P3) — sem regressão em nenhum ponto.
+>
+> **Arquivos novos:** `src/lib/marketing/services/angleResolver.ts`,
+> `src/lib/marketing/services/creativeTaxonomyResolver.ts`,
+> `prisma/migration-2026-10-14-fix-classify-angle-prompt-hardcode.sql`,
+> `prisma/migration-2026-10-14-creative-taxonomy-por-segmento.sql`.
+> **Arquivos tocados:** `angleClassifierService.ts`, `campaigns/route.ts`, `campaigns/[id]/
+> route.ts`, `CampanhasModal.tsx`, `creativeAnalysisService.ts`, `hookSaturationService.ts`,
+> `src/lib/crm/agents/types.ts`, `reactivationAgent.ts`, `SegmentAgentesModal.tsx`,
+> `src/app/crm/config/agentes/page.tsx`. Documento de planejamento:
+> `docs/PLANO_INTEGRACAO_JEV.md` (criado e expandido nesta mesma sessão, §5 é a resposta
+> completa a "em quais UI parametrizamos cada pilar").
+>
+> **Pendência real, não atacada:** nenhuma chamada real à API do Jev foi feita — a Fase 0 do
+> plano (confirmar contrato de API real com a TypeSafe AI, obter acesso) é pré-requisito pra
+> qualquer fase seguinte. UI Master de curadoria da "Taxonomia de Criativos" (hook/cta/
+> checagens booleanas) ainda não existe — as 3 tabelas são editáveis só via SQL por ora,
+> mesmo já sendo lidas em produção. Decisão de produto sobre `emotional_tone` pendente.
+
+> **Atualizado em:** 2026-10-12 — **Causa raiz real encontrada (não é bug de código):
+> Publicações Orgânicas falhando em produção com "Erro de autenticação com a Meta... API
+> access blocked." — investigação conjunta com o usuário via navegador real chegou ao
+> Portfólio Empresarial "Artemis4" inteiro restrito pela Meta desde 17/05/2026 por suspeita
+> de automação. Pendência real: usuário precisa pedir revisão à Meta (31 dias restantes a
+> partir de hoje); nenhuma ação de código resolve isso.**
+>
+> **Investigação, passo a passo (feita junto com o usuário, sempre verificando contra a API
+> real, nunca hipótese):**
+> 1. Erro mostrado na tela real: `/admin/campanhas/publicacoes` do tenant Artemis9 exibindo
+>    "O token de acesso configurado no tenant é inválido ou expirou" com o detalhe cru
+>    `API access blocked.` — vem de `GET /api/admin/campanhas/organic/target` →
+>    `MetaAdsAdapter.validateCredentials()` (`GET /me` na Graph API) sem sucesso.
+> 2. Confirmado que `public.tenants.meta_token`/`meta_app_id`/`meta_app_secret` já estavam
+>    preenchidos e idênticos entre local e VPS (mesmo tenant `b97b25b1-...`, App ID
+>    `1401333201622960`) — reproduzido o MESMO erro `{"error":{"message":"API access
+>    blocked.","type":"OAuthException","code":200}}` chamando a Graph API real **direto
+>    desta máquina** (não da VPS) — descarta de vez a hipótese de bloqueio por IP/datacenter
+>    da VPS, já suspeitada antes nesta sessão pra outros sintomas.
+> 3. Testado 1 nível abaixo — pedido um **app access token** via `client_credentials` usando
+>    só `meta_app_id`/`meta_app_secret` (sem token de usuário/página nenhum): a Meta **emitiu
+>    o token normalmente**, mas qualquer chamada real à API com ele (até `GET /{app_id}?
+>    fields=id,name,link`, puramente pra ler o próprio App) devolveu o mesmo bloqueio —
+>    confirma que o problema não é do token de usuário/página, é mais acima.
+> 4. No painel real do usuário em `developers.facebook.com/apps`, achado que o App ID salvo
+>    no banco (`1401333201622960`) **não aparece na lista "Meus apps"** — só existem 5 apps
+>    reais na conta, incluindo um TAMBÉM chamado "Artemis9" mas com ID diferente
+>    (`1418712461318094`). Confirmado via Graph API que os dois IDs resolvem publicamente
+>    (`id`/`name`, sem auth) — ambos existem de verdade, mas só o segundo está acessível pela
+>    conta logada. Hipótese nesse ponto: app antigo arquivado/órfão (descartada depois).
+> 5. Usuário gerou um token de usuário real no App novo (`1418712461318094`) via Graph API
+>    Explorer com 9 permissões (incluindo `pages_show_list`, confirmado presente na lista
+>    expandida) → trocado por token de 60 dias via `/oauth/access_token?grant_type=
+>    fb_exchange_token` → chamado `GET /me/accounts` com esse token de usuário de longa
+>    duração → **retornou `{"data":[]}`**, nenhuma Página listada, mesmo o usuário sendo
+>    admin confirmado da Página Artemis9 (`1363574656839191`, mesmo id presente em
+>    `public.tenants.meta_page_id`).
+> 6. **Causa raiz real, confirmada na própria tela da Meta** (`business.facebook.com/
+>    settings` → Portfólio Empresarial, dono da Página/Ad Account/Pixel): **"Restringimos
+>    sua empresa" — 17 de maio de 2026**. Motivo declarado pela própria Meta: *"Parece que
+>    esta conta foi criada ou usada com uma automação que não segue nossas regras"*
+>    (exemplos citados pela Meta: "automações em que uma grande parte da atividade é
+>    rapidamente criada por uma máquina", "automações que imitam atividades humanas"). Efeito
+>    da restrição: **nenhum anúncio pode ser criado/veiculado, nenhum público pode ser usado/
+>    compartilhado** — bloqueia qualquer App conectado a esse Portfólio (o antigo e o novo),
+>    explica por que `/me/accounts` veio vazio (Páginas do Portfólio restrito somem da listagem
+>    via API) e por que trocar de App/token nunca resolveria nada sozinho.
+>
+> **Hipótese levantada e registrada, não confirmada mas plausível:** a própria natureza desta
+> plataforma (automação real via API — `agentDecisor.ts` pausa/escala campanha sozinho,
+> `organicRecurrenceService.ts` publica conteúdo orgânico agendado, negativação automática de
+> termo de busca) pode ter disparado o detector de automação da Meta, mesmo sendo decisão
+> sempre supervisionada por humano. Vale ter isso em mente ao pedir a revisão (deixar claro
+> pra Meta que é ferramenta legítima de gestão, com aprovação humana por trás de cada ação),
+> e possivelmente ao reavaliar o ritmo/uniformidade das chamadas à API depois que a conta for
+> liberada, pra não disparar o mesmo detector de novo.
+>
+> **Ação tomada nesta sessão:** só investigação e diagnóstico — nenhuma credencial foi trocada
+> no banco (a troca de App ID/Secret/Token foi deliberadamente pausada até a restrição ser
+> resolvida, já que nada funcionaria mesmo com credencial nova). Nenhuma mudança de código.
+>
+> **Pendência real, do lado do usuário, não do código:** clicar em **"Pedir análise"** na tela
+> de restrição do Business Manager (31 dias restantes a partir de 2026-10-12) e aguardar a
+> revisão da Meta. Só depois disso (restrição removida) faz sentido retomar a migração de
+> credenciais pro App novo (`1418712461318094`) e testar a publicação orgânica de novo.
+
 > **Atualizado em:** 2026-10-07 (continuação) — **Bug real de fuso horário encontrado e
 > corrigido (orgânico + campanhas pagas) + 2 melhorias de UI em Publicações Orgânicas + plano
 > documentado pra canal Messenger/Instagram Direct no Mensageria.**

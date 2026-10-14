@@ -17,6 +17,9 @@ import fs from 'fs';
 import path from 'path';
 import { Pool } from 'pg';
 import { resolvePromptTemplate } from '@/lib/intelligence/promptResolver';
+import { resolveSegment } from '@/lib/intelligence/segmentResolver';
+import { resolveAngleScope, matchAngle } from './angleResolver';
+import { getSegmentHookTypes, getSegmentCtaStyles, getSegmentBooleanChecks, matchTaxonomyOption, type TaxonomyOption, type BooleanCheck } from './creativeTaxonomyResolver';
 
 let _pool: Pool | null = null;
 function getPool(): Pool {
@@ -30,10 +33,13 @@ export interface CreativeAnalysisResult {
   has_text_overlay: boolean;
   is_ugc_style: boolean;
   is_corporate_style: boolean;
-  hook_type: string;
+  // Correção P3 (docs/PLANO_INTEGRACAO_JEV.md §5.2) — hook_type/angle/cta_style agora são
+  // validados contra a taxonomia real do segmento; sem match, ficam null (nunca forçados pra
+  // um valor que pode nem existir num catálogo customizado).
+  hook_type: string | null;
   emotional_tone: string;
-  angle: string;
-  cta_style: string;
+  angle: string | null;
+  cta_style: string | null;
   scene_description: string;
   key_visual_elements: string[];
   confidence: number;
@@ -48,14 +54,37 @@ const EMPTY_RESULT: CreativeAnalysisResult = {
   key_visual_elements: [], confidence: 0,
 };
 
-// Enum real de hook_type ditado pro modelo no prompt creative_vision_analysis. O LLM não
-// respeita esse enum de forma confiável (achado real: 8 criativos gravados com "price"/
-// "investment" — valores que só são válidos no campo ANGLE, um conceito diferente de hook —
-// contaminando o cálculo de saturação de hook em hookSaturationService.ts). Clampar aqui
-// garante que só o schema real seja persistido, sem depender só da obediência do prompt.
-const VALID_HOOK_TYPES = new Set([
-  'urgency', 'curiosity', 'social_proof', 'benefit', 'story', 'problem', 'other',
-]);
+// Correção P3 (docs/PLANO_INTEGRACAO_JEV.md §5.2) — hook_type/cta_style/angle deixaram de ser
+// validados contra um enum fixo em código (VALID_HOOK_TYPES, abaixo) ou simplesmente não
+// validados (cta_style nunca teve clamp nenhum; angle era uma 3ª fonte desalinhada de
+// `segment_angle_terms`/`angles.ts`). Agora as 3 dimensões são resolvidas por SEGMENTO
+// (`segment_hook_type_terms`/`segment_cta_style_terms`/`segment_angle_terms`), curadas pelo
+// Master, com fallback transparente pra esta mesma lista legada enquanto um segmento ainda
+// não tiver taxonomia própria cadastrada (nunca deveria acontecer — a migração já faz backfill
+// de todo segmento ativo — mas mantido como rede de segurança, mesmo padrão de angleResolver.ts).
+const LEGACY_HOOK_TYPES: TaxonomyOption[] = [
+  { slug: 'urgency', label: 'Urgência' }, { slug: 'curiosity', label: 'Curiosidade' },
+  { slug: 'social_proof', label: 'Prova Social' }, { slug: 'benefit', label: 'Benefício' },
+  { slug: 'story', label: 'História' }, { slug: 'problem', label: 'Problema' }, { slug: 'other', label: 'Outro' },
+];
+const LEGACY_CTA_STYLES: TaxonomyOption[] = [
+  { slug: 'direct', label: 'Direto' }, { slug: 'soft', label: 'Suave' }, { slug: 'question', label: 'Pergunta' },
+  { slug: 'command', label: 'Comando' }, { slug: 'none', label: 'Nenhum' },
+];
+const LEGACY_BOOLEAN_CHECKS: BooleanCheck[] = [
+  { key: 'has_people', label: 'Tem pessoa(s) visível(is) na imagem' },
+  { key: 'has_property', label: 'Tem o item/ativo principal do anúncio visível na imagem' },
+  { key: 'has_text_overlay', label: 'Tem texto sobreposto na imagem' },
+  { key: 'is_ugc_style', label: 'Estilo UGC (parece conteúdo de usuário, não produção profissional)' },
+  { key: 'is_corporate_style', label: 'Estilo corporativo/institucional' },
+];
+
+function optionsListText(options: TaxonomyOption[]): string {
+  return options.map(o => `${o.slug} — ${o.label}`).join('\n');
+}
+function checksContextText(checks: BooleanCheck[]): string {
+  return checks.map(c => `${c.key}: ${c.label}`).join('\n');
+}
 
 /** Substitui {{variavel}} pelo valor correspondente no mapa. */
 function applyVariables(template: string, vars: Record<string, string>): string {
@@ -219,8 +248,32 @@ export async function analyzeCreativeAsset(assetId: string): Promise<void> {
     const llmCfg = await getLlmConfig();
     if (!llmCfg.apiKey) throw new Error('API Key não configurada. Configure em Master → IA da Plataforma.');
 
-    const visionPrompt = await resolvePromptTemplate('creative_vision_analysis', null);
-    if (!visionPrompt) throw new Error('Prompt template não encontrado: creative_vision_analysis. Execute a migration SQL.');
+    const visionPromptRaw = await resolvePromptTemplate('creative_vision_analysis', null);
+    if (!visionPromptRaw) throw new Error('Prompt template não encontrado: creative_vision_analysis. Execute a migration SQL.');
+
+    // Correção P3 — resolve a taxonomia REAL do segmento deste criativo (via tenant/cliente do
+    // asset), com fallback transparente pra legada se o segmento não tiver cadastro próprio.
+    const segment = await resolveSegment(asset.tenant_id, asset.client_id ?? null).catch(() => null);
+    const angleScope = await resolveAngleScope(asset.tenant_id, asset.client_id ?? null);
+    const hookOptions: TaxonomyOption[] = segment
+      ? await getSegmentHookTypes(segment.id).catch(() => [])
+      : [];
+    const ctaOptions: TaxonomyOption[] = segment
+      ? await getSegmentCtaStyles(segment.id).catch(() => [])
+      : [];
+    const booleanChecks: BooleanCheck[] = segment
+      ? await getSegmentBooleanChecks(segment.id).catch(() => [])
+      : [];
+    const effectiveHookOptions = hookOptions.length > 0 ? hookOptions : LEGACY_HOOK_TYPES;
+    const effectiveCtaOptions  = ctaOptions.length  > 0 ? ctaOptions  : LEGACY_CTA_STYLES;
+    const effectiveChecks      = booleanChecks.length > 0 ? booleanChecks : LEGACY_BOOLEAN_CHECKS;
+
+    const visionPrompt = applyVariables(visionPromptRaw, {
+      angle_options: optionsListText(angleScope.options),
+      hook_options:  optionsListText(effectiveHookOptions),
+      cta_options:   optionsListText(effectiveCtaOptions),
+      boolean_checks_context: checksContextText(effectiveChecks),
+    });
 
     console.log(`[CreativeAnalysis] Usando provider=${llmCfg.provider} modelo=${llmCfg.model}`);
 
@@ -249,14 +302,27 @@ export async function analyzeCreativeAsset(assetId: string): Promise<void> {
       throw new Error(`Vision LLM falhou: ${msg}`);
     }
 
-    // Clampa hook_type contra o enum real do prompt — nunca persistir um valor que só
-    // faz sentido no campo angle (ex.: "price"/"investment"/"luxury").
-    if (!VALID_HOOK_TYPES.has(result.hook_type)) {
-      console.warn(
-        `[CreativeAnalysis] hook_type fora do enum: "${result.hook_type}" (asset ${assetId}) — gravando como "other"`
-      );
-      result.hook_type = 'other';
+    // Correção P3 — clampa as 3 dimensões categóricas contra a taxonomia REAL do segmento
+    // (nunca mais um Set fixo em código) — e, diferente da versão anterior, nunca força um
+    // valor fora da taxonomia pra dentro dela (ex.: 'other' pode nem existir num catálogo
+    // customizado) — sem match, grava null (honesto), igual ao classificador em lote (P1).
+    const matchedHook = matchTaxonomyOption(result.hook_type, effectiveHookOptions);
+    if (!matchedHook) {
+      console.warn(`[CreativeAnalysis] hook_type fora da taxonomia do segmento: "${result.hook_type}" (asset ${assetId}) — gravando null`);
     }
+    result.hook_type = matchedHook;
+
+    const matchedCta = matchTaxonomyOption(result.cta_style, effectiveCtaOptions);
+    if (!matchedCta) {
+      console.warn(`[CreativeAnalysis] cta_style fora da taxonomia do segmento: "${result.cta_style}" (asset ${assetId}) — gravando null`);
+    }
+    result.cta_style = matchedCta;
+
+    const matchedAngle = matchAngle(result.angle, angleScope.options);
+    if (!matchedAngle) {
+      console.warn(`[CreativeAnalysis] angle fora da taxonomia do segmento: "${result.angle}" (asset ${assetId}) — gravando null`);
+    }
+    result.angle = matchedAngle;
 
     // 5. Persistir resultado
     const finalStatus = (result.confidence ?? 0) > 0 ? 'done' : 'failed';

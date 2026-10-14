@@ -20,7 +20,17 @@ const AGENT_PROMPT_TEMPLATE_KEY: Record<string, string> = {
   next_best_action: 'crm_agent_next_best_action',
 }
 
-interface ParamHint { key: string; label: string; default: string }
+// Correção P4 (docs/PLANO_INTEGRACAO_JEV.md §5.2/§5.3) — espelha CrmAgentParamHint
+// (src/lib/crm/agents/types.ts) e SegmentAgentesModal.tsx (Master); mesma UI estruturada
+// disponível também no override por tenant.
+interface ParamHint {
+  key: string;
+  label: string;
+  default: string;
+  type?: 'scalar' | 'choice' | 'score';
+  options?: { value: string; label: string }[];
+  levels?: { value: number; label: string }[];
+}
 interface CatalogAgent { key: string; label: string; description: string; paramHints?: ParamHint[] }
 interface AgentRow { agent_key: string; ativo: boolean | null; params: Record<string, any> }
 interface SegmentInfo { id: string; name: string; slug: string }
@@ -299,19 +309,37 @@ export default function CrmAgentesConfigPage() {
                 </div>
 
                 <div className="space-y-1.5 pt-1">
-                  {paramEntries.map(([pKey, pVal], idx) => (
-                    <div key={idx} className="flex items-center gap-1.5">
-                      <input value={pKey} onChange={e => renameParamKey(agent.key, pKey, e.target.value)}
-                        placeholder="parâmetro"
-                        className={`w-1/3 px-2 py-1.5 rounded-lg text-xs font-mono ${t.inputBg}`} />
+                  {paramEntries.map(([pKey, pVal], idx) => {
+                    // Correção P4 — mesmo tratamento do Master: choice/score vira <select>
+                    // com as opções/níveis reais do agente, nunca texto livre.
+                    const hint = (agent.paramHints ?? []).find(h => h.key === pKey);
+                    const valueInput = hint?.type === 'choice' ? (
+                      <select value={String(pVal)} onChange={e => setParam(agent.key, pKey, e.target.value)}
+                        className={`flex-1 px-2 py-1.5 rounded-lg text-xs ${t.inputBg}`}>
+                        {hint.options?.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                    ) : hint?.type === 'score' ? (
+                      <select value={String(pVal)} onChange={e => setParam(agent.key, pKey, e.target.value)}
+                        className={`flex-1 px-2 py-1.5 rounded-lg text-xs ${t.inputBg}`}>
+                        {hint.levels?.map(l => <option key={l.value} value={String(l.value)}>{l.label}</option>)}
+                      </select>
+                    ) : (
                       <input value={String(pVal)} onChange={e => setParam(agent.key, pKey, e.target.value)}
                         placeholder="valor"
                         className={`flex-1 px-2 py-1.5 rounded-lg text-xs ${t.inputBg}`} />
-                      <button onClick={() => removeParam(agent.key, pKey)} className={`p-1 ${t.textMuted} hover:text-red-500`}>
-                        <TrashIcon className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ))}
+                    );
+                    return (
+                      <div key={idx} className="flex items-center gap-1.5">
+                        <input value={pKey} onChange={e => renameParamKey(agent.key, pKey, e.target.value)}
+                          placeholder="parâmetro"
+                          className={`w-1/3 px-2 py-1.5 rounded-lg text-xs font-mono ${t.inputBg}`} />
+                        {valueInput}
+                        <button onClick={() => removeParam(agent.key, pKey)} className={`p-1 ${t.textMuted} hover:text-red-500`}>
+                          <TrashIcon className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
                   <button onClick={() => addParam(agent.key)}
                     className={`flex items-center gap-1 text-[11px] font-bold ${t.textMuted} hover:text-orange-500`}>
                     <PlusIcon className="h-3 w-3" /> Adicionar parâmetro próprio

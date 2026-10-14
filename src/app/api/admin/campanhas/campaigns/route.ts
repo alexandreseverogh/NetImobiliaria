@@ -4,7 +4,7 @@ import pool from '@/lib/database/connection';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { getNetworkServiceForTenant } from '@/lib/marketing/networks/factory';
 import type { NetworkCode } from '@/lib/marketing/networks/types';
-import { normalizeAngle } from '@/lib/marketing/angles';
+import { normalizeAngleForScope } from '@/lib/marketing/services/angleResolver';
 import { getLeadEvents, leadsByCampaign } from '@/lib/marketing/services/leadEvents';
 import { startOfDayBR, endOfDayBR } from '@/lib/marketing/brazilTime';
 import { resolveCampaignNetworkCodes } from '@/lib/marketing/networkFilterUtils';
@@ -239,6 +239,12 @@ export async function POST(request: NextRequest) {
     );
     const resolvedNetworkId = networkRes.rows[0]?.id || null;
 
+    // FASE 14 / correção P2 (docs/PLANO_INTEGRACAO_JEV.md §5.2) — ângulo validado contra a
+    // taxonomia REAL do segmento (segment_angle_terms), não mais contra os 8 valores fixos
+    // legados. resolveAngleScope já cai no fallback legado se o segmento ainda não tiver
+    // ângulos próprios cadastrados — transição transparente, nunca hardcode silencioso.
+    const resolvedDeclaredAngle = await normalizeAngleForScope(declaredAngle, payload.tenantId, clientId || null);
+
     // 1. Criar campanha
     const campaign = await prisma.campaign.create({
       data: {
@@ -248,7 +254,7 @@ export async function POST(request: NextRequest) {
         objective,
         specialAdCategory,
         status: 'PAUSED',
-        declaredAngle: normalizeAngle(declaredAngle),  // FASE 14
+        declaredAngle: resolvedDeclaredAngle,  // FASE 14
         initiativeId: validInitiativeId,               // vínculo opcional à iniciativa
         networkId: resolvedNetworkId,
       },
