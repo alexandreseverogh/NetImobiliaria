@@ -453,11 +453,16 @@ const GEMINI_EMBEDDING_DIMENSIONS = 768;
 /**
  * Gera o embedding vetorial de um texto via Gemini gemini-embedding-001 (768 dims — M4.3 RAG).
  * Fixo em Gemini independente do provider de CHAT configurado pro tenant (embedding é uma
- * escolha técnica de infra, não uma preferência de negócio) — cascata de chave: Settings do
- * tenant com provider='gemini' → GEMINI_API_KEY do .env (fallback global).
+ * escolha técnica de infra, não uma preferência de negócio) — cascata de chave:
+ *   1. Settings do tenant com provider='gemini' (chave própria do tenant, se configurada).
+ *   2. Settings global (tenant_id IS NULL), coluna `embeddingApiKey` — configurada pelo Master
+ *      em /admin/master/ia-plataforma (2026-10-15: migrada do .env pra cá, pra nunca depender
+ *      de editar arquivo de config pra trocar/rotacionar a chave).
+ *   3. GEMINI_API_KEY do .env — último recurso de segurança (bootstrap/disaster recovery),
+ *      nunca a via primária.
  */
 export async function embedText(text: string, tenantId?: string | null): Promise<number[]> {
-  let apiKey = process.env.GEMINI_API_KEY || '';
+  let apiKey = '';
 
   if (tenantId) {
     try {
@@ -468,12 +473,26 @@ export async function embedText(text: string, tenantId?: string | null): Promise
       );
       if (res.rows[0]?.llmApiKey) apiKey = res.rows[0].llmApiKey;
     } catch {
-      // fallback pro GEMINI_API_KEY do env já atribuído acima
+      // segue pro próximo nível da cascata
     }
   }
 
   if (!apiKey) {
-    throw new Error('Nenhuma chave Gemini disponível para gerar embeddings (configure GEMINI_API_KEY ou o provider "gemini" nas Configurações do tenant).');
+    try {
+      const res = await getPool().query(
+        `SELECT "embeddingApiKey" FROM campanhasmarketingdigital."Settings"
+         WHERE tenant_id IS NULL LIMIT 1`
+      );
+      if (res.rows[0]?.embeddingApiKey) apiKey = res.rows[0].embeddingApiKey;
+    } catch {
+      // segue pro fallback de env
+    }
+  }
+
+  if (!apiKey) apiKey = process.env.GEMINI_API_KEY || '';
+
+  if (!apiKey) {
+    throw new Error('Nenhuma chave Gemini disponível para gerar embeddings (configure em Master → IA da Plataforma, ou o provider "gemini" nas Configurações → IA do tenant).');
   }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_EMBEDDING_MODEL}:embedContent?key=${apiKey}`;

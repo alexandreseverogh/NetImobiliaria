@@ -46,7 +46,15 @@ interface Config {
   imageModel: string
   imageApiKeySet: boolean
   imageApiKeyMasked: string
+  embeddingApiKeySet: boolean
+  embeddingApiKeyMasked: string
 }
+
+// Modelo de embedding é fixo (não é escolha livre como provider/modelo de chat): a dimensão
+// do vetor (768) está acoplada ao schema de campanhasmarketingdigital.knowledge_chunks
+// (coluna vector(768)) — trocar de modelo exigiria migração de schema + reprocessar todo
+// embedding já gerado. Só a CHAVE é configurável aqui (migrada do .env em 2026-10-15).
+const EMBEDDING_MODEL_LABEL = 'Gemini — gemini-embedding-001 (768 dimensões)'
 
 const IMAGE_OPTIONS = [
   { provider: 'huggingface', model: 'black-forest-labs/FLUX.1-schnell', label: 'Flux Schnell (HuggingFace)', description: 'Gratuito · Conta HF gratuita · Rápido · Boa qualidade', isFree: true },
@@ -396,6 +404,11 @@ export default function IaPlataformaPage() {
   const [imgSaving, setImgSaving]   = useState(false)
   const [imgSaveMsg, setImgSaveMsg] = useState('')
 
+  const [embedApiKey, setEmbedApiKey]   = useState('')
+  const [showEmbedKey, setShowEmbedKey] = useState(false)
+  const [embedSaving, setEmbedSaving]   = useState(false)
+  const [embedSaveMsg, setEmbedSaveMsg] = useState('')
+
   const [activeTab, setActiveTab] = useState<'config' | 'catalog'>('config')
 
   useEffect(() => {
@@ -450,6 +463,24 @@ export default function IaPlataformaPage() {
       setImgSaveMsg(`Erro: ${err.message}`)
     } finally {
       setImgSaving(false)
+    }
+  }
+
+  async function handleSaveEmbedding() {
+    setEmbedSaving(true); setEmbedSaveMsg('')
+    try {
+      if (!embedApiKey) throw new Error('Informe a chave antes de salvar.')
+      const res  = await fetch('/api/admin/master/ia-plataforma', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ embeddingApiKey: embedApiKey }) })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setEmbedSaveMsg('Chave de embeddings salva com sucesso.')
+      setEmbedApiKey('')
+      const cfgRes = await fetch('/api/admin/master/ia-plataforma')
+      setConfig(await cfgRes.json())
+    } catch (err: any) {
+      setEmbedSaveMsg(`Erro: ${err.message}`)
+    } finally {
+      setEmbedSaving(false)
     }
   }
 
@@ -530,7 +561,7 @@ export default function IaPlataformaPage() {
 
       {/* ── ABA CONFIGURAÇÃO ── */}
       {activeTab === 'config' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
           {/* LEFT — LLM */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-xl p-6 space-y-5">
@@ -658,6 +689,56 @@ export default function IaPlataformaPage() {
               {imgSaving ? 'Salvando...' : 'Salvar Configuração de Imagem'}
             </button>
             {imgSaveMsg && <p className={`text-xs font-bold ${imgSaveMsg.startsWith('Erro') ? 'text-red-600' : 'text-emerald-600'}`}>{imgSaveMsg}</p>}
+          </div>
+
+          {/* FAR RIGHT — Embeddings (RAG) */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-xl p-6 space-y-5">
+            <div>
+              <h2 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                <SparklesIcon className="h-4 w-4 text-sky-500" />Embeddings (RAG)
+              </h2>
+              <p className="text-xs text-gray-400 mt-1">Base de Conhecimento da Mensageria — vetoriza os documentos cadastrados pelos tenants.</p>
+            </div>
+
+            <div className="bg-sky-50 rounded-xl border border-sky-100 p-3.5">
+              <p className="text-[10px] font-black text-sky-600 uppercase tracking-widest mb-1">Modelo (fixo)</p>
+              <p className="text-xs text-sky-800 font-bold">{EMBEDDING_MODEL_LABEL}</p>
+              <p className="text-[11px] text-sky-700/70 mt-1">Não é escolha livre — a dimensão do vetor está acoplada ao schema da Base de Conhecimento. Trocar de modelo exigiria reprocessar todo o conteúdo já vetorizado.</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                <KeyIcon className="h-3.5 w-3.5" />API Key (Gemini)
+              </label>
+              {config?.embeddingApiKeySet && !embedApiKey && (
+                <p className="text-xs text-emerald-600 font-black mb-2 flex items-center gap-1.5">
+                  <CheckCircleIcon className="h-3.5 w-3.5" />Chave configurada: {config.embeddingApiKeyMasked}
+                </p>
+              )}
+              <div className="relative">
+                <input type={showEmbedKey ? 'text' : 'password'} value={embedApiKey} onChange={e => setEmbedApiKey(e.target.value)}
+                  placeholder={config?.embeddingApiKeySet ? 'Deixe em branco para manter a atual' : 'AIzaSy...'}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 pr-11 text-sm font-medium text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent placeholder:text-gray-300" />
+                <button type="button" onClick={() => setShowEmbedKey(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  {showEmbedKey ? <EyeSlashIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
+                </button>
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1">Fallback (só se nada aqui estiver configurado): GEMINI_API_KEY do .env do servidor.</p>
+            </div>
+
+            <button onClick={handleSaveEmbedding} disabled={embedSaving}
+              className="w-full py-2.5 bg-sky-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-sky-500/20 hover:bg-sky-500 transition-all disabled:opacity-50">
+              {embedSaving ? 'Salvando...' : 'Salvar Chave de Embeddings'}
+            </button>
+            {embedSaveMsg && <p className={`text-xs font-bold ${embedSaveMsg.startsWith('Erro') ? 'text-red-600' : 'text-emerald-600'}`}>{embedSaveMsg}</p>}
+
+            <div className="bg-sky-50 rounded-xl border border-sky-100 p-4 mt-2">
+              <p className="text-[10px] font-black text-sky-600 uppercase tracking-widest mb-1.5">Escopo desta chave</p>
+              <ul className="space-y-1 text-xs text-sky-800/70 font-medium">
+                <li>→ Vetorização de documentos (Mensageria → Base de Conhecimento)</li>
+                <li>→ Busca híbrida (vetor + texto) usada pelo bot</li>
+              </ul>
+            </div>
           </div>
         </div>
       )}
