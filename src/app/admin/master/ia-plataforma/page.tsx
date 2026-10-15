@@ -48,13 +48,9 @@ interface Config {
   imageApiKeyMasked: string
   embeddingApiKeySet: boolean
   embeddingApiKeyMasked: string
+  embeddingModel: string
+  embeddingAffectedChunks: number
 }
-
-// Modelo de embedding é fixo (não é escolha livre como provider/modelo de chat): a dimensão
-// do vetor (768) está acoplada ao schema de campanhasmarketingdigital.knowledge_chunks
-// (coluna vector(768)) — trocar de modelo exigiria migração de schema + reprocessar todo
-// embedding já gerado. Só a CHAVE é configurável aqui (migrada do .env em 2026-10-15).
-const EMBEDDING_MODEL_LABEL = 'Gemini — gemini-embedding-001 (768 dimensões)'
 
 const IMAGE_OPTIONS = [
   { provider: 'huggingface', model: 'black-forest-labs/FLUX.1-schnell', label: 'Flux Schnell (HuggingFace)', description: 'Gratuito · Conta HF gratuita · Rápido · Boa qualidade', isFree: true },
@@ -405,6 +401,7 @@ export default function IaPlataformaPage() {
   const [imgSaveMsg, setImgSaveMsg] = useState('')
 
   const [embedApiKey, setEmbedApiKey]   = useState('')
+  const [embedModel, setEmbedModel]     = useState('')
   const [showEmbedKey, setShowEmbedKey] = useState(false)
   const [embedSaving, setEmbedSaving]   = useState(false)
   const [embedSaveMsg, setEmbedSaveMsg] = useState('')
@@ -422,6 +419,7 @@ export default function IaPlataformaPage() {
       setProvider(cfg.llmProvider || 'anthropic')
       setModel(cfg.llmModel || 'claude-sonnet-4-6')
       if (cfg.imageModel) setImgOption(cfg.imageModel)
+      if (cfg.embeddingModel) setEmbedModel(cfg.embeddingModel)
     }).finally(() => setLoading(false))
   }, [])
 
@@ -469,14 +467,38 @@ export default function IaPlataformaPage() {
   async function handleSaveEmbedding() {
     setEmbedSaving(true); setEmbedSaveMsg('')
     try {
-      if (!embedApiKey) throw new Error('Informe a chave antes de salvar.')
-      const res  = await fetch('/api/admin/master/ia-plataforma', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ embeddingApiKey: embedApiKey }) })
+      const modelChanged = config && embedModel && embedModel !== config.embeddingModel
+      let confirmEmbeddingModelChange = false
+
+      if (modelChanged) {
+        const n = config?.embeddingAffectedChunks ?? 0
+        const ok = window.confirm(
+          `⚠️ Você está trocando o modelo de "${config?.embeddingModel}" para "${embedModel}".\n\n` +
+          `Isso NÃO revetoriza automaticamente o conteúdo já processado. A rotina de reprocessamento ` +
+          `em lote ainda não foi implementada.\n\n` +
+          `${n} trecho${n === 1 ? '' : 's'} já vetorizado${n === 1 ? '' : 's'} com o modelo atual ` +
+          `${n === 1 ? 'ficará' : 'ficarão'} IMEDIATAMENTE fora de qualquer busca do bot, até serem ` +
+          `reprocessados manualmente (nenhum mecanismo automático existe pra isso ainda).\n\n` +
+          `Deseja confirmar mesmo assim?`
+        )
+        if (!ok) { setEmbedSaving(false); return }
+        confirmEmbeddingModelChange = true
+      }
+
+      const body: any = {}
+      if (embedApiKey) body.embeddingApiKey = embedApiKey
+      if (embedModel) { body.embeddingModel = embedModel; body.confirmEmbeddingModelChange = confirmEmbeddingModelChange }
+      if (!Object.keys(body).length) throw new Error('Informe a chave ou o modelo antes de salvar.')
+
+      const res  = await fetch('/api/admin/master/ia-plataforma', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setEmbedSaveMsg('Chave de embeddings salva com sucesso.')
+      setEmbedSaveMsg(modelChanged ? 'Modelo e/ou chave de embeddings salvos. ⚠️ Conteúdo antigo fora de busca até reprocessamento manual.' : 'Chave de embeddings salva com sucesso.')
       setEmbedApiKey('')
       const cfgRes = await fetch('/api/admin/master/ia-plataforma')
-      setConfig(await cfgRes.json())
+      const freshCfg = await cfgRes.json()
+      setConfig(freshCfg)
+      if (freshCfg.embeddingModel) setEmbedModel(freshCfg.embeddingModel)
     } catch (err: any) {
       setEmbedSaveMsg(`Erro: ${err.message}`)
     } finally {
@@ -700,11 +722,27 @@ export default function IaPlataformaPage() {
               <p className="text-xs text-gray-400 mt-1">Base de Conhecimento da Mensageria — vetoriza os documentos cadastrados pelos tenants.</p>
             </div>
 
-            <div className="bg-sky-50 rounded-xl border border-sky-100 p-3.5">
-              <p className="text-[10px] font-black text-sky-600 uppercase tracking-widest mb-1">Modelo (fixo)</p>
-              <p className="text-xs text-sky-800 font-bold">{EMBEDDING_MODEL_LABEL}</p>
-              <p className="text-[11px] text-sky-700/70 mt-1">Não é escolha livre — a dimensão do vetor está acoplada ao schema da Base de Conhecimento. Trocar de modelo exigiria reprocessar todo o conteúdo já vetorizado.</p>
+            <div>
+              <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">Modelo (Gemini)</label>
+              <input type="text" value={embedModel} onChange={e => setEmbedModel(e.target.value)}
+                placeholder="gemini-embedding-001"
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent placeholder:text-gray-300 font-mono" />
+              <p className="text-[10px] text-gray-400 mt-1">
+                Ativo agora: <span className="font-mono font-bold text-gray-600">{config?.embeddingModel}</span>
+                {' · '}provider fixo em Gemini (precisa suportar <code>outputDimensionality:768</code>).
+              </p>
             </div>
+
+            {config && embedModel && embedModel !== config.embeddingModel && (
+              <div className="flex items-start gap-2.5 p-3.5 rounded-xl border border-amber-200 bg-amber-50">
+                <XCircleIcon className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                <p className="text-[11px] text-amber-800 font-medium leading-relaxed">
+                  <span className="font-black">Trocar o modelo NÃO revetoriza o conteúdo já processado.</span>{' '}
+                  <span className="font-black">{config.embeddingAffectedChunks}</span> trecho{config.embeddingAffectedChunks === 1 ? '' : 's'} vetorizado{config.embeddingAffectedChunks === 1 ? '' : 's'} com
+                  o modelo atual ({config.embeddingModel}) sairia{config.embeddingAffectedChunks === 1 ? '' : 'm'} de busca até reprocessamento manual — rotina de reprocessamento em lote ainda não implementada.
+                </p>
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
@@ -728,7 +766,7 @@ export default function IaPlataformaPage() {
 
             <button onClick={handleSaveEmbedding} disabled={embedSaving}
               className="w-full py-2.5 bg-sky-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-sky-500/20 hover:bg-sky-500 transition-all disabled:opacity-50">
-              {embedSaving ? 'Salvando...' : 'Salvar Chave de Embeddings'}
+              {embedSaving ? 'Salvando...' : 'Salvar Configuração de Embeddings'}
             </button>
             {embedSaveMsg && <p className={`text-xs font-bold ${embedSaveMsg.startsWith('Erro') ? 'text-red-600' : 'text-emerald-600'}`}>{embedSaveMsg}</p>}
 

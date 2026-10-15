@@ -454,9 +454,35 @@ export const GEMINI_EMBEDDING_MODEL = 'gemini-embedding-001';
 const GEMINI_EMBEDDING_DIMENSIONS = 768;
 
 /**
- * Gera o embedding vetorial de um texto via Gemini gemini-embedding-001 (768 dims — M4.3 RAG).
- * Fixo em Gemini independente do provider de CHAT configurado pro tenant (embedding é uma
- * escolha técnica de infra, não uma preferência de negócio) — cascata de chave:
+ * Modelo de embedding ATIVO agora — Settings global (tenant_id IS NULL), coluna
+ * `embeddingModel`, configurável em /admin/master/ia-plataforma → painel "Embeddings (RAG)".
+ * Sem config (NULL): cai no default de código (GEMINI_EMBEDDING_MODEL) — comportamento
+ * idêntico a antes desta coluna existir, zero regressão pra quem nunca tocar nesse campo.
+ *
+ * ⚠️ Trocar este valor NÃO revetoriza conteúdo já processado — chunks antigos ficam tageados
+ * com o modelo anterior (knowledge_chunks.embedding_model) e somem da busca (nunca comparados
+ * contra o modelo novo — ver searchKnowledge()) até uma rotina de reprocessamento em lote
+ * (ainda não implementada, ver docs/CHECKPOINT.md) rodar. A UI exige confirmação explícita do
+ * Master antes de salvar um valor diferente do atual, citando o nº real de trechos afetados.
+ */
+export async function getActiveEmbeddingModel(): Promise<string> {
+  try {
+    const res = await getPool().query(
+      `SELECT "embeddingModel" FROM campanhasmarketingdigital."Settings" WHERE tenant_id IS NULL LIMIT 1`
+    );
+    return res.rows[0]?.embeddingModel || GEMINI_EMBEDDING_MODEL;
+  } catch {
+    return GEMINI_EMBEDDING_MODEL;
+  }
+}
+
+/**
+ * Gera o embedding vetorial de um texto via Gemini (768 dims — M4.3 RAG). Modelo resolvido via
+ * getActiveEmbeddingModel() (nunca a constante direto — garante que o valor TAGEADO no chunk
+ * seja exatamente o mesmo que gerou o vetor, sem risco de os dois lerem o config em momentos
+ * diferentes). Fixo em Gemini independente do provider de CHAT configurado pro tenant (escolha
+ * técnica de infra, não preferência de negócio) — cascata de CHAVE (modelo é resolvido à parte,
+ * acima):
  *   1. Settings do tenant com provider='gemini' (chave própria do tenant, se configurada).
  *   2. Settings global (tenant_id IS NULL), coluna `embeddingApiKey` — configurada pelo Master
  *      em /admin/master/ia-plataforma (2026-10-15: migrada do .env pra cá, pra nunca depender
@@ -464,7 +490,8 @@ const GEMINI_EMBEDDING_DIMENSIONS = 768;
  *   3. GEMINI_API_KEY do .env — último recurso de segurança (bootstrap/disaster recovery),
  *      nunca a via primária.
  */
-export async function embedText(text: string, tenantId?: string | null): Promise<number[]> {
+export async function embedText(text: string, tenantId?: string | null): Promise<{ embedding: number[]; model: string }> {
+  const model = await getActiveEmbeddingModel();
   let apiKey = '';
 
   if (tenantId) {
@@ -498,7 +525,7 @@ export async function embedText(text: string, tenantId?: string | null): Promise
     throw new Error('Nenhuma chave Gemini disponível para gerar embeddings (configure em Master → IA da Plataforma, ou o provider "gemini" nas Configurações → IA do tenant).');
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_EMBEDDING_MODEL}:embedContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent?key=${apiKey}`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -509,12 +536,12 @@ export async function embedText(text: string, tenantId?: string | null): Promise
   });
   if (!res.ok) {
     const errBody = await res.text().catch(() => '');
-    throw new Error(`Gemini embedContent falhou (${res.status}): ${errBody.slice(0, 300)}`);
+    throw new Error(`Gemini embedContent (modelo "${model}") falhou (${res.status}): ${errBody.slice(0, 300)}`);
   }
   const json: any = await res.json();
   const embedding: number[] | undefined = json?.embedding?.values;
   if (!embedding || embedding.length !== GEMINI_EMBEDDING_DIMENSIONS) {
-    throw new Error(`Embedding Gemini retornou dimensão inesperada (${embedding?.length ?? 0}, esperado ${GEMINI_EMBEDDING_DIMENSIONS}).`);
+    throw new Error(`Embedding Gemini (modelo "${model}") retornou dimensão inesperada (${embedding?.length ?? 0}, esperado ${GEMINI_EMBEDDING_DIMENSIONS}).`);
   }
-  return embedding;
+  return { embedding, model };
 }
