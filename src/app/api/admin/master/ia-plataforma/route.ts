@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const res = await pool.query(
-      `SELECT "llmProvider", "llmModel", "llmApiKey", "imageProvider", "imageModel", "imageApiKey"
+      `SELECT "llmProvider", "llmModel", "llmApiKey", "imageProvider", "imageModel", "imageApiKey", "embeddingApiKey"
        FROM campanhasmarketingdigital."Settings"
        WHERE tenant_id IS NULL
        ORDER BY id
@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
     const s = res.rows[0];
     const llmKey   = s?.llmApiKey   || '';
     const imageKey = s?.imageApiKey || '';
+    const embedKey = s?.embeddingApiKey || '';
 
     return NextResponse.json({
       llmProvider:        s?.llmProvider    || 'anthropic',
@@ -38,6 +39,8 @@ export async function GET(request: NextRequest) {
       imageModel:         s?.imageModel     || '',
       imageApiKeySet:     !!imageKey,
       imageApiKeyMasked:  imageKey ? `${imageKey.slice(0, 8)}...${imageKey.slice(-4)}` : '',
+      embeddingApiKeySet:    !!embedKey,
+      embeddingApiKeyMasked: embedKey ? `${embedKey.slice(0, 8)}...${embedKey.slice(-4)}` : '',
     });
   } catch (error: any) {
     console.error('GET /master/ia-plataforma error:', error);
@@ -53,7 +56,7 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { llmProvider, llmModel, llmApiKey, imageProvider, imageModel, imageApiKey } = body;
+    const { llmProvider, llmModel, llmApiKey, imageProvider, imageModel, imageApiKey, embeddingApiKey } = body;
 
     const existing = await pool.query(
       `SELECT id FROM campanhasmarketingdigital."Settings" WHERE tenant_id IS NULL ORDER BY id LIMIT 1`
@@ -69,6 +72,7 @@ export async function PUT(request: NextRequest) {
       if (imageProvider !== undefined) { setClauses.push(`"imageProvider" = $${params.length + 1}`); params.push(imageProvider); }
       if (imageModel    !== undefined) { setClauses.push(`"imageModel"    = $${params.length + 1}`); params.push(imageModel); }
       if (imageApiKey)                 { setClauses.push(`"imageApiKey"   = $${params.length + 1}`); params.push(imageApiKey); }
+      if (embeddingApiKey)             { setClauses.push(`"embeddingApiKey" = $${params.length + 1}`); params.push(embeddingApiKey); }
 
       if (!setClauses.length) return NextResponse.json({ error: 'Nenhum campo para atualizar' }, { status: 400 });
 
@@ -80,11 +84,11 @@ export async function PUT(request: NextRequest) {
     } else {
       await pool.query(
         `INSERT INTO campanhasmarketingdigital."Settings"
-           (id, tenant_id, "llmProvider", "llmModel", "llmApiKey", "imageProvider", "imageModel", "imageApiKey")
-         VALUES (gen_random_uuid(), NULL, $1, $2, $3, $4, $5, $6)`,
+           (id, tenant_id, "llmProvider", "llmModel", "llmApiKey", "imageProvider", "imageModel", "imageApiKey", "embeddingApiKey")
+         VALUES (gen_random_uuid(), NULL, $1, $2, $3, $4, $5, $6, $7)`,
         [
           llmProvider || 'anthropic', llmModel || 'claude-sonnet-4-6', llmApiKey || '',
-          imageProvider || '', imageModel || '', imageApiKey || '',
+          imageProvider || '', imageModel || '', imageApiKey || '', embeddingApiKey || '',
         ]
       );
     }

@@ -135,7 +135,11 @@ MARKETING_DATABASE_URL=postgresql://postgres:<senha>@127.0.0.1:15432/net_imobili
 JWT_SECRET=<chave-hex>
 JWT_EXPIRES_IN=24h
 
-# LLM (fallback global — substituído por config por tenant)
+# LLM — só fallback de ÚLTIMO RECURSO (bootstrap/disaster recovery), nunca a via primária.
+# ANTHROPIC_API_KEY: não é lido em nenhum caminho de chat hoje (cascata é 100% Settings/DB —
+#   ver CLAUDE.md "LLM Multi-Provider"). GEMINI_API_KEY: só usado por embedText() (embeddings
+#   do RAG) se nem o tenant nem a config global do Master (/admin/master/ia-plataforma →
+#   "Embeddings (RAG)") tiverem chave configurada, e pela geração de Skills do Master.
 ANTHROPIC_API_KEY=<chave>
 GEMINI_API_KEY=<chave>
 
@@ -451,15 +455,39 @@ próprio do `CampaignWizard` pra escolher o destino de uma campanha nova).
 
 ```typescript
 interface LlmClient { provider: string; model: string; complete(prompt, maxTokens?): Promise<string> }
-getLlmClient(tenantId?: string | null): Promise<LlmClient>
+getLlmClient(tenantId?: string | null, clientId?: string | null): Promise<LlmClient>
+getLlmClientForCampaigns(): Promise<LlmClient>
 ```
 
-Lógica: lê config do tenant na `Settings` → `anthropic` usa `@anthropic-ai/sdk` nativo, todos os outros usam `openai` SDK com `baseURL` lido da tabela `LlmModel`. Fallback: `ANTHROPIC_API_KEY` do env.
+**`getLlmClient(tenantId, clientId)`** (CRM/Mensageria) — cascata de 4 camadas, 100% banco, sem
+nenhum fallback de env var no caminho de chat: cliente (`Settings` com `tenant_id+client_id`) →
+tenant (`Settings` com `client_id IS NULL`) → default do Master pro segmento resolvido → linha
+global do Master (`tenant_id IS NULL AND segment_id IS NULL`). Se `provider='anthropic'` e
+nenhuma camada tiver chave, cai no campo legado `public.tenants.anthropic_api_key` (coluna, não
+env var) como último recurso. Sem chave em lugar nenhum: lança erro explícito — **nunca** lê
+`ANTHROPIC_API_KEY`/`GEMINI_API_KEY` do `.env` neste caminho (correção de doc desatualizada:
+uma versão anterior desta seção dizia "fallback: `ANTHROPIC_API_KEY` do env", o que não é mais
+verdade no código).
 
-### Catálogo `campanhasmarketingdigital."LlmModel"`
+**`getLlmClientForCampaigns()`** (todo recurso de IA de Campanhas — briefings, agente decisor,
+classificação de ângulo, análise de criativos) — **sempre** a linha global
+(`Settings WHERE tenant_id IS NULL`), de propósito, sem cascata nenhuma (decisão de 2026-05-28:
+modelo único pra toda a plataforma). Configurado via `/admin/master/ia-plataforma` → aba
+"Configuração IA". Sem chave válida ali: lança erro explícito, também sem fallback de env.
 
-Novos providers/modelos adicionados via **SQL INSERT** — sem alteração de código:
+`anthropic` usa `@anthropic-ai/sdk` nativo; todo outro provider usa o `openai` SDK com
+`baseURL` lido da tabela `LlmModel`.
+
+### Catálogo `campanhasmarketingdigital."LlmModel"` — 100% banco, zero hardcode
+
+A lista de providers/modelos que aparece nos dropdowns (`/admin/master/ia-plataforma` → aba
+"Configuração IA", e a aba "Catálogo de Modelos" na mesma tela) é lida de
+`GET /api/admin/campanhas/settings/llm/models`, que faz `SELECT * FROM LlmModel WHERE
+is_active = true` — **nenhum array fixo no componente React**. A aba "Catálogo de Modelos"
+já tem CRUD completo (criar/editar/ativar-desativar/excluir) pelo Master, sem precisar de SQL:
+
 ```sql
+-- Alternativa via SQL direto (equivalente ao botão "Novo Modelo" da UI)
 INSERT INTO campanhasmarketingdigital."LlmModel"
   (id, provider, provider_label, model_id, model_label, base_url,
    quality_score, is_free, context_window, is_recommended, sort_order)
@@ -468,6 +496,19 @@ VALUES (gen_random_uuid(), 'groq', 'Groq', 'llama-3.1-70b-versatile',
 ```
 
 Providers ativos (23 modelos): `anthropic`, `openai`, `gemini`, `groq`, `deepseek`, `openrouter`, `kimi`, `qwen`.
+
+### Embeddings (RAG — Base de Conhecimento da Mensageria)
+
+`embedText(text, tenantId?)` em `llmClient.ts` — modelo **fixo** em `gemini-embedding-001`
+(768 dimensões), de propósito: a coluna `vector(768)` do schema de `knowledge_chunks` está
+acoplada a essa dimensão — trocar de modelo exigiria migração de schema + reprocessar todo
+embedding já gerado, não é uma escolha livre de dropdown como o modelo de chat. Só a **chave**
+é configurável, numa cascata de 3 níveis (migrada do `.env` pra UI em 2026-10-15):
+1. Chave própria do tenant (`Settings` com `provider='gemini'`, já existia).
+2. Chave global do Master — `Settings.embeddingApiKey` (linha `tenant_id IS NULL`), configurada
+   em `/admin/master/ia-plataforma` → painel "Embeddings (RAG)".
+3. `GEMINI_API_KEY` do `.env` — **último recurso de segurança** (bootstrap/disaster recovery),
+   nunca a via primária.
 
 ---
 
