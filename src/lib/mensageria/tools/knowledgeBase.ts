@@ -13,7 +13,7 @@
  * sem janela de resultado matematicamente incorreto durante uma eventual migração em lote.
  */
 import pool from '@/lib/database/connection'
-import { embedText, GEMINI_EMBEDDING_MODEL } from '@/lib/marketing/services/llmClient'
+import { embedText } from '@/lib/marketing/services/llmClient'
 
 const SCHEMA = 'mensageria'
 
@@ -113,12 +113,12 @@ export async function regenerateChunks(documentId: string): Promise<{ chunkCount
       const chunkText = rc.headingPath ? `${rc.headingPath}\n\n${rc.text}` : rc.text
       // Sequencial (não Promise.all) — evita rajada contra a API do Gemini num save de
       // documento grande; documentos são editados com pouca frequência, não é hot path.
-      const embedding = await embedText(chunkText, doc.tenant_id)
+      const { embedding, model } = await embedText(chunkText, doc.tenant_id)
       await client.query(
         `INSERT INTO ${SCHEMA}.knowledge_chunks
            (document_id, tenant_id, client_id, chunk_index, heading_path, chunk_text, embedding, embedding_model)
          VALUES ($1, $2, $3, $4, $5, $6, $7::vector, $8)`,
-        [documentId, doc.tenant_id, doc.client_id, idx, rc.headingPath, chunkText, JSON.stringify(embedding), GEMINI_EMBEDDING_MODEL],
+        [documentId, doc.tenant_id, doc.client_id, idx, rc.headingPath, chunkText, JSON.stringify(embedding), model],
       )
       idx++
     }
@@ -155,8 +155,8 @@ export interface KnowledgeSearchResult {
  * Escopo sempre forçado no servidor — NUNCA o LLM decide tenant/cliente.
  *
  * `c.embedding_model = $N` é a garantia real contra misturar espaços vetoriais de modelos
- * diferentes: o embedding da QUERY é sempre gerado pelo modelo ATIVO agora
- * (GEMINI_EMBEDDING_MODEL); um chunk gravado por um modelo diferente (histórico de uma
+ * diferentes: o embedding da QUERY é sempre gerado pelo modelo ATIVO agora (resolvido por
+ * embedText() via getActiveEmbeddingModel()); um chunk gravado por um modelo diferente (histórico de uma
  * eventual troca futura, ainda não reprocessado) nunca entra na comparação de similaridade —
  * fica de fora da busca até ser migrado, em vez de produzir um score matematicamente sem
  * sentido comparando vetores de espaços diferentes.
@@ -167,7 +167,7 @@ export async function searchKnowledge(
   query: string,
   topK = 5,
 ): Promise<KnowledgeSearchResult[]> {
-  const queryEmbedding = await embedText(query, tenantId)
+  const { embedding: queryEmbedding, model: activeModel } = await embedText(query, tenantId)
   const { rows } = await pool.query(
     `WITH scored AS (
        SELECT d.title, c.heading_path, c.chunk_text,
@@ -184,7 +184,7 @@ export async function searchKnowledge(
        FROM scored
       ORDER BY combined_score DESC
       LIMIT $5`,
-    [JSON.stringify(queryEmbedding), query, tenantId, clientId, topK, GEMINI_EMBEDDING_MODEL],
+    [JSON.stringify(queryEmbedding), query, tenantId, clientId, topK, activeModel],
   )
   return rows.map((r: any) => ({
     documentTitle: r.title,
