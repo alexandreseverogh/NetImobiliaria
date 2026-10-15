@@ -6,11 +6,14 @@
  * por tenant/cliente. Escopo herdado igual a inboxes/bot_flows: client_id NULL = vale pra
  * todos os clientes do tenant; client_id setado = só aquele cliente.
  *
- * Embeddings sempre via Gemini text-embedding-004 (768 dims, ver llmClient.ts embedText) —
- * decisão fixa, independente do provider de CHAT configurado por tenant.
+ * Embeddings sempre via Gemini gemini-embedding-001 (768 dims, ver llmClient.ts embedText) —
+ * decisão fixa, independente do provider de CHAT configurado por tenant. Cada chunk grava QUAL
+ * modelo gerou seu vetor (coluna embedding_model) e a busca nunca compara vetores de modelos
+ * diferentes (ver searchKnowledge()) — fundação pra uma futura troca segura de modelo/provider,
+ * sem janela de resultado matematicamente incorreto durante uma eventual migração em lote.
  */
 import pool from '@/lib/database/connection'
-import { embedText } from '@/lib/marketing/services/llmClient'
+import { embedText, GEMINI_EMBEDDING_MODEL } from '@/lib/marketing/services/llmClient'
 
 const SCHEMA = 'mensageria'
 
@@ -113,9 +116,9 @@ export async function regenerateChunks(documentId: string): Promise<{ chunkCount
       const embedding = await embedText(chunkText, doc.tenant_id)
       await client.query(
         `INSERT INTO ${SCHEMA}.knowledge_chunks
-           (document_id, tenant_id, client_id, chunk_index, heading_path, chunk_text, embedding)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::vector)`,
-        [documentId, doc.tenant_id, doc.client_id, idx, rc.headingPath, chunkText, JSON.stringify(embedding)],
+           (document_id, tenant_id, client_id, chunk_index, heading_path, chunk_text, embedding, embedding_model)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::vector, $8)`,
+        [documentId, doc.tenant_id, doc.client_id, idx, rc.headingPath, chunkText, JSON.stringify(embedding), GEMINI_EMBEDDING_MODEL],
       )
       idx++
     }
@@ -150,6 +153,13 @@ export interface KnowledgeSearchResult {
 /**
  * Busca híbrida: similaridade vetorial (peso 0.7) + full-text ts_rank (peso 0.3, capado em 1).
  * Escopo sempre forçado no servidor — NUNCA o LLM decide tenant/cliente.
+ *
+ * `c.embedding_model = $N` é a garantia real contra misturar espaços vetoriais de modelos
+ * diferentes: o embedding da QUERY é sempre gerado pelo modelo ATIVO agora
+ * (GEMINI_EMBEDDING_MODEL); um chunk gravado por um modelo diferente (histórico de uma
+ * eventual troca futura, ainda não reprocessado) nunca entra na comparação de similaridade —
+ * fica de fora da busca até ser migrado, em vez de produzir um score matematicamente sem
+ * sentido comparando vetores de espaços diferentes.
  */
 export async function searchKnowledge(
   tenantId: string,
@@ -167,13 +177,14 @@ export async function searchKnowledge(
          JOIN ${SCHEMA}.knowledge_documents d ON d.id = c.document_id
         WHERE c.tenant_id = $3 AND d.is_active = true
           AND (c.client_id IS NULL OR c.client_id = $4)
+          AND c.embedding_model = $6
      )
      SELECT title, heading_path, chunk_text,
             (vec_score * 0.7 + LEAST(text_score, 1) * 0.3) AS combined_score
        FROM scored
       ORDER BY combined_score DESC
       LIMIT $5`,
-    [JSON.stringify(queryEmbedding), query, tenantId, clientId, topK],
+    [JSON.stringify(queryEmbedding), query, tenantId, clientId, topK, GEMINI_EMBEDDING_MODEL],
   )
   return rows.map((r: any) => ({
     documentTitle: r.title,

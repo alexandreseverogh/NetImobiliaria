@@ -447,7 +447,10 @@ export async function getAnthropicClient(tenantId?: string | null) {
 // corte cru do vetor) pra bater com a coluna vector(768) do schema — confirmado ao vivo (768
 // valores reais retornados). Chamada via REST nativo do Gemini (não o OpenAI-compat layer):
 // é o único jeito de passar outputDimensionality; o endpoint OpenAI-compat não expõe esse campo.
-const GEMINI_EMBEDDING_MODEL = 'gemini-embedding-001';
+// Exportado — knowledgeBase.ts usa o MESMO identificador pra tagar cada chunk gravado
+// (knowledge_chunks.embedding_model) e filtrar a busca por ele, nunca duplicando a string
+// solta num 2º lugar do código (fonte única do "qual modelo está ativo agora").
+export const GEMINI_EMBEDDING_MODEL = 'gemini-embedding-001';
 const GEMINI_EMBEDDING_DIMENSIONS = 768;
 
 /**
