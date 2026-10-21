@@ -134,6 +134,76 @@ export class MetaAdsAdapter implements AdNetworkService {
     }
   }
 
+  /**
+   * Saldo/limite de gasto do ad account real — fonte: developers.facebook.com/docs/
+   * marketing-api/reference/ad-account/ (consultado nesta sessão). Valores monetários dos
+   * campos de LEITURA do AdAccount (balance/amount_spent/spend_cap) vêm na unidade MENOR da
+   * moeda (centavos pra BRL/USD) — mesma convenção já usada em `CreateCampaignInput.adSet.
+   * dailyBudget`, por isso a divisão por 100 abaixo.
+   *
+   * `balance` NÃO é "crédito pré-pago restante" — é a fatura em aberto (valor já devido à
+   * Meta), confirmado na documentação oficial. "Saldo disponível pra gastar" só existe de
+   * forma programática quando a conta tem `spend_cap` definido (> 0); sem teto, o gasto só é
+   * limitado pela fonte de pagamento (cartão/fatura), sem nenhum número de "saldo" pra ler.
+   */
+  async fetchAccountBalance(): Promise<import('../types').AccountBalanceResult> {
+    const checkedAt = new Date().toISOString();
+    try {
+      const res = await axios.get(this.url(`act_${this.adAccountId}`), {
+        params: {
+          ...this.auth,
+          fields: 'balance,amount_spent,spend_cap,currency,is_prepay_account',
+        },
+        timeout: 8000,
+      });
+      const d = res.data || {};
+      const toReais = (v: unknown): number | null =>
+        v === undefined || v === null ? null : Number(v) / 100;
+
+      const amountSpent = toReais(d.amount_spent);
+      const spendCapRaw = toReais(d.spend_cap);
+      // spend_cap = 0 significa "sem teto" (documentado), nunca "limite zero".
+      const spendCap = spendCapRaw !== null && spendCapRaw > 0 ? spendCapRaw : null;
+
+      // funding_source_details exige permissão MANAGE na conta — best-effort, nunca derruba
+      // o saldo principal se faltar permissão/der erro.
+      let fundingSourceType: string | null = null;
+      try {
+        const fundingRes = await axios.get(this.url(`act_${this.adAccountId}`), {
+          params: { ...this.auth, fields: 'funding_source_details' },
+          timeout: 5000,
+        });
+        const fsd = fundingRes.data?.funding_source_details;
+        fundingSourceType = fsd?.display_string || fsd?.type || null;
+      } catch { /* opcional — ignora silenciosamente */ }
+
+      return {
+        network: 'meta',
+        currency: d.currency || null,
+        amountSpent,
+        spendCap,
+        available: spendCap !== null && amountSpent !== null ? Math.max(spendCap - amountSpent, 0) : null,
+        balanceDue: toReais(d.balance),
+        isPrepay: typeof d.is_prepay_account === 'boolean' ? d.is_prepay_account : null,
+        fundingSourceType,
+        checkedAt,
+      };
+    } catch (err: any) {
+      return {
+        network: 'meta',
+        currency: null,
+        amountSpent: null,
+        spendCap: null,
+        available: null,
+        balanceDue: null,
+        isPrepay: null,
+        fundingSourceType: null,
+        checkedAt,
+        unavailableReason: err?.response?.data?.error?.message || err.message || 'Erro ao consultar a Meta Graph API',
+      };
+    }
+  }
+
   // ── FASE 16 — Postagem orgânica ───────────────────────────────────────────
   // Cache em memória do Page Access Token (escopo da instância do adapter).
   private _pageTokenCache?: string;

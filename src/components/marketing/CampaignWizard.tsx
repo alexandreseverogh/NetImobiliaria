@@ -3,13 +3,14 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { createCampaign, getMetaIdentity, getWhatsAppConfig, type Creative } from '@/lib/marketing-api';
+import { createCampaign, getMetaIdentity, getWhatsAppConfig, getCreativeAnalysisByIds, type Creative, type CreativeAnalysisStatus } from '@/lib/marketing-api';
 import { cn, OBJECTIVES, CTA_TYPES, DAYS_OF_WEEK, formatCurrency, networkLabel } from '@/lib/marketing-utils';
 import { LocationPicker, type LocationEntry } from './LocationPicker';
 import DateInputPtBR from '@/components/ui/DateInputPtBR';
 import { ANGLE_OPTIONS, angleLabel } from '@/lib/marketing/angles';
 import {
   ShieldCheckIcon, BoltIcon, XMarkIcon, RocketLaunchIcon, ChevronDownIcon,
+  SparklesIcon, CheckCircleIcon, ClockIcon, ArrowRightIcon,
 } from '@heroicons/react/24/outline';
 
 /* ── shared input class ──────────────────────────────────── */
@@ -74,6 +75,18 @@ interface Props {
   onExit?: () => void;
 }
 
+/** Resolve o rótulo legível de um slug de ângulo — prioriza a taxonomia do segmento
+ *  (`autoFields.allowedAngles`, curada por nicho), cai pro vocabulário legado global
+ *  (`angles.ts`) quando o slug não está na lista do segmento. Compartilhado entre a Revisão
+ *  e a tela de confirmação pós-lançamento — mesma lógica, nunca duplicada. */
+function resolveAngleLabelFor(
+  slug: string | null | undefined,
+  allowedAngles?: { slug: string; label: string }[],
+): string | null {
+  if (!slug) return null;
+  return allowedAngles?.find(a => a.slug === slug)?.label ?? angleLabel(slug);
+}
+
 /* ── AutoChip ────────────────────────────────────────────── */
 function AutoChip({ label }: { label: string }) {
   return (
@@ -124,6 +137,10 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
   // Passos cujo "Próximo"/"Lançar" já foi tentado com erro — só a partir daí os campos
   // obrigatórios ficam vermelhos; evita abrir um passo em branco já gritando erro.
   const [attemptedSteps, setAttemptedSteps] = useState<Set<number>>(new Set());
+  /** Preenchido só após o POST /campaigns ter sucesso — troca o wizard pela tela de
+   *  confirmação (LaunchSuccessScreen), que tenta mostrar o ângulo que a IA inferiu em vez de
+   *  navegar embora sem o usuário nunca saber o que foi decidido. */
+  const [launched, setLaunched] = useState<{ assetIds: string[]; declaredAngle: string } | null>(null);
 
   function handleExit() {
     if (!confirm('Sair agora descarta os dados preenchidos nesta campanha. Deseja continuar?')) return;
@@ -434,13 +451,26 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
         clientId:          clientId || undefined,
         assetIds:          assetIds.length > 0 ? assetIds : undefined,
       });
-      onSuccess();
+      // Troca pela tela de confirmação em vez de navegar embora na hora — é ela quem chama
+      // onSuccess() quando o usuário clicar em continuar (ver LaunchSuccessScreen).
+      setLaunched({ assetIds, declaredAngle: form.declaredAngle || '' });
     } catch (err: any) {
       const msg = err?.response?.data?.error || err?.message || 'Erro ao criar campanha. Verifique os dados e tente novamente.';
       alert(msg);
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (launched) {
+    return (
+      <LaunchSuccessScreen
+        assetIds={launched.assetIds}
+        declaredAngle={launched.declaredAngle}
+        allowedAngles={autoFields?.allowedAngles}
+        onContinue={onSuccess}
+      />
+    );
   }
 
   return (
@@ -546,7 +576,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
               className="max-w-4xl"
             >
               {step === 0 && <StepNetwork   form={form} updateForm={updateForm} networks={networks} onSwitchToGoogle={onSwitchToGoogle} />}
-              {step === 1 && <StepType      form={form} updateForm={updateForm} selectedImages={selectedImages} hookAlert={hookAlert} clientId={clientId} errors={errorsByField} showErrors={showErrorsForStep} />}
+              {step === 1 && <StepType      form={form} updateForm={updateForm} selectedImages={selectedImages} hookAlert={hookAlert} clientId={clientId} onGoToTextStep={() => setStep(2)} errors={errorsByField} showErrors={showErrorsForStep} />}
               {step === 2 && <StepTextCta   form={form} updateForm={updateForm} autoFields={autoFields} hookTextHint={initialValues?.hookText} isPrefilled={!!(initialValues?.body || initialValues?.headline)} errors={errorsByField} showErrors={showErrorsForStep} />}
               {step === 3 && <StepTargeting form={form} updateForm={updateForm} clientId={clientId} suggestedInterests={autoFields.suggestedInterests} errors={errorsByField} showErrors={showErrorsForStep} />}
               {step === 4 && <StepBudget    form={form} updateForm={updateForm} errors={errorsByField} showErrors={showErrorsForStep} />}
@@ -763,12 +793,30 @@ interface HookSuggestResponse {
   message?: string;
 }
 
-function HookAlertPanel({ hookAlert, clientId }: { hookAlert: any; clientId?: string | null }) {
+function HookAlertPanel({
+  hookAlert,
+  clientId,
+  currentBody,
+  currentHeadline,
+  onApply,
+  onGoToTextStep,
+}: {
+  hookAlert: any;
+  clientId?: string | null;
+  currentBody: string;
+  currentHeadline: string;
+  onApply: (fields: { headline?: string; body?: string }) => void;
+  onGoToTextStep: () => void;
+}) {
   const [state, setState] = useState<{
     status: 'idle' | 'loading' | 'done' | 'error';
     result?: HookSuggestResponse;
     error?: string;
   }>({ status: 'idle' });
+  // Marca qual card foi aplicado por último, pra trocar "Usar este hook" por uma confirmação
+  // visível ("✓ Aplicado") sem forçar navegação — o usuário pode continuar lendo as outras
+  // sugestões antes de decidir ir conferir o resultado em Texto & CTA.
+  const [appliedKey, setAppliedKey] = useState<string | null>(null);
 
   async function loadSuggestions() {
     setState({ status: 'loading' });
@@ -778,6 +826,47 @@ function HookAlertPanel({ hookAlert, clientId }: { hookAlert: any; clientId?: st
     } catch (err: any) {
       setState({ status: 'error', error: err?.response?.data?.error || 'Erro ao gerar sugestões.' });
     }
+  }
+
+  /** Confirma antes de sobrescrever texto já digitado — nunca apaga em silêncio. */
+  function confirmOverwriteIfNeeded(hasExistingContent: boolean): boolean {
+    if (!hasExistingContent) return true;
+    return confirm('Isso vai substituir o texto/título já preenchidos em "Texto & CTA". Continuar?');
+  }
+
+  function applyConcept(c: HookConceptA, key: string) {
+    const hasContent = !!(currentBody.trim() || currentHeadline.trim());
+    if (!confirmOverwriteIfNeeded(hasContent)) return;
+    onApply({ headline: c.headline, body: c.body });
+    setAppliedKey(key);
+  }
+
+  function applySuggestion(s: HookSuggestionB, key: string) {
+    const hasContent = !!currentBody.trim();
+    if (!confirmOverwriteIfNeeded(hasContent)) return;
+    onApply({ body: s.hookText });
+    setAppliedKey(key);
+  }
+
+  function ApplyButton({ cardKey, onClick }: { cardKey: string; onClick: () => void }) {
+    if (appliedKey === cardKey) {
+      return (
+        <button
+          onClick={onGoToTextStep}
+          className="mt-2 inline-flex items-center gap-1 text-[11px] font-black text-emerald-600 hover:text-emerald-700"
+        >
+          ✓ Aplicado — Ver em Texto & CTA →
+        </button>
+      );
+    }
+    return (
+      <button
+        onClick={onClick}
+        className="mt-2 inline-flex items-center gap-1 text-[11px] font-black text-amber-700 hover:text-amber-900"
+      >
+        Usar este hook →
+      </button>
+    );
   }
 
   return (
@@ -819,26 +908,34 @@ function HookAlertPanel({ hookAlert, clientId }: { hookAlert: any; clientId?: st
             <p className="text-xs text-amber-700">{state.result.message}</p>
           )}
 
-          {/* Caminho A — conceitos completos */}
-          {state.result.concepts?.map((c, i) => (
-            <div key={i} className="bg-white border border-amber-100 rounded-xl p-3">
-              <p className="text-sm font-bold text-gray-900">{c.headline}</p>
-              <p className="text-xs text-gray-600 mt-0.5">{c.hook_text}</p>
-              <p className="text-xs text-gray-500 mt-1">{c.body}</p>
-              <p className="text-[10px] text-amber-600 mt-1.5 italic">{c.why_it_works}</p>
-            </div>
-          ))}
+          {/* Caminho A — conceitos completos (headline + corpo prontos) */}
+          {state.result.concepts?.map((c, i) => {
+            const key = `A-${i}`;
+            return (
+              <div key={key} className="bg-white border border-amber-100 rounded-xl p-3">
+                <p className="text-sm font-bold text-gray-900">{c.headline}</p>
+                <p className="text-xs text-gray-600 mt-0.5">{c.hook_text}</p>
+                <p className="text-xs text-gray-500 mt-1">{c.body}</p>
+                <p className="text-[10px] text-amber-600 mt-1.5 italic">{c.why_it_works}</p>
+                <ApplyButton cardKey={key} onClick={() => applyConcept(c, key)} />
+              </div>
+            );
+          })}
 
-          {/* Caminho B — sugestões ancoradas em cena real */}
-          {state.result.suggestions?.map((s, i) => (
-            <div key={i} className="bg-white border border-amber-100 rounded-xl p-3">
-              <span className="inline-block text-[9px] font-black text-amber-600 uppercase tracking-wider mb-1">
-                {HOOK_LABELS_PT[s.hookType] ?? s.hookType}
-              </span>
-              <p className="text-sm font-bold text-gray-900">{s.hookText}</p>
-              <p className="text-[10px] text-gray-500 mt-1 italic">{s.why}</p>
-            </div>
-          ))}
+          {/* Caminho B — sugestões ancoradas em cena real (só o texto do hook) */}
+          {state.result.suggestions?.map((s, i) => {
+            const key = `B-${i}`;
+            return (
+              <div key={key} className="bg-white border border-amber-100 rounded-xl p-3">
+                <span className="inline-block text-[9px] font-black text-amber-600 uppercase tracking-wider mb-1">
+                  {HOOK_LABELS_PT[s.hookType] ?? s.hookType}
+                </span>
+                <p className="text-sm font-bold text-gray-900">{s.hookText}</p>
+                <p className="text-[10px] text-gray-500 mt-1 italic">{s.why}</p>
+                <ApplyButton cardKey={key} onClick={() => applySuggestion(s, key)} />
+              </div>
+            );
+          })}
 
           {(!state.result.concepts?.length && !state.result.suggestions?.length && !state.result.message) && (
             <p className="text-xs text-amber-700">Nenhuma sugestão gerada — tente novamente.</p>
@@ -858,12 +955,21 @@ const HOOK_LABELS_PT: Record<string, string> = {
    STEP 1 — TIPO
 ══════════════════════════════════════════════════════════ */
 
-function StepType({ form, updateForm, selectedImages, hookAlert, clientId, errors = {}, showErrors }: any) {
+function StepType({ form, updateForm, selectedImages, hookAlert, clientId, onGoToTextStep, errors = {}, showErrors }: any) {
   /* Single image: show preview + name field */
   if (selectedImages.length === 1) {
     return (
       <div className="space-y-8">
-        {hookAlert && <HookAlertPanel hookAlert={hookAlert} clientId={clientId} />}
+        {hookAlert && (
+          <HookAlertPanel
+            hookAlert={hookAlert}
+            clientId={clientId}
+            currentBody={form.body}
+            currentHeadline={form.headline}
+            onApply={updateForm}
+            onGoToTextStep={onGoToTextStep}
+          />
+        )}
         <Section title="Criativo Selecionado">
           <div className="flex items-start gap-8">
             <div className="w-56 h-56 rounded-2xl overflow-hidden border border-gray-200 shrink-0">
@@ -1846,9 +1952,7 @@ function StepObjective({ form, updateForm, autoFields, initiatives = [] }: any) 
 ══════════════════════════════════════════════════════════ */
 
 function StepReview({ form, selectedImages, autoFields, initiatives = [] }: any) {
-  const resolveAngleLabel = (slug: string) =>
-    autoFields?.allowedAngles?.find((a: { slug: string; label: string }) => a.slug === slug)?.label
-      ?? angleLabel(slug);
+  const resolveAngleLabel = (slug: string) => resolveAngleLabelFor(slug, autoFields?.allowedAngles);
   const initiativeName = form.initiativeId
     ? (initiatives.find((i: { id: string; name: string }) => i.id === form.initiativeId)?.name ?? '(vinculada)')
     : 'Sem iniciativa';
@@ -1868,7 +1972,7 @@ function StepReview({ form, selectedImages, autoFields, initiatives = [] }: any)
           <Row label="Dias"        value={form.scheduleDays.map((d: number) => DAYS_OF_WEEK[d]?.label).join(', ')} />
           <Row label="Horários"    value={form.scheduleTimeSlots.map((s: any) => `${s.start}h — ${s.end}h`).join(', ')} />
           <Row label="Objetivo"    value={OBJECTIVES.find(o => o.value === form.objective)?.label || form.objective} />
-          <Row label="Ângulo"      value={form.declaredAngle ? resolveAngleLabel(form.declaredAngle) : 'IA infere'} />
+          <Row label="Ângulo"      value={form.declaredAngle ? (resolveAngleLabel(form.declaredAngle) ?? form.declaredAngle) : 'IA infere'} />
           <Row label="Iniciativa"  value={initiativeName} />
         </div>
       </Section>
@@ -1890,6 +1994,197 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between items-start py-3">
       <span className="text-sm font-medium text-gray-400 w-32 shrink-0">{label}</span>
       <span className="text-sm text-gray-900 text-right flex-1">{value}</span>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════
+   TELA DE CONFIRMAÇÃO PÓS-LANÇAMENTO
+   ──────────────────────────────────────────────────────────
+   Substitui o antigo "cria e navega embora na hora" — quando o ângulo foi deixado pra IA
+   decidir, tenta mostrar o que ela de fato inferiu (a análise de Visão já roda em segundo
+   plano desde o upload do criativo, bem antes deste ponto, então costuma já ter terminado ou
+   estar perto disso). Nunca bloqueia o lançamento em si — a campanha já foi criada antes desta
+   tela aparecer — e nunca finge um resultado que ainda não chegou: sem terminar dentro da
+   janela de espera, diz isso com honestidade e aponta pra onde conferir depois.
+══════════════════════════════════════════════════════════ */
+const ANGLE_POLL_INTERVAL_MS = 2000;
+const ANGLE_POLL_MAX_ATTEMPTS = 5; // ~10s de espera no total — best-effort, não um SLA
+
+type AnglePollState =
+  | { phase: 'skipped' }                                  // ângulo já era conhecido (declarado pelo usuário)
+  | { phase: 'no-creative' }                               // nenhum criativo anexado — nada pra IA analisar
+  | { phase: 'polling' }
+  | { phase: 'resolved'; label: string; partial: boolean } // achou ângulo (de todos ou só parte dos criativos)
+  | { phase: 'no-match' }                                  // análise terminou mas nenhum ângulo bateu na taxonomia
+  | { phase: 'timeout' };                                  // ainda processando depois da janela de espera
+
+function LaunchSuccessScreen({
+  assetIds,
+  declaredAngle,
+  allowedAngles,
+  onContinue,
+}: {
+  assetIds: string[];
+  declaredAngle: string;
+  allowedAngles?: { slug: string; label: string }[];
+  onContinue: () => void;
+}) {
+  const [poll, setPoll] = useState<AnglePollState>(() => {
+    if (declaredAngle) return { phase: 'skipped' };
+    if (assetIds.length === 0) return { phase: 'no-creative' };
+    return { phase: 'polling' };
+  });
+
+  useEffect(() => {
+    if (poll.phase !== 'polling') return;
+    let cancelled = false;
+    let attempt = 0;
+
+    async function tick() {
+      attempt += 1;
+      try {
+        const assets = await getCreativeAnalysisByIds(assetIds);
+        if (cancelled) return;
+
+        const finished = assets.filter(a => a.analysis_status === 'done' || a.analysis_status === 'failed');
+        const allFinished = finished.length >= assetIds.length;
+
+        // Conta ocorrências de cada ângulo não-nulo já resolvido — mesmo com análise ainda
+        // em andamento pra alguns criativos, um resultado parcial já é mais útil que silêncio.
+        const counts = new Map<string, number>();
+        for (const a of assets) {
+          if (a.angle) counts.set(a.angle, (counts.get(a.angle) || 0) + 1);
+        }
+        const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+
+        if (top) {
+          if (cancelled) return;
+          setPoll({
+            phase: 'resolved',
+            label: resolveAngleLabelFor(top[0], allowedAngles) || top[0],
+            partial: !allFinished,
+          });
+          return;
+        }
+
+        if (allFinished) {
+          if (!cancelled) setPoll({ phase: 'no-match' });
+          return;
+        }
+
+        if (attempt >= ANGLE_POLL_MAX_ATTEMPTS) {
+          if (!cancelled) setPoll({ phase: 'timeout' });
+          return;
+        }
+
+        setTimeout(tick, ANGLE_POLL_INTERVAL_MS);
+      } catch {
+        // Falha de rede ao consultar o status — não é motivo pra travar a tela nem fingir
+        // resultado; mesma mensagem honesta do timeout.
+        if (!cancelled) setPoll({ phase: 'timeout' });
+      }
+    }
+
+    tick();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [poll.phase]);
+
+  const declaredLabel = declaredAngle ? resolveAngleLabelFor(declaredAngle, allowedAngles) : null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-dark/60 backdrop-blur-sm p-6">
+      <motion.div
+        initial={{ opacity: 0, y: 16, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.25 }}
+        className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden"
+      >
+        <div className="px-8 pt-8 pb-6 text-center">
+          <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
+            <CheckCircleIcon className="h-8 w-8 text-emerald-600" />
+          </div>
+          <h3 className="text-xl font-black text-gray-900">Campanha criada!</h3>
+          <p className="text-sm text-gray-500 mt-1">
+            Lançada com status <span className="font-bold text-gray-700">PAUSADA</span> — revise e ative no gerenciador de anúncios quando estiver pronto.
+          </p>
+        </div>
+
+        <div className="mx-8 mb-8 rounded-xl border border-gray-100 bg-gray-50 p-5">
+          {declaredLabel ? (
+            <div className="flex items-start gap-3">
+              <ShieldCheckIcon className="h-5 w-5 text-indigo-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ângulo da comunicação</p>
+                <p className="text-sm font-bold text-gray-900 mt-0.5">Você escolheu: {declaredLabel}</p>
+              </div>
+            </div>
+          ) : poll.phase === 'no-creative' ? (
+            <div className="flex items-start gap-3">
+              <SparklesIcon className="h-5 w-5 text-gray-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ângulo da comunicação</p>
+                <p className="text-sm text-gray-600 mt-0.5">
+                  Sem criativo anexado — não há imagem pra IA analisar. Você pode declarar o ângulo manualmente depois, editando a campanha.
+                </p>
+              </div>
+            </div>
+          ) : poll.phase === 'polling' ? (
+            <div className="flex items-start gap-3">
+              <span className="h-5 w-5 rounded-full border-2 border-indigo-200 border-t-indigo-500 animate-spin shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ângulo da comunicação</p>
+                <p className="text-sm text-gray-600 mt-0.5">A IA está analisando o criativo pra inferir o ângulo…</p>
+              </div>
+            </div>
+          ) : poll.phase === 'resolved' ? (
+            <div className="flex items-start gap-3">
+              <SparklesIcon className="h-5 w-5 text-gold-premium shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ângulo da comunicação</p>
+                <p className="text-sm font-bold text-gray-900 mt-0.5">🤖 Ângulo inferido: {poll.label}</p>
+                {poll.partial && (
+                  <p className="text-xs text-gray-400 mt-1">Baseado nos criativos já analisados — os demais ainda estão em processamento.</p>
+                )}
+              </div>
+            </div>
+          ) : poll.phase === 'no-match' ? (
+            <div className="flex items-start gap-3">
+              <SparklesIcon className="h-5 w-5 text-gray-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ângulo da comunicação</p>
+                <p className="text-sm text-gray-600 mt-0.5">
+                  A IA analisou o criativo, mas não identificou um ângulo claro dentro da taxonomia do segmento. Você pode declarar um manualmente editando a campanha.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-start gap-3">
+              <ClockIcon className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ângulo da comunicação</p>
+                <p className="text-sm text-gray-600 mt-0.5">
+                  A IA ainda está analisando — confira o resultado em alguns minutos em{' '}
+                  <a href="/admin/campanhas/portfolio/cross-insights" className="font-bold text-indigo-600 hover:underline">
+                    Portfólio → Performance por Ângulo
+                  </a>.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="px-8 pb-8">
+          <button
+            onClick={onContinue}
+            className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-black uppercase tracking-widest text-navy-dark bg-gold-premium hover:bg-gold transition-colors"
+          >
+            Continuar
+            <ArrowRightIcon className="h-4 w-4" />
+          </button>
+        </div>
+      </motion.div>
     </div>
   );
 }

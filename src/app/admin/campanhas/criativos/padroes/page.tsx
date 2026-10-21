@@ -12,6 +12,7 @@ import {
 import { adminFetch } from '@/lib/auth/adminFetch';
 import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector';
 import { DashboardHelpButton, HelpHint } from '@/components/marketing/DashboardHelpModal';
+import { CalibrationGuideButton } from '@/components/marketing/CalibrationGuideModal';
 import type { HookSaturationResult } from '@/lib/marketing/services/hookSaturationService';
 import { ANGLE_LABELS as SHARED_ANGLE_LABELS } from '@/lib/marketing/angles';
 
@@ -495,6 +496,7 @@ export default function PadroesPage() {
             storageKey="padroes"
             variant="toggle"
           />
+          <CalibrationGuideButton />
           <DashboardHelpButton isDark={false} />
         </div>
       </div>
