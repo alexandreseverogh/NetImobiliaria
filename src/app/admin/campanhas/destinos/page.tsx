@@ -7,7 +7,7 @@ import {
   CodeBracketIcon, ChevronDownIcon, ChevronUpIcon,
 } from '@heroicons/react/24/outline'
 import { adminFetch } from '@/lib/auth/adminFetch'
-import { FeatureHelpButton } from '@/components/marketing/FeatureHelpModal'
+import { FeatureHelpButton, FeatureOnboardingBanner } from '@/components/marketing/FeatureHelpModal'
 import { DESTINOS_HELP } from '@/lib/marketing/featureHelpContent'
 
 type FieldType = 'text' | 'email' | 'tel' | 'textarea' | 'select'
@@ -84,6 +84,8 @@ export default function DestinosPage() {
           <PlusIcon className="w-4 h-4" /> Novo destino
         </button>
       </div>
+
+      <FeatureOnboardingBanner content={DESTINOS_HELP} />
 
       {webhookKey && <WebhookIntegrationPanel apiKey={webhookKey} />}
 

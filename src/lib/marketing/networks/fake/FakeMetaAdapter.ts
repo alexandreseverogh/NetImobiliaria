@@ -7,6 +7,7 @@ import {
   TargetingResult,
   UploadResult,
   DateRange,
+  AccountBalanceResult,
 } from '../types';
 
 /**
@@ -85,6 +86,20 @@ export class FakeMetaAdapter implements AdNetworkService {
       return [{ id: `fake_loc_${hashStr(query)}`, name: `${query} (simulado)`, type: 'city' }];
     }
     return [];
+  }
+
+  async fetchAccountBalance(): Promise<AccountBalanceResult> {
+    return {
+      network: 'meta',
+      currency: 'BRL',
+      amountSpent: 1234.56,
+      spendCap: 5000,
+      available: 3765.44,
+      balanceDue: 432.1,
+      isPrepay: false,
+      fundingSourceType: 'Cartão de crédito (simulado)',
+      checkedAt: new Date().toISOString(),
+    };
   }
 }
 

@@ -448,26 +448,21 @@
 .a4-carousel__dot:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 /* ============================================================================
-   FAIXA DE AUTORIDADE — dados com fonte, separados por hairline (não cards)
+   FAIXA DE AUTORIDADE — dados com fonte, cada um em card próprio (borda +
+   sombra leve) — antes era uma faixa de hairline sem separação real entre
+   os 4 números; pedido explícito do usuário pra dar peso individual a cada um.
    ========================================================================== */
 
-.a4-authority { display: grid; gap: 0; border-block: 1px solid var(--line); }
+.a4-authority { display: grid; gap: clamp(0.75rem, 1.5vw, 1rem); }
 @media (min-width: 48rem) { .a4-authority { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (min-width: 72rem) { .a4-authority { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 
 .a4-authority__cell {
   padding: clamp(1.375rem, 2.5vw, 2rem) clamp(1rem, 2vw, 1.75rem);
-  border-bottom: 1px solid var(--line);
-}
-@media (min-width: 48rem) {
-  .a4-authority__cell { border-right: 1px solid var(--line); }
-  .a4-authority__cell:nth-child(2n) { border-right: 0; }
-  .a4-authority__cell:nth-last-child(-n + 2) { border-bottom: 0; }
-}
-@media (min-width: 72rem) {
-  .a4-authority__cell { border-bottom: 0; border-right: 1px solid var(--line); }
-  .a4-authority__cell:nth-child(2n) { border-right: 1px solid var(--line); }
-  .a4-authority__cell:last-child { border-right: 0; }
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--raised);
+  box-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.55);
 }
 .a4-authority__fig {
   font-family: var(--font-display), sans-serif;

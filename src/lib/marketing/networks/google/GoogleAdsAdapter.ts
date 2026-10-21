@@ -120,6 +120,90 @@ export class GoogleAdsAdapter implements AdNetworkService {
     }
   }
 
+  /**
+   * Saldo/limite de gasto — achado real ao pesquisar (não assumido): a Google Ads API **não
+   * expõe saldo de carteira pré-pago/pagamento manual** programaticamente (confirmado via busca
+   * na documentação oficial + fóruns de desenvolvedores nesta sessão — só o painel web mostra
+   * isso pra contas de pagamento manual/automático padrão, o modelo mais comum de conta
+   * self-serve, inclusive no Brasil). O único recurso real que a API expõe com algo parecido é
+   * `account_budget` (campos `amount_served_micros`/`adjusted_spending_limit_micros`) — mas
+   * esse recurso só existe quando a conta tem um CONVÊNIO DE FATURAMENTO configurado via MCC/
+   * time comercial do Google, não no self-serve padrão. Por isso: tenta `account_budget`
+   * (best-effort, nunca lança se não existir) e, sem nenhuma linha, devolve
+   * `unavailableReason` explícito em vez de fingir saldo zero.
+   */
+  async fetchAccountBalance(): Promise<import('../types').AccountBalanceResult> {
+    const checkedAt = new Date().toISOString();
+    try {
+      const custRows = await this.customer.query(`SELECT customer.currency_code FROM customer LIMIT 1`);
+      const currency: string | null = (custRows?.[0] as any)?.customer?.currency_code || null;
+
+      let amountSpent: number | null = null;
+      let spendCap: number | null = null;
+      try {
+        const rows = await this.customer.query(`
+          SELECT account_budget.amount_served_micros,
+                 account_budget.adjusted_spending_limit_micros,
+                 account_budget.adjusted_spending_limit_type
+          FROM account_budget
+          WHERE account_budget.status = 'APPROVED'
+        `);
+        const row = (rows?.[0] as any)?.account_budget;
+        if (row) {
+          amountSpent = Number(row.amount_served_micros || 0) / 1_000_000;
+          if (row.adjusted_spending_limit_type !== enums.SpendingLimitType.INFINITE) {
+            spendCap = Number(row.adjusted_spending_limit_micros || 0) / 1_000_000;
+          }
+        }
+      } catch {
+        // Sem account_budget configurado (caso comum, self-serve) — segue sem esse dado,
+        // nunca propaga o erro pro saldo inteiro.
+      }
+
+      if (amountSpent === null && spendCap === null) {
+        return {
+          network: 'google',
+          currency,
+          amountSpent: null,
+          spendCap: null,
+          available: null,
+          balanceDue: null,
+          isPrepay: null,
+          fundingSourceType: null,
+          checkedAt,
+          unavailableReason:
+            'A Google Ads API não expõe saldo/limite de gasto para contas de pagamento manual/' +
+            'automático padrão — consulte diretamente em Google Ads → Ferramentas → Faturamento.',
+        };
+      }
+
+      return {
+        network: 'google',
+        currency,
+        amountSpent,
+        spendCap,
+        available: spendCap !== null && amountSpent !== null ? Math.max(spendCap - amountSpent, 0) : null,
+        balanceDue: null,
+        isPrepay: null,
+        fundingSourceType: null,
+        checkedAt,
+      };
+    } catch (e: any) {
+      return {
+        network: 'google',
+        currency: null,
+        amountSpent: null,
+        spendCap: null,
+        available: null,
+        balanceDue: null,
+        isPrepay: null,
+        fundingSourceType: null,
+        checkedAt,
+        unavailableReason: e?.message || 'Erro ao consultar a Google Ads API',
+      };
+    }
+  }
+
   /** Upload real de imagem — cria um Asset do tipo IMAGE na conta Google Ads.
    *  `hash` retorna o resource_name (é o que asset group asset precisa para vincular). */
   async uploadCreative(imagePath: string): Promise<UploadResult> {

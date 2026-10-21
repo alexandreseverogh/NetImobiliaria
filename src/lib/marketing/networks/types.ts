@@ -128,6 +128,37 @@ export interface NetworkCredentials {
   [key: string]: string | undefined;
 }
 
+/**
+ * Saldo/limite de gasto da conta de anúncio — nível CONTA, não campanha (um único ad account
+ * por tenant+rede hoje, ver `getNetworkServiceForTenant`; nunca varia por cliente/segmento).
+ * Nem toda rede expõe esse dado de verdade via API (ex.: Google Ads não tem endpoint de "saldo
+ * da carteira" pra pagamento manual/automático padrão) — quando não dá pra obter,
+ * `unavailableReason` explica o motivo e os demais campos numéricos vêm `null`, nunca um "0"
+ * mentiroso que pareça saldo esgotado.
+ */
+export interface AccountBalanceResult {
+  network: NetworkCode;
+  /** Moeda da conta (ISO 4217, ex. "BRL"), quando a rede informa. */
+  currency: string | null;
+  /** Gasto acumulado no ciclo/teto atual, já convertido pra unidade principal da moeda (reais, não centavos). */
+  amountSpent: number | null;
+  /** Teto de gasto configurado na conta (spend cap) — `null` = sem teto definido (não é zero). */
+  spendCap: number | null;
+  /** `spendCap - amountSpent` quando há teto definido; `null` quando a conta não tem teto (gasto
+   *  é limitado só pela fonte de pagamento, não há "saldo disponível" programático nesse caso). */
+  available: number | null;
+  /** Valor em aberto a pagar à rede (fatura devida) — conceito distinto de "saldo disponível
+   *  pra gastar"; Meta expõe isso como `balance` (nunca confundir os dois). */
+  balanceDue: number | null;
+  /** Conta é pré-pago? `null` quando a rede não informa esse dado. */
+  isPrepay: boolean | null;
+  /** Descrição legível da fonte de pagamento (cartão, fatura, etc.), quando disponível. */
+  fundingSourceType: string | null;
+  checkedAt: string; // ISO timestamp da consulta
+  /** Motivo amigável quando a rede não expõe saldo/limite programaticamente — nunca um erro cru. */
+  unavailableReason?: string;
+}
+
 /** Contract every ad network adapter must satisfy. */
 export interface AdNetworkService {
   readonly network: NetworkCode;
@@ -143,4 +174,9 @@ export interface AdNetworkService {
   fetchInsights(externalId: string, dateRange: DateRange): Promise<NetworkInsight[]>;
 
   searchTargeting(type: 'interest' | 'location' | 'audience', query: string): Promise<TargetingResult[]>;
+
+  /** Opcional — nem toda rede/adapter real expõe saldo programaticamente ainda (ver
+   *  AccountBalanceResult). Quando ausente, o chamador deve tratar como "não disponível",
+   *  nunca assumir zero. */
+  fetchAccountBalance?(): Promise<AccountBalanceResult>;
 }

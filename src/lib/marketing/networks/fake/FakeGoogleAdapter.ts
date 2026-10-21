@@ -7,6 +7,7 @@ import {
   TargetingResult,
   UploadResult,
   DateRange,
+  AccountBalanceResult,
 } from '../types';
 
 /**
@@ -136,6 +137,25 @@ export class FakeGoogleAdapter extends GoogleAdsAdapter {
       ];
     }
     return [];
+  }
+
+  async fetchAccountBalance(): Promise<AccountBalanceResult> {
+    // Simula o caso real mais comum (self-serve, sem account_budget/convênio de faturamento)
+    // — a mesma degradação graciosa que um tenant real sem convênio veria.
+    return {
+      network: 'google',
+      currency: 'BRL',
+      amountSpent: null,
+      spendCap: null,
+      available: null,
+      balanceDue: null,
+      isPrepay: null,
+      fundingSourceType: null,
+      checkedAt: new Date().toISOString(),
+      unavailableReason:
+        'A Google Ads API não expõe saldo/limite de gasto para contas de pagamento manual/' +
+        'automático padrão (simulado) — consulte diretamente em Google Ads → Ferramentas → Faturamento.',
+    };
   }
 }
 

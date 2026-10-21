@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useSidebarMenu } from '@/hooks/useSidebarMenu'
+import { OrbitGlyph } from '@/components/marketing/OrbitLoader'
 
 /**
  * Home do Admin — reescrita em 2026-09-19, 2ª versão.
@@ -31,40 +32,6 @@ function greetingForHour(hour: number): string {
   return 'Boa noite'
 }
 
-/** Glifo de órbita — referência discreta ao nome Artemis (a origem da marca,
- *  contada em /artemis4: missão lunar, trajetória, retorno). Um corpo
- *  central parado e um satélite em órbita lenta — nunca literal, nunca
- *  chamativo. O satélite só se move se o visitante não pediu menos
- *  movimento (mesma guarda de sempre nesta base). */
-function OrbitGlyph({ accent, className }: { accent: string; className?: string }) {
-  const [animate, setAnimate] = useState(false)
-
-  useEffect(() => {
-    setAnimate(!window.matchMedia('(prefers-reduced-motion: reduce)').matches)
-  }, [])
-
-  return (
-    <svg viewBox="0 0 220 130" className={className} aria-hidden="true">
-      <ellipse cx="110" cy="65" rx="95" ry="34" fill="none" stroke={accent} strokeOpacity="0.22" strokeWidth="1.25" />
-      <circle cx="110" cy="65" r="6" fill={accent} fillOpacity="0.85" />
-      <circle r="9" fill={accent} fillOpacity="0.12">
-        <animateMotion
-          dur="22s"
-          repeatCount={animate ? 'indefinite' : '0'}
-          path="M 15,65 A 95,34 0 1,0 205,65 A 95,34 0 1,0 15,65 Z"
-        />
-      </circle>
-      <circle r="3" fill={accent}>
-        <animateMotion
-          dur="22s"
-          repeatCount={animate ? 'indefinite' : '0'}
-          path="M 15,65 A 95,34 0 1,0 205,65 A 95,34 0 1,0 15,65 Z"
-        />
-      </circle>
-    </svg>
-  )
-}
-
 export default function AdminDashboard() {
   const { user } = useAuth()
   const { theme } = useSidebarMenu('admin')
@@ -89,7 +56,7 @@ export default function AdminDashboard() {
         </span>
       </div>
 
-      <OrbitGlyph accent={accent} className="mb-8 h-24 w-40 sm:h-28 sm:w-48" />
+      <OrbitGlyph className="mb-8 h-24 w-40 sm:h-28 sm:w-48" />
 
       <h1 className={`text-3xl sm:text-4xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
         {greeting}{firstName ? `, ${firstName}` : ''}.

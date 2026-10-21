@@ -578,16 +578,21 @@ export function ProductTour() {
           <div
             style={{
               display: 'grid',
-              gap: '1px',
-              background: 'var(--line)',
-              border: '1px solid var(--line)',
-              borderRadius: '14px',
-              overflow: 'hidden',
+              gap: 'clamp(0.75rem, 1.5vw, 1rem)',
               gridTemplateColumns: 'repeat(auto-fit, minmax(16rem, 1fr))',
             }}
           >
             {CAPABILITIES.map((c) => (
-              <div key={c.title} style={{ background: 'var(--raised)', padding: '1.125rem 1.25rem' }}>
+              <div
+                key={c.title}
+                style={{
+                  background: 'var(--raised)',
+                  border: '1px solid var(--line)',
+                  borderRadius: '12px',
+                  boxShadow: '0 10px 24px -14px rgba(0, 0, 0, 0.55)',
+                  padding: '1.125rem 1.25rem',
+                }}
+              >
                 <h4 className="a4-h4" style={{ marginBottom: '0.375rem' }}>
                   {c.title}
                 </h4>

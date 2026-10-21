@@ -17,6 +17,8 @@ import type {
   CrossSegment,
 } from '@/app/api/admin/campanhas/portfolio/cross-insights/route';
 import type { AngleStat, AngleInsightsResult } from '@/lib/marketing/services/angleInsightsService';
+import { CalibrationGuideButton } from '@/components/marketing/CalibrationGuideModal';
+import { OrbitLoader } from '@/components/marketing/OrbitLoader';
 
 /* ── cores de segmento (badge) ──────────────────────────────────── */
 
@@ -427,7 +429,9 @@ function AngleWidget({ period, segmentId, segmentName }: { period: string; segme
       </div>
 
       {loading ? (
-        <div className="h-40 bg-white rounded-2xl border border-gray-100 animate-pulse" />
+        <div className="bg-white rounded-2xl border border-gray-100">
+          <OrbitLoader label="Analisando ângulos…" />
+        </div>
       ) : !data || data.angleStats.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-gray-400 text-sm">
           Nenhuma campanha com ângulo registrado no período.<br />
@@ -672,6 +676,8 @@ export default function CrossInsightsPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            <CalibrationGuideButton />
+
             {/* Período */}
             <select
               value={period}
@@ -774,12 +780,10 @@ export default function CrossInsightsPage() {
           </motion.div>
         )}
 
-        {/* ── Loading skeleton ───────────────────────────────────────── */}
+        {/* ── Loading ───────────────────────────────────────────────── */}
         {loading && (
-          <div className="space-y-4">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-28 bg-white rounded-2xl border border-gray-100 animate-pulse" />
-            ))}
+          <div className="bg-white rounded-2xl border border-gray-100">
+            <OrbitLoader label="Cruzando dados do portfólio…" />
           </div>
         )}
 

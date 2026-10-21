@@ -7,6 +7,7 @@ import {
   TargetingResult,
   UploadResult,
   DateRange,
+  AccountBalanceResult,
 } from '../types';
 
 /**
@@ -97,6 +98,20 @@ export class FakeTikTokAdapter implements AdNetworkService {
       return [{ id: `fake_tt_loc_${hashStr(query)}`, name: `${query} (simulado)`, type: 'city' }];
     }
     return [];
+  }
+
+  async fetchAccountBalance(): Promise<AccountBalanceResult> {
+    return {
+      network: 'tiktok',
+      currency: 'BRL',
+      amountSpent: 820.3,
+      spendCap: null,
+      available: null,
+      balanceDue: null,
+      isPrepay: true,
+      fundingSourceType: 'Pré-pago (simulado)',
+      checkedAt: new Date().toISOString(),
+    };
   }
 }
 

@@ -153,6 +153,21 @@ export const getClients = (params?: { search?: string; segmentId?: string }) =>
 export const getCreatives = () =>
   api.get<{ images: Creative[] }>('/criativos').then(r => r.data);
 
+export interface CreativeAnalysisStatus {
+  id: string;
+  analysis_status: 'pending' | 'running' | 'done' | 'failed' | null;
+  angle: string | null;
+  error_message?: string | null;
+}
+
+/** Consulta o status de análise (Visão) de um conjunto específico de criativos — usado pra
+ *  pollar o ângulo inferido logo após o lançamento de uma campanha, sem esperar o job de
+ *  classificação em lote (Portfólio → Performance por Ângulo). */
+export const getCreativeAnalysisByIds = (ids: string[]) =>
+  api
+    .get<{ assets: CreativeAnalysisStatus[] }>('/criativos/library', { params: { ids: ids.join(',') } })
+    .then(r => r.data.assets);
+
 // ─── Campanhas ────────────────────────────────────────────────────────────────
 export const getCampaigns = (clientId?: ClientFilter) =>
   api.get<Campaign[]>('/campaigns', { params: { clientId } }).then(r => r.data);

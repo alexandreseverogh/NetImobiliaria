@@ -16,6 +16,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { adminFetch } from '@/lib/auth/adminFetch';
 import CampanhasModal from '@/components/marketing/CampanhasModal';
 import { TokenExpiryBanner } from '@/components/marketing/TokenExpiryBanner';
+import { AccountBalanceBanner } from '@/components/marketing/AccountBalanceBanner';
 
 const CampaignWizard = dynamic(
   () => import('@/components/marketing/CampaignWizard').then(m => m.CampaignWizard),
@@ -477,6 +478,7 @@ export default function NovaCampanhaPage() {
         </div>
 
         <TokenExpiryBanner isDark={false} />
+        <AccountBalanceBanner isDark={false} />
 
         {/* ── Section: Para quem? (only for tenants) ── */}
         {!isMaster && (

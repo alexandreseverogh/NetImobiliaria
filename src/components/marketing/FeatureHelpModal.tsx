@@ -233,3 +233,84 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
     </h3>
   );
 }
+
+// ─── Onboarding banner ──────────────────────────────────────────────────────
+//
+// O botão "Ajuda" acima já cobre o conteúdo (o que é / como usar / ganhos) — mas é
+// pequeno, de cor neutra, no canto do cabeçalho: alguém chegando pela 1ª vez numa tela
+// como Destinos de CTA ou Mecanismos não tem motivo nenhum pra notar que ele existe antes
+// de já estar perdido. Este banner resolve a PRIMEIRA impressão — aparece sozinho, sem
+// precisar de clique nenhum, com a mesma tagline + o ganho mais forte já escritos em
+// `featureHelpContent.ts` (zero conteúdo novo). Uma vez dispensado, não volta a aparecer
+// pra esse navegador (localStorage) — nunca insiste depois que a pessoa já entendeu.
+//
+// Paleta: azul institucional (mesma cor do botão "Novo destino"/"Integração via Webhook"
+// já usados nestas páginas) — não o âmbar do Painel de Missão. Estas 2 telas ainda não
+// passaram pelo Redesign Premium (CLAUDE.md §1); importar uma cor de um sistema visual que
+// o resto da página não usa criaria uma inconsistência pior que a que isto resolve.
+
+function bannerDismissKey(content: FeatureHelpContent): string {
+  return `feature-onboarding-dismissed:${content.title}`;
+}
+
+export function FeatureOnboardingBanner({ content }: { content: FeatureHelpContent }) {
+  const [dismissed, setDismissed] = useState<boolean | null>(null); // null = ainda não leu localStorage
+  const [open, setOpen] = useState(false);
+  const Icon = content.icon;
+
+  useEffect(() => {
+    try {
+      setDismissed(localStorage.getItem(bannerDismissKey(content)) === '1');
+    } catch {
+      setDismissed(false); // localStorage indisponível (ex.: modo privado) — mostra, nunca quebra
+    }
+  }, [content]);
+
+  function dismiss() {
+    setDismissed(true);
+    try { localStorage.setItem(bannerDismissKey(content), '1'); } catch { /* best-effort */ }
+  }
+
+  if (dismissed !== false) return null; // null (ainda carregando) ou true (já dispensado)
+
+  return (
+    <>
+      <div className="mb-6 rounded-2xl border border-blue-100 bg-blue-50/50 px-5 py-4">
+        <div className="flex items-start gap-3.5">
+          <div className="shrink-0 h-10 w-10 rounded-xl bg-white border border-blue-100 flex items-center justify-center">
+            <Icon className="h-5 w-5" style={{ color: focusBlue }} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold" style={{ color: ink.primary }}>{content.tagline}</p>
+            {content.benefits[0] && (
+              <p className="text-sm leading-relaxed mt-1" style={{ color: ink.secondary }}>
+                {content.benefits[0]}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="inline-flex items-center gap-1 mt-2.5 text-sm font-semibold hover:underline"
+              style={{ color: linkBlue }}
+            >
+              Ver guia completo
+              <ArrowRightIcon className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <button
+            onClick={dismiss}
+            aria-label="Dispensar — não mostrar de novo"
+            title="Dispensar — não mostrar de novo"
+            className="shrink-0 p-1 rounded-lg text-blue-300 hover:text-blue-600 hover:bg-blue-100/60 transition-colors"
+          >
+            <XMarkIcon className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {open && <HelpModal content={content} onClose={() => setOpen(false)} />}
+      </AnimatePresence>
+    </>
+  );
+}

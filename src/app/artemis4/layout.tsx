@@ -58,7 +58,7 @@ const organizationJsonLd = {
   description:
     'Plataforma brasileira que une marketing digital, atendimento e vendas num ciclo fechado — para você saber exatamente qual anúncio virou dinheiro no caixa.',
   email: 'contato@artemis9.com.br',
-  telephone: '+55-81-99800-0047',
+  telephone: '+55-81-99793-0422',
   address: {
     '@type': 'PostalAddress',
     addressLocality: 'Recife',

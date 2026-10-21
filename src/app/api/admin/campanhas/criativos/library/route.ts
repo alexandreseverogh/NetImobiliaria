@@ -3,7 +3,12 @@
  * FASE 6 — Lista CreativeAssets do tenant com análise joinada.
  *
  * Query params:
- *   hookType?, angle?, isUgc?, hasProperty?, status?, clientId?, limit?, offset?
+ *   hookType?, angle?, isUgc?, hasProperty?, status?, clientId?, ids?, limit?, offset?
+ *
+ * `ids` (novo) — lista de CreativeAsset.id separados por vírgula, pra consultar o status de
+ * análise de um conjunto específico (ex.: pollar o resultado da Visão logo após o lançamento
+ * do wizard, sem esperar o job de classificação em lote). Quando presente, ignora `limit`/
+ * `offset` (nunca pagina uma lista que o próprio caller já delimitou).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -27,6 +32,7 @@ export async function GET(request: NextRequest) {
     const hasProp    = searchParams.get('hasProperty');
     const status     = searchParams.get('status');   // pending|running|done|failed
     const clientId   = searchParams.get('clientId');
+    const idsParam   = searchParams.get('ids');
     const limit      = Math.min(parseInt(searchParams.get('limit')  || '60'), 200);
     const offset     = parseInt(searchParams.get('offset') || '0');
 
@@ -45,6 +51,19 @@ export async function GET(request: NextRequest) {
     if (clientId === 'own') { conditions.push(`a.client_id IS NULL`); }
     else if (clientId && UUID_RE.test(clientId)) { conditions.push(`a.client_id = $${idx++}::uuid`); values.push(clientId); }
     // clientId não-UUID (ex: 'segment') é ignorado — sem filtro por client_id
+
+    let idsList: string[] = [];
+    if (idsParam) {
+      idsList = idsParam.split(',').map(s => s.trim()).filter(s => UUID_RE.test(s));
+      if (idsList.length > 0) {
+        conditions.push(`a.id = ANY($${idx++}::uuid[])`);
+        values.push(idsList);
+      } else {
+        // `ids` presente mas sem nenhum UUID válido — nunca cai no "sem filtro" (listaria o
+        // tenant inteiro por engano), devolve vazio de propósito.
+        conditions.push('false');
+      }
+    }
 
     const where = conditions.join(' AND ');
 
@@ -65,7 +84,10 @@ export async function GET(request: NextRequest) {
       ORDER BY a.uploaded_at DESC
       LIMIT $${idx++} OFFSET $${idx++}
     `;
-    values.push(limit, offset);
+    // `ids` já delimita o conjunto — nunca corta por LIMIT (relevante se a seleção de
+    // criativos no wizard crescer além do teto padrão de paginação no futuro).
+    const effectiveLimit = idsList.length > 0 ? Math.max(idsList.length, limit) : limit;
+    values.push(effectiveLimit, offset);
 
     const countSql = `
       SELECT COUNT(*) AS total

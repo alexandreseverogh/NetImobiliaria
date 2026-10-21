@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
-// last-restart: 2026-10-12 — bundle do dev server travado num erro de sintaxe fantasma
-// em AccessLogTab.tsx (arquivo sintaticamente correto, confirmado via tsc --noEmit e
-// leitura manual) — mesmo padrão de cache/HMR obsoleto já documentado neste projeto.
+// last-restart: 2026-10-16b — webpack ainda servia o chunk antigo de admin/page.tsx
+// (duplicate OrbitGlyph) mesmo após restart anterior e com o arquivo em disco já
+// limpo (confirmado via Read) — forçando 2º restart completo + limpeza do .next.
 // Configurações baseadas no ambiente (sem TypeScript)
 const isDevelopment = process.env.NODE_ENV === 'development'
 const isProduction = process.env.NODE_ENV === 'production'

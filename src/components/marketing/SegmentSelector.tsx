@@ -385,7 +385,18 @@ export function useSegmentSelector(params?: { startDate?: string; endDate?: stri
   const [segmentFilter, setSegmentFilter] = useState<string[]>([]);
   const [activeSegment, setActiveSegment] = useState<string | null>(null);
 
+  // Guarda contra corrida: digitar "De"/"Até" dispara 2+ fetches em sequência rápida
+  // (ex.: completar "De" já auto-preenche "Até" com hoje como default temporário, depois
+  // o usuário digita o valor real de "Até" — cada mudança de período é um fetch novo). Sem
+  // isso, uma resposta MAIS ANTIGA (ex.: o fetch inicial do mount, com o período padrão de
+  // "Hoje") que demore mais pra resolver pode sobrescrever o resultado de uma resposta MAIS
+  // NOVA já com as datas corretas — dando a falsa impressão de "nenhum segmento com atividade",
+  // mesmo havendo dado real no período que o usuário de fato selecionou. Mesmo padrão já usado
+  // em /admin/campanhas/leads (requestIdRef).
+  const requestIdRef = useRef(0);
+
   useEffect(() => {
+    const myRequestId = ++requestIdRef.current;
     setLoading(true);
     const qs = new URLSearchParams();
     if (params?.startDate) qs.set('startDate', params.startDate);
@@ -394,6 +405,7 @@ export function useSegmentSelector(params?: { startDate?: string; endDate?: stri
     fetch(`/api/admin/campanhas/segments${qs.size ? `?${qs}` : ''}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
       .then((data: SegmentOption[]) => {
+        if (myRequestId !== requestIdRef.current) return; // resposta desatualizada — descarta
         const list = Array.isArray(data) ? data : [];
         setSegments(list);
 
@@ -407,7 +419,9 @@ export function useSegmentSelector(params?: { startDate?: string; endDate?: stri
         });
       })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (myRequestId === requestIdRef.current) setLoading(false);
+      });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params?.startDate, params?.endDate]);
 
