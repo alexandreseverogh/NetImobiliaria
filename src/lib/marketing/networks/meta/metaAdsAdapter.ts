@@ -204,6 +204,31 @@ export class MetaAdsAdapter implements AdNetworkService {
     }
   }
 
+  /**
+   * Importar Campanhas Existentes — lista TODAS as campanhas da conta de anúncios, inclusive
+   * as que nunca passaram pelo nosso wizard. Paginação simples via cursor `after` do Graph API
+   * (teto de 200 — além disso é caso raro o bastante pra não valer complicar com paginação
+   * completa nesta 1ª versão; o usuário sempre pode filtrar/buscar as mais recentes).
+   */
+  async fetchAccountCampaigns(): Promise<import('../types').ExternalCampaignSummary[]> {
+    const res = await axios.get(this.url(`act_${this.adAccountId}/campaigns`), {
+      params: {
+        ...this.auth,
+        fields: 'id,name,status,objective,created_time',
+        limit: 200,
+      },
+      timeout: 15000,
+    });
+    const rows = Array.isArray(res.data?.data) ? res.data.data : [];
+    return rows.map((r: any) => ({
+      externalId: String(r.id),
+      name: r.name || '(sem nome)',
+      status: r.status || 'UNKNOWN',
+      objective: r.objective || null,
+      createdTime: r.created_time || null,
+    }));
+  }
+
   // ── FASE 16 — Postagem orgânica ───────────────────────────────────────────
   // Cache em memória do Page Access Token (escopo da instância do adapter).
   private _pageTokenCache?: string;

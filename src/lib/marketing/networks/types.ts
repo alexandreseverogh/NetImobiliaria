@@ -179,4 +179,22 @@ export interface AdNetworkService {
    *  AccountBalanceResult). Quando ausente, o chamador deve tratar como "não disponível",
    *  nunca assumir zero. */
   fetchAccountBalance?(): Promise<AccountBalanceResult>;
+
+  /** Opcional — lista TODAS as campanhas que já existem na conta de anúncios, inclusive as
+   *  que nunca passaram pelo nosso wizard (ex.: lançadas direto no Meta Ads Manager). Base
+   *  da funcionalidade "Importar Campanhas Existentes" — ver /admin/campanhas/importar. */
+  fetchAccountCampaigns?(): Promise<ExternalCampaignSummary[]>;
+}
+
+/** Resumo de 1 campanha vista direto na API da rede, pra fluxo de importação (ver
+ *  fetchAccountCampaigns acima) — deliberadamente mínimo, só o que basta pro usuário decidir
+ *  se quer importar e pra criarmos a linha local de Campaign. */
+export interface ExternalCampaignSummary {
+  externalId: string;
+  name: string;
+  status: string;
+  objective: string | null;
+  createdTime: string | null;
+  /** true quando já existe uma Campaign local com este externalId (não deveria aparecer pra
+   *  re-importar, mas o chamador decide — o adapter só reporta o fato). */
 }

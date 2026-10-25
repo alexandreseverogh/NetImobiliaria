@@ -115,6 +115,10 @@ model Campaign {
   // raw SQL (pool.query), sem necessidade de mexer agora.
   networkId           String?   @map("network_id") @db.Uuid
   externalId           String?  @map("external_id") @db.VarChar(100)
+  // Importar Campanhas Existentes — campanha que nasceu direto no Meta (não pelo nosso
+  // wizard). "Somente leitura": sincroniza insights normalmente, mas é excluída das ações
+  // automáticas do Agente Decisor (PAUSE/SCALE/etc.) — ver aiInsights.ts/agentDecisor.ts.
+  importedReadOnly    Boolean   @default(false) @map("imported_read_only")
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 

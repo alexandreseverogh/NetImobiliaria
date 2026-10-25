@@ -39,7 +39,9 @@ const DEFENSIVE_TYPES = ['PAUSE', 'DOWNSCALE', 'ADD_NEGATIVE_KEYWORD'];
 const OFFENSIVE_TYPES = ['SCALE', 'REFRESH_CREATIVE', 'ADJUST_AUDIENCE', 'REALLOCATE_BUDGET', 'USE_LOOKALIKE_AUDIENCE'];
 
 export async function runDecisor(tenantId?: string): Promise<{ actionsCreated: number }> {
-  const result = await generateAiInsights(undefined, tenantId);
+  // excludeImportedReadOnly: campanha "Importada — somente leitura" nunca vira candidata a
+  // ação automática — ver Campaign.importedReadOnly / docs/CHECKPOINT.md.
+  const result = await generateAiInsights(undefined, tenantId, undefined, { excludeImportedReadOnly: true });
   const insights = result.insights;
 
   let threshold = CONFIDENCE_THRESHOLD;
@@ -244,6 +246,21 @@ export async function executeAction(
 ): Promise<{ before: number; after: number } | null> {
   try {
     const campaign = await prisma.campaign.findUnique({ where: { id: action.campaignId } }) as any;
+
+    // Defesa em profundidade — runDecisor() já exclui campanha "Importada — somente leitura"
+    // da geração de candidatos (ver aiInsights.ts excludeImportedReadOnly), mas nunca confiar
+    // só nisso: se por qualquer caminho uma AgentAction chegou aqui pra campanha importada,
+    // bloqueia a execução real mesmo com PIN/aprovação correta, mesmo padrão já usado pelo
+    // circuit breaker (status BLOCKED).
+    if (campaign?.importedReadOnly === true) {
+      await prisma.$executeRaw`
+        UPDATE campanhasmarketingdigital."AgentAction"
+        SET status = 'BLOCKED', "executedAt" = now()
+        WHERE id = ${action.id}
+      `;
+      return null;
+    }
+
     // FIX: campaign.networkCode/external_id nunca existiram (schema real é networkId/externalId
     // camelCase) — toda campanha caía silenciosamente no fallback 'meta', mesmo sendo Google.
     const externalId = campaign?.externalId || campaign?.metaCampaignId;
