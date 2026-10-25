@@ -92,7 +92,11 @@ export async function PUT(request: NextRequest) {
     const hasMeta = metaAppId !== undefined || metaAppSecret !== undefined
                  || metaToken !== undefined || adAccountId !== undefined;
     if (hasMeta) {
-      const denied = await requireApiPermission(request, 'campanhasmarketingdigital', 'UPDATE');
+      // 'campanhasmarketingdigital' nunca existe no mapa de permissões de nenhum admin de
+      // tenant (resource fantasma) — nenhum tenant real jamais conseguiria salvar aqui.
+      // Mesmo fix já aplicado em outras rotas deste módulo: usar o resource real, que já é
+      // o mesmo checado pelo UpdateGuard client-side desta tela.
+      const denied = await requireApiPermission(request, 'configuracoes-campanhas', 'UPDATE');
       if (denied) return denied;
     }
 

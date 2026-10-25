@@ -73,7 +73,10 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
 
-    const denied = await requireApiPermission(request, 'campanhasmarketingdigital', 'UPDATE');
+    // 'campanhasmarketingdigital' é resource fantasma, nunca existe no mapa de permissões de
+    // nenhum admin de tenant — usar o resource real, o mesmo que o UpdateGuard client-side
+    // desta tela já checa.
+    const denied = await requireApiPermission(request, 'configuracoes-campanhas', 'UPDATE');
     if (denied) return denied;
 
     const tenantId = payload.tenantId;
