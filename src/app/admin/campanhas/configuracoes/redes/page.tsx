@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import axios from 'axios';
+import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 import { UpdateGuard } from '@/components/admin/PermissionGuard';
 
 interface Network {
@@ -50,6 +52,7 @@ const NETWORK_ICONS: Record<string, string> = {
 };
 
 export default function RedesPage() {
+  const router = useRouter();
   const [networks, setNetworks]       = useState<Network[]>([]);
   const [loading, setLoading]         = useState(true);
   const [connecting, setConnecting]   = useState<string | null>(null);
@@ -187,6 +190,14 @@ export default function RedesPage() {
   return (
     <div className="p-6 max-w-3xl">
       <div className="mb-6">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors mb-4"
+        >
+          <ArrowLeftIcon className="h-4 w-4" />
+          Voltar
+        </button>
         <h1 className="text-2xl font-bold text-gray-900">Redes de Anúncios</h1>
         <p className="text-gray-500 text-sm mt-1">
           Conecte as redes onde suas campanhas serão veiculadas. Cada rede tem seu próprio token de acesso.

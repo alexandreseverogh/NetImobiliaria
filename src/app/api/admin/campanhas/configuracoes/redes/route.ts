@@ -31,13 +31,25 @@ export async function GET(request: NextRequest) {
          n.capabilities,
          n.sort_order,
          tnc.id              AS credential_id,
-         tnc.account_id,
+         -- Meta: credenciais reais vivem nas colunas legadas de public.tenants (é o que
+         -- factory.ts de fato usa pra lançar campanha, com prioridade sobre
+         -- tenant_network_credentials) — sem esse fallback aqui, a tela mostrava "Não
+         -- conectado" mesmo com uma conexão real funcionando (achado real, 2026-10-25).
+         COALESCE(tnc.account_id, CASE WHEN n.code = 'meta' THEN t.meta_ad_account_id END)
+                              AS account_id,
          tnc.display_name,
-         tnc.is_active       AS credential_active,
-         tnc.expires_at,
+         (tnc.is_active IS TRUE
+           OR (n.code = 'meta' AND t.meta_token IS NOT NULL AND t.meta_token <> ''
+               AND t.meta_ad_account_id IS NOT NULL AND t.meta_ad_account_id <> ''))
+                              AS credential_active,
+         COALESCE(tnc.expires_at, CASE WHEN n.code = 'meta' THEN t.meta_token_expires_at END)
+                              AS expires_at,
          tnc.last_validated,
          tnc.updated_at      AS connected_at,
-         CASE WHEN tnc.id IS NOT NULL AND tnc.is_active THEN true ELSE false END AS connected,
+         (tnc.is_active IS TRUE
+           OR (n.code = 'meta' AND t.meta_token IS NOT NULL AND t.meta_token <> ''
+               AND t.meta_ad_account_id IS NOT NULL AND t.meta_ad_account_id <> ''))
+                              AS connected,
          -- Provisionamento por rede (modelo de negócio: cada rede é cobrada separadamente do
          -- tenant) — reaproveita system_features/tenant_feature_overrides, o mesmo mecanismo
          -- genérico usado pra todo o resto da plataforma. Ver
@@ -46,6 +58,8 @@ export async function GET(request: NextRequest) {
        FROM public.ad_networks n
        LEFT JOIN public.tenant_network_credentials tnc
          ON tnc.network_id = n.id AND tnc.tenant_id = $1::uuid
+       LEFT JOIN public.tenants t
+         ON t.id = $1::uuid
        LEFT JOIN public.system_features sf
          ON sf.slug = 'campanhas-rede-' || n.code
        LEFT JOIN public.tenant_feature_overrides tfo

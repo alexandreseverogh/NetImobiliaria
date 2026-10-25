@@ -950,6 +950,26 @@ function TenantSettingsView() {
         </div>
       )}
 
+      {/* ── Redes de Anúncios (status/Testar/Reconectar/Desativar por rede) — achado real
+          2026-10-25: tenant não tinha nenhum caminho de UI pra essa tela, só URL direta.
+          Mesmo card já usado em MasterSettingsView, reaproveitado aqui. */}
+      <Link href="/admin/campanhas/configuracoes/redes">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center justify-between hover:border-gold-premium/40 hover:shadow-md transition-colors cursor-pointer group mb-1">
+          <div className="flex items-center gap-4">
+            <div className="p-2.5 bg-gold-premium/10 rounded-xl group-hover:bg-gold-premium transition-colors">
+              <GlobeAltIcon className="h-5 w-5 text-gold-premium group-hover:text-navy-dark transition-colors" />
+            </div>
+            <div>
+              <h2 className="text-sm font-black text-gray-900">Status das Redes de Anúncios</h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Testar conexão, reconectar ou desativar cada rede — Meta, Google, TikTok
+              </p>
+            </div>
+          </div>
+          <ArrowRightIcon className="h-4 w-4 text-gray-300 group-hover:text-gold-premium transition-colors" />
+        </div>
+      </Link>
+
       {/* ── Meta Marketing API (Credenciais do Tenant) ── */}
       <SectionCard icon={Cog6ToothIcon} title="Meta Marketing API" description="App ID, credenciais e conta de anúncios da sua empresa">
         <Field label="App ID" value={settings.metaAppId}
