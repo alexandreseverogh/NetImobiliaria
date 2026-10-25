@@ -49,6 +49,9 @@ export interface Campaign {
   lifecycleChangedAt?: string | null;
   // FASE 7 — funnel stage
   funnelStage?: string;
+  // Importar Campanhas Existentes — campanha que nasceu direto no Meta (não pelo wizard);
+  // "somente leitura" significa que o Agente Decisor nunca age automaticamente sobre ela.
+  importedReadOnly?: boolean;
   createdAt: string;
   adSets: AdSet[];
   // Filtro "vigente" do dropdown de campanhas do Dashboard — lifecycleStatus != KILLED e
@@ -748,5 +751,31 @@ export const getGoogleSearchTerms = (params?: { campaignId?: string; status?: st
 
 export const negateGoogleSearchTerm = (data: { campaignId: string; searchTerm: string; matchType: string }) =>
   api.post<{ ok: boolean }>('/google/search-terms/negate', data).then(r => r.data);
+
+/* ──────────────────────────────────────────────────────────────
+   Importar Campanhas Existentes — campanha lançada direto na rede, não pelo wizard
+────────────────────────────────────────────────────────────── */
+
+export interface ExternalCampaign {
+  externalId: string;
+  name: string;
+  status: string;
+  objective: string | null;
+  createdTime: string | null;
+  alreadyImported: boolean;
+}
+
+export const getImportableCampaigns = (params?: { network?: string }) =>
+  api.get<{ campaigns: ExternalCampaign[]; error?: string }>('/campaigns/import', { params }).then(r => r.data);
+
+export const importCampaign = (data: {
+  network: string;
+  externalId: string;
+  name: string;
+  objective?: string;
+  status?: string;
+  clientId?: string | null;
+  importedReadOnly?: boolean;
+}) => api.post<{ campaign: Campaign }>('/campaigns/import', data).then(r => r.data);
 
 export default api;

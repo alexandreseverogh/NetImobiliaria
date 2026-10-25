@@ -513,6 +513,11 @@ interface AiInsightFilters {
   segmentId?: string;
   // PARTE D1 (correção) — código de rede (meta/google/tiktok...)
   network?: string;
+  // Importar Campanhas Existentes — usado só por runDecisor() (agentDecisor.ts), nunca pela
+  // tela de Insights/dashboard, que deve continuar mostrando insight informativo mesmo pra
+  // campanha importada (é exatamente o valor analítico que a importação existe pra dar).
+  // true aqui exclui campanha "somente leitura" de virar candidata a AgentAction automática.
+  excludeImportedReadOnly?: boolean;
 }
 
 export async function generateAiInsights(
@@ -527,6 +532,7 @@ export async function generateAiInsights(
   if (filters?.objectiveFilter) where.objective = filters.objectiveFilter;
   if (filters?.statusFilter)    where.status    = filters.statusFilter;
   if (filters?.adSetId)         where.adSets    = { some: { id: filters.adSetId } };
+  if (filters?.excludeImportedReadOnly) where.importedReadOnly = false;
 
   // Isolamento de segmento — tem precedência sobre clientId
   if (filters?.segmentId && tenantId) {

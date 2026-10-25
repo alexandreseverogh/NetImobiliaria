@@ -461,6 +461,12 @@ export default function NovaCampanhaPage() {
               <p className="text-gray-500 mt-1 text-sm font-medium">
                 Selecione os criativos e configure sua campanha — Meta, TikTok ou Google
               </p>
+              <button
+                onClick={() => router.push('/admin/campanhas/importar')}
+                className="mt-2 text-xs font-bold text-indigo-500 hover:text-indigo-700 hover:underline transition-colors"
+              >
+                Já lançou uma campanha direto no Meta? Importar Campanhas Existentes →
+              </button>
             </div>
 
             {/* Phase indicator */}
