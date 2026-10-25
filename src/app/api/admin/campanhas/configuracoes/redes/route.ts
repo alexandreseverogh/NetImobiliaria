@@ -72,8 +72,9 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    // Verificar permissão de criação server-side
-    const denied = await requireApiPermission(request, 'campanhasmarketingdigital', 'UPDATE');
+    // Verificar permissão de criação server-side — 'campanhasmarketingdigital' é resource
+    // fantasma (nunca existe no mapa de permissões de tenant), usar o resource real.
+    const denied = await requireApiPermission(request, 'configuracoes-campanhas', 'UPDATE');
     if (denied) return denied;
 
     const payload = getTokenPayload(request);
@@ -158,8 +159,8 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    // Verificar permissão de exclusão server-side
-    const denied = await requireApiPermission(request, 'campanhasmarketingdigital', 'DELETE');
+    // Verificar permissão de exclusão server-side — mesmo fix: resource real, não o fantasma.
+    const denied = await requireApiPermission(request, 'configuracoes-campanhas', 'DELETE');
     if (denied) return denied;
 
     const payload = getTokenPayload(request);
