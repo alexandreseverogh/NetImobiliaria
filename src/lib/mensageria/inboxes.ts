@@ -16,7 +16,70 @@ const SCHEMA = 'mensageria'
  * Ver docs/PLANO_MENSAGERIA.md seção 14.9 — gap corrigido: antes, uma única inbox por
  * tenant era usada para todos os clientes, ignorando client_id mesmo a coluna existindo.
  */
+export async function resolveWhatsAppProvider(tenantId: string, clientId?: string | null): Promise<string> {
+  if (clientId) {
+    const { rows } = await pool.query(
+      `SELECT whatsapp_provider FROM public.clientes WHERE uuid = $1 AND tenant_id = $2`,
+      [clientId, tenantId],
+    )
+    if (rows[0]?.whatsapp_provider) return rows[0].whatsapp_provider
+  }
+  const { rows } = await pool.query(`SELECT whatsapp_provider FROM public.tenants WHERE id = $1`, [tenantId])
+  return rows[0]?.whatsapp_provider || 'evolution'
+}
+
+async function resolveWhatsAppCloudInbox(tenantId: string, clientId: string | null | undefined): Promise<string | null> {
+  const { rows: credRows } = await pool.query(
+    `SELECT phone_number_id, access_token, display_phone_number
+       FROM mensageria.whatsapp_cloud_credentials
+      WHERE tenant_id = $1 AND is_active = true
+        AND (client_id = $2::uuid OR client_id IS NULL)
+      ORDER BY client_id NULLS LAST
+      LIMIT 1`,
+    [tenantId, clientId ?? null],
+  )
+  const cred = credRows[0]
+  if (!cred) return null
+
+  const config = JSON.stringify({
+    phone_number_id: cred.phone_number_id,
+    access_token: cred.access_token,
+    number: cred.display_phone_number ?? null,
+  })
+
+  const { rows: existing } = await pool.query(
+    `SELECT id FROM ${SCHEMA}.inboxes WHERE tenant_id = $1 AND client_id ${clientId ? '= $2' : 'IS NULL'} AND channel_type = 'whatsapp' LIMIT 1`,
+    clientId ? [tenantId, clientId] : [tenantId],
+  )
+  if (existing[0]) {
+    await pool.query(
+      `UPDATE ${SCHEMA}.inboxes SET provider = 'whatsapp_cloud', config = $1::jsonb WHERE id = $2`,
+      [config, existing[0].id],
+    )
+    return existing[0].id
+  }
+
+  const { rows: created } = await pool.query(
+    `INSERT INTO ${SCHEMA}.inboxes (tenant_id, client_id, name, channel_type, provider, config)
+     VALUES ($1, $2, 'WhatsApp (Cloud API)', 'whatsapp', 'whatsapp_cloud', $3::jsonb)
+     RETURNING id`,
+    [tenantId, clientId ?? null, config],
+  )
+  return created[0].id
+}
+
 export async function resolveWhatsAppInbox(tenantId: string, clientId?: string | null): Promise<string> {
+  // Escolha explícita e excludente (seção 5.4b do plano) — nunca inferida pelo que está
+  // configurado. Resolve ANTES de olhar as colunas Evolution, pra não cair no fallback de
+  // sempre quando o escopo escolheu Cloud API mas ainda não terminou de configurar a credencial.
+  const provider = await resolveWhatsAppProvider(tenantId, clientId)
+  if (provider === 'whatsapp_cloud') {
+    const cloudInboxId = await resolveWhatsAppCloudInbox(tenantId, clientId)
+    if (cloudInboxId) return cloudInboxId
+    // Escolheu Cloud API mas ainda não cadastrou a credencial (W0 sem W1 preenchido) — cai no
+    // Evolution como rede de segurança, nunca retorna erro/quebra o fluxo de mensagem real.
+  }
+
   if (clientId) {
     const { rows: clientRows } = await pool.query(
       `SELECT evolution_api_url, evolution_api_key, evolution_instance, numero_whatsapp

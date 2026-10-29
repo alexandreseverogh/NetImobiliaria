@@ -90,8 +90,6 @@ export interface CreateCampaignInput {
     linkUrl: string;
     ctaType: string;
   };
-  whatsappNumber?: string;
-  whatsappMessage?: string;
 }
 
 export interface CreateCampaignResult {

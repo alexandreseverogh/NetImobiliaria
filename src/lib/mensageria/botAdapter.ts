@@ -15,7 +15,7 @@ import type { LlmClient, LlmMessage, LlmToolDef } from '@/lib/marketing/services
 import { getToolsForSegment, resolveEntity, compareEntity, aggregateEntity, type SegmentDataEntity } from '@/lib/mensageria/tools/genericResolver'
 import { hasKnowledgeBase, searchKnowledge } from '@/lib/mensageria/tools/knowledgeBase'
 import { ingestMessage } from '@/lib/mensageria/ingest'
-import { sendEvolutionMessage, sendEvolutionMedia, type EvolutionInboxConfig } from '@/lib/mensageria/channels/evolutionSend'
+import { sendWhatsAppMessage, sendWhatsAppMedia, type WhatsAppSendConfig } from '@/lib/mensageria/channels/dispatch'
 import { logAiAtividade } from '@/lib/crm/atividades/logAiAtividade'
 
 const SCHEMA = 'mensageria'
@@ -485,15 +485,16 @@ async function runBotReply(
 async function deliverIfWhatsApp(
   messageId: string | null,
   channelType: string,
-  config: EvolutionInboxConfig | null,
+  provider: string | null,
+  config: WhatsAppSendConfig | null,
   phone: string | null,
   payload: { kind: 'text'; text: string } | { kind: 'image'; url: string },
 ): Promise<void> {
   if (!messageId || channelType !== 'whatsapp' || !config || !phone) return
   try {
     const result = payload.kind === 'text'
-      ? await sendEvolutionMessage(config, phone, payload.text)
-      : await sendEvolutionMedia(config, phone, payload.url)
+      ? await sendWhatsAppMessage(provider, config, phone, payload.text)
+      : await sendWhatsAppMedia(provider, config, phone, payload.url)
     await pool.query(
       `UPDATE ${SCHEMA}.messages SET delivery_status = $1, external_id = COALESCE($2, external_id) WHERE id = $3`,
       [result.ok ? 'sent' : 'failed', result.externalId ?? null, messageId],
@@ -510,7 +511,8 @@ async function handoffToHuman(
   clientId: string | null,
   inboxId: string,
   channelType: string,
-  config: EvolutionInboxConfig | null,
+  provider: string | null,
+  config: WhatsAppSendConfig | null,
   phone: string | null,
   reason: string,
 ): Promise<void> {
@@ -534,7 +536,7 @@ async function handoffToHuman(
     senderType: 'bot',
     content: text,
   })
-  await deliverIfWhatsApp(messageId, channelType, config, phone, { kind: 'text', text })
+  await deliverIfWhatsApp(messageId, channelType, provider, config, phone, { kind: 'text', text })
 }
 
 /**
@@ -544,7 +546,7 @@ async function handoffToHuman(
  */
 export async function maybeRunBot(conversationId: string, tenantId: string, extraContext?: string | null): Promise<void> {
   const { rows: convRows } = await pool.query(
-    `SELECT c.id, c.client_id, c.assignee_id, c.inbox_id, ib.channel_type, ib.config, ct.phone, ct.lead_uuid
+    `SELECT c.id, c.client_id, c.assignee_id, c.inbox_id, ib.channel_type, ib.provider, ib.config, ct.phone, ct.lead_uuid
        FROM ${SCHEMA}.conversations c
        JOIN ${SCHEMA}.inboxes ib ON ib.id = c.inbox_id
        JOIN ${SCHEMA}.contacts ct ON ct.id = c.contact_id
@@ -598,7 +600,7 @@ export async function maybeRunBot(conversationId: string, tenantId: string, extr
   const turnsExceeded = turns >= effectiveMaxTurns
 
   if (keywordHit || turnsExceeded) {
-    await handoffToHuman(conversationId, tenantId, conv.client_id, conv.inbox_id, conv.channel_type, conv.config, conv.phone, keywordHit ? 'keyword' : 'max_turns')
+    await handoffToHuman(conversationId, tenantId, conv.client_id, conv.inbox_id, conv.channel_type, conv.provider, conv.config, conv.phone, keywordHit ? 'keyword' : 'max_turns')
     return
   }
 
@@ -636,7 +638,7 @@ export async function maybeRunBot(conversationId: string, tenantId: string, extr
       tenantId, clientId: conv.client_id, inboxId: conv.inbox_id, contact,
       direction: 'outbound', senderType: 'bot', content: text,
     })
-    await deliverIfWhatsApp(messageId, conv.channel_type, conv.config, conv.phone, { kind: 'text', text })
+    await deliverIfWhatsApp(messageId, conv.channel_type, conv.provider, conv.config, conv.phone, { kind: 'text', text })
   }
 
   const FALLBACK = 'Desculpe, tive um problema para processar sua mensagem agora. Pode tentar de novo em instantes?'
@@ -659,9 +661,9 @@ export async function maybeRunBot(conversationId: string, tenantId: string, extr
         content: body, contentType: 'card', attachments: card.images.map((url) => ({ url })),
       })
       // WhatsApp real não tem cartão: manda o texto e depois cada foto daquele item, em sequência.
-      await deliverIfWhatsApp(messageId, conv.channel_type, conv.config, conv.phone, { kind: 'text', text: body })
+      await deliverIfWhatsApp(messageId, conv.channel_type, conv.provider, conv.config, conv.phone, { kind: 'text', text: body })
       for (const url of card.images) {
-        await deliverIfWhatsApp(messageId, conv.channel_type, conv.config, conv.phone, { kind: 'image', url })
+        await deliverIfWhatsApp(messageId, conv.channel_type, conv.provider, conv.config, conv.phone, { kind: 'image', url })
       }
     }
     if (reply.outro) await sendBotText(reply.outro)
@@ -680,7 +682,7 @@ export async function maybeRunBot(conversationId: string, tenantId: string, extr
       direction: 'outbound', senderType: 'bot',
       content: null, contentType: 'image', attachments: [{ url }],
     })
-    await deliverIfWhatsApp(messageId, conv.channel_type, conv.config, conv.phone, { kind: 'image', url })
+    await deliverIfWhatsApp(messageId, conv.channel_type, conv.provider, conv.config, conv.phone, { kind: 'image', url })
   }
   logBotActivity(finalText ? `Bot respondeu automaticamente: ${finalText}` : `Bot enviou ${images.length} foto(s) automaticamente.`)
 }

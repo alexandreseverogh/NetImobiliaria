@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { getTokenPayload } from '@/lib/auth/jwt-node'
-import { sendEvolutionMessage } from '@/lib/mensageria/channels/evolutionSend'
+import { sendWhatsAppMessage } from '@/lib/mensageria/channels/dispatch'
 import { publishMensageriaEvent } from '@/lib/mensageria/realtime'
 import { checkFirstResponseBreach } from '@/lib/mensageria/sla'
 import { resolveMensageriaScope, isTenantAdminFromPayload, scopeToSql } from '@/lib/mensageria/visibilityScope'
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const scopeClause = scoped.clause ? ` AND ${scoped.clause}` : ''
 
   const { rows: convRows } = await pool.query(
-    `SELECT c.id, c.tenant_id, ct.phone, ib.channel_type, ib.config
+    `SELECT c.id, c.tenant_id, ct.phone, ib.channel_type, ib.provider, ib.config
        FROM mensageria.conversations c
        JOIN mensageria.contacts ct ON ct.id = c.contact_id
        JOIN mensageria.inboxes ib ON ib.id = c.inbox_id
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   // 2. Envio real pelo canal (pulado para notas internas)
   let sendResult: { ok: boolean; externalId?: string; error?: string } = { ok: true }
   if (!isPrivate && conv.channel_type === 'whatsapp') {
-    sendResult = await sendEvolutionMessage(conv.config, conv.phone, content)
+    sendResult = await sendWhatsAppMessage(conv.provider, conv.config, conv.phone, content)
     await pool.query(
       `UPDATE mensageria.messages
           SET delivery_status = $1, external_id = COALESCE($2, external_id)

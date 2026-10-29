@@ -22,27 +22,41 @@ interface SlaPolicy {
 }
 
 /**
- * Resolve a política mais específica aplicável, por especificidade do `scope`:
- * (inbox_id) > (team_id) > (label_id) > global (scope vazio). Não combina
- * múltiplos critérios — o primeiro escopo definido na policy é o que casa.
+ * Resolve a política mais específica aplicável. Duas dimensões independentes:
+ *  1. tipo de escopo: (inbox_id) > (team_id) > global (scope vazio) — regra de sempre.
+ *  2. dono: dentro de cada tipo de escopo, uma política dedicada ao CLIENTE da conversa sempre
+ *     vence a equivalente tenant-wide (client_id NULL) — mesma herança já usada em
+ *     bot_flows/knowledge_documents. Uma conversa sem client_id (própria do tenant) nunca casa
+ *     com política de cliente nenhuma.
+ * Não combina múltiplos critérios dentro do mesmo nível — o primeiro match na ordem abaixo vale.
  */
 async function resolveSlaPolicy(
   tenantId: string,
-  ctx: { inboxId?: string | null; teamId?: string | null },
+  ctx: { inboxId?: string | null; teamId?: string | null; clientId?: string | null },
 ): Promise<SlaPolicy | null> {
   const { rows } = await pool.query(
-    `SELECT id, scope, first_response_target_min, resolution_target_min
+    `SELECT id, scope, first_response_target_min, resolution_target_min, client_id
        FROM ${SCHEMA}.sla_policies
       WHERE tenant_id = $1 AND is_active = true`,
     [tenantId],
   )
   if (rows.length === 0) return null
 
-  const byInbox = ctx.inboxId ? rows.find((r) => r.scope?.inbox_id === ctx.inboxId) : null
-  const byTeam = ctx.teamId ? rows.find((r) => r.scope?.team_id === ctx.teamId) : null
-  const global = rows.find((r) => !r.scope || Object.keys(r.scope).length === 0)
+  const ownClient = (r: (typeof rows)[number]) => !!ctx.clientId && r.client_id === ctx.clientId
+  const tenantWide = (r: (typeof rows)[number]) => r.client_id === null
 
-  return byInbox || byTeam || global || null
+  const byType = (match: (r: (typeof rows)[number]) => boolean) => {
+    const clientMatch = rows.find((r) => match(r) && ownClient(r))
+    if (clientMatch) return clientMatch
+    return rows.find((r) => match(r) && tenantWide(r)) ?? null
+  }
+
+  return (
+    (ctx.inboxId && byType((r) => r.scope?.inbox_id === ctx.inboxId)) ||
+    (ctx.teamId && byType((r) => r.scope?.team_id === ctx.teamId)) ||
+    byType((r) => !r.scope || Object.keys(r.scope).length === 0) ||
+    null
+  )
 }
 
 /**
@@ -51,12 +65,13 @@ async function resolveSlaPolicy(
  */
 export async function attachSlaPolicy(conversationId: string, tenantId: string, inboxId: string): Promise<void> {
   const { rows: convRows } = await pool.query(
-    `SELECT team_id FROM ${SCHEMA}.conversations WHERE id = $1`,
+    `SELECT team_id, client_id FROM ${SCHEMA}.conversations WHERE id = $1`,
     [conversationId],
   )
   const teamId = convRows[0]?.team_id ?? null
+  const clientId = convRows[0]?.client_id ?? null
 
-  const policy = await resolveSlaPolicy(tenantId, { inboxId, teamId })
+  const policy = await resolveSlaPolicy(tenantId, { inboxId, teamId, clientId })
   if (!policy) return
 
   const firstResponseDue = policy.first_response_target_min

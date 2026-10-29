@@ -32,6 +32,11 @@ interface MetaIdentity {
   metaAppId: string
   metaAppSecret: string
   metaToken: string
+  // WhatsApp Cloud API — App-level (docs/PLANO_WHATSAPP_CLOUD_API_PROVIDER.md §9/§10),
+  // reaproveita o App acima. hasWebhookVerifyToken nunca é o valor em si, só se já existe.
+  embeddedSignupConfigId: string
+  hasWebhookVerifyToken: boolean
+  webhookVerifyToken: string
 }
 
 const EMPTY_META: MetaIdentity = {
@@ -39,6 +44,7 @@ const EMPTY_META: MetaIdentity = {
   accessToken: '', adAccountId: '', credentialsActive: false,
   website: '', tenantName: '',
   metaAppId: '', metaAppSecret: '', metaToken: '',
+  embeddedSignupConfigId: '', hasWebhookVerifyToken: false, webhookVerifyToken: '',
 }
 
 /* ─── Field component ────────────────────────────────────── */
@@ -152,6 +158,9 @@ export default function TenantDetailPage() {
           metaAppId: d.appId || '',
           metaAppSecret: d.metaAppSecret || '',
           metaToken: d.accessToken || '',
+          embeddedSignupConfigId: d.embeddedSignupConfigId || '',
+          hasWebhookVerifyToken: d.hasWebhookVerifyToken || false,
+          webhookVerifyToken: '',
         })
       }
     } catch (err) {
@@ -194,6 +203,8 @@ export default function TenantDetailPage() {
           metaAppSecret:    meta.metaAppSecret,
           metaToken:        meta.metaToken,
           adAccountId:      meta.adAccountId,
+          embeddedSignupConfigId: meta.embeddedSignupConfigId,
+          webhookVerifyToken: meta.webhookVerifyToken,
         }),
       })
       if (res.ok) {
@@ -392,6 +403,32 @@ export default function TenantDetailPage() {
                 onChange={v => setMeta(m => ({ ...m, adAccountId: v }))}
                 placeholder="Ex: 10150461381441874 (sem 'act_')"
               />
+
+              {/* WhatsApp Cloud API — App-level (docs/PLANO_WHATSAPP_CLOUD_API_PROVIDER.md
+                  §9/§10): reaproveita o mesmo App acima. Via de apoio do Master — o tenant já
+                  tem self-service equivalente em "Dados da Empresa" (/admin/dados-empresa). */}
+              <div className="pt-2 border-t border-gray-100">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">
+                  WhatsApp Cloud API (oficial) — App
+                </p>
+                <div className="space-y-4">
+                  <Field
+                    label="Embedded Signup Config ID"
+                    value={meta.embeddedSignupConfigId}
+                    onChange={v => setMeta(m => ({ ...m, embeddedSignupConfigId: v }))}
+                    placeholder="Ex: 1234567890123456"
+                    hint="Criado dentro do App acima → Facebook Login for Business → variação WhatsApp Embedded Signup."
+                  />
+                  <Field
+                    label="Webhook Verify Token"
+                    value={meta.webhookVerifyToken}
+                    onChange={v => setMeta(m => ({ ...m, webhookVerifyToken: v }))}
+                    placeholder={meta.hasWebhookVerifyToken ? '••••••••' : 'Escolha um valor'}
+                    type="password"
+                    hint="Deixe em branco para manter o valor atual."
+                  />
+                </div>
+              </div>
 
               <div className="flex items-center justify-end gap-3 pt-2 border-t border-gray-100">
                 {metaSaved && (

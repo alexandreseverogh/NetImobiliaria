@@ -25,12 +25,19 @@ interface ChatMessage {
 
 interface Props {
   tenantId: string | null | undefined
+  /** Cliente dono da página, quando ela pertence a um cliente específico do tenant (ex.: uma
+   *  landing page própria de uma empresa gerenciada) — escopa o bot pro bot_flow/base de
+   *  conhecimento DESSE cliente. Ausente/null = escopo tenant-wide, mesmo comportamento de antes. */
+  clientId?: string | null
   /** Contexto da página atual — dirigido por config, nunca hardcoded (ex.: { entity: 'imovel', id: 1 }). */
   pageContext?: { entity: string; id: string | number } | null
 }
 
-function getOrCreateSessionId(tenantId: string): string {
-  const key = `mensageria_webchat_session_${tenantId}`
+// Sessão de chat separada por (tenant, cliente) — visitante que navega entre uma página
+// tenant-wide e uma página de um cliente específico não deveria compartilhar a mesma thread
+// (bot_flow/persona/base de conhecimento diferentes por escopo).
+function getOrCreateSessionId(tenantId: string, clientId: string | null): string {
+  const key = `mensageria_webchat_session_${tenantId}_${clientId || 'own'}`
   let id = localStorage.getItem(key)
   if (!id) {
     id = crypto.randomUUID()
@@ -39,7 +46,7 @@ function getOrCreateSessionId(tenantId: string): string {
   return id
 }
 
-export default function ChatWidget({ tenantId, pageContext }: Props) {
+export default function ChatWidget({ tenantId, clientId = null, pageContext }: Props) {
   const [available, setAvailable] = useState(false)
   const [checked, setChecked] = useState(false)
   const [open, setOpen] = useState(false)
@@ -53,9 +60,11 @@ export default function ChatWidget({ tenantId, pageContext }: Props) {
   // um chat que nunca vai responder pra empresas que não configuraram o bot).
   useEffect(() => {
     if (!tenantId) return
-    sessionIdRef.current = getOrCreateSessionId(tenantId)
+    sessionIdRef.current = getOrCreateSessionId(tenantId, clientId)
     const sessionId = sessionIdRef.current
-    fetch(`/api/public/mensageria/chat?tenantId=${tenantId}&sessionId=${sessionId}`)
+    const qs = new URLSearchParams({ tenantId, sessionId })
+    if (clientId) qs.set('clientId', clientId)
+    fetch(`/api/public/mensageria/chat?${qs.toString()}`)
       .then((r) => r.json())
       .then((d) => {
         setAvailable(!!d.active)
@@ -63,7 +72,7 @@ export default function ChatWidget({ tenantId, pageContext }: Props) {
       })
       .catch(() => setAvailable(false))
       .finally(() => setChecked(true))
-  }, [tenantId])
+  }, [tenantId, clientId])
 
   useEffect(() => {
     if (open) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -83,7 +92,7 @@ export default function ChatWidget({ tenantId, pageContext }: Props) {
       const res = await fetch('/api/public/mensageria/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId, sessionId: sessionIdRef.current, message: text, pageContext }),
+        body: JSON.stringify({ tenantId, clientId, sessionId: sessionIdRef.current, message: text, pageContext }),
       })
       const data = await res.json()
       if (res.ok && Array.isArray(data.messages)) setMessages(data.messages)
@@ -92,7 +101,7 @@ export default function ChatWidget({ tenantId, pageContext }: Props) {
     } finally {
       setSending(false)
     }
-  }, [input, tenantId, sending])
+  }, [input, tenantId, clientId, sending])
 
   if (!tenantId || !checked || !available) return null
 

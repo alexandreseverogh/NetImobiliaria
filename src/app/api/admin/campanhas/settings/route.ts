@@ -7,7 +7,14 @@ import { requireApiPermission, requireAnyApiPermission } from '@/lib/auth/apiPer
 // agentDecisor.ts (Campanhas), crm/agents/runner.ts (CRM) e mensageria/sla.ts chamam
 // notifyWhatsApp(msg, tenantId), que lê exatamente estes 3 campos de public.tenants. Qualquer
 // um dos 3 resources abaixo já prova que o tenant chegou aqui por um caminho legítimo.
-const EVOLUTION_CHANNEL_RESOURCES = ['crm-agentes-config', 'mensageria-config', 'configuracoes-campanhas'];
+const EVOLUTION_CHANNEL_RESOURCES = ['crm-agentes-config', 'mensageria-config', 'configuracoes-campanhas', 'dados-empresa'];
+
+// Meta App (App ID/Secret/Token/Ad Account) — achado real (2026-10-28, PLANO_WHATSAPP_CLOUD_
+// API_PROVIDER.md §9/§10): hoje só editável de dentro de Campanhas (gated por módulo), mas o
+// mesmo App também é reaproveitado pro WhatsApp Cloud API oficial, que é module-independent
+// (feature 'dados-empresa', is_default_tenant_admin_feature). Qualquer um dos 2 resources já
+// prova acesso legítimo — igual ao padrão já usado acima pro canal de Evolution.
+const META_APP_RESOURCES = ['configuracoes-campanhas', 'dados-empresa'];
 
 export const dynamic = 'force-dynamic';
 
@@ -96,7 +103,7 @@ export async function PUT(request: NextRequest) {
       // tenant (resource fantasma) — nenhum tenant real jamais conseguiria salvar aqui.
       // Mesmo fix já aplicado em outras rotas deste módulo: usar o resource real, que já é
       // o mesmo checado pelo UpdateGuard client-side desta tela.
-      const denied = await requireApiPermission(request, 'configuracoes-campanhas', 'UPDATE');
+      const denied = await requireAnyApiPermission(request, META_APP_RESOURCES, 'UPDATE');
       if (denied) return denied;
     }
 
