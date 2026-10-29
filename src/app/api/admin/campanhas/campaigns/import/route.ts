@@ -65,17 +65,20 @@ export async function GET(request: NextRequest) {
         { metaCampaignId: { in: external.map(c => c.externalId) } },
         { AND: [{ networkId: { not: null } }, { externalId: { in: external.map(c => c.externalId) } }] },
       ]},
-      select: { metaCampaignId: true, externalId: true, importedReadOnly: true },
+      select: { id: true, metaCampaignId: true, externalId: true, importedReadOnly: true },
     });
-    const existingIds = new Set<string>();
+    // Mapa externalId → id local — necessário pro frontend poder chamar .../manual-ref sem
+    // precisar de uma 2ª rota só pra resolver o id (a listagem da rede não conhece nosso id).
+    const existingByExternalId = new Map<string, string>();
     for (const c of existing) {
-      if (c.metaCampaignId) existingIds.add(c.metaCampaignId);
-      if (c.externalId) existingIds.add(c.externalId);
+      if (c.metaCampaignId) existingByExternalId.set(c.metaCampaignId, c.id);
+      if (c.externalId) existingByExternalId.set(c.externalId, c.id);
     }
 
     const result = external.map(c => ({
       ...c,
-      alreadyImported: existingIds.has(c.externalId),
+      alreadyImported: existingByExternalId.has(c.externalId),
+      localCampaignId: existingByExternalId.get(c.externalId) ?? null,
     }));
 
     return NextResponse.json({ campaigns: result });
