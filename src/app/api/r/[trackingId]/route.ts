@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/marketing/prisma';
 import { logInteraction } from '@/lib/cta/service';
+import { resolveWhatsAppConfig } from '@/lib/marketing/services/whatsappConfigResolver';
 
 export const dynamic = 'force-dynamic';
 
@@ -94,11 +95,11 @@ export async function GET(
     }
 
     // ── CTA = WhatsApp ───────────────────────────────────────────────────────────
-    // Busca configuração WhatsApp do tenant
+    // Busca configuração WhatsApp — cascata cliente → tenant-wide (achado real, 2026-10-27:
+    // antes sempre usava a config do TENANT, mesmo numa campanha de um cliente real que
+    // tivesse seu próprio número de redirect configurado — ver whatsappConfigResolver.ts).
     const wppConfig = tenantId
-      ? await prisma.whatsAppConfig.findFirst({
-          where: { tenantId, isDefault: true },
-        })
+      ? await resolveWhatsAppConfig(tenantId, clientId)
       : null;
 
     // Registra o clique de forma assíncrona (não bloqueia o redirect)

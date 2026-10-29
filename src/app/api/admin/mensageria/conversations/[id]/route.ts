@@ -23,7 +23,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
   const { rows: convRows } = await pool.query(
     `SELECT c.id, c.status, c.priority, c.unread_count, c.assignee_id, c.handled_by_bot,
-            c.first_response_at, c.resolved_at, c.created_at,
+            c.first_response_at, c.resolved_at, c.created_at, c.client_id, cl.nome AS client_name,
             ct.id AS contact_id, ct.name AS contact_name, ct.phone AS contact_phone,
             ct.email AS contact_email, ct.avatar_url AS contact_avatar_url, ct.lead_uuid,
             ib.id AS inbox_id, ib.channel_type, ib.name AS inbox_name,
@@ -33,6 +33,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
        JOIN mensageria.contacts ct ON ct.id = c.contact_id
        JOIN mensageria.inboxes ib ON ib.id = c.inbox_id
        LEFT JOIN public.users u ON u.id = c.assignee_id
+       LEFT JOIN public.clientes cl ON cl.uuid = c.client_id
        -- Atribuição de campanha (T3 — docs/TESTES_UNIFICACAO_LEADS_3_MODULOS.md): o dado já
        -- existe via ct.lead_uuid -> marketing_eventos, mas nenhuma tela de Mensageria mostrava
        -- isso. Pega o toque mais recente do lead (nem sempre é o que abriu ESTA conversa
@@ -87,6 +88,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       firstResponseAt: conv.first_response_at,
       resolvedAt: conv.resolved_at,
       createdAt: conv.created_at,
+      clientId: conv.client_id,
+      clientName: conv.client_name,
       inbox: { id: conv.inbox_id, channelType: conv.channel_type, name: conv.inbox_name },
       assignee: conv.assignee_id ? { id: conv.assignee_id, name: conv.assignee_name } : null,
       contact: {

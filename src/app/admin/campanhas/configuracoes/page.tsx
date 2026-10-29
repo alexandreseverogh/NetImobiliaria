@@ -365,6 +365,10 @@ function MasterSettingsView() {
   const [whatsapp, setWhatsapp] = useState({
     phoneNumber: '', defaultMessage: '', businessName: '',
   });
+  // Achado #3 (2026-10-27) — compara o número de redirect do anúncio contra o que está de
+  // fato pareado com a Evolution/Mensageria deste tenant. `null` = nenhum dos dois configurado.
+  const [whatsappEvolutionNumber, setWhatsappEvolutionNumber] = useState('');
+  const [whatsappNumbersMatch, setWhatsappNumbersMatch] = useState<boolean | null>(null);
 
   const [briefingTesting,    setBriefingTesting]    = useState(false);
   const [briefingTestResult, setBriefingTestResult] = useState<string | null>(null);
@@ -397,6 +401,8 @@ function MasterSettingsView() {
         defaultMessage: w.defaultMessage || '',
         businessName:   w.businessName   || '',
       });
+      setWhatsappEvolutionNumber(w.evolutionNumber || '');
+      setWhatsappNumbersMatch(w.numbersMatch ?? null);
     } catch { /* primeiro carregamento pode falhar */ }
   }
 
@@ -404,6 +410,12 @@ function MasterSettingsView() {
     setSaving(true);
     try {
       await Promise.all([updateSettings(settings), updateWhatsAppConfig(whatsapp)]);
+      // Recarrega a cross-validação (evolutionNumber/numbersMatch) com o número recém-salvo —
+      // sem isso o aviso de desalinhamento ficaria preso ao estado de antes do save.
+      getWhatsAppConfig().then((w: any) => {
+        setWhatsappEvolutionNumber(w.evolutionNumber || '');
+        setWhatsappNumbersMatch(w.numbersMatch ?? null);
+      }).catch(() => {});
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err: any) {
@@ -479,6 +491,27 @@ function MasterSettingsView() {
             className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all resize-none"
           />
         </div>
+
+        {/* Achado #3 (2026-10-27) — o número de redirect do anúncio pode não ser o mesmo que
+            está de fato pareado com a instância Evolution que recebe mensagem real na
+            Mensageria deste tenant. Sem isso, uma resposta ao clique nunca vira conversa —
+            silenciosamente. */}
+        {whatsappNumbersMatch === false && (
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <ExclamationTriangleIcon className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-black text-amber-800">
+                Este número não é o mesmo pareado com a Mensageria (Evolution)
+              </p>
+              <p className="text-[11px] text-amber-600 mt-0.5">
+                Número do redirect: <code className="font-mono">{whatsapp.phoneNumber}</code> ·{' '}
+                Número real da Evolution: <code className="font-mono">{whatsappEvolutionNumber}</code>.
+                Uma resposta a este clique não vai cair como conversa na Mensageria.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center gap-3 pt-1">
           <button
             onClick={async () => {
@@ -580,40 +613,66 @@ function TenantSettingsView() {
   const [saveError, setSaveError]           = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
 
+  // Meta App (App ID/Secret/Token/AdAccount) e Evolution API (URL/Key/Instance) saíram desta
+  // view em 2026-10-28 (docs/PLANO_WHATSAPP_CLOUD_API_PROVIDER.md §9/§10) — movidos pra "Dados
+  // da Empresa", module-independent. Mantidos só anthropicApiKey/threshold, genuinamente
+  // específicos do Agente Decisor de Campanhas.
   const [settings, setSettings] = useState({
     anthropicApiKey: '',
     slackWebhookUrl: '',
-    evolutionApiUrl: '',
-    evolutionApiKey: '',
-    evolutionInstance: '',
     agentConfidenceThreshold: 0.85,
-    metaAppId: '',
-    metaAppSecret: '',
-    metaToken: '',
-    adAccountId: '',
   });
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [settingsError, setSettingsError] = useState('');
 
+  // ── WhatsApp (número tenant-wide de redirect do CTA de anúncio) — achado real, 2026-10-27:
+  // esta seção nunca existiu na visão do tenant, só na do Master (MasterSettingsView) — nenhum
+  // admin de tenant real tinha forma de configurar isso pela UI. Override por cliente específico
+  // fica em /admin/clientes/[id] → aba "Config. Meta" (ClientCampaignSettings.tsx).
+  const [whatsapp, setWhatsapp] = useState({ phoneNumber: '', defaultMessage: '', businessName: '' });
+  const [whatsappEvolutionNumber, setWhatsappEvolutionNumber] = useState('');
+  const [whatsappNumbersMatch, setWhatsappNumbersMatch] = useState<boolean | null>(null);
+  const [whatsappSaving, setWhatsappSaving] = useState(false);
+  const [whatsappSaved,  setWhatsappSaved]  = useState(false);
+  const [whatsappError,  setWhatsappError]  = useState('');
+
+  function loadWhatsapp() {
+    return getWhatsAppConfig().then((w: any) => {
+      setWhatsapp({
+        phoneNumber:    w.phoneNumber    || '',
+        defaultMessage: w.defaultMessage || '',
+        businessName:   w.businessName   || '',
+      });
+      setWhatsappEvolutionNumber(w.evolutionNumber || '');
+      setWhatsappNumbersMatch(w.numbersMatch ?? null);
+    });
+  }
+
+  async function handleSaveWhatsapp() {
+    setWhatsappSaving(true); setWhatsappSaved(false); setWhatsappError('');
+    try {
+      await updateWhatsAppConfig(whatsapp);
+      await loadWhatsapp();
+      setWhatsappSaved(true);
+      setTimeout(() => setWhatsappSaved(false), 3000);
+    } catch (err: any) {
+      setWhatsappError(err?.response?.data?.error || err?.message || 'Erro ao salvar');
+    } finally { setWhatsappSaving(false); }
+  }
+
   useEffect(() => {
     Promise.all([
       getSettings(),
       getClientCreativePaths(),
+      loadWhatsapp(),
     ]).then(([s, d]) => {
       setOwnPath(s.creativesPath || '');
       setClients(d.clients || []);
       setSettings({
         anthropicApiKey: s.anthropicApiKey || '',
         slackWebhookUrl: s.slackWebhookUrl || '',
-        evolutionApiUrl: s.evolutionApiUrl || '',
-        evolutionApiKey: s.evolutionApiKey || '',
-        evolutionInstance: s.evolutionInstance || '',
         agentConfidenceThreshold: s.agentConfidenceThreshold !== undefined ? s.agentConfidenceThreshold : 0.85,
-        metaAppId: s.metaAppId || '',
-        metaAppSecret: s.metaAppSecret || '',
-        metaToken: s.metaToken || '',
-        adAccountId: s.adAccountId || '',
       });
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
@@ -626,17 +685,8 @@ function TenantSettingsView() {
       const payload: any = {
         anthropicApiKey: settings.anthropicApiKey,
         slackWebhookUrl: settings.slackWebhookUrl,
-        evolutionApiUrl: settings.evolutionApiUrl,
-        evolutionApiKey: settings.evolutionApiKey,
-        evolutionInstance: settings.evolutionInstance,
         agentConfidenceThreshold: settings.agentConfidenceThreshold,
-        metaAppId: settings.metaAppId,
-        metaAppSecret: settings.metaAppSecret,
-        adAccountId: settings.adAccountId,
       };
-      if (settings.metaToken) {
-        payload.metaToken = settings.metaToken;
-      }
       await updateSettings(payload);
       setSettingsSaved(true);
       setTimeout(() => setSettingsSaved(false), 3000);
@@ -970,47 +1020,117 @@ function TenantSettingsView() {
         </div>
       </Link>
 
-      {/* ── Meta Marketing API (Credenciais do Tenant) ── */}
-      <SectionCard icon={Cog6ToothIcon} title="Meta Marketing API" description="App ID, credenciais e conta de anúncios da sua empresa">
-        <Field label="App ID" value={settings.metaAppId}
-          onChange={v => setSettings(s => ({ ...s, metaAppId: v }))}
-          placeholder="Ex: 972196948862111" />
-        <Field label="App Secret" value={settings.metaAppSecret}
-          onChange={v => setSettings(s => ({ ...s, metaAppSecret: v }))}
-          placeholder="abc123def456..." type="password" />
-        <Field label="Access Token (Token do administrador)" value={settings.metaToken}
-          onChange={v => setSettings(s => ({ ...s, metaToken: v }))}
-          placeholder="Token de longa duração" type="password"
-          hint="Deixe em branco para manter o token atual" />
-        <Field label="Ad Account ID" value={settings.adAccountId}
-          onChange={v => setSettings(s => ({ ...s, adAccountId: v }))}
-          placeholder="Ex: 10150461381441874 (sem 'act_')" />
-      </SectionCard>
-
-      {/* ── Identidade Meta ── */}
-      <MetaIdentitySection />
+      {/* ── Meta Marketing API + Identidade Meta — movidos pra "Dados da Empresa" em 2026-10-28
+          (docs/PLANO_WHATSAPP_CLOUD_API_PROVIDER.md §9/§10): são tenant-wide e module-
+          independent (o mesmo App também é reaproveitado pro WhatsApp Cloud API oficial), não
+          deveriam ficar presos atrás do módulo de Campanhas — um tenant sem Campanhas contratada
+          também precisa deles pra WhatsApp. Nova página é is_default_tenant_admin_feature, todo
+          tenant a alcança independente de módulo. */}
+      <Link href="/admin/dados-empresa">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center justify-between hover:border-gold-premium/40 hover:shadow-md transition-colors cursor-pointer group mb-1">
+          <div className="flex items-center gap-4">
+            <div className="p-2.5 bg-gold-premium/10 rounded-xl group-hover:bg-gold-premium transition-colors">
+              <BuildingOfficeIcon className="h-5 w-5 text-gold-premium group-hover:text-navy-dark transition-colors" />
+            </div>
+            <div>
+              <h2 className="text-sm font-black text-gray-900">Meta Marketing API & Identidade Meta</h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                App ID, Page ID, Pixel, Instagram, Website — agora em "Dados da Empresa", fora de Campanhas
+              </p>
+            </div>
+          </div>
+          <ArrowRightIcon className="h-4 w-4 text-gray-300 group-hover:text-gold-premium transition-colors" />
+        </div>
+      </Link>
 
       {/* Modelo de LLM (cascata Cliente→Tenant→Segmento→Global) removido daqui em 2026-09-01 —
           nunca foi sobre Campanhas; serve só CRM/Mensageria, agora em /crm/config/ia e
           /mensageria/config (LlmCascadeSection, components/crm/). Ver docs/CHECKPOINT.md. */}
 
+      {/* ── WhatsApp (número de redirect do CTA de anúncio) — achado real, 2026-10-27: esta
+          seção nunca existiu aqui, só na visão do Master (MasterSettingsView) — nenhum admin
+          de tenant tinha forma de configurar o número de redirect pela UI. Override por
+          cliente específico vive em /admin/clientes/[id] → aba "Config. Meta". */}
+      <SectionCard icon={ChatBubbleLeftRightIcon} title="WhatsApp"
+        description="Número de destino dos leads ao clicar no anúncio (padrão do tenant)">
+        <Field label="Número (DDI+DDD+Número)" value={whatsapp.phoneNumber}
+          onChange={v => setWhatsapp(w => ({ ...w, phoneNumber: v }))}
+          placeholder="5511999999999"
+          hint="Para onde os leads serão direcionados ao clicar no anúncio." />
+        <Field label="Nome do Negócio" value={whatsapp.businessName}
+          onChange={v => setWhatsapp(w => ({ ...w, businessName: v }))}
+          placeholder="Minha Empresa" />
+        <div>
+          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Mensagem Padrão</label>
+          <textarea
+            value={whatsapp.defaultMessage}
+            onChange={e => setWhatsapp(w => ({ ...w, defaultMessage: e.target.value }))}
+            placeholder="Olá! Vi o anúncio e quero saber mais..."
+            rows={3}
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all resize-none"
+          />
+        </div>
+
+        {/* Achado #3 (2026-10-27) — o número de redirect do anúncio pode não ser o mesmo que
+            está de fato pareado com a instância Evolution que recebe mensagem real na
+            Mensageria deste tenant. Sem isso, uma resposta ao clique nunca vira conversa —
+            silenciosamente. */}
+        {whatsappNumbersMatch === false && (
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <ExclamationTriangleIcon className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-black text-amber-800">
+                Este número não é o mesmo pareado com a Mensageria (Evolution)
+              </p>
+              <p className="text-[11px] text-amber-600 mt-0.5">
+                Número do redirect: <code className="font-mono">{whatsapp.phoneNumber}</code> ·{' '}
+                Número real da Evolution: <code className="font-mono">{whatsappEvolutionNumber}</code>.
+                Uma resposta a este clique não vai cair como conversa na Mensageria.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-3 pt-1">
+          <UpdateGuard resource="configuracoes-campanhas">
+            <button
+              onClick={handleSaveWhatsapp}
+              disabled={whatsappSaving}
+              className="px-6 py-2.5 bg-gold-premium text-navy-dark text-xs font-black uppercase tracking-widest rounded-xl hover:bg-gold transition-colors disabled:opacity-50"
+            >
+              {whatsappSaving ? 'Salvando...' : 'Salvar WhatsApp'}
+            </button>
+          </UpdateGuard>
+          {whatsappSaved && (
+            <span className="flex items-center gap-1.5 text-xs font-black text-emerald-600">
+              <CheckCircleIcon className="h-4 w-4" /> Salvo com sucesso
+            </span>
+          )}
+          {whatsappError && (
+            <span className="flex items-center gap-1.5 text-xs font-black text-red-500">
+              <XCircleIcon className="h-4 w-4" /> {whatsappError}
+            </span>
+          )}
+        </div>
+      </SectionCard>
+
       {/* ── Comunicação e Inteligência ── */}
-      <SectionCard icon={Cog6ToothIcon} title="Agentes, Alertas e IA" description="Configurações de notificações do WhatsApp e chaves de IA do Tenant">
+      <SectionCard icon={Cog6ToothIcon} title="Agentes, Alertas e IA" description="Chave de IA e threshold do Agente Decisor de Campanhas">
         {/* ⏸️ Slack Webhook URL — desativado junto com notifySlack() (2026-09-01), campo
             escondido pra não sugerir uma capacidade que hoje não tem efeito nenhum. Estado
             (settings.slackWebhookUrl) preservado — reativar só descomentando este bloco. */}
         {/* <Field label="Slack Webhook URL" value={settings.slackWebhookUrl}
           onChange={v => setSettings(s => ({ ...s, slackWebhookUrl: v }))}
           placeholder="https://hooks.slack.com/services/..." /> */}
-        <Field label="Evolution API URL" value={settings.evolutionApiUrl}
-          onChange={v => setSettings(s => ({ ...s, evolutionApiUrl: v }))}
-          placeholder="http://localhost:8080" />
-        <Field label="Evolution API Key" value={settings.evolutionApiKey}
-          onChange={v => setSettings(s => ({ ...s, evolutionApiKey: v }))}
-          placeholder="Chave da API Evolution" type="password" />
-        <Field label="Evolution Instance" value={settings.evolutionInstance}
-          onChange={v => setSettings(s => ({ ...s, evolutionInstance: v }))}
-          placeholder="Nome da Instância" />
+        {/* Evolution API (URL/Key/Instance) — movida pra "Dados da Empresa" em 2026-10-28
+            (docs/PLANO_WHATSAPP_CLOUD_API_PROVIDER.md §9/§10): é module-independent, reusada
+            por CRM/Mensageria também, nunca deveria ficar presa atrás de Campanhas. */}
+        <p className="text-[11px] text-gray-400 -mt-1">
+          Evolution API (URL/Key/Instance) agora é configurada em{' '}
+          <Link href="/admin/dados-empresa" className="text-gold-premium hover:underline font-bold">
+            Dados da Empresa
+          </Link>.
+        </p>
         <Field label="Anthropic API Key (IA do Tenant)" value={settings.anthropicApiKey}
           onChange={v => setSettings(s => ({ ...s, anthropicApiKey: v }))}
           placeholder="Chave Anthropic do Tenant" type="password" />

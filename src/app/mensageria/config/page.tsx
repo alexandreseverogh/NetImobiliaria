@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import {
   InboxStackIcon, UsersIcon, TagIcon, ChatBubbleBottomCenterTextIcon,
   ClockIcon, PlusIcon, TrashIcon, CheckCircleIcon, XCircleIcon, StarIcon, CpuChipIcon,
@@ -33,15 +34,17 @@ const CHANNEL_LABELS: Record<string, string> = {
 interface Inbox {
   id: string; name: string; channelType: string; provider: string; isActive: boolean; createdAt: string
   teamId: string | null; teamName: string | null
+  clientId: string | null; clientName: string | null
 }
 interface TenantUser { id: string; nome: string }
 interface TeamMember { userId: string; name: string; role: string }
-interface Team { id: string; name: string; autoAssign: boolean; members: TeamMember[] }
-interface Label { id: string; name: string; color: string }
-interface CannedResponse { id: string; shortcut: string; content: string }
+interface Team { id: string; name: string; autoAssign: boolean; members: TeamMember[]; clientId: string | null; clientName: string | null }
+interface Label { id: string; name: string; color: string; clientId: string | null; clientName: string | null }
+interface CannedResponse { id: string; shortcut: string; content: string; clientId: string | null; clientName: string | null }
 interface SlaPolicy {
   id: string; name: string; scope: Record<string, any>
   first_response_target_min: number | null; resolution_target_min: number | null; is_active: boolean
+  clientId: string | null; clientName: string | null
 }
 
 export default function MensageriaConfigPage() {
@@ -108,6 +111,91 @@ function PrimaryButton({ children, ...props }: React.ButtonHTMLAttributes<HTMLBu
 }
 
 // ============================================================================
+// Escopo tenant/cliente — compartilhado por Inboxes, Times, Etiquetas, Respostas Rápidas e
+// SLA (docs/CHECKPOINT.md, paridade com Bot/Base de Conhecimento). client_id NULL = vale pra
+// todos os clientes do tenant; setado = só aquele cliente — mesma herança usada em toda a
+// plataforma (bot_flows, knowledge_documents).
+// ============================================================================
+
+interface ClienteOption { id: string; nome: string }
+
+// Range Unicode dos diacríticos combinantes (0x0300-0x036f) montado via charCode pra evitar
+// caracteres literais de acento na fonte (mesmo range usado em normalizeText do botAdapter.ts).
+const DIACRITICS_RE = new RegExp(`[${String.fromCharCode(0x0300)}-${String.fromCharCode(0x036f)}]`, 'g')
+function normalizeText(s: string): string {
+  return s.normalize('NFD').replace(DIACRITICS_RE, '').toLowerCase()
+}
+
+function useAllClients(): ClienteOption[] {
+  const [clients, setClients] = useState<ClienteOption[]>([])
+  useEffect(() => {
+    adminFetch('/api/admin/campanhas/clients?limit=200')
+      .then((r) => r.json())
+      .then((data) => setClients((Array.isArray(data) ? data : []).map((c: any) => ({ id: c.id, nome: c.name }))))
+      .catch(() => {})
+  }, [])
+  return clients
+}
+
+/** Combobox de cliente — escolhido (chip com X) ou busca incremental. Mesmo padrão já usado
+ *  na Base de Conhecimento, extraído pra ser reaproveitado nas outras 4 abas. */
+function ClientPicker({
+  clientId, clientName, onChange, allClients, placeholder = 'Todos os clientes (clique para escolher um específico)...',
+}: {
+  clientId: string | null
+  clientName: string | null
+  onChange: (id: string | null, name: string | null) => void
+  allClients: ClienteOption[]
+  placeholder?: string
+}) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const filtered = query.trim() ? allClients.filter((c) => normalizeText(c.nome).includes(normalizeText(query.trim()))) : allClients
+
+  if (clientId) {
+    return (
+      <div className="flex items-center justify-between h-9 px-3 rounded-lg bg-[#112240] border border-[#c5a028]/30 text-sm text-[#d4af37]">
+        <span className="truncate">Cliente: {clientName || clientId}</span>
+        <button onClick={() => onChange(null, null)} className="text-slate-400 hover:text-white shrink-0">
+          <XMarkIcon className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    )
+  }
+  return (
+    <div className="relative">
+      <TextInput
+        value={query}
+        onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder={placeholder}
+        className="w-full"
+      />
+      {open && (
+        <div className="absolute z-10 mt-1 w-full max-h-64 overflow-y-auto rounded-lg bg-[#112240] border border-white/10 shadow-xl">
+          {filtered.length === 0 ? (
+            <p className="px-3 py-2 text-sm text-slate-500">Nenhum cliente encontrado.</p>
+          ) : (
+            filtered.map((c) => (
+              <button
+                key={c.id}
+                // onMouseDown (não onClick) dispara antes do onBlur do input, senão a lista
+                // fecha (por causa do blur) antes do clique ser registrado.
+                onMouseDown={() => { onChange(c.id, c.nome); setQuery(''); setOpen(false) }}
+                className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-[#c5a028]/10"
+              >
+                {c.nome}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================================
 // Inboxes (somente leitura)
 // ============================================================================
 
@@ -121,8 +209,11 @@ function InboxesTab() {
 
   const [newName, setNewName] = useState('')
   const [newChannelType, setNewChannelType] = useState<string>('')
+  const [newClientId, setNewClientId] = useState<string | null>(null)
+  const [newClientName, setNewClientName] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
+  const allClients = useAllClients()
 
   async function load() {
     setLoading(true)
@@ -143,17 +234,22 @@ function InboxesTab() {
   async function setInboxTeam(inboxId: string, teamId: string) {
     setSavingId(inboxId)
     try {
-      await adminFetch(`/api/admin/mensageria/inboxes/${inboxId}`, {
+      const res = await adminFetch(`/api/admin/mensageria/inboxes/${inboxId}`, {
         method: 'PATCH', body: JSON.stringify({ teamId: teamId || null }),
       })
+      if (!res.ok) { const d = await res.json().catch(() => ({})); alert(d.error || 'Falha ao vincular time.') }
       await load()
     } finally {
       setSavingId(null)
     }
   }
 
-  const existingChannels = new Set(inboxes.map((ib) => ib.channelType))
-  const availableChannels = CREATABLE_CHANNELS.filter((c) => !existingChannels.has(c))
+  // Disponibilidade de canal é por ESCOPO — cada cliente (e o tenant) pode ter sua própria
+  // inbox de cada canal (mesma unicidade já aplicada no auto-create do WhatsApp por cliente).
+  const existingChannelsInScope = new Set(
+    inboxes.filter((ib) => (ib.clientId || null) === (newClientId || null)).map((ib) => ib.channelType),
+  )
+  const availableChannels = CREATABLE_CHANNELS.filter((c) => !existingChannelsInScope.has(c))
 
   async function createInbox() {
     if (!newName.trim() || !newChannelType) return
@@ -161,11 +257,11 @@ function InboxesTab() {
     setCreateError('')
     try {
       const res = await adminFetch('/api/admin/mensageria/inboxes', {
-        method: 'POST', body: JSON.stringify({ name: newName.trim(), channelType: newChannelType }),
+        method: 'POST', body: JSON.stringify({ name: newName.trim(), channelType: newChannelType, clientId: newClientId }),
       })
       const data = await res.json()
       if (!res.ok) { setCreateError(data.error || 'Falha ao criar inbox.'); return }
-      setNewName(''); setNewChannelType('')
+      setNewName(''); setNewChannelType(''); setNewClientId(null); setNewClientName(null)
       await load()
     } finally {
       setCreating(false)
@@ -183,6 +279,21 @@ function InboxesTab() {
       <WhatsAppWebhookSection
         t={{ isDark: true, textPrimary: 'text-white', textMuted: 'text-slate-500', textSecondary: 'text-slate-300', inputBg: 'bg-[#112240] border border-white/8' }}
       />
+      {/* Provider (Evolution/Cloud API) + credencial tenant-wide movidos pra "Dados da Empresa"
+          em 2026-10-28 (docs/PLANO_WHATSAPP_CLOUD_API_PROVIDER.md §9/§10) — module-independent,
+          nunca deveria ficar preso atrás de Mensageria. Credencial POR CLIENTE fica na ficha do
+          cliente → aba "Configurações Meta", ao lado da identidade Meta dele. */}
+      <Link href="/admin/dados-empresa">
+        <div className="rounded-xl bg-[#0a192f] border border-white/8 p-4 flex items-center justify-between hover:border-[#c5a028]/40 transition-colors cursor-pointer group">
+          <div>
+            <p className="text-sm font-medium text-white">Provider de WhatsApp (Evolution ou Cloud API oficial)</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Tenant-wide, agora em &quot;Dados da Empresa&quot; — por cliente, na ficha do cliente → aba &quot;Configurações Meta&quot;
+            </p>
+          </div>
+          <span className="text-xs text-[#c5a028] group-hover:underline shrink-0 ml-3">Abrir →</span>
+        </div>
+      </Link>
     <Card>
       <p className="text-xs text-slate-500 mb-3">
         Canais de entrada são criados automaticamente na primeira mensagem de cada tipo (WhatsApp, Formulário, Manual),
@@ -193,22 +304,27 @@ function InboxesTab() {
       </p>
 
       {availableChannels.length > 0 && (
-        <div className="flex flex-col sm:flex-row gap-2 mb-4 pb-4 border-b border-white/5">
-          <TextInput
-            value={newName} onChange={(e) => setNewName(e.target.value)}
-            placeholder="Nome da inbox (ex: Formulários do Site)"
-            className="flex-1"
-          />
-          <select
-            value={newChannelType} onChange={(e) => setNewChannelType(e.target.value)}
-            className="h-9 px-3 rounded-lg bg-[#112240] border border-white/8 text-sm text-slate-300 outline-none"
-          >
-            <option value="">Canal...</option>
-            {availableChannels.map((c) => <option key={c} value={c}>{CHANNEL_LABELS[c] || c}</option>)}
-          </select>
-          <PrimaryButton onClick={createInbox} disabled={creating || !newName.trim() || !newChannelType}>
-            <PlusIcon className="w-4 h-4" /> {creating ? 'Criando...' : 'Criar inbox'}
-          </PrimaryButton>
+        <div className="space-y-2 mb-4 pb-4 border-b border-white/5">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <TextInput
+              value={newName} onChange={(e) => setNewName(e.target.value)}
+              placeholder="Nome da inbox (ex: Formulários do Site)"
+              className="flex-1"
+            />
+            <select
+              value={newChannelType} onChange={(e) => setNewChannelType(e.target.value)}
+              className="h-9 px-3 rounded-lg bg-[#112240] border border-white/8 text-sm text-slate-300 outline-none"
+            >
+              <option value="">Canal...</option>
+              {availableChannels.map((c) => <option key={c} value={c}>{CHANNEL_LABELS[c] || c}</option>)}
+            </select>
+          </div>
+          <ClientPicker clientId={newClientId} clientName={newClientName} allClients={allClients} onChange={(id, name) => { setNewClientId(id); setNewClientName(name) }} />
+          <div className="flex justify-end">
+            <PrimaryButton onClick={createInbox} disabled={creating || !newName.trim() || !newChannelType}>
+              <PlusIcon className="w-4 h-4" /> {creating ? 'Criando...' : 'Criar inbox'}
+            </PrimaryButton>
+          </div>
         </div>
       )}
       {createError && <p className="text-xs text-rose-400 mb-3">{createError}</p>}
@@ -221,7 +337,10 @@ function InboxesTab() {
             <div key={ib.id} className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-lg bg-[#112240] border border-white/8">
               <div className="min-w-0">
                 <p className="text-sm font-medium text-white">{ib.name}</p>
-                <p className="text-xs text-slate-500">{CHANNEL_LABELS[ib.channelType] || ib.channelType} · provider: {ib.provider}</p>
+                <p className="text-xs text-slate-500">
+                  {CHANNEL_LABELS[ib.channelType] || ib.channelType} · provider: {ib.provider}
+                  {' · '}{ib.clientName ? <span className="text-[#d4af37]">Cliente: {ib.clientName}</span> : 'Todos os clientes'}
+                </p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
                 {ib.isActive ? (
@@ -236,7 +355,9 @@ function InboxesTab() {
                   className="h-8 px-2 rounded-lg bg-[#0a192f] border border-white/8 text-xs text-slate-300 outline-none disabled:opacity-40"
                 >
                   <option value="">Sem time (atribuição manual)</option>
-                  {teams.map((t) => (
+                  {/* Só times compatíveis com o cliente desta inbox — mesma regra validada no
+                      servidor (inboxes/[id] PATCH); evita oferecer uma opção que seria rejeitada. */}
+                  {teams.filter((t) => !t.clientId || t.clientId === ib.clientId).map((t) => (
                     <option key={t.id} value={t.id}>{t.name}{t.autoAssign ? '' : ' (auto-atribuição off)'}</option>
                   ))}
                 </select>
@@ -262,10 +383,13 @@ function TeamsTab() {
   const [users, setUsers] = useState<TenantUser[]>([])
   const [loading, setLoading] = useState(true)
   const [newName, setNewName] = useState('')
+  const [newClientId, setNewClientId] = useState<string | null>(null)
+  const [newClientName, setNewClientName] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [addingMemberTeam, setAddingMemberTeam] = useState<string | null>(null)
   const [selectedUser, setSelectedUser] = useState('')
   const [selectedRole, setSelectedRole] = useState<'agent' | 'lead'>('agent')
+  const allClients = useAllClients()
 
   async function load() {
     setLoading(true)
@@ -287,8 +411,10 @@ function TeamsTab() {
     if (!newName.trim()) return
     setCreating(true)
     try {
-      await adminFetch('/api/admin/mensageria/teams', { method: 'POST', body: JSON.stringify({ name: newName.trim() }) })
-      setNewName('')
+      await adminFetch('/api/admin/mensageria/teams', {
+        method: 'POST', body: JSON.stringify({ name: newName.trim(), clientId: newClientId }),
+      })
+      setNewName(''); setNewClientId(null); setNewClientName(null)
       await load()
     } finally {
       setCreating(false)
@@ -331,10 +457,19 @@ function TeamsTab() {
   return (
     <div className="space-y-4">
       <Card>
-        <p className="text-xs text-slate-500 mb-3">Times permitem agrupar atendentes e (futuramente) roteamento por auto-atribuição.</p>
-        <div className="flex items-center gap-2">
-          <TextInput value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Nome do time (ex: Vendas — Zona Sul)" className="flex-1" />
-          <PrimaryButton onClick={createTeam} disabled={creating || !newName.trim()}><PlusIcon className="w-4 h-4" /> Criar time</PrimaryButton>
+        <p className="text-xs text-slate-500 mb-3">
+          Times permitem agrupar atendentes e (futuramente) roteamento por auto-atribuição. Deixe o
+          campo &quot;cliente&quot; vazio para um time que pode atender qualquer cliente; escolha um
+          específico para um time dedicado só a ele (só pode ser vinculado a inboxes desse mesmo cliente).
+        </p>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <TextInput value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Nome do time (ex: Vendas — Zona Sul)" className="flex-1" />
+          </div>
+          <ClientPicker clientId={newClientId} clientName={newClientName} allClients={allClients} onChange={(id, name) => { setNewClientId(id); setNewClientName(name) }} />
+          <div className="flex justify-end">
+            <PrimaryButton onClick={createTeam} disabled={creating || !newName.trim()}><PlusIcon className="w-4 h-4" /> Criar time</PrimaryButton>
+          </div>
         </div>
       </Card>
 
@@ -346,7 +481,10 @@ function TeamsTab() {
             <div className="flex items-center justify-between mb-3">
               <div>
                 <p className="text-sm font-semibold text-white">{team.name}</p>
-                <p className="text-xs text-slate-500">{team.autoAssign ? 'Auto-atribuição ativa' : 'Atribuição manual'}</p>
+                <p className="text-xs text-slate-500">
+                  {team.autoAssign ? 'Auto-atribuição ativa' : 'Atribuição manual'}
+                  {' · '}{team.clientName ? <span className="text-[#d4af37]">Cliente: {team.clientName}</span> : 'Qualquer cliente'}
+                </p>
               </div>
               <button onClick={() => deleteTeam(team.id)} className="text-slate-500 hover:text-rose-400 transition-colors">
                 <TrashIcon className="w-4 h-4" />
@@ -432,7 +570,10 @@ function LabelsTab() {
   const [loading, setLoading] = useState(true)
   const [name, setName] = useState('')
   const [color, setColor] = useState(LABEL_COLORS[0])
+  const [newClientId, setNewClientId] = useState<string | null>(null)
+  const [newClientName, setNewClientName] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const allClients = useAllClients()
 
   async function load() {
     setLoading(true)
@@ -450,8 +591,10 @@ function LabelsTab() {
     if (!name.trim()) return
     setCreating(true)
     try {
-      await adminFetch('/api/admin/mensageria/labels', { method: 'POST', body: JSON.stringify({ name: name.trim(), color }) })
-      setName('')
+      await adminFetch('/api/admin/mensageria/labels', {
+        method: 'POST', body: JSON.stringify({ name: name.trim(), color, clientId: newClientId }),
+      })
+      setName(''); setNewClientId(null); setNewClientName(null)
       await load()
     } finally {
       setCreating(false)
@@ -465,23 +608,57 @@ function LabelsTab() {
 
   if (loading) return <Card><p className="text-sm text-slate-500">Carregando...</p></Card>
 
+  const tenantWideLabels = labels.filter((l) => !l.clientId)
+  const byClient = new Map<string, Label[]>()
+  for (const l of labels) {
+    if (!l.clientId) continue
+    const key = l.clientName || l.clientId
+    byClient.set(key, [...(byClient.get(key) || []), l])
+  }
+
+  function LabelGroup({ title, items }: { title: string; items: Label[] }) {
+    return (
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">{title}</p>
+        <div className="flex flex-wrap gap-2">
+          {items.map((l) => (
+            <span key={l.id} className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-lg text-xs font-medium"
+              style={{ background: `${l.color}18`, color: l.color, border: `1px solid ${l.color}40` }}>
+              {l.name}
+              <button onClick={() => remove(l.id)} className="opacity-60 hover:opacity-100">
+                <TrashIcon className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       <Card>
-        <p className="text-xs text-slate-500 mb-3">Etiquetas classificam conversas por assunto/estágio/intenção — usadas como filtro e no analytics.</p>
-        <div className="flex items-center gap-2 mb-3">
-          <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome da etiqueta (ex: Interesse compra)" className="flex-1" />
-          <PrimaryButton onClick={create} disabled={creating || !name.trim()}><PlusIcon className="w-4 h-4" /> Criar</PrimaryButton>
+        <p className="text-xs text-slate-500 mb-3">
+          Etiquetas classificam conversas por assunto/estágio/intenção — usadas como filtro e no analytics.
+          Deixe &quot;cliente&quot; vazio pra uma etiqueta disponível em qualquer conversa do tenant; escolha
+          um cliente específico pra uma só aplicável às conversas dele.
+        </p>
+        <div className="space-y-2 mb-3">
+          <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome da etiqueta (ex: Interesse compra)" className="w-full" />
+          <ClientPicker clientId={newClientId} clientName={newClientName} allClients={allClients} onChange={(id, n) => { setNewClientId(id); setNewClientName(n) }} />
         </div>
-        <div className="flex items-center gap-1.5">
-          {LABEL_COLORS.map((c) => (
-            <button
-              key={c}
-              onClick={() => setColor(c)}
-              className={`w-6 h-6 rounded-full transition-transform ${color === c ? 'scale-110 ring-2 ring-white/40' : ''}`}
-              style={{ background: c }}
-            />
-          ))}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            {LABEL_COLORS.map((c) => (
+              <button
+                key={c}
+                onClick={() => setColor(c)}
+                className={`w-6 h-6 rounded-full transition-transform ${color === c ? 'scale-110 ring-2 ring-white/40' : ''}`}
+                style={{ background: c }}
+              />
+            ))}
+          </div>
+          <PrimaryButton onClick={create} disabled={creating || !name.trim()}><PlusIcon className="w-4 h-4" /> Criar</PrimaryButton>
         </div>
       </Card>
 
@@ -489,15 +666,10 @@ function LabelsTab() {
         {labels.length === 0 ? (
           <EmptyState text="Nenhuma etiqueta cadastrada." />
         ) : (
-          <div className="flex flex-wrap gap-2">
-            {labels.map((l) => (
-              <span key={l.id} className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-lg text-xs font-medium"
-                style={{ background: `${l.color}18`, color: l.color, border: `1px solid ${l.color}40` }}>
-                {l.name}
-                <button onClick={() => remove(l.id)} className="opacity-60 hover:opacity-100">
-                  <TrashIcon className="w-3 h-3" />
-                </button>
-              </span>
+          <div className="space-y-4">
+            {tenantWideLabels.length > 0 && <LabelGroup title="Para todos os clientes" items={tenantWideLabels} />}
+            {[...byClient.entries()].map(([clientName, items]) => (
+              <LabelGroup key={clientName} title={`Cliente: ${clientName}`} items={items} />
             ))}
           </div>
         )}
@@ -515,7 +687,10 @@ function CannedTab() {
   const [loading, setLoading] = useState(true)
   const [shortcut, setShortcut] = useState('')
   const [content, setContent] = useState('')
+  const [newClientId, setNewClientId] = useState<string | null>(null)
+  const [newClientName, setNewClientName] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const allClients = useAllClients()
 
   async function load() {
     setLoading(true)
@@ -533,8 +708,10 @@ function CannedTab() {
     if (!shortcut.trim() || !content.trim()) return
     setCreating(true)
     try {
-      await adminFetch('/api/admin/mensageria/canned-responses', { method: 'POST', body: JSON.stringify({ shortcut: shortcut.trim(), content: content.trim() }) })
-      setShortcut(''); setContent('')
+      await adminFetch('/api/admin/mensageria/canned-responses', {
+        method: 'POST', body: JSON.stringify({ shortcut: shortcut.trim(), content: content.trim(), clientId: newClientId }),
+      })
+      setShortcut(''); setContent(''); setNewClientId(null); setNewClientName(null)
       await load()
     } finally {
       setCreating(false)
@@ -551,7 +728,11 @@ function CannedTab() {
   return (
     <div className="space-y-4">
       <Card>
-        <p className="text-xs text-slate-500 mb-3">O atendente digita <code className="text-[#d4af37]">/atalho</code> no composer da conversa para expandir o texto.</p>
+        <p className="text-xs text-slate-500 mb-3">
+          O atendente digita <code className="text-[#d4af37]">/atalho</code> no composer da conversa para expandir
+          o texto. Deixe &quot;cliente&quot; vazio pra sugerir em qualquer conversa do tenant; escolha um específico
+          pra só sugerir nas conversas dele (útil quando cada cliente gerenciado precisa de um texto diferente).
+        </p>
         <div className="space-y-2">
           <TextInput value={shortcut} onChange={(e) => setShortcut(e.target.value)} placeholder="/atalho (ex: /venda)" />
           <textarea
@@ -560,6 +741,7 @@ function CannedTab() {
             rows={3}
             className="w-full px-3 py-2 rounded-lg bg-[#112240] border border-white/8 text-sm text-slate-200 outline-none focus:border-[#c5a028] resize-none transition-colors"
           />
+          <ClientPicker clientId={newClientId} clientName={newClientName} allClients={allClients} onChange={(id, n) => { setNewClientId(id); setNewClientName(n) }} />
           <div className="flex justify-end">
             <PrimaryButton onClick={create} disabled={creating || !shortcut.trim() || !content.trim()}><PlusIcon className="w-4 h-4" /> Criar</PrimaryButton>
           </div>
@@ -574,7 +756,10 @@ function CannedTab() {
             {items.map((c) => (
               <div key={c.id} className="flex items-start justify-between gap-3 px-3.5 py-2.5 rounded-lg bg-[#112240] border border-white/8">
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold text-[#d4af37]">{c.shortcut}</p>
+                  <p className="text-xs font-semibold text-[#d4af37]">
+                    {c.shortcut}
+                    {c.clientName && <span className="ml-2 font-normal text-slate-500">· Cliente: {c.clientName}</span>}
+                  </p>
                   <p className="text-sm text-slate-300 mt-0.5">{c.content}</p>
                 </div>
                 <button onClick={() => remove(c.id)} className="text-slate-500 hover:text-rose-400 transition-colors shrink-0">
@@ -605,7 +790,10 @@ function SlaTab() {
   const [resolutionMin, setResolutionMin] = useState('')
   const [scopeMode, setScopeMode] = useState<ScopeMode>('global')
   const [scopeTarget, setScopeTarget] = useState('')
+  const [newClientId, setNewClientId] = useState<string | null>(null)
+  const [newClientName, setNewClientName] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const allClients = useAllClients()
 
   async function load() {
     setLoading(true)
@@ -653,9 +841,11 @@ function SlaTab() {
           scope,
           firstResponseTargetMin: firstResponseMin ? parseInt(firstResponseMin, 10) : null,
           resolutionTargetMin: resolutionMin ? parseInt(resolutionMin, 10) : null,
+          clientId: newClientId,
         }),
       })
       setName(''); setFirstResponseMin(''); setResolutionMin(''); setScopeMode('global'); setScopeTarget('')
+      setNewClientId(null); setNewClientName(null)
       await load()
     } finally {
       setCreating(false)
@@ -680,7 +870,10 @@ function SlaTab() {
       <Card>
         <p className="text-xs text-slate-500 mb-3">
           Metas de tempo de resposta/resolução. Estouro dispara alerta (WhatsApp) e badge vermelho na conversa.
-          Quando mais de uma política se aplica a uma conversa nova, vale a mais específica: <strong className="text-slate-400">Inbox &gt; Time &gt; Global</strong>.
+          Quando mais de uma política se aplica a uma conversa nova, vale a mais específica:{' '}
+          <strong className="text-slate-400">Inbox &gt; Time &gt; Global</strong>, e dentro de cada nível uma
+          política dedicada ao <strong className="text-slate-400">cliente</strong> da conversa sempre vence a
+          equivalente de todos os clientes.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
           <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome da política" />
@@ -723,7 +916,10 @@ function SlaTab() {
           )}
         </div>
 
-        <div className="flex justify-end">
+        <p className="text-xs text-slate-500 mb-1.5">Dono (dimensão independente do escopo acima):</p>
+        <ClientPicker clientId={newClientId} clientName={newClientName} allClients={allClients} onChange={(id, n) => { setNewClientId(id); setNewClientName(n) }} />
+
+        <div className="flex justify-end mt-3">
           <PrimaryButton onClick={create} disabled={creating || !name.trim() || (scopeMode !== 'global' && !scopeTarget)}>
             <PlusIcon className="w-4 h-4" /> Criar política
           </PrimaryButton>
@@ -739,7 +935,9 @@ function SlaTab() {
               <div key={p.id} className="flex items-center justify-between px-3.5 py-2.5 rounded-lg bg-[#112240] border border-white/8">
                 <div>
                   <p className="text-sm font-medium text-white">{p.name}</p>
-                  <p className="text-xs text-[#d4af37] mt-0.5">{scopeLabel(p.scope)}</p>
+                  <p className="text-xs text-[#d4af37] mt-0.5">
+                    {scopeLabel(p.scope)} · {p.clientName ? `Cliente: ${p.clientName}` : 'Todos os clientes'}
+                  </p>
                   <p className="text-xs text-slate-500">
                     {p.first_response_target_min ? `1ª resposta: ${p.first_response_target_min}min` : 'sem meta de 1ª resposta'}
                     {' · '}
@@ -1123,7 +1321,6 @@ interface KnowledgeDocDetail {
   id: string; clientId: string | null; title: string; sourceType: string
   rawMarkdown: string; originalFilename: string | null; isActive: boolean; updatedAt: string
 }
-interface ClienteOption { id: string; nome: string }
 interface KnowledgeChunk { chunkIndex: number; headingPath: string | null; chunkText: string }
 
 function KnowledgeTab() {
@@ -1136,9 +1333,7 @@ function KnowledgeTab() {
   const [isActive, setIsActive] = useState(true)
   const [clientId, setClientId] = useState<string | null>(null)
   const [clientName, setClientName] = useState<string | null>(null)
-  const [allClients, setAllClients] = useState<ClienteOption[]>([])
-  const [clientQuery, setClientQuery] = useState('')
-  const [clientDropdownOpen, setClientDropdownOpen] = useState(false)
+  const allClients = useAllClients()
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -1156,14 +1351,8 @@ function KnowledgeTab() {
   async function load() {
     setLoading(true)
     try {
-      const [docsRes, clientsRes] = await Promise.all([
-        adminFetch('/api/admin/mensageria/knowledge'),
-        adminFetch('/api/admin/campanhas/clients?limit=200'),
-      ])
-      setDocs((await docsRes.json()).documents || [])
-      const clientsData = await clientsRes.json()
-      // /campanhas/clients já devolve ORDER BY nome ASC — lista pronta pro dropdown.
-      setAllClients((Array.isArray(clientsData) ? clientsData : []).map((c: any) => ({ id: c.id, nome: c.name })))
+      const res = await adminFetch('/api/admin/mensageria/knowledge')
+      setDocs((await res.json()).documents || [])
     } finally {
       setLoading(false)
     }
@@ -1171,21 +1360,9 @@ function KnowledgeTab() {
 
   useEffect(() => { load() }, [])
 
-  // Range Unicode dos diacríticos combinantes (0x0300-0x036f) montado via charCode pra evitar
-  // caracteres literais de acento na fonte (mesmo range usado em normalizeText do botAdapter.ts).
-  const DIACRITICS_RE = new RegExp(`[${String.fromCharCode(0x0300)}-${String.fromCharCode(0x036f)}]`, 'g')
-
-  function normalize(s: string): string {
-    return s.normalize('NFD').replace(DIACRITICS_RE, '').toLowerCase()
-  }
-
-  const filteredClients = clientQuery.trim()
-    ? allClients.filter((c) => normalize(c.nome).includes(normalize(clientQuery.trim())))
-    : allClients
-
   function resetForm() {
     setTitle(''); setRawMarkdown(''); setIsActive(true)
-    setClientId(null); setClientName(null); setClientQuery(''); setClientDropdownOpen(false)
+    setClientId(null); setClientName(null)
     setSaveError(''); setSaveWarning('')
   }
 
@@ -1329,46 +1506,7 @@ function KnowledgeTab() {
           <div className="space-y-2.5 pt-1">
             <TextInput value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título (ex: Política de Garantia)" className="w-full" />
 
-            <div className="relative">
-              {clientId ? (
-                <div className="flex items-center justify-between h-9 px-3 rounded-lg bg-[#112240] border border-[#c5a028]/30 text-sm text-[#d4af37]">
-                  <span>Cliente: {clientName || clientId}</span>
-                  <button onClick={() => { setClientId(null); setClientName(null) }} className="text-slate-400 hover:text-white">
-                    <XMarkIcon className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <TextInput
-                    value={clientQuery}
-                    onChange={(e) => { setClientQuery(e.target.value); setClientDropdownOpen(true) }}
-                    onFocus={() => setClientDropdownOpen(true)}
-                    onBlur={() => setTimeout(() => setClientDropdownOpen(false), 150)}
-                    placeholder="Todos os clientes (clique para escolher um específico)..."
-                    className="w-full"
-                  />
-                  {clientDropdownOpen && (
-                    <div className="absolute z-10 mt-1 w-full max-h-64 overflow-y-auto rounded-lg bg-[#112240] border border-white/10 shadow-xl">
-                      {filteredClients.length === 0 ? (
-                        <p className="px-3 py-2 text-sm text-slate-500">Nenhum cliente encontrado.</p>
-                      ) : (
-                        filteredClients.map((c) => (
-                          <button
-                            key={c.id}
-                            // onMouseDown (não onClick) dispara antes do onBlur do input, senão a lista
-                            // fecha (por causa do blur) antes do clique ser registrado.
-                            onMouseDown={() => { setClientId(c.id); setClientName(c.nome); setClientQuery(''); setClientDropdownOpen(false) }}
-                            className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-[#c5a028]/10"
-                          >
-                            {c.nome}
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+            <ClientPicker clientId={clientId} clientName={clientName} allClients={allClients} onChange={(id, n) => { setClientId(id); setClientName(n) }} />
 
             <textarea
               value={rawMarkdown} onChange={(e) => setRawMarkdown(e.target.value)}

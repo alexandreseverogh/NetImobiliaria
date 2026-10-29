@@ -296,9 +296,14 @@ model CalibrationSignal {
   @@map("CalibrationSignal")
 }
 
+/// client_id NULL = config tenant-wide; setado = só para aquele cliente (mesmo padrão de
+/// knowledge_documents/bot_flows/sla_policies/inboxes/teams/labels/canned_responses — ver
+/// prisma/migration-2026-10-28-whatsapp-config-client-scope.sql). Resolvido via cascade
+/// client → tenant-wide (client_id IS NULL) em src/lib/marketing/services/whatsappConfigResolver.ts.
 model WhatsAppConfig {
   id             String   @id @default(uuid())
   tenantId       String?  @map("tenant_id") @db.Uuid
+  clientId       String?  @map("client_id") @db.Uuid
   phoneNumber    String
   defaultMessage String
   businessName   String?
@@ -306,6 +311,7 @@ model WhatsAppConfig {
   createdAt      DateTime @default(now())
 
   @@index([tenantId])
+  @@index([clientId])
 }
 
 /// Fonte única de cliques/atribuição de CTA (substitui o antigo model "Lead", que só cobria

@@ -41,6 +41,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (!title) return NextResponse.json({ error: 'Título é obrigatório' }, { status: 400 })
   if (!rawMarkdown) return NextResponse.json({ error: 'Conteúdo é obrigatório' }, { status: 400 })
 
+  // Defesa em profundidade além da FK composta (tenant_id, client_id) do banco — devolve 400
+  // explícito em vez de deixar o erro de constraint (23503) vazar como 500 genérico.
+  if (clientId) {
+    const { rows: own } = await pool.query(
+      `SELECT 1 FROM public.clientes WHERE uuid = $1 AND tenant_id = $2`,
+      [clientId, payload.tenantId],
+    )
+    if (own.length === 0) return NextResponse.json({ error: 'Cliente não encontrado neste tenant' }, { status: 400 })
+  }
+
   const { rows } = await pool.query(
     `UPDATE mensageria.knowledge_documents
         SET title = $1, raw_markdown = $2, client_id = $3, is_active = $4, updated_at = now()

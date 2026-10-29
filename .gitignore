@@ -227,3 +227,5 @@ backup*.sql
 #
 # OBS: arquivos .md (incluindo ANALISE_/CORRECAO_/PLANO_) DEVEM ser versionados
 # porque contêm planejamento/documentação. Não ignorar markdown.
+
+cron_debug.txt

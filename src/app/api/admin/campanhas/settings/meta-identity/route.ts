@@ -10,7 +10,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/database/connection';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
-import { requireApiPermission } from '@/lib/auth/apiPermissions';
+import { requireAnyApiPermission } from '@/lib/auth/apiPermissions';
+
+// Identidade Meta (Page/Pixel/Instagram/Website) — module-independent desde a página "Dados
+// da Empresa" (docs/PLANO_WHATSAPP_CLOUD_API_PROVIDER.md §9/§10): qualquer um dos 2 resources
+// já prova acesso legítimo, mesmo padrão já usado no resource do canal de Evolution.
+const META_IDENTITY_RESOURCES = ['configuracoes-campanhas', 'dados-empresa'];
 
 export const dynamic = 'force-dynamic';
 
@@ -76,7 +81,7 @@ export async function PUT(request: NextRequest) {
     // 'campanhasmarketingdigital' é resource fantasma, nunca existe no mapa de permissões de
     // nenhum admin de tenant — usar o resource real, o mesmo que o UpdateGuard client-side
     // desta tela já checa.
-    const denied = await requireApiPermission(request, 'configuracoes-campanhas', 'UPDATE');
+    const denied = await requireAnyApiPermission(request, META_IDENTITY_RESOURCES, 'UPDATE');
     if (denied) return denied;
 
     const tenantId = payload.tenantId;

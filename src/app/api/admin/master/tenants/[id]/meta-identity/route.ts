@@ -37,7 +37,9 @@ export async function GET(
       pool.query(
         `SELECT website, name, telefone,
                 meta_app_id, meta_app_secret, meta_ad_account_id, meta_token, meta_token_expires_at,
-                meta_page_id, meta_pixel_id, meta_instagram_actor_id
+                meta_page_id, meta_pixel_id, meta_instagram_actor_id,
+                whatsapp_embedded_signup_config_id,
+                (whatsapp_webhook_verify_token IS NOT NULL AND whatsapp_webhook_verify_token <> '') AS has_webhook_verify_token
          FROM public.tenants WHERE id = $1::uuid LIMIT 1`,
         [tenantId],
       ),
@@ -57,6 +59,11 @@ export async function GET(
       credentialsActive: credsRes.rows[0]?.is_active ?? false,
       website:          tenant.website  || '',
       tenantName:       tenant.name     || '',
+      // WhatsApp Cloud API — App-level (docs/PLANO_WHATSAPP_CLOUD_API_PROVIDER.md §9/§10):
+      // reaproveita o mesmo App acima. hasWebhookVerifyToken nunca devolve o valor em si (mesma
+      // disciplina de qualquer segredo nesta base — só escrito, nunca lido de volta).
+      embeddedSignupConfigId: tenant.whatsapp_embedded_signup_config_id || '',
+      hasWebhookVerifyToken: !!tenant.has_webhook_verify_token,
     });
   } catch (error: any) {
     console.error('[master/tenant/meta-identity] GET error:', error);
@@ -85,6 +92,8 @@ export async function PUT(
       metaAppSecret,
       metaToken,
       adAccountId,
+      embeddedSignupConfigId,
+      webhookVerifyToken,
     } = body;
 
     // 1. Atualizar public.tenants com os novos campos e campos de identidade
@@ -103,6 +112,9 @@ export async function PUT(
     }
     if (adAccountId !== undefined)      { tenantSets.push(`meta_ad_account_id = $${tIdx++}`);     tenantVals.push(adAccountId); }
     if (website !== undefined)          { tenantSets.push(`website = $${tIdx++}`);                tenantVals.push(website || null); }
+    // WhatsApp Cloud API — App-level (docs/PLANO_WHATSAPP_CLOUD_API_PROVIDER.md §9/§10).
+    if (embeddedSignupConfigId !== undefined) { tenantSets.push(`whatsapp_embedded_signup_config_id = $${tIdx++}`); tenantVals.push(embeddedSignupConfigId || null); }
+    if (webhookVerifyToken) { tenantSets.push(`whatsapp_webhook_verify_token = $${tIdx++}`); tenantVals.push(webhookVerifyToken); }
 
     if (tenantSets.length > 0) {
       tenantVals.push(tenantId);

@@ -10,7 +10,10 @@ export async function GET(request: NextRequest) {
   if (!payload?.tenantId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
   const { rows: teams } = await pool.query(
-    `SELECT id, name, auto_assign FROM mensageria.teams WHERE tenant_id = $1 ORDER BY name`,
+    `SELECT t.id, t.name, t.auto_assign, t.client_id, cl.nome AS client_name
+       FROM mensageria.teams t
+       LEFT JOIN public.clientes cl ON cl.uuid = t.client_id
+      WHERE t.tenant_id = $1 ORDER BY t.name`,
     [payload.tenantId],
   )
   const { rows: members } = await pool.query(
@@ -26,12 +29,14 @@ export async function GET(request: NextRequest) {
       id: t.id,
       name: t.name,
       autoAssign: t.auto_assign,
+      clientId: t.client_id,
+      clientName: t.client_name,
       members: members.filter((m) => m.team_id === t.id).map((m) => ({ userId: m.user_id, name: m.nome, role: m.role })),
     })),
   })
 }
 
-/** POST /api/admin/mensageria/teams — cria time. Body: { name, autoAssign? } */
+/** POST /api/admin/mensageria/teams — cria time. Body: { name, autoAssign?, clientId? } */
 export async function POST(request: NextRequest) {
   const payload = getTokenPayload(request)
   if (!payload?.tenantId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
@@ -39,13 +44,18 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}))
   const name: string = (body.name || '').trim()
   if (!name) return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 })
+  const clientId: string | null = body.clientId || null
+  if (clientId) {
+    const { rows: own } = await pool.query(`SELECT 1 FROM public.clientes WHERE uuid = $1 AND tenant_id = $2`, [clientId, payload.tenantId])
+    if (own.length === 0) return NextResponse.json({ error: 'Cliente não encontrado neste tenant' }, { status: 400 })
+  }
 
   const { rows } = await pool.query(
-    `INSERT INTO mensageria.teams (tenant_id, name, auto_assign) VALUES ($1, $2, $3)
+    `INSERT INTO mensageria.teams (tenant_id, client_id, name, auto_assign) VALUES ($1, $2, $3, $4)
      RETURNING id, name, auto_assign`,
-    [payload.tenantId, name, body.autoAssign !== false],
+    [payload.tenantId, clientId, name, body.autoAssign !== false],
   )
-  return NextResponse.json({ team: rows[0] })
+  return NextResponse.json({ team: { ...rows[0], clientId, clientName: null } })
 }
 
 /** DELETE /api/admin/mensageria/teams?id=... */

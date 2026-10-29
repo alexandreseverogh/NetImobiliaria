@@ -22,10 +22,22 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
   if (teamId) {
     const { rows: team } = await pool.query(
-      `SELECT id FROM mensageria.teams WHERE id = $1 AND tenant_id = $2`,
+      `SELECT id, client_id FROM mensageria.teams WHERE id = $1 AND tenant_id = $2`,
       [teamId, payload.tenantId],
     )
     if (!team[0]) return NextResponse.json({ error: 'Time não encontrado' }, { status: 404 })
+
+    // Um time dedicado a um cliente (client_id setado) nunca pode ser vinculado à inbox de OUTRO
+    // cliente (nem à inbox tenant-wide) — só inboxes do mesmo cliente, ou time sem dono (atende
+    // qualquer cliente). Inconsistência aqui é o tipo de erro que fica invisível até um agente
+    // do cliente A receber conversa real do cliente B.
+    if (team[0].client_id) {
+      const { rows: ib } = await pool.query(`SELECT client_id FROM mensageria.inboxes WHERE id = $1 AND tenant_id = $2`, [params.id, payload.tenantId])
+      if (!ib[0]) return NextResponse.json({ error: 'Inbox não encontrada' }, { status: 404 })
+      if (ib[0].client_id !== team[0].client_id) {
+        return NextResponse.json({ error: 'Este time é dedicado a outro cliente — não pode ser vinculado a esta inbox.' }, { status: 400 })
+      }
+    }
   }
 
   const { rows } = await pool.query(

@@ -25,6 +25,8 @@ interface ConversationDetail {
   priority: string | null
   handledByBot: boolean
   firstResponseAt?: string | null
+  clientId: string | null
+  clientName: string | null
   contact: {
     id: string; name: string | null; phone: string | null; email: string | null; avatarUrl: string | null; leadUuid: string | null
     attribution: { campaignId: string | null; campaignName: string | null; utmSource: string | null; utmMedium: string | null; utmCampaign: string | null } | null
@@ -204,10 +206,15 @@ export default function ConversationThread({ conversationId, onUpdated }: { conv
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId])
 
+  // Escopados pelo cliente DESTA conversa (tenant-wide + os dele) — recarrega quando o detalhe
+  // da conversa chega (clientId só é conhecido depois de loadDetail resolver). Sem isso, um
+  // atendente veria/sugeriria etiqueta ou resposta rápida de um cliente diferente do da conversa.
   useEffect(() => {
-    adminFetch('/api/admin/mensageria/labels').then((r) => r.json()).then((d) => setAllLabels(d.labels || [])).catch(() => {})
-    adminFetch('/api/admin/mensageria/canned-responses').then((r) => r.json()).then((d) => setCannedResponses(d.cannedResponses || [])).catch(() => {})
-  }, [])
+    if (!detail) return
+    const qs = detail.clientId ? `?clientId=${detail.clientId}` : ''
+    adminFetch(`/api/admin/mensageria/labels${qs}`).then((r) => r.json()).then((d) => setAllLabels(d.labels || [])).catch(() => {})
+    adminFetch(`/api/admin/mensageria/canned-responses${qs}`).then((r) => r.json()).then((d) => setCannedResponses(d.cannedResponses || [])).catch(() => {})
+  }, [detail?.clientId])
 
   const cannedMatches = useMemo(() => {
     if (!composer.startsWith('/')) return []

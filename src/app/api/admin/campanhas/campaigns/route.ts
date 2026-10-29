@@ -194,7 +194,8 @@ export async function POST(request: NextRequest) {
       ageMin, ageMax, genders, locations, interests,
       scheduleDays, scheduleStartHour, scheduleEndHour, scheduleTimeSlots,
       creativeType, images, body: adBody, headline, linkUrl, ctaType,
-      whatsappNumber, whatsappMessage,
+      // whatsappNumber/whatsappMessage removidos (achado #1, 2026-10-27) — nunca eram lidos
+      // por nenhum adapter, o número real vem sempre de WhatsAppConfig em runtime.
       // Novos campos (revisão 2026-05-29 — camada de lançamento 1.6)
       pixelId,
       customEventType,
@@ -374,8 +375,6 @@ export async function POST(request: NextRequest) {
           linkUrl: trackedLinkUrl,
           ctaType: ad.ctaType,
         },
-        whatsappNumber,
-        whatsappMessage,
       });
 
       // Persist external IDs (Meta-compat: also write legacy metaCampaignId)

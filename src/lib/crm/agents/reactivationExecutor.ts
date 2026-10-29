@@ -3,7 +3,7 @@ import { resolveSegment } from '@/lib/intelligence/segmentResolver'
 import { resolveEffectiveAgentConfig } from './effectiveConfig'
 import { resolveWhatsAppInbox } from '@/lib/mensageria/inboxes'
 import { ingestMessage } from '@/lib/mensageria/ingest'
-import { sendEvolutionMessage, type EvolutionInboxConfig } from '@/lib/mensageria/channels/evolutionSend'
+import { sendWhatsAppMessage, type WhatsAppSendConfig } from '@/lib/mensageria/channels/dispatch'
 import { logAiAtividade } from '@/lib/crm/atividades/logAiAtividade'
 
 /**
@@ -16,8 +16,16 @@ import { logAiAtividade } from '@/lib/crm/atividades/logAiAtividade'
  *     autenticado, sem PIN (a sessão JWT já é a prova de identidade).
  *
  * O "envio" real reaproveita a infra já provada da Mensageria (resolveWhatsAppInbox +
- * ingestMessage + sendEvolutionMessage — o mesmo trio que o bot usa pra responder de
- * verdade no WhatsApp) em vez de inventar um canal de saída novo só pra este agente.
+ * ingestMessage + sendWhatsAppMessage — o mesmo trio que o bot usa pra responder de
+ * verdade no WhatsApp, agora via dispatcher que escolhe Evolution ou Cloud API pelo
+ * provider da inbox) em vez de inventar um canal de saída novo só pra este agente.
+ *
+ * W3 (docs/PLANO_WHATSAPP_CLOUD_API_PROVIDER.md seção 5.6) — pro provider Cloud API, texto
+ * livre só é permitido DENTRO da janela de 24h aberta pelo próprio lead; fora dela, a Meta
+ * rejeita e exigiria Template pré-aprovado (W4, fora de escopo ainda). Por isso, pra esse
+ * provider especificamente, checamos a janela ANTES de tentar enviar — se fechada, cai pra
+ * APPROVED_MANUAL com nota explícita, preservando o rascunho (mesmo fallback já usado pra
+ * lead sem telefone), em vez de deixar a Meta rejeitar silenciosamente.
  */
 
 export interface ReactivationAction {
@@ -131,10 +139,38 @@ async function deliverReactivation(action: ReactivationAction, finalMessage: str
 
   const inboxId = await resolveWhatsAppInbox(action.tenantId, action.clientId)
   const { rows: inboxRows } = await pool.query(
-    `SELECT config FROM mensageria.inboxes WHERE id = $1`,
+    `SELECT provider, config FROM mensageria.inboxes WHERE id = $1`,
     [inboxId],
   )
-  const config: EvolutionInboxConfig = inboxRows[0]?.config ?? {}
+  const provider: string | null = inboxRows[0]?.provider ?? null
+  const config: WhatsAppSendConfig = inboxRows[0]?.config ?? {}
+
+  // W3 — Cloud API só permite texto livre dentro da janela de 24h; reativação é por
+  // definição um lead inativo, então a janela normalmente já está fechada. Checar ANTES de
+  // gravar a mensagem/tentar enviar, pra nunca deixar a Meta rejeitar silenciosamente.
+  if (provider === 'whatsapp_cloud') {
+    const { rows: lastInboundRows } = await pool.query(
+      `SELECT m.created_at
+         FROM mensageria.messages m
+         JOIN mensageria.conversations c ON c.id = m.conversation_id
+         JOIN mensageria.contacts ct ON ct.id = c.contact_id
+        WHERE ct.phone = $1 AND c.tenant_id = $2 AND m.direction = 'inbound'
+        ORDER BY m.created_at DESC LIMIT 1`,
+      [action.leadTelefone.replace(/\D/g, ''), action.tenantId],
+    )
+    const lastInboundAt: string | undefined = lastInboundRows[0]?.created_at
+    const windowOpen = !!lastInboundAt && Date.now() - new Date(lastInboundAt).getTime() < 24 * 60 * 60 * 1000
+    if (!windowOpen) {
+      await pool.query(
+        `UPDATE public.crm_agent_actions
+            SET description = description || ' [Cloud API: fora da janela de 24h — requer Template aprovado, não implementado ainda. Rascunho preservado para cópia manual.]'
+          WHERE id = $1::uuid`,
+        [action.id],
+      )
+      await setStatus(action.id, 'APPROVED_MANUAL')
+      return { outcome: 'manual', message: finalMessage }
+    }
+  }
 
   const { messageId } = await ingestMessage({
     tenantId: action.tenantId,
@@ -149,7 +185,7 @@ async function deliverReactivation(action: ReactivationAction, finalMessage: str
     content: finalMessage,
   })
 
-  const sendResult = await sendEvolutionMessage(config, action.leadTelefone, finalMessage)
+  const sendResult = await sendWhatsAppMessage(provider, config, action.leadTelefone, finalMessage)
   if (messageId) {
     await pool.query(
       `UPDATE mensageria.messages SET delivery_status = $1, external_id = COALESCE($2, external_id) WHERE id = $3`,
@@ -201,7 +237,10 @@ export async function autoSendReactivation(actionId: string): Promise<string> {
     return `mensagem de reativação enviada automaticamente para ${action.leadNome || 'o lead'}`
   }
   if (result.outcome === 'send_failed') return `falha ao enviar a reativação (${result.error}) — rascunho preservado`
-  return 'lead sem telefone — rascunho guardado para envio manual'
+  // outcome === 'manual' — lead sem telefone, OU (Cloud API) fora da janela de 24h sem
+  // Template disponível (ver deliverReactivation) — nos dois casos o rascunho fica
+  // preservado em crm_agent_actions.suggested_message, pronto pra cópia/envio manual.
+  return 'rascunho guardado para envio manual (sem telefone, ou fora da janela de atendimento no provider oficial)'
 }
 
 export async function rejectReactivation(id: string): Promise<void> {

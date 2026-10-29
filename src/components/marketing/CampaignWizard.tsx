@@ -185,8 +185,6 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
     headline:     initialValues?.headline || '',
     linkUrl:      '',
     ctaType:      'WHATSAPP_MESSAGE',
-    whatsappNumber:  '',
-    whatsappMessage: 'Olá! Vi o anúncio e quero saber mais!',
     ageMin:  18,
     ageMax:  65,
     genders: [] as number[],
@@ -240,7 +238,8 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
 
         const segDefaults = segDefaultsRaw;
 
-        // Cascade de pixel/website: cliente → fallback tenant (via campaign-settings) → identity
+        // Cascade de pixel/website/whatsapp: cliente → fallback tenant (via campaign-settings)
+        // → identity/WhatsAppConfig direto (quando não há clientId, ou campaign-settings falhou)
         const resolvedPixelId = clientSettings?.pixelId
           || clientSettings?.fallback?.pixelId
           || identity?.pixelId
@@ -248,6 +247,20 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
         const resolvedWebsite = clientSettings?.website
           || clientSettings?.fallback?.website
           || identity?.website
+          || '';
+        // Achado #1 (2026-10-27): número/mensagem de WhatsApp do wizard eram editáveis mas
+        // nunca chegavam a lugar nenhum — Ad não tem coluna pra isso, e o redirect real
+        // (/api/r/[trackingId]) sempre usou campanhasmarketingdigital."WhatsAppConfig", nunca
+        // o que era digitado aqui. Virou 100% resolvido/somente-leitura, mesma mecânica de
+        // optimizationGoal/billingEvent — e passou a respeitar o override por CLIENTE, que
+        // antes não existia (bug #2, corrigido em whatsappConfigResolver.ts).
+        const resolvedWhatsappNumber = clientSettings?.whatsappNumber
+          || clientSettings?.fallback?.whatsappNumber
+          || whatsapp?.phoneNumber
+          || '';
+        const resolvedWhatsappMessage = clientSettings?.whatsappMessage
+          || clientSettings?.fallback?.whatsappMessage
+          || whatsapp?.defaultMessage
           || '';
 
         const resolved = {
@@ -259,8 +272,8 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
           optimizationGoal:   segDefaults?.optimizationGoal  || 'LEAD_GENERATION',
           billingEvent:       segDefaults?.billingEvent      || 'IMPRESSIONS',
           suggestedInterests: segDefaults?.suggestedInterests || [],
-          whatsappNumber:     whatsapp?.phoneNumber    || '',
-          whatsappMessage:    whatsapp?.defaultMessage || '',
+          whatsappNumber:     resolvedWhatsappNumber,
+          whatsappMessage:    resolvedWhatsappMessage,
           allowedAngles:      segDefaults?.allowedAngles || [],
           segmentName:        segDefaults?.segmentName   || '',
         };
@@ -268,11 +281,8 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
         setAutoFields(resolved);
         setForm(f => ({
           ...f,
-          linkUrl:         f.linkUrl         || resolved.websiteDefault,
-          objective:       f.objective === 'OUTCOME_LEADS' ? resolved.objective : f.objective,
-          // Pré-preencher WhatsApp apenas se o campo ainda estiver vazio (não sobrescreve digitado)
-          whatsappNumber:  f.whatsappNumber  || resolved.whatsappNumber,
-          whatsappMessage: f.whatsappMessage || resolved.whatsappMessage,
+          linkUrl:   f.linkUrl   || resolved.websiteDefault,
+          objective: f.objective === 'OUTCOME_LEADS' ? resolved.objective : f.objective,
         }));
       } catch { /* graceful fallback */ }
     }
@@ -318,11 +328,19 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
       errors.push({ field: 'headline', message: 'O título/headline é obrigatório.', step: 2 });
     }
     if (form.ctaType === 'WHATSAPP_MESSAGE') {
-      if (!form.whatsappNumber.trim()) {
-        errors.push({ field: 'whatsappNumber', message: 'Informe o número de WhatsApp.', step: 2 });
-      }
-      if (!form.whatsappMessage.trim()) {
-        errors.push({ field: 'whatsappMessage', message: 'Informe a mensagem pré-preenchida.', step: 2 });
+      // Achado #1 (2026-10-27): não é mais editável aqui — é sempre resolvido via
+      // whatsappConfigResolver.ts (cliente → tenant). Sem nenhum número configurado em
+      // nenhum nível, o clique no anúncio real redirecionaria pra home em vez do WhatsApp —
+      // bloqueia o lançamento com uma mensagem apontando onde configurar, em vez de deixar
+      // passar uma campanha que nunca vai funcionar de verdade.
+      if (!autoFields.whatsappNumber.trim() || !autoFields.whatsappMessage.trim()) {
+        errors.push({
+          field: 'whatsappNumber',
+          message: clientId
+            ? 'Número de WhatsApp não configurado — configure em "Config. Meta" deste cliente, ou no tenant.'
+            : 'Número de WhatsApp não configurado — configure em Configurações → WhatsApp.',
+          step: 2,
+        });
       }
     } else if (!form.linkUrl.trim()) {
       errors.push({ field: 'linkUrl', message: 'Informe a URL de destino.', step: 2 });
@@ -346,7 +364,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
     }
 
     return errors;
-  }, [form, selectedImages.length]);
+  }, [form, selectedImages.length, autoFields.whatsappNumber, autoFields.whatsappMessage, clientId]);
 
   const errorsByField = useMemo(() => {
     const map: Record<string, string> = {};
@@ -429,8 +447,10 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
         headline:          form.headline,
         linkUrl:           form.linkUrl,
         ctaType:           form.ctaType,
-        whatsappNumber:    form.whatsappNumber,
-        whatsappMessage:   form.whatsappMessage,
+        // whatsappNumber/whatsappMessage removidos do payload (achado #1, 2026-10-27) — nunca
+        // eram lidos por nenhum adapter de rede nem salvos em "Ad"; o número real usado no
+        // clique do anúncio sempre veio de WhatsAppConfig, resolvido no servidor em runtime
+        // via /api/r/[trackingId], nunca da campanha em si.
         ageMin:            form.ageMin,
         ageMax:            form.ageMax,
         genders:           form.genders,
@@ -577,7 +597,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
             >
               {step === 0 && <StepNetwork   form={form} updateForm={updateForm} networks={networks} onSwitchToGoogle={onSwitchToGoogle} />}
               {step === 1 && <StepType      form={form} updateForm={updateForm} selectedImages={selectedImages} hookAlert={hookAlert} clientId={clientId} onGoToTextStep={() => setStep(2)} errors={errorsByField} showErrors={showErrorsForStep} />}
-              {step === 2 && <StepTextCta   form={form} updateForm={updateForm} autoFields={autoFields} hookTextHint={initialValues?.hookText} isPrefilled={!!(initialValues?.body || initialValues?.headline)} errors={errorsByField} showErrors={showErrorsForStep} />}
+              {step === 2 && <StepTextCta   form={form} updateForm={updateForm} autoFields={autoFields} hookTextHint={initialValues?.hookText} isPrefilled={!!(initialValues?.body || initialValues?.headline)} errors={errorsByField} showErrors={showErrorsForStep} clientId={clientId} />}
               {step === 3 && <StepTargeting form={form} updateForm={updateForm} clientId={clientId} suggestedInterests={autoFields.suggestedInterests} errors={errorsByField} showErrors={showErrorsForStep} />}
               {step === 4 && <StepBudget    form={form} updateForm={updateForm} errors={errorsByField} showErrors={showErrorsForStep} />}
               {step === 5 && <StepObjective form={form} updateForm={updateForm} autoFields={autoFields} initiatives={initiatives} />}
@@ -1079,9 +1099,7 @@ function StepType({ form, updateForm, selectedImages, hookAlert, clientId, onGoT
    STEP 2 — TEXTO & CTA
 ══════════════════════════════════════════════════════════ */
 
-function StepTextCta({ form, updateForm, autoFields, hookTextHint, isPrefilled, errors = {}, showErrors }: any) {
-  const isAutoWhatsapp = !!autoFields?.whatsappNumber && form.whatsappNumber === autoFields.whatsappNumber;
-  const isAutoMessage  = !!autoFields?.whatsappMessage && form.whatsappMessage === autoFields.whatsappMessage;
+function StepTextCta({ form, updateForm, autoFields, hookTextHint, isPrefilled, errors = {}, showErrors, clientId }: any) {
 
   /* Destinos cadastrados (formulários hospedados / links) para o seletor de CTA */
   const [destinos, setDestinos] = useState<any[]>([]);
@@ -1169,42 +1187,40 @@ function StepTextCta({ form, updateForm, autoFields, hookTextHint, isPrefilled, 
         </div>
 
         {form.ctaType === 'WHATSAPP_MESSAGE' ? (
-          <div className="grid grid-cols-2 gap-6">
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <Label className="mb-0">Número WhatsApp (com DDI+DDD) *</Label>
-                {isAutoWhatsapp && <AutoChip label="configurações" />}
+          // Achado #1 (2026-10-27): deixou de ser editável aqui — o número real do clique no
+          // anúncio sempre vem de WhatsAppConfig (resolvido no servidor em
+          // /api/r/[trackingId]), nunca do que era digitado no wizard. Editável só vinha pra
+          // confundir; agora mostra o valor REALMENTE resolvido (cliente → tenant), com link
+          // direto pra onde de fato editar.
+          <div className="max-w-lg">
+            <div className={cn(
+              'rounded-xl border p-4',
+              showErrors && errors.whatsappNumber ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50',
+            )}>
+              <div className="flex items-center gap-2 mb-2">
+                <Label className="mb-0">Número e mensagem de WhatsApp</Label>
+                <AutoChip label="configurações" />
               </div>
-              <input
-                type="text"
-                value={form.whatsappNumber}
-                onChange={e => updateForm({ whatsappNumber: e.target.value })}
-                placeholder="5581999999999"
-                className={cn(
-                  inputCls, 'w-full',
-                  showErrors && errors.whatsappNumber && 'border-red-400 focus:ring-red-400',
-                )}
-              />
-              {showErrors && errors.whatsappNumber && (
-                <p className="text-xs text-red-600 font-medium mt-1.5">{errors.whatsappNumber}</p>
+              {autoFields.whatsappNumber ? (
+                <div className="space-y-1 text-sm text-gray-700">
+                  <p><span className="font-semibold">Número:</span> {autoFields.whatsappNumber}</p>
+                  <p><span className="font-semibold">Mensagem padrão:</span> {autoFields.whatsappMessage}</p>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 italic">Nenhum número de WhatsApp configurado ainda.</p>
               )}
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <Label className="mb-0">Mensagem Pré-preenchida *</Label>
-                {isAutoMessage && <AutoChip label="configurações" />}
-              </div>
-              <textarea
-                value={form.whatsappMessage}
-                onChange={e => updateForm({ whatsappMessage: e.target.value })}
-                rows={2}
-                className={cn(
-                  inputCls, 'w-full resize-none',
-                  showErrors && errors.whatsappMessage && 'border-red-400 focus:ring-red-400',
-                )}
-              />
-              {showErrors && errors.whatsappMessage && (
-                <p className="text-xs text-red-600 font-medium mt-1.5">{errors.whatsappMessage}</p>
+              <p className="text-xs text-gray-400 mt-2">
+                Resolvido automaticamente das Configurações — não é editável aqui, pra sempre
+                bater com o número que de verdade recebe o clique no anúncio real.{' '}
+                <a
+                  href={clientId ? `/admin/clientes/${clientId}/editar` : '/admin/campanhas/configuracoes'}
+                  target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline"
+                >
+                  {clientId ? 'Editar nas configurações deste cliente' : 'Editar em Configurações'}
+                </a>
+              </p>
+              {showErrors && errors.whatsappNumber && (
+                <p className="text-xs text-red-600 font-medium mt-2">{errors.whatsappNumber}</p>
               )}
             </div>
           </div>
@@ -1963,7 +1979,7 @@ function StepReview({ form, selectedImages, autoFields, initiatives = [] }: any)
           <Row label="Criativos"   value={`${selectedImages.length} imagem(ns) — ${form.creativeType === 'CAROUSEL' ? 'Carrossel' : selectedImages.length === 0 ? 'Sem criativo' : 'Simples'}`} />
           <Row label="Texto"       value={form.body || '(não informado)'} />
           <Row label="CTA"         value={CTA_TYPES.find(c => c.value === form.ctaType)?.label || form.ctaType} />
-          {form.ctaType === 'WHATSAPP_MESSAGE' && <Row label="WhatsApp" value={form.whatsappNumber || '(não informado)'} />}
+          {form.ctaType === 'WHATSAPP_MESSAGE' && <Row label="WhatsApp" value={autoFields.whatsappNumber || '(não configurado)'} />}
           <Row label="Público"     value={`${form.ageMin}–${form.ageMax} anos, ${form.genders.length === 0 ? 'Todos' : form.genders.includes(1) ? 'Masculino' : 'Feminino'}`} />
           <Row label="Localização" value={form.locationEntries.length === 0 ? 'Brasil inteiro' : form.locationEntries.map((l: LocationEntry) => `${l.name} (${l.radius}km)`).join('; ')} />
           <Row label="Interesses"  value={form.interests.length === 0 ? '(nenhum selecionado)' : form.interests.map((i: any) => i.name).join(', ')} />
