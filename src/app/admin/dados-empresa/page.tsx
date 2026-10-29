@@ -21,6 +21,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/marketing-utils';
 import { UpdateGuard } from '@/components/admin/PermissionGuard';
+import { DadosEmpresaHelpButton } from '@/components/admin/dados-empresa/HelpModal';
 
 /**
  * "Dados da Empresa" — self-service do próprio tenant admin pros campos tenant-wide que antes
@@ -518,12 +519,15 @@ export default function DadosEmpresaPage() {
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
       <div className="max-w-5xl mx-auto">
-        <div className="mb-8">
-          <p className="text-[10px] font-black text-gold-premium uppercase tracking-[0.3em] mb-2">Dados da Empresa</p>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Dados da Empresa</h1>
-          <p className="text-gray-500 mt-1 text-sm font-medium">
-            Identidade Meta, Evolution API e provider de WhatsApp — independente dos módulos que você contratou.
-          </p>
+        <div className="mb-8 flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-black text-gold-premium uppercase tracking-[0.3em] mb-2">Dados da Empresa</p>
+            <h1 className="text-3xl font-black text-gray-900 tracking-tight">Dados da Empresa</h1>
+            <p className="text-gray-500 mt-1 text-sm font-medium">
+              Identidade Meta, Evolution API e provider de WhatsApp — independente dos módulos que você contratou.
+            </p>
+          </div>
+          <DadosEmpresaHelpButton />
         </div>
         <div className="space-y-6">
           <TechSettingsSection />
