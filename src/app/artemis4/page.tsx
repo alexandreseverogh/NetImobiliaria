@@ -8,6 +8,7 @@ import './artemis4-sections.css'
 import { MODULE_CONTENT } from './moduleContent'
 import ModuleDetailModal from './ModuleDetailModal'
 import SpecialistContactModal from './SpecialistContactModal'
+import { trackEvent } from '@/lib/analytics/trackEvent'
 import { Nav, Footer, LeavingOverlay, useReveal } from './components/Chrome'
 import { Hero, AuthorityBand } from './components/Hero'
 import { Diagnosis, ClosedLoop, ProductTour, AgentSection } from './components/Product'
@@ -101,8 +102,23 @@ export default function Artemis4LandingPage() {
     }
   }, [])
 
-  const handleEnter = () => setNavigating(true)
-  const handleOpenSpecialist = () => setSpecialistOpen(true)
+  /* F0 do plano de SEO/GEO (docs/PLANO_SEO_GEO_ARTEMIS4.md §6, item 6) — 3 eventos de
+     micro-conversão, grounded nas 3 intenções reais que a página já tinha antes disso:
+     entrar no admin, abrir o contato com especialista, abrir o detalhe de um módulo. A
+     macro-conversão real (envio do formulário) é disparada dentro do próprio
+     SpecialistContactModal, no sucesso real da API — não aqui. */
+  const handleEnter = () => {
+    trackEvent('login_click')
+    setNavigating(true)
+  }
+  const handleOpenSpecialist = () => {
+    trackEvent('abrir_contato_especialista')
+    setSpecialistOpen(true)
+  }
+  const handleOpenModule = (slug: string | null) => {
+    if (slug) trackEvent('abrir_detalhe_modulo', { modulo: slug })
+    setDetailSlug(slug)
+  }
 
   const visibleLoopSlugs = availableSlugs
     ? LOOP_SLUGS.filter((s) => availableSlugs.includes(s))
@@ -130,7 +146,7 @@ export default function Artemis4LandingPage() {
         <Hero onEnter={handleEnter} onOpenSpecialist={handleOpenSpecialist} />
         <AuthorityBand />
         <Diagnosis />
-        <ClosedLoop onOpenModule={setDetailSlug} visibleSlugs={visibleLoopSlugs} />
+        <ClosedLoop onOpenModule={handleOpenModule} visibleSlugs={visibleLoopSlugs} />
         <ProductTour />
         <AgentSection />
         <Origin />

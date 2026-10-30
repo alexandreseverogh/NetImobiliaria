@@ -1,7 +1,8 @@
 /** @type {import('next').NextConfig} */
-// last-restart: 2026-10-16b — webpack ainda servia o chunk antigo de admin/page.tsx
-// (duplicate OrbitGlyph) mesmo após restart anterior e com o arquivo em disco já
-// limpo (confirmado via Read) — forçando 2º restart completo + limpeza do .next.
+// last-restart: 2026-10-29 — npx prisma generate (schema.marketing) rodado em pleno
+// processo dev já em execução; getLlmClient()/ConciergeService.qualifyLead travando com
+// "timeout exceeded when trying to connect" (singleton Prisma marketing stale) — forçando
+// restart completo pra limpar o singleton antigo, mesmo padrão já documentado neste arquivo.
 // Configurações baseadas no ambiente (sem TypeScript)
 const isDevelopment = process.env.NODE_ENV === 'development'
 const isProduction = process.env.NODE_ENV === 'production'

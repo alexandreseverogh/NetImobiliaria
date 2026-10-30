@@ -169,6 +169,12 @@ DB_PASSWORD=${PROD_DB_PASSWORD:-}
 JWT_SECRET=${PROD_JWT_SECRET:-build_placeholder}
 NEXT_PUBLIC_APP_URL=${PROD_APP_URL:-}
 NEXT_PUBLIC_APP_URL_ARTEMIS=https://${PROD_DOMAIN_ARTEMIS:-}
+# SEO/GEO da landing Artemis9 — docs/PLANO_SEO_GEO_ARTEMIS4.md §9.3. Deliberadamente só em
+# produção (nunca em staging) — não queremos tráfego de ambiente de teste poluindo o GA4
+# real, nem o Search Console indexando um domínio que não é o de verdade.
+NEXT_PUBLIC_GTM_ID=${PROD_GTM_ID:-}
+NEXT_PUBLIC_GA4_ID=${PROD_GA4_ID:-}
+NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION=${PROD_GOOGLE_SITE_VERIFICATION:-}
 NEXT_TELEMETRY_DISABLED=1
 NODE_ENV=production
 DB_POOL_MAX=100

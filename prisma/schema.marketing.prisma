@@ -119,6 +119,11 @@ model Campaign {
   // wizard). "Somente leitura": sincroniza insights normalmente, mas é excluída das ações
   // automáticas do Agente Decisor (PAUSE/SCALE/etc.) — ver aiInsights.ts/agentDecisor.ts.
   importedReadOnly    Boolean   @default(false) @map("imported_read_only")
+  // Código de rastreio manual pra campanha sem Ad/AdSet reais (importada ou não) — o admin cola
+  // "[ref:<valor>]" direto na mensagem pré-preenchida do CTA do anúncio, dentro da Meta. 3º
+  // caminho de resolveCtaRef (src/lib/cta/service.ts) — ver docs/PLANO_REF_MANUAL_CAMPANHA_
+  // IMPORTADA.md. NULL até o admin gerar pela 1ª vez.
+  manualRef           String?   @unique @map("manual_ref") @db.VarChar(40)
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 

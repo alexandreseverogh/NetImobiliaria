@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { XMarkIcon, ArrowRightIcon } from '@heroicons/react/24/outline'
+import { trackEvent } from '@/lib/analytics/trackEvent'
 
 interface Props {
   open: boolean
@@ -108,6 +109,11 @@ export default function SpecialistContactModal({ open, onClose }: Props) {
         setSubmitting(false)
         return
       }
+
+      // F0 do plano SEO/GEO (docs/PLANO_SEO_GEO_ARTEMIS4.md §6) — macro-conversão real,
+      // só depois do sucesso confirmado da API (nunca otimista/antes da resposta).
+      // `generate_lead` é o nome padrão de evento do GA4 — já vem com relatório pronto.
+      trackEvent('generate_lead', { person_type: personType, segment: segment.trim() })
 
       setSuccess(true)
       setSubmitting(false)

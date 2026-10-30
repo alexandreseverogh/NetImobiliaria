@@ -1,0 +1,36 @@
+# Artemis9
+
+> Plataforma brasileira que une Marketing Digital, CRM com inteligência artificial e
+> Mensageria (automação de atendimento no WhatsApp) num ciclo fechado: o interessado chega
+> identificado com a campanha que o trouxe, é respondido em segundos e o negócio fechado
+> volta para o anúncio de origem.
+
+## O que resolve
+
+- Saber qual anúncio de verdade virou venda, não uma estimativa que a rede social calcula
+  sobre si mesma.
+- Responder quem demonstra interesse em segundos, a qualquer hora, antes de esfriar.
+- Decisões automáticas que reduzem gasto/risco acontecem sozinhas; decisões que aumentam
+  investimento sempre exigem aprovação humana explícita.
+
+## Os 3 pilares
+
+- **Marketing Digital** — gestão de campanhas em Instagram, Google e TikTok num painel só.
+- **CRM de Vendas** — atribuição real de negócio fechado ao anúncio que o originou.
+- **Gestão de Mensagens (Mensageria)** — atendimento automático via WhatsApp, consultando
+  dado real do negócio (estoque, preço, condição), nunca inventando resposta.
+
+## Para quem
+
+Plataforma agnóstica de segmento por construção — opera hoje com imobiliário, veículos,
+saúde e serviços, e aceita segmento novo via configuração, sem desenvolvimento.
+
+## Contato
+
+- Site: https://www.artemis9.com.br/
+- E-mail: contato@artemis9.com.br
+
+## Documentação completa
+
+Ver /llms-full.txt para as perguntas frequentes reais da página, as garantias explícitas da
+automação e o funcionamento detalhado de cada pilar.

@@ -67,17 +67,24 @@ export interface ResolvedCtaRef {
 
 /**
  * Resolve um ref extraído de "[ref:xxx]" (embutido na mensagem de WhatsApp) pra sua origem real.
- * Unifica os dois sistemas de atribuição que existiam paralelos e desconectados — ver
- * docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §9.3:
+ * Unifica os TRÊS sistemas de atribuição que existem em paralelo — ver
+ * docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §9.3 e docs/PLANO_REF_MANUAL_CAMPANHA_IMPORTADA.md:
  *
  *   1. Ad.trackingId — campanha REAL lançada por esta plataforma (Sistema A, o wizard de
  *      campanhas). Já é o mesmo identificador usado por /api/r/[trackingId] pro redirect —
  *      reaproveitado aqui como o ref, sem precisar criar um CtaDestination por anúncio.
  *   2. CtaDestination.slug — mecanismo de CTA criado manualmente em /admin/campanhas/mecanismos,
  *      pra campanhas geridas fora da plataforma (Sistema B, o que já funcionava ponta a ponta).
+ *   3. Campaign.manualRef — campanha sem Ad/AdSet reais (importada direto da rede, ou qualquer
+ *      Campaign local) cujo admin gerou um código em /admin/campanhas/importar e colou manual-
+ *      mente na mensagem pré-preenchida do CTA do anúncio, direto na Meta (Sistema C). Diferente
+ *      de (2): não existe nenhuma página/redirect nosso no meio — o código só precisa resolver
+ *      direto pra uma Campaign, sem a semântica de "destino".
  *
- * Tenta (1) primeiro porque carrega atribuição mais rica (campaignId + adId reais); cai pra (2)
- * se não achar. Retorna null se o ref não corresponder a nada (mensagem sem CTA reconhecível).
+ * Tenta (1) primeiro porque carrega atribuição mais rica (campaignId + adId reais); (2) e (3)
+ * nunca colidem no mesmo espaço de código entre si (slug vs. prefixo "camp-"), então a ordem
+ * entre elas é só por consistência histórica. Retorna null se o ref não corresponder a nada
+ * (mensagem sem CTA reconhecível).
  */
 export async function resolveCtaRef(ref: string, tenantId: string): Promise<ResolvedCtaRef | null> {
   const adRows = await pool.query(
@@ -115,6 +122,24 @@ export async function resolveCtaRef(ref: string, tenantId: string): Promise<Reso
       destinationId: dest.id,
       ctaType: dest.cta_type,
       campaignName: dest.name,
+    }
+  }
+
+  const manualRefRows = await pool.query(
+    `SELECT id, name, client_id FROM ${SCHEMA}."Campaign"
+      WHERE manual_ref = $1 AND tenant_id = $2::uuid
+      LIMIT 1`,
+    [ref, tenantId],
+  )
+  if (manualRefRows.rows[0]) {
+    const r = manualRefRows.rows[0]
+    return {
+      clientId: r.client_id ?? null,
+      campaignId: r.id,
+      adId: null, // Sistema C nunca rastreia anúncio individual, só a campanha — ver plano §4.
+      destinationId: null,
+      ctaType: 'WHATSAPP_MESSAGE',
+      campaignName: r.name,
     }
   }
 

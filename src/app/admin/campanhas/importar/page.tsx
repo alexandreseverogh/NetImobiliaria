@@ -1,10 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeftIcon, ArrowPathIcon, CheckCircleIcon, LockClosedIcon } from '@heroicons/react/24/outline';
+import {
+  ArrowLeftIcon, ArrowPathIcon, CheckCircleIcon, LockClosedIcon,
+  LinkIcon, ClipboardDocumentIcon, ClipboardDocumentCheckIcon,
+  ChevronDownIcon,
+} from '@heroicons/react/24/outline';
 import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector';
-import { getImportableCampaigns, importCampaign, type ExternalCampaign } from '@/lib/marketing-api';
+import {
+  getImportableCampaigns, importCampaign, getManualRef, generateManualRef,
+  type ExternalCampaign,
+} from '@/lib/marketing-api';
+import { ManualRefInstructions } from '@/components/marketing/ManualRefInstructions';
 
 const OBJECTIVE_LABEL: Record<string, string> = {
   OUTCOME_LEADS: 'Geração de Leads',
@@ -32,7 +40,9 @@ export default function ImportarCampanhasPage() {
   const [campaigns, setCampaigns]   = useState<ExternalCampaign[]>([]);
   const [error, setError]           = useState('');
   const [importingId, setImportingId] = useState<string | null>(null);
-  const [importedNow, setImportedNow] = useState<Set<string>>(new Set());
+  // externalId → id local da Campaign — alimentado tanto por quem já veio marcado
+  // alreadyImported (localCampaignId da listagem) quanto pelo import feito nesta própria sessão.
+  const [importedNow, setImportedNow] = useState<Map<string, string>>(new Map());
 
   async function handleSearch() {
     setLoading(true);
@@ -52,7 +62,7 @@ export default function ImportarCampanhasPage() {
   async function handleImport(c: ExternalCampaign) {
     setImportingId(c.externalId);
     try {
-      await importCampaign({
+      const { campaign } = await importCampaign({
         network,
         externalId: c.externalId,
         name: c.name,
@@ -61,7 +71,7 @@ export default function ImportarCampanhasPage() {
         clientId: clientFilter,
         importedReadOnly: true,
       });
-      setImportedNow(prev => new Set(prev).add(c.externalId));
+      setImportedNow(prev => new Map(prev).set(c.externalId, campaign.id));
     } catch (e: any) {
       setError(e?.response?.data?.error || 'Erro ao importar campanha.');
     } finally {
@@ -133,39 +143,44 @@ export default function ImportarCampanhasPage() {
         {campaigns.length > 0 && (
           <div className="space-y-3">
             {campaigns.map(c => {
-              const done = c.alreadyImported || importedNow.has(c.externalId);
+              const localCampaignId = c.localCampaignId || importedNow.get(c.externalId) || null;
+              const done = c.alreadyImported || !!localCampaignId;
               const busy = importingId === c.externalId;
               return (
                 <div
                   key={c.externalId}
-                  className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center justify-between gap-4"
+                  className="bg-white rounded-xl border border-gray-100 shadow-sm p-4"
                 >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-black text-gray-900 truncate">{c.name}</h3>
-                      <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${STATUS_COLOR[c.status] || 'bg-gray-50 text-gray-500 border-gray-200'}`}>
-                        {c.status}
-                      </span>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-black text-gray-900 truncate">{c.name}</h3>
+                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${STATUS_COLOR[c.status] || 'bg-gray-50 text-gray-500 border-gray-200'}`}>
+                          {c.status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {c.objective ? (OBJECTIVE_LABEL[c.objective] || c.objective) : 'Objetivo não informado'}
+                        {c.createdTime && ` · criada em ${new Date(c.createdTime).toLocaleDateString('pt-BR')}`}
+                        {' · '}ID {c.externalId}
+                      </p>
                     </div>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {c.objective ? (OBJECTIVE_LABEL[c.objective] || c.objective) : 'Objetivo não informado'}
-                      {c.createdTime && ` · criada em ${new Date(c.createdTime).toLocaleDateString('pt-BR')}`}
-                      {' · '}ID {c.externalId}
-                    </p>
+                    {done ? (
+                      <span className="flex items-center gap-1.5 text-xs font-black text-emerald-600 shrink-0">
+                        <CheckCircleIcon className="h-4 w-4" /> Importada
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleImport(c)}
+                        disabled={busy}
+                        className="shrink-0 px-4 py-2 bg-navy-dark text-white text-xs font-black uppercase tracking-wide rounded-lg hover:bg-gold-premium hover:text-navy-dark transition-colors disabled:opacity-50"
+                      >
+                        {busy ? 'Importando...' : 'Importar (somente leitura)'}
+                      </button>
+                    )}
                   </div>
-                  {done ? (
-                    <span className="flex items-center gap-1.5 text-xs font-black text-emerald-600 shrink-0">
-                      <CheckCircleIcon className="h-4 w-4" /> Importada
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => handleImport(c)}
-                      disabled={busy}
-                      className="shrink-0 px-4 py-2 bg-navy-dark text-white text-xs font-black uppercase tracking-wide rounded-lg hover:bg-gold-premium hover:text-navy-dark transition-colors disabled:opacity-50"
-                    >
-                      {busy ? 'Importando...' : 'Importar (somente leitura)'}
-                    </button>
-                  )}
+
+                  {localCampaignId && <ManualRefControl campaignId={localCampaignId} />}
                 </div>
               );
             })}
@@ -175,3 +190,105 @@ export default function ImportarCampanhasPage() {
     </div>
   );
 }
+
+// ─── Código de rastreio manual (Sistema C) — docs/PLANO_REF_MANUAL_CAMPANHA_IMPORTADA.md ──────
+
+function ManualRefControl({ campaignId }: { campaignId: string }) {
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [manualRef, setManualRef] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    getManualRef(campaignId)
+      .then(d => { if (!cancelled) setManualRef(d.manualRef); })
+      .catch(() => { if (!cancelled) setError('Não foi possível carregar o código.'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [campaignId]);
+
+  async function handleGenerate(regenerate: boolean) {
+    if (regenerate && !window.confirm(
+      'Gerar um código novo torna o código atual inválido — mensagens que chegarem usando o código antigo deixam de ser atribuídas a esta campanha. Continuar?'
+    )) return;
+    setBusy(true); setError('');
+    try {
+      const d = await generateManualRef(campaignId, regenerate);
+      setManualRef(d.manualRef);
+      setShowHelp(true);
+    } catch (e: any) {
+      setError(e?.response?.data?.error || 'Erro ao gerar código.');
+    } finally { setBusy(false); }
+  }
+
+  async function handleCopy() {
+    if (!manualRef) return;
+    try {
+      await navigator.clipboard.writeText(`[ref:${manualRef}]`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* clipboard indisponível — sem fallback, usuário seleciona o texto manualmente */ }
+  }
+
+  if (loading) return null;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-gray-50">
+      {!manualRef ? (
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => handleGenerate(false)}
+            disabled={busy}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold text-gray-600 bg-gray-50 border border-gray-200 hover:border-gray-300 hover:text-gray-900 transition-colors disabled:opacity-50"
+          >
+            <LinkIcon className="h-3.5 w-3.5" />
+            {busy ? 'Gerando...' : 'Gerar código de rastreio'}
+          </button>
+          <span className="text-[11px] text-gray-400">
+            Pra esta campanha gerar leads/conversas no CRM e Mensageria
+          </span>
+        </div>
+      ) : (
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <code className="text-xs font-mono font-bold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
+              [ref:{manualRef}]
+            </code>
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-colors"
+            >
+              {copied ? <ClipboardDocumentCheckIcon className="h-3.5 w-3.5 text-emerald-600" /> : <ClipboardDocumentIcon className="h-3.5 w-3.5" />}
+              {copied ? 'Copiado!' : 'Copiar'}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleGenerate(true)}
+              disabled={busy}
+              className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+            >
+              {busy ? 'Regenerando...' : 'Regenerar'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowHelp(v => !v)}
+              className="flex items-center gap-1 ml-auto text-[11px] font-bold text-blue-700 hover:underline"
+            >
+              Como colar isso no anúncio
+              <ChevronDownIcon className={`h-3.5 w-3.5 transition-transform ${showHelp ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
+
+          {showHelp && <ManualRefInstructions showMecanismosLink />}
+        </div>
+      )}
+      {error && <p className="text-[11px] text-red-500 mt-2">{error}</p>}
+    </div>
+  );
+}
+

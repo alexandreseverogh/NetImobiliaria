@@ -763,6 +763,8 @@ export interface ExternalCampaign {
   objective: string | null;
   createdTime: string | null;
   alreadyImported: boolean;
+  /** Id local da Campaign já importada — null se ainda não importada. */
+  localCampaignId: string | null;
 }
 
 export const getImportableCampaigns = (params?: { network?: string }) =>
@@ -777,5 +779,23 @@ export const importCampaign = (data: {
   clientId?: string | null;
   importedReadOnly?: boolean;
 }) => api.post<{ campaign: Campaign }>('/campaigns/import', data).then(r => r.data);
+
+/* ──────────────────────────────────────────────────────────────
+   Código de rastreio manual — docs/PLANO_REF_MANUAL_CAMPANHA_IMPORTADA.md
+────────────────────────────────────────────────────────────── */
+
+export interface ManualRefData {
+  manualRef: string | null;
+  taggedMessage: string | null;
+}
+
+export const getManualRef = (campaignId: string) =>
+  api.get<ManualRefData>(`/campaigns/${campaignId}/manual-ref`).then(r => r.data);
+
+export const generateManualRef = (campaignId: string, regenerate?: boolean) =>
+  api.post<ManualRefData & { regenerated?: boolean }>(
+    `/campaigns/${campaignId}/manual-ref`,
+    { regenerate: !!regenerate },
+  ).then(r => r.data);
 
 export default api;

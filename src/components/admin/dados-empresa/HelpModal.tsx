@@ -20,6 +20,7 @@ import {
   XMarkIcon,
   ArrowTopRightOnSquareIcon,
 } from '@heroicons/react/24/outline';
+import { ManualRefInstructions } from '@/components/marketing/ManualRefInstructions';
 
 // ─── Conteúdo ────────────────────────────────────────────────────────────────
 
@@ -359,6 +360,24 @@ function HelpModal({ onClose }: { onClose: () => void }) {
               </div>
             </section>
           ))}
+
+          {/* Atribuição de lead pra campanha importada/lançada fora do wizard — conteúdo
+              compartilhado com /admin/campanhas/importar, onde o código em si é gerado
+              (docs/PLANO_REF_MANUAL_CAMPANHA_IMPORTADA.md). Fora do padrão FieldEntry acima de
+              propósito — isto não é "onde encontro um valor", é um processo com um aviso
+              importante, merece layout próprio. */}
+          <section>
+            <h3 className="text-[13px] font-black uppercase tracking-wide" style={{ color: ink.primary }}>
+              Campanha lançada direto na Meta (importada) — como gerar lead automaticamente
+            </h3>
+            <p className="text-xs leading-relaxed mt-1.5" style={{ color: ink.muted }}>
+              Diferente dos campos acima, isto não é um valor pra copiar da Meta — é um código
+              que <strong>nossa plataforma gera</strong> (em "Importar Campanhas") e você mesmo
+              cola no anúncio, direto na Meta, pra essa campanha passar a gerar lead no CRM e
+              conversa na Mensageria.
+            </p>
+            <ManualRefInstructions showMecanismosLink />
+          </section>
         </div>
 
         {/* Footer */}
