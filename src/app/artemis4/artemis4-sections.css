@@ -68,6 +68,12 @@
   color: var(--ink-dim);
   text-decoration: none;
   transition: color 0.18s var(--ease-q);
+  /* "Contato" renderiza como <button>, não <a> — reset de aparência nativa
+     pra ficar indistinguível dos demais itens de texto do menu */
+  background: none;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
 }
 .a4-nav__link:hover { color: var(--ink); }
 .a4-nav__link::after {
@@ -114,15 +120,25 @@
   border-bottom: 1px solid var(--line);
 }
 .a4-nav__drawer nav { display: flex; flex-direction: column; padding-block: 0.75rem; }
-.a4-nav__drawer nav > a {
+.a4-nav__drawer nav > a,
+.a4-nav__drawer nav > button {
   padding: 0.875rem 0.25rem;
   font-size: 1rem;
   font-weight: 500;
   color: var(--ink-dim);
   text-decoration: none;
   border-bottom: 1px solid var(--line);
+  /* reset — "Contato" é <button>, os demais continuam <a> */
+  background: none;
+  border-inline: none;
+  border-top: none;
+  text-align: left;
+  width: 100%;
+  font-family: inherit;
+  cursor: pointer;
 }
-.a4-nav__drawer nav > a:last-child { border-bottom: 0; }
+.a4-nav__drawer nav > a:last-child,
+.a4-nav__drawer nav > button:last-child { border-bottom: 0; }
 
 /* CTAs deslocados da barra para cá (ver nota em .a4-nav__right) */
 .a4-nav__drawer-cta {
@@ -990,6 +1006,49 @@
   border-radius: 12px;
   background: var(--gold-wash);
 }
+
+/* ---- modal de "Contato" — lista de canais diretos ---- */
+.a4-contact-list {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.75rem;
+  padding: 0;
+  list-style: none;
+}
+.a4-contact-row {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--raised);
+}
+.a4-contact-row__icon {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 10px;
+  background: var(--gold-wash);
+  color: var(--gold);
+  flex: none;
+}
+.a4-contact-row__icon svg { width: 1.125rem; height: 1.125rem; }
+.a4-contact-row__text { display: grid; gap: 0.125rem; min-width: 0; }
+.a4-contact-row__label {
+  font-size: 0.6875rem;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+.a4-contact-row__value {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+}
+a.a4-contact-row__value:hover { color: var(--gold-hot); }
 
 /* ============================================================================
    FORMULÁRIO — modal de contato com especialista

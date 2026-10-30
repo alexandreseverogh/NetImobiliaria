@@ -8,6 +8,7 @@ import './artemis4-sections.css'
 import { MODULE_CONTENT } from './moduleContent'
 import ModuleDetailModal from './ModuleDetailModal'
 import SpecialistContactModal from './SpecialistContactModal'
+import ContactModal from './ContactModal'
 import { trackEvent } from '@/lib/analytics/trackEvent'
 import { Nav, Footer, LeavingOverlay, useReveal } from './components/Chrome'
 import { Hero, AuthorityBand } from './components/Hero'
@@ -49,6 +50,7 @@ export default function Artemis4LandingPage() {
   const [detailSlug, setDetailSlug] = useState<string | null>(null)
   const [availableSlugs, setAvailableSlugs] = useState<string[] | null>(null)
   const [specialistOpen, setSpecialistOpen] = useState(false)
+  const [contactOpen, setContactOpen] = useState(false)
 
   /**
    * Pré-aquece /admin/login no mount.
@@ -115,6 +117,10 @@ export default function Artemis4LandingPage() {
     trackEvent('abrir_contato_especialista')
     setSpecialistOpen(true)
   }
+  const handleOpenContact = () => {
+    trackEvent('abrir_modal_contato')
+    setContactOpen(true)
+  }
   const handleOpenModule = (slug: string | null) => {
     if (slug) trackEvent('abrir_detalhe_modulo', { modulo: slug })
     setDetailSlug(slug)
@@ -140,7 +146,16 @@ export default function Artemis4LandingPage() {
 
       <SpecialistContactModal open={specialistOpen} onClose={() => setSpecialistOpen(false)} />
 
-      <Nav onEnter={handleEnter} onOpenSpecialist={handleOpenSpecialist} />
+      <ContactModal
+        open={contactOpen}
+        onClose={() => setContactOpen(false)}
+        onOpenSpecialist={() => {
+          setContactOpen(false)
+          handleOpenSpecialist()
+        }}
+      />
+
+      <Nav onEnter={handleEnter} onOpenSpecialist={handleOpenSpecialist} onOpenContact={handleOpenContact} />
 
       <main style={{ paddingTop: 0 }}>
         <Hero onEnter={handleEnter} onOpenSpecialist={handleOpenSpecialist} />

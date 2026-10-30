@@ -134,9 +134,11 @@ export function Cite({ sourceId }: { sourceId: keyof typeof SOURCES }) {
 export function Nav({
   onEnter,
   onOpenSpecialist,
+  onOpenContact,
 }: {
   onEnter: () => void
   onOpenSpecialist: () => void
+  onOpenContact: () => void
 }) {
   const [open, setOpen] = useState(false)
 
@@ -182,11 +184,19 @@ export function Nav({
         </Link>
 
         <nav className="a4-nav__links" aria-label="Seções">
-          {NAV_LINKS.map((l) => (
-            <a key={l.href} href={l.href} className="a4-nav__link">
-              {l.label}
-            </a>
-          ))}
+          {NAV_LINKS.map((l) =>
+            /* "Contato" nunca é uma página real — abre o modal em vez de navegar
+               pra uma rota que não existe (/contato sempre deu 404). */
+            l.href === '/contato' ? (
+              <button key={l.href} type="button" onClick={onOpenContact} className="a4-nav__link">
+                {l.label}
+              </button>
+            ) : (
+              <a key={l.href} href={l.href} className="a4-nav__link">
+                {l.label}
+              </a>
+            ),
+          )}
         </nav>
 
         <div className="a4-nav__right">
@@ -222,11 +232,24 @@ export function Nav({
         <div className="a4-nav__drawer">
           <div className="a4-wrap">
             <nav aria-label="Seções">
-              {NAV_LINKS.map((l) => (
-                <a key={l.href} href={l.href} onClick={() => setOpen(false)}>
-                  {l.label}
-                </a>
-              ))}
+              {NAV_LINKS.map((l) =>
+                l.href === '/contato' ? (
+                  <button
+                    key={l.href}
+                    type="button"
+                    onClick={() => {
+                      setOpen(false)
+                      onOpenContact()
+                    }}
+                  >
+                    {l.label}
+                  </button>
+                ) : (
+                  <a key={l.href} href={l.href} onClick={() => setOpen(false)}>
+                    {l.label}
+                  </a>
+                ),
+              )}
             </nav>
             <div className="a4-nav__drawer-cta">
               <button
