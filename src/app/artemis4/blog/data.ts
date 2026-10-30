@@ -41,7 +41,7 @@ export const BLOG_POSTS: BlogPost[] = [
     excerpt:
       'Duas pesquisas reais (Harvard Business Review e MIT Sloan) medem o efeito direto da velocidade de resposta sobre a chance real de fechar negócio. O número é maior do que a maioria dos donos de negócio imagina.',
     publishedAt: '2026-10-30',
-    readingMinutes: 5,
+    readingMinutes: 6,
     body: [
       {
         type: 'p',
@@ -109,6 +109,35 @@ export const BLOG_POSTS: BlogPost[] = [
       {
         type: 'p',
         text: 'Foi justamente pensando nesses 3 pontos que a Artemis9 foi construída: o interessado chega identificado com a campanha que o trouxe, é respondido em segundos — a qualquer hora —, e o negócio fechado volta pro anúncio de origem, pra você saber de verdade o que está dando retorno.',
+      },
+      {
+        type: 'h2',
+        text: 'Por que o nome Artemis9',
+      },
+      {
+        type: 'p',
+        text: 'Artemis é o programa da NASA que está levando o ser humano de volta à Lua. A parte mais arriscada de uma missão dessas não é a decolagem — é a volta: na reentrada, a cápsula atravessa a atmosfera envolvida numa bola de plasma, e perde todo o contato por rádio com a Terra.',
+      },
+      {
+        type: 'quote',
+        text: 'A reentrada da cápsula Orion acontece a cerca de 2.760 °C, metade da temperatura da superfície do Sol — e o plasma corta todas as comunicações com a equipe em Terra.',
+        sourceId: 'esaOrion',
+      },
+      {
+        type: 'p',
+        text: 'Durante esses minutos sem contato, a tripulação fica sozinha com o que já está a bordo. Não dá pra chamar um especialista na Terra pra confirmar um procedimento, pedir ajuda ou corrigir um erro em tempo real — os recursos disponíveis ali dentro são os únicos que existem até o sinal voltar. Se algo sai errado nesse intervalo, é dentro da cápsula que precisa ser resolvido, sem ajuda de fora.',
+      },
+      {
+        type: 'p',
+        text: 'O processo de venda tem o próprio momento de reentrada: é o intervalo entre o interessado mandar a primeira mensagem e alguém — ou alguma automação — responder de verdade. Se o contato se perde aí, mensagem sem resposta, bot que trava numa pergunta fora do script, atendente que esquece de retornar, o que acontece depois se parece com o que aconteceria numa cápsula sem telemetria: sem coordenação com quem entende do negócio, com recursos limitados no momento exato em que mais precisava deles, qualquer coisa pode acontecer. Na prática, o que normalmente acontece é o interessado fechar com outro.',
+      },
+      {
+        type: 'p',
+        text: 'A Artemis9 foi batizada assim por isso: o nome é uma promessa de que o sinal não vai cair exatamente na hora em que ele mais importa — o momento em que alguém decide falar com você.',
+      },
+      {
+        type: 'p',
+        text: 'A Artemis9 é uma empresa brasileira, sediada em Recife (PE), sem qualquer vínculo, patrocínio ou endosso da NASA — o nome e a analogia da reentrada servem só para explicar a origem da marca.',
       },
     ],
   },
