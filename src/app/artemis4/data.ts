@@ -679,5 +679,6 @@ export const NAV_LINKS = [
   { href: '#modulos', label: 'Módulos' },
   { href: '#plataforma', label: 'A plataforma' },
   { href: '#origem', label: 'Por que Artemis' },
+  { href: '/artemis4/blog', label: 'Blog' },
   { href: '/contato', label: 'Contato' },
 ]
