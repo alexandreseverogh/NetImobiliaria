@@ -1,0 +1,119 @@
+# Artemis9 — Base de conhecimento completa
+
+> Todo o conteúdo abaixo é extraído literalmente do conteúdo real já publicado em
+> https://www.artemis9.com.br/ (componentes Hero, Product, Story e data.ts da aplicação) —
+> nenhuma frase aqui foi inventada só para este arquivo.
+
+## O que é
+
+Plataforma brasileira que une Marketing Digital, CRM com inteligência artificial e
+Mensageria (automação de atendimento no WhatsApp) num ciclo fechado: o interessado chega
+identificado com a campanha que o trouxe, é respondido em segundos a qualquer hora, e o
+negócio fechado volta para o anúncio de origem — não uma estimativa que a rede social
+calcula sobre si mesma.
+
+## Os 3 pilares (módulos, contratáveis separadamente)
+
+1. **Marketing Digital** — gestão de campanhas em Instagram, Google e TikTok num painel só.
+2. **CRM de Vendas** — atribuição real de negócio fechado ao anúncio que o originou;
+   distribuição de quem atende cada interessado (por região, dono da carteira, fila ou
+   plantão).
+3. **Gestão de Mensagens (Mensageria)** — atendimento automático via WhatsApp, consultando
+   dado real do negócio (estoque, preço, condição) mais uma base de conhecimento própria;
+   quando a pergunta sai desse terreno, não inventa — diz que não sabe e transfere para uma
+   pessoa, com o histórico da conversa.
+
+Cada módulo funciona isolado, mas é a combinação de Marketing Digital com CRM que permite
+dizer qual anúncio virou venda com valor real, e é a Mensageria que garante resposta antes
+de o interessado esfriar.
+
+## Para quem serve
+
+Agnóstica de segmento por construção — quais dados o atendimento consulta e o que conta
+como venda são parametrizados, não escritos em código. Opera hoje com imobiliário, veículos,
+saúde e serviços, e aceita um segmento novo sem desenvolvimento.
+
+## Fronteira de autonomia da inteligência artificial
+
+Decisões que reduzem gasto ou risco (pausar anúncio ruim, cortar orçamento, bloquear termo
+de busca inútil) a plataforma toma sozinha. Qualquer decisão que aumente investimento chega
+para aprovação humana no WhatsApp, com valor, motivo e um código de seis dígitos — sem o
+código, não acontece.
+
+## Funcionalidades reais
+
+- **Radar de demanda** — cruza o que as pessoas estão buscando no Google com os temas
+  anunciados, mostra onde há procura sem concorrência.
+- **Aviso de desgaste antecipado** — estima em quantos dias um anúncio vai saturar, pelos
+  sinais de entrega, não pelo resultado já perdido.
+- **Público parecido, automático** — monta e mantém atualizado um público semelhante nas
+  redes, a partir dos clientes reais que fecharam negócio.
+- **Distribuição de atendimento** — define quem recebe cada interessado: por região, dono
+  da carteira, fila ou plantão.
+- **Saúde do rastreamento** — nota de 0 a 100 que avisa quando o rastreamento quebrou, antes
+  de perder um mês de dados sem notar.
+- **Auditoria mensal e semanal** — relatório com nota por dimensão, problemas, oportunidades
+  e plano de ação para a semana.
+- **Reativação de quem esfriou** — mensagem escrita para quem parou de responder, com
+  decisão de sair sozinha ou só com autorização.
+- **Sugestão da próxima ação** — em cada atendimento, sugere o próximo passo concreto com
+  base no histórico real daquela conversa.
+
+## Garantias explícitas
+
+- A automação nunca aumenta o gasto sozinha — sozinha ela só reduz risco (pausa, corta,
+  bloqueia); para gastar mais, pede autorização no WhatsApp com um código.
+- Toda decisão fica registrada — horário, motivo, o que foi feito e qual foi o efeito,
+  auditável semanas depois.
+- Os dados não se misturam — cada empresa opera isolada; clientes geridos também ficam
+  isolados entre si.
+- O atendimento automático não inventa — responde a partir do que está cadastrado; fora
+  disso, admite que não sabe e chama uma pessoa do time.
+
+## Perguntas frequentes (conteúdo real da página)
+
+### Preciso entender de marketing digital para usar?
+Não. A plataforma foi construída para o dono do negócio, não para o especialista. Você
+escolhe o objetivo, as fotos e quanto quer investir por dia; o resto é preenchido
+automaticamente com base no seu segmento. Os avisos importantes chegam no seu WhatsApp em
+português claro, com o motivo e o que fazer.
+
+### A inteligência artificial pode gastar meu dinheiro sem eu saber?
+Não. Essa fronteira é o alicerce do sistema, não uma configuração. Decisões que reduzem
+gasto ou risco a plataforma toma sozinha. Qualquer decisão que aumente o investimento chega
+para você aprovar, com valor, motivo e um código de seis dígitos. Sem o código, não
+acontece.
+
+### Serve para o meu segmento?
+A plataforma é agnóstica de segmento por construção: o que muda de um negócio para outro é
+configuração, não programação. Hoje ela opera com imobiliário, veículos, saúde e serviços —
+e aceita um segmento novo sem precisar de desenvolvimento.
+
+### Já tenho uma agência cuidando dos meus anúncios. Faz sentido?
+Faz, e normalmente é onde a diferença aparece mais rápido. A plataforma não substitui quem
+opera: ela dá a visibilidade que hoje não existe. Muitas agências usam a plataforma
+justamente para provar o próprio resultado ao cliente.
+
+### O atendimento automático vai responder besteira para o meu cliente?
+Ele só responde a partir do que está cadastrado no seu negócio: estoque, preço, condição,
+mais a base de conhecimento que você escreve. Quando a pergunta sai desse terreno, ele não
+improvisa — diz que não tem a informação e transfere para uma pessoa do seu time, com o
+histórico da conversa.
+
+### Preciso contratar os três módulos?
+Não. Cada módulo é contratado separadamente e funciona de pé próprio. É a combinação de
+Marketing Digital com CRM que permite dizer qual anúncio virou venda com valor real, e é a
+Mensageria que garante que o interessado seja respondido antes de esfriar.
+
+### Quanto tempo até ver resultado?
+A visibilidade é imediata: assim que as contas de anúncio são conectadas, o histórico já
+aparece consolidado. As decisões automáticas precisam de alguns dias de dados para serem
+confiáveis — a plataforma não age sobre campanha imatura, justamente para não decidir com
+amostra pequena.
+
+## Contato
+
+- Site: https://www.artemis9.com.br/
+- E-mail: contato@artemis9.com.br
+- Telefone/WhatsApp: +55 81 99793-0422
+- Localização: Recife, Pernambuco, Brasil
