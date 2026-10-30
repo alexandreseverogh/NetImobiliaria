@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { headers } from 'next/headers';
+import { BLOG_POSTS } from './artemis4/blog/data';
 
 /**
  * sitemap.xml — gerado via convenção nativa do Next.js App Router (GET /sitemap.xml).
@@ -41,6 +42,18 @@ export default function sitemap(): MetadataRoute.Sitemap {
         changeFrequency: 'weekly',
         priority: 1,
       },
+      {
+        url: `https://${host}/artemis4/blog`,
+        lastModified: now,
+        changeFrequency: 'weekly',
+        priority: 0.8,
+      },
+      ...BLOG_POSTS.map((post) => ({
+        url: `https://${host}/artemis4/blog/${post.slug}`,
+        lastModified: new Date(post.publishedAt),
+        changeFrequency: 'monthly' as const,
+        priority: 0.7,
+      })),
     ];
   }
 

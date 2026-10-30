@@ -1,0 +1,126 @@
+/* ============================================================================
+   ARTEMIS4 BLOG — reaproveita 100% os tokens de ../artemis4.css (herdados via
+   o mesmo wrapper .a4 do layout.tsx) — só acrescenta o que falta pra leitura
+   de texto corrido, que a landing (copy curta, cinematográfica) nunca precisou.
+   ========================================================================== */
+
+.a4-blog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-block: 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.a4-blog-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.0625rem;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.a4-blog-card {
+  display: block;
+  padding: 1.75rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.a4-blog-card:hover {
+  border-color: var(--line-lit);
+  background: var(--raised);
+}
+
+.a4-blog-card__meta {
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.a4-blog-card__title {
+  margin-top: 0.625rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.25rem;
+  line-height: 1.3;
+  color: var(--ink);
+  /* identidade tipográfica do H1/H2 da landing é itálico — aqui, de propósito,
+     não: título de artigo precisa ler como conteúdo, não como copy de marca */
+  font-style: normal;
+}
+
+.a4-blog-card__excerpt {
+  margin-top: 0.625rem;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--ink-dim);
+}
+
+/* ---- corpo do artigo ------------------------------------------------- */
+
+.a4-article {
+  max-width: var(--maxw-text);
+}
+
+.a4-article h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-style: normal; /* idem — texto de conteúdo, não copy de marca */
+  font-size: 1.375rem;
+  line-height: 1.3;
+  color: var(--ink);
+  margin-top: 2.25rem;
+  margin-bottom: 0.875rem;
+}
+
+.a4-article p {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--ink-dim);
+  margin-bottom: 1.125rem;
+}
+
+.a4-article ul {
+  margin: 1.125rem 0 1.5rem;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.625rem;
+}
+.a4-article li {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--ink-dim);
+}
+
+.a4-article blockquote {
+  margin: 1.5rem 0;
+  padding: 1.25rem 1.5rem;
+  border-left: 3px solid var(--gold);
+  background: var(--gold-wash);
+  border-radius: 0 12px 12px 0;
+}
+.a4-article blockquote p {
+  margin: 0;
+  color: var(--ink);
+  font-style: italic;
+  font-size: 1.0625rem;
+}
+.a4-article blockquote cite {
+  display: block;
+  margin-top: 0.625rem;
+  font-style: normal;
+  font-size: 0.8125rem;
+  color: var(--gold-hot);
+}
+.a4-article blockquote cite a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

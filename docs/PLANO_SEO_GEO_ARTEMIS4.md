@@ -193,13 +193,19 @@ SEO não é instantâneo — resultado real pra termos competitivos tipicamente 
 1. **Criar `/blog` ou `/recursos`** — sim/não, e se sim, quem escreve e mantém os artigos continuamente (é o pilar que mais pesa pro ranking competitivo, mas só funciona com conteúdo novo de verdade, não é tarefa de 1 sessão).
 2. **Ordem de execução** — recomendo F0 (medição) → F1 (on-page/schema) → F2 (GEO técnico) em paralelo, F3/F4 (conteúdo/autoridade) depois. Confirma essa ordem ou prefere outra?
 
-### 9.3 — Só você consegue fazer (contas/acessos reais — por segurança, eu nunca crio conta nem insiro senha em nome de terceiros)
+### 9.3 — Status real (atualizado em 2026-10-30, pós-deploy)
+
+**Fase 0 — CONCLUÍDA, verificada ao vivo em produção:**
+- ✅ **Google Analytics 4** criado (`G-ZR6EMBG2HD`), confirmado carregando em `artemis9.com.br/artemis4`.
+- ✅ **Google Search Console** — propriedade `https://www.artemis9.com.br/` verificada (método Tag HTML).
+- ✅ **Sitemap submetido e processado** — `/sitemap.xml` ciente de domínio (fix `abf44a8`/PR #14), 1 página encontrada (`/artemis4`), status "Processado".
+- ⏭️ **Google Tag Manager** — pulado deliberadamente (GA4 já carrega direto via gtag.js, sem precisar do GTM no meio). Pode ser adicionado depois só com a env var `PROD_GTM_ID`, sem mudança de código.
+
+**Ainda pendente, sem bloquear nada do que já está no ar:**
 
 | O que | Onde | O que eu preciso de volta |
 |---|---|---|
-| Verificar propriedade no **Google Search Console** | `search.google.com/search-console`, propriedade `artemis9.com.br` | Confirmação de que verificou (eu dou o valor exato da tag/registro DNS a inserir, você insere) |
-| Criar container no **Google Tag Manager** | `tagmanager.google.com` | ID real (`GTM-XXXXXXX`) |
-| Criar propriedade no **Google Analytics 4** | `analytics.google.com` | ID real (`G-XXXXXXXXXX`) |
 | Cadastrar **Google Business Profile** | `business.google.com` | Confirmação de que foi feito com o mesmo nome/telefone/endereço já reais no `Organization` JSON-LD |
 | Confirmar o **Meta Pixel ID** atual | Já existe na plataforma (tenant master) | Confirmar se é esse mesmo que deve valer pra esta landing, ou se precisa de um dedicado |
 | Perfis reais de redes sociais (Instagram/LinkedIn/Facebook), se existirem | — | As URLs reais, pra entrar no `sameAs` — sem isso, esse campo fica fora por agora |
+| **Fase 3 — hub de conteúdo (`/blog`)** | — | Usuário escreve/mantém; eu cuido da parte técnica (SEO on-page, schema, publicação) — ainda não iniciado |
