@@ -598,7 +598,7 @@ export const SEGMENT_TAGS: SegmentTag[] = [
   { label: 'Imobiliária', icon: 'Home' },
   { label: 'Alimentação', icon: 'UtensilsCrossed' },
   { label: 'Moda e Vestuário', hint: 'moda feminina e masculina', icon: 'Shirt' },
-  { label: 'Beleza e Estética', hint: 'salões, barbearias, clínicas de estética', icon: 'Sparkles' },
+  { label: 'Beleza', hint: 'estética, salões, barbearias, clínicas', icon: 'Sparkles' },
   { label: 'Saúde', hint: 'serviços de saúde', icon: 'HeartPulse' },
   { label: 'Supermercados', hint: 'mercados e conveniência', icon: 'ShoppingCart' },
   { label: 'Casa e Decoração', hint: 'utilidades domésticas', icon: 'Sofa' },
