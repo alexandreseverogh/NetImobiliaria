@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { CheckIcon, PlusIcon, ShieldCheckIcon } from '@heroicons/react/24/outline'
 
-import { ORIGIN, ORIGIN_VIDEO_ID, SOURCES, VERSUS, SEGMENTS, SEGMENT_NOTE, GUARANTEES, FAQ } from '../data'
+import { ORIGIN, ORIGIN_VIDEO_ID, SOURCES, VERSUS, SEGMENT_TAGS, SEGMENT_DEMO, SEGMENT_NOTE, GUARANTEES, FAQ } from '../data'
 import { SectionHead } from './Chrome'
 
 /* ==========================================================================
@@ -206,15 +206,12 @@ export function Versus() {
    ========================================================================== */
 
 export function Segments() {
-  const [active, setActive] = useState(SEGMENTS[0].key)
-  const seg = SEGMENTS.find((s) => s.key === active) ?? SEGMENTS[0]
-
   return (
     <section id="segmentos" className="a4-section a4-band--panel a4-band--edge" aria-labelledby="a4-seg">
       <div className="a4-wrap a4-wrap--wide">
         <SectionHead
           id="a4-seg"
-          title="O motor é o mesmo. O vocabulário é do seu negócio."
+          title="O seu negócio está aqui."
           sub={
             <>
               A plataforma não foi feita para um setor e adaptada para os outros. Ela é agnóstica
@@ -225,32 +222,36 @@ export function Segments() {
         />
 
         <div className="a4-rise">
-          <div className="a4-seg__chips" role="group" aria-label="Escolha um segmento">
-            {SEGMENTS.map((s) => (
-              <button
-                key={s.key}
-                type="button"
-                className="a4-seg__chip"
-                aria-pressed={s.key === active}
-                onClick={() => setActive(s.key)}
+          <ul className="a4-seg__tags" aria-label="Segmentos de negócio atendidos pela plataforma">
+            {SEGMENT_TAGS.map((t) => (
+              <li
+                key={t.label}
+                className={`a4-seg__tag${t.label === SEGMENT_DEMO.label ? ' a4-seg__tag--active' : ''}`}
               >
-                {s.label}
-              </button>
+                <span className="a4-seg__tag-label">{t.label}</span>
+                {t.hint ? <span className="a4-seg__tag-hint">{t.hint}</span> : null}
+              </li>
             ))}
-          </div>
+          </ul>
 
+          <span
+            className="a4-label a4-label--gold"
+            style={{ display: 'block', marginTop: '2rem', marginBottom: '0.875rem' }}
+          >
+            Como funciona na prática — exemplo real: {SEGMENT_DEMO.label}
+          </span>
           <div className="a4-seg__demo">
             <div className="a4-seg__cell">
               <span className="a4-label">O que você anuncia</span>
-              <strong>{seg.advertises}</strong>
+              <strong>{SEGMENT_DEMO.advertises}</strong>
             </div>
             <div className="a4-seg__cell">
               <span className="a4-label">O que o atendimento consulta</span>
-              <strong>{seg.botReads}</strong>
+              <strong>{SEGMENT_DEMO.botReads}</strong>
             </div>
             <div className="a4-seg__cell">
               <span className="a4-label">O que conta como venda</span>
-              <strong>{seg.counts}</strong>
+              <strong>{SEGMENT_DEMO.counts}</strong>
             </div>
           </div>
 

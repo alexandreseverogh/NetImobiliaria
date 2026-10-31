@@ -568,46 +568,60 @@ export const VERSUS: { topic: string; old: string; now: string }[] = [
 
 /* ==========================================================================
    MULTISSEGMENTO — o motor é o mesmo; o vocabulário é de cada negócio
+
+   2026-10-31: de 4 chips clicáveis (1 demonstração completa cada) pra uma
+   nuvem de 21 segmentos (pedido do usuário, lista real de verticais que a
+   plataforma atende) + 1 ÚNICA demonstração fixa (Imobiliária), não mais
+   selecionável — escrever anuncia/consulta/conta-como-venda pros 21 seria
+   conteúdo ilustrativo inventado em volume grande demais pra não revisar
+   com o usuário; a nuvem de tags já cumpre sozinha o objetivo de mostrar
+   abrangência, e 1 exemplo fixo já mostra como o mecanismo funciona.
    ========================================================================== */
 
+export interface SegmentTag {
+  label: string
+  /** Exemplos/sinônimos do segmento, exibidos em texto menor sob o label */
+  hint?: string
+}
+
+export const SEGMENT_TAGS: SegmentTag[] = [
+  { label: 'Imobiliária' },
+  { label: 'Alimentação' },
+  { label: 'Moda e Vestuário', hint: 'moda feminina e masculina' },
+  { label: 'Beleza e Estética', hint: 'salões, barbearias, clínicas de estética' },
+  { label: 'Saúde', hint: 'serviços de saúde' },
+  { label: 'Supermercados e Conveniência', hint: 'mercados' },
+  { label: 'Casa e Decoração', hint: 'utilidades domésticas' },
+  { label: 'Automotivo', hint: 'oficinas' },
+  { label: 'Educação' },
+  { label: 'Fitness e Esportes' },
+  { label: 'Pet' },
+  { label: 'Turismo e Viagens' },
+  { label: 'Entretenimento e Lazer', hint: 'espaços de diversão' },
+  { label: 'Tecnologia e Eletrônicos', hint: 'computadores' },
+  { label: 'Bebês e Infantil' },
+  { label: 'Serviços Residenciais', hint: 'limpeza e manutenção' },
+  { label: 'Eventos e Festas', hint: 'buffets, decoração e eventos' },
+  { label: 'Joias e Acessórios' },
+  { label: 'Bem-estar e Qualidade de Vida' },
+  { label: 'Produtos Naturais e Saudáveis' },
+  { label: 'Serviços Financeiros Pessoais' },
+]
+
 export interface SegmentDemo {
-  key: string
   label: string
   advertises: string
   botReads: string
   counts: string
 }
 
-export const SEGMENTS: SegmentDemo[] = [
-  {
-    key: 'imob',
-    label: 'Imobiliário',
-    advertises: 'Apartamento de 3 quartos em Boa Viagem, na planta ou pronto para morar.',
-    botReads: 'Imóveis disponíveis, valor, condomínio, quartos, vagas, bairro e fotos reais do cadastro.',
-    counts: 'Proposta aceita, com o valor da unidade vendida.',
-  },
-  {
-    key: 'auto',
-    label: 'Veículos',
-    advertises: 'SUV seminovo automático até R$ 90 mil, com entrada facilitada.',
-    botReads: 'Estoque real: marca, modelo, ano, quilometragem, preço e se aceita o carro do cliente na troca.',
-    counts: 'Venda faturada, com o valor do veículo.',
-  },
-  {
-    key: 'saude',
-    label: 'Saúde',
-    advertises: 'Avaliação com especialista, com horário disponível nesta semana.',
-    botReads: 'Especialidades, profissionais, convênios aceitos e agenda com vaga de verdade.',
-    counts: 'Procedimento realizado, com o valor do pacote.',
-  },
-  {
-    key: 'serv',
-    label: 'Serviços',
-    advertises: 'Orçamento de reforma sem compromisso, com visita técnica na região.',
-    botReads: 'Serviços prestados, área de atendimento, faixa de preço e prazo de execução.',
-    counts: 'Contrato assinado, com o valor do serviço.',
-  },
-]
+/** Única demonstração fixa — ilustra o mecanismo, não é mais clicável/trocável */
+export const SEGMENT_DEMO: SegmentDemo = {
+  label: 'Imobiliária',
+  advertises: 'Apartamento de 3 quartos em Boa Viagem, na planta ou pronto para morar.',
+  botReads: 'Imóveis disponíveis, valor, condomínio, quartos, vagas, bairro e fotos reais do cadastro.',
+  counts: 'Proposta aceita, com o valor da unidade vendida.',
+}
 
 export const SEGMENT_NOTE =
   'Nenhuma linha de código muda entre um segmento e outro. O que muda é a configuração: quais dados o atendimento consulta, quais perguntas qualificam um interessado, e o que conta como venda. Por isso a plataforma serve um negócio que você não encontraria nesta lista.'

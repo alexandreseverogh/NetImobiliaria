@@ -827,21 +827,32 @@
    SEGMENTOS
    ========================================================================== */
 
-.a4-seg__chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.75rem; }
-.a4-seg__chip {
-  padding: 0.5rem 0.9375rem;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--ink-dim);
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: border-color 0.2s var(--ease-q), color 0.2s var(--ease-q), background 0.2s var(--ease-q);
+/* Nuvem de 21 segmentos (2026-10-31) — substitui os 4 chips clicáveis de
+   antes; aqui é só exibição (sem onClick, sem aria-pressed), o único item
+   "ativo" é o que tem demonstração fixa logo abaixo (ver .a4-seg__tag--active). */
+.a4-seg__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  list-style: none;
+  margin: 0 0 1.75rem;
+  padding: 0;
 }
-.a4-seg__chip:hover { color: var(--ink); border-color: var(--line-lit); }
-.a4-seg__chip[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); color: var(--void); }
-.a4-seg__chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.a4-seg__tag {
+  display: grid;
+  gap: 0.1875rem;
+  padding: 0.5625rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--raised);
+}
+.a4-seg__tag-label { font-size: 0.875rem; font-weight: 600; color: var(--ink); }
+.a4-seg__tag-hint { font-size: 0.75rem; color: var(--ink-faint); }
+.a4-seg__tag--active {
+  border-color: var(--gold);
+  background: var(--gold-wash);
+}
+.a4-seg__tag--active .a4-seg__tag-label { color: var(--gold-hot); }
 
 .a4-seg__demo { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
 @media (min-width: 56rem) { .a4-seg__demo { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
