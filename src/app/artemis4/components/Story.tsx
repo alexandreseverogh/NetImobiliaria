@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CheckIcon, PlusIcon, ShieldCheckIcon } from '@heroicons/react/24/outline'
 
 import { ORIGIN, ORIGIN_VIDEO_ID, SOURCES, VERSUS, SEGMENT_TAGS, SEGMENT_DEMO, SEGMENT_NOTE, GUARANTEES, FAQ } from '../data'
-import { SectionHead } from './Chrome'
+import { SectionHead, Cite } from './Chrome'
 
 /* ==========================================================================
    5 · ORIGEM DA MARCA — onde o vídeo de reentrada passa a ter função
@@ -211,7 +211,7 @@ export function Segments() {
       <div className="a4-wrap a4-wrap--wide">
         <SectionHead
           id="a4-seg"
-          title="O seu negócio está aqui."
+          title="Aumente suas receitas mirando um público direto nas redes sociais: 7 em cada 10 brasileiros já estão lá."
           sub={
             <>
               A plataforma não foi feita para um setor e adaptada para os outros. Ela é agnóstica
@@ -220,8 +220,9 @@ export function Segments() {
             </>
           }
         />
+        <Cite sourceId="dataReportal" />
 
-        <div className="a4-rise">
+        <div className="a4-rise" style={{ marginTop: '1.75rem' }}>
           <ul className="a4-seg__tags" aria-label="Segmentos de negócio atendidos pela plataforma">
             {SEGMENT_TAGS.map((t) => (
               <li
