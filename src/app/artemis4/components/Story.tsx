@@ -2,9 +2,65 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { CheckIcon, PlusIcon, ShieldCheckIcon } from '@heroicons/react/24/outline'
+import type { LucideIcon } from 'lucide-react'
+import {
+  Home,
+  UtensilsCrossed,
+  Shirt,
+  Sparkles,
+  HeartPulse,
+  ShoppingCart,
+  Sofa,
+  Car,
+  GraduationCap,
+  Dumbbell,
+  PawPrint,
+  Plane,
+  Gamepad2,
+  Laptop,
+  Baby,
+  Wrench,
+  PartyPopper,
+  Gem,
+  Flower2,
+  Leaf,
+  Wallet,
+  Briefcase,
+  Megaphone,
+} from 'lucide-react'
 
 import { ORIGIN, ORIGIN_VIDEO_ID, SOURCES, VERSUS, SEGMENT_TAGS, SEGMENT_DEMO, SEGMENT_NOTE, GUARANTEES, FAQ } from '../data'
 import { SectionHead, Cite } from './Chrome'
+
+/** Mapa nome→componente para os ícones referenciados em SEGMENT_TAGS[].icon
+    (ver nota em data.ts) — mantém a lista de ícones num só lugar, sem
+    precisar de import dinâmico (lucide-react não suporta bem tree-shaking
+    de import por string). */
+const SEGMENT_ICONS: Record<string, LucideIcon> = {
+  Home,
+  UtensilsCrossed,
+  Shirt,
+  Sparkles,
+  HeartPulse,
+  ShoppingCart,
+  Sofa,
+  Car,
+  GraduationCap,
+  Dumbbell,
+  PawPrint,
+  Plane,
+  Gamepad2,
+  Laptop,
+  Baby,
+  Wrench,
+  PartyPopper,
+  Gem,
+  Flower2,
+  Leaf,
+  Wallet,
+  Briefcase,
+  Megaphone,
+}
 
 /* ==========================================================================
    5 · ORIGEM DA MARCA — onde o vídeo de reentrada passa a ter função
@@ -224,15 +280,18 @@ export function Segments() {
 
         <div className="a4-rise" style={{ marginTop: '1.75rem' }}>
           <ul className="a4-seg__tags" aria-label="Segmentos de negócio atendidos pela plataforma">
-            {SEGMENT_TAGS.map((t) => (
-              <li
-                key={t.label}
-                className={`a4-seg__tag${t.label === SEGMENT_DEMO.label ? ' a4-seg__tag--active' : ''}`}
-              >
-                <span className="a4-seg__tag-label">{t.label}</span>
-                {t.hint ? <span className="a4-seg__tag-hint">{t.hint}</span> : null}
-              </li>
-            ))}
+            {SEGMENT_TAGS.map((t) => {
+              const Icon = SEGMENT_ICONS[t.icon]
+              return (
+                <li key={t.label} className="a4-seg__tag">
+                  <span className="a4-seg__tag-label">{t.label}</span>
+                  <span className="a4-seg__tag-icon" aria-hidden="true">
+                    {Icon ? <Icon width={20} height={20} /> : null}
+                  </span>
+                  {t.hint ? <span className="a4-seg__tag-hint">{t.hint}</span> : null}
+                </li>
+              )
+            })}
           </ul>
 
           <span
