@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ShieldCheckIcon,
   BoltIcon,
@@ -178,12 +178,28 @@ function MissionConsole() {
    cada troca de `active` — não `setInterval` — porque assim uma troca manual
    (seta/ponto) também reinicia a contagem, em vez de competir com o próximo
    avanço automático já em andamento.
-   ========================================================================== */
+
+   Bug real encontrado em produção (2026-10-31): `onMouseEnter` pausava o
+   carrossel pra QUALQUER ponteiro, inclusive toque — em celular, um simples
+   tap em qualquer lugar da área do carrossel (não precisa ser num botão)
+   dispara `mouseenter` sem o `mouseleave` correspondente (toque não tem
+   conceito de "sair" do hover), travando o avanço automático pro resto da
+   visita. Confirmado ao vivo: 1 toque na área do console e o carrossel nunca
+   mais trocou de imagem sozinho, mesmo esperando bem além dos 6s. Corrigido
+   checando `(hover: hover)` — só pausa por ponteiro em dispositivo que
+   realmente tem hover (mouse/trackpad); toque nunca entra nesse caminho.
+   `onFocus`/`onBlur` ficam como estavam (miram os botões internos, sempre
+   pareados de forma confiável, teclado ou toque). */
 
 function ConsoleCarousel() {
   const totalSlides = 1 + CONSOLE_SCREENSHOTS.length
   const [active, setActive] = useState(0)
   const [paused, setPaused] = useState(false)
+  const canHoverRef = useRef(false)
+
+  useEffect(() => {
+    canHoverRef.current = window.matchMedia('(hover: hover)').matches
+  }, [])
 
   const go = (i: number) => setActive(((i % totalSlides) + totalSlides) % totalSlides)
 
@@ -200,7 +216,9 @@ function ConsoleCarousel() {
     <div
       className="a4-carousel a4-enter a4-enter--4"
       aria-roledescription="carrossel"
-      onMouseEnter={() => setPaused(true)}
+      onMouseEnter={() => {
+        if (canHoverRef.current) setPaused(true)
+      }}
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
