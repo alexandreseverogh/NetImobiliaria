@@ -570,42 +570,54 @@ export const VERSUS: { topic: string; old: string; now: string }[] = [
    MULTISSEGMENTO — o motor é o mesmo; o vocabulário é de cada negócio
 
    2026-10-31: de 4 chips clicáveis (1 demonstração completa cada) pra uma
-   nuvem de 21 segmentos (pedido do usuário, lista real de verticais que a
+   nuvem de segmentos (pedido do usuário, lista real de verticais que a
    plataforma atende) + 1 ÚNICA demonstração fixa (Imobiliária), não mais
-   selecionável — escrever anuncia/consulta/conta-como-venda pros 21 seria
-   conteúdo ilustrativo inventado em volume grande demais pra não revisar
-   com o usuário; a nuvem de tags já cumpre sozinha o objetivo de mostrar
-   abrangência, e 1 exemplo fixo já mostra como o mecanismo funciona.
+   selecionável — escrever anuncia/consulta/conta-como-venda pra cada um
+   seria conteúdo ilustrativo inventado em volume grande demais pra não
+   revisar com o usuário; a nuvem de tags já cumpre sozinha o objetivo de
+   mostrar abrangência, e 1 exemplo fixo já mostra como o mecanismo funciona.
+
+   2026-10-31 (mesmo dia, follow-up) — destaque dourado do item ativo
+   (Imobiliária) suprimido a pedido do usuário (ficava parecendo erro de
+   estilo, não intenção); +2 segmentos (Serviços Profissionais e
+   Consultoria, Marketing); cada tag ganhou `icon` (nome de um ícone
+   lucide-react — já é dependência do projeto, usado em outras telas, nunca
+   precisou ser adicionado) pra virar um card com imagem padronizada, não
+   só texto — resolvido em Story.tsx via um mapa nome→componente.
    ========================================================================== */
 
 export interface SegmentTag {
   label: string
   /** Exemplos/sinônimos do segmento, exibidos em texto menor sob o label */
   hint?: string
+  /** Nome de um ícone exportado por lucide-react — resolvido em Story.tsx */
+  icon: string
 }
 
 export const SEGMENT_TAGS: SegmentTag[] = [
-  { label: 'Imobiliária' },
-  { label: 'Alimentação' },
-  { label: 'Moda e Vestuário', hint: 'moda feminina e masculina' },
-  { label: 'Beleza e Estética', hint: 'salões, barbearias, clínicas de estética' },
-  { label: 'Saúde', hint: 'serviços de saúde' },
-  { label: 'Supermercados e Conveniência', hint: 'mercados' },
-  { label: 'Casa e Decoração', hint: 'utilidades domésticas' },
-  { label: 'Automotivo', hint: 'oficinas' },
-  { label: 'Educação' },
-  { label: 'Fitness e Esportes' },
-  { label: 'Pet' },
-  { label: 'Turismo e Viagens' },
-  { label: 'Entretenimento e Lazer', hint: 'espaços de diversão' },
-  { label: 'Tecnologia e Eletrônicos', hint: 'computadores' },
-  { label: 'Bebês e Infantil' },
-  { label: 'Serviços Residenciais', hint: 'limpeza e manutenção' },
-  { label: 'Eventos e Festas', hint: 'buffets, decoração e eventos' },
-  { label: 'Joias e Acessórios' },
-  { label: 'Bem-estar e Qualidade de Vida' },
-  { label: 'Produtos Naturais e Saudáveis' },
-  { label: 'Serviços Financeiros Pessoais' },
+  { label: 'Imobiliária', icon: 'Home' },
+  { label: 'Alimentação', icon: 'UtensilsCrossed' },
+  { label: 'Moda e Vestuário', hint: 'moda feminina e masculina', icon: 'Shirt' },
+  { label: 'Beleza', hint: 'estética, salões, barbearias, clínicas', icon: 'Sparkles' },
+  { label: 'Saúde', hint: 'serviços de saúde', icon: 'HeartPulse' },
+  { label: 'Supermercados', hint: 'mercados e conveniência', icon: 'ShoppingCart' },
+  { label: 'Casa e Decoração', hint: 'utilidades domésticas', icon: 'Sofa' },
+  { label: 'Automotivo', hint: 'oficinas', icon: 'Car' },
+  { label: 'Educação', icon: 'GraduationCap' },
+  { label: 'Esportes', hint: 'fitness', icon: 'Dumbbell' },
+  { label: 'Pet', icon: 'PawPrint' },
+  { label: 'Turismo', hint: 'viagens', icon: 'Plane' },
+  { label: 'Entretenimento', hint: 'lazer, espaços de diversão', icon: 'Gamepad2' },
+  { label: 'Tecnologia', hint: 'eletrônicos, computadores', icon: 'Laptop' },
+  { label: 'Infantil', hint: 'bebês', icon: 'Baby' },
+  { label: 'Serviços Residenciais', hint: 'limpeza e manutenção', icon: 'Wrench' },
+  { label: 'Eventos', hint: 'festas, buffets, decoração', icon: 'PartyPopper' },
+  { label: 'Joias', hint: 'acessórios', icon: 'Gem' },
+  { label: 'Bem-Estar', hint: 'qualidade de vida', icon: 'Flower2' },
+  { label: 'Produtos Naturais', hint: 'produtos saudáveis', icon: 'Leaf' },
+  { label: 'Serviços Financeiros', hint: 'pessoais', icon: 'Wallet' },
+  { label: 'Consultoria', hint: 'serviços profissionais', icon: 'Briefcase' },
+  { label: 'Marketing', icon: 'Megaphone' },
 ]
 
 export interface SegmentDemo {
