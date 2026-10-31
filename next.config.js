@@ -1,8 +1,6 @@
 /** @type {import('next').NextConfig} */
-// last-restart: 2026-10-29 — npx prisma generate (schema.marketing) rodado em pleno
-// processo dev já em execução; getLlmClient()/ConciergeService.qualifyLead travando com
-// "timeout exceeded when trying to connect" (singleton Prisma marketing stale) — forçando
-// restart completo pra limpar o singleton antigo, mesmo padrão já documentado neste arquivo.
+// last-restart: 2026-10-31 — bundle preso numa versão anterior de Story.tsx/data.ts
+// (nuvem de 21 segmentos), força restart completo pra pegar o código novo.
 // Configurações baseadas no ambiente (sem TypeScript)
 const isDevelopment = process.env.NODE_ENV === 'development'
 const isProduction = process.env.NODE_ENV === 'production'
