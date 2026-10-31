@@ -612,7 +612,7 @@ export const SEGMENT_TAGS: SegmentTag[] = [
   { label: 'Infantil', hint: 'bebês', icon: 'Baby' },
   { label: 'Serviços Residenciais', hint: 'limpeza e manutenção', icon: 'Wrench' },
   { label: 'Eventos', hint: 'festas, buffets, decoração', icon: 'PartyPopper' },
-  { label: 'Joias e Acessórios', icon: 'Gem' },
+  { label: 'Joias', hint: 'acessórios', icon: 'Gem' },
   { label: 'Bem-Estar', hint: 'qualidade de vida', icon: 'Flower2' },
   { label: 'Produtos Naturais', hint: 'produtos saudáveis', icon: 'Leaf' },
   { label: 'Serviços Financeiros', hint: 'pessoais', icon: 'Wallet' },
