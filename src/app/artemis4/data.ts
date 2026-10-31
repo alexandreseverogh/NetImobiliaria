@@ -604,7 +604,7 @@ export const SEGMENT_TAGS: SegmentTag[] = [
   { label: 'Casa e Decoração', hint: 'utilidades domésticas', icon: 'Sofa' },
   { label: 'Automotivo', hint: 'oficinas', icon: 'Car' },
   { label: 'Educação', icon: 'GraduationCap' },
-  { label: 'Fitness e Esportes', icon: 'Dumbbell' },
+  { label: 'Esportes', hint: 'fitness', icon: 'Dumbbell' },
   { label: 'Pet', icon: 'PawPrint' },
   { label: 'Turismo', hint: 'viagens', icon: 'Plane' },
   { label: 'Entretenimento', hint: 'lazer, espaços de diversão', icon: 'Gamepad2' },
