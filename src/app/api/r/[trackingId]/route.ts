@@ -1,9 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/marketing/prisma';
+import pool from '@/lib/database/connection';
 import { logInteraction } from '@/lib/cta/service';
 import { resolveWhatsAppConfig } from '@/lib/marketing/services/whatsappConfigResolver';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Resolve um destino de fallback seguro pros 3 caminhos de erro desta rota (ad não
+ * encontrado, sem linkUrl, sem WhatsAppConfig) + o catch genérico.
+ *
+ * Achado real em produção (2026-11-01, lançamento de teste do tenant Artemis9): o padrão
+ * antigo `new URL('/', request.url)` resolvia pro endereço INTERNO do container atrás do
+ * proxy reverso (ex.: `https://0.0.0.0:3000/`), não pro domínio público — confirmado ao vivo
+ * via curl contra a rota de health-check real do `trackingHealthService`. Prioridade:
+ * `tenants.website` do tenant real (plataforma é multi-domínio, cada tenant pode ter o
+ * próprio site público) → `NEXT_PUBLIC_APP_URL` (domínio compartilhado, pra tenant sem
+ * site próprio) → `request.url` como última tentativa, só pra nunca lançar exceção aqui.
+ */
+async function resolveFallbackHome(request: NextRequest, tenantId?: string | null): Promise<string> {
+  if (tenantId) {
+    try {
+      const { rows } = await pool.query(
+        `SELECT website FROM public.tenants WHERE id = $1::uuid LIMIT 1`,
+        [tenantId],
+      );
+      const site = (rows[0]?.website || '').trim();
+      if (site) return site.startsWith('http') ? site : `https://${site}`;
+    } catch {
+      // segue pro próximo fallback
+    }
+  }
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
+  return new URL('/', request.url).toString();
+}
 
 /**
  * GET /api/r/[trackingId]
@@ -47,8 +77,8 @@ export async function GET(
     });
 
     if (!ad) {
-      // Fallback: redireciona para a home se tracking inválido
-      return NextResponse.redirect(new URL('/', request.url));
+      // Fallback: redireciona para a home se tracking inválido (sem tenant conhecido aqui)
+      return NextResponse.redirect(await resolveFallbackHome(request));
     }
 
     const campaign = ad.adSet.campaign;
@@ -71,7 +101,7 @@ export async function GET(
     // ── CTA não-WhatsApp (formulário/link externo) ──────────────────────────────
     if (ad.ctaType !== 'WHATSAPP_MESSAGE') {
       if (!ad.linkUrl) {
-        return NextResponse.redirect(new URL('/', request.url));
+        return NextResponse.redirect(await resolveFallbackHome(request, tenantId));
       }
 
       if (tenantId) {
@@ -122,7 +152,7 @@ export async function GET(
     if (!wppConfig?.phoneNumber) {
       // Sem configuração WhatsApp → redireciona para a home
       console.warn(`Tenant ${tenantId} sem WhatsAppConfig configurado`);
-      return NextResponse.redirect(new URL('/', request.url));
+      return NextResponse.redirect(await resolveFallbackHome(request, tenantId));
     }
 
     // Normaliza número: remove não-dígitos, garante código Brasil
@@ -144,6 +174,6 @@ export async function GET(
     return NextResponse.redirect(whatsappUrl, { status: 302 });
   } catch (error: any) {
     console.error('GET /api/r error:', error);
-    return NextResponse.redirect(new URL('/', request.url));
+    return NextResponse.redirect(await resolveFallbackHome(request));
   }
 }

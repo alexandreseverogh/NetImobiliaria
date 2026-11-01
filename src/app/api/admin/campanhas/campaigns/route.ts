@@ -299,8 +299,24 @@ export async function POST(request: NextRequest) {
     // carregar o trackingId real do Ad — o lead resultante nunca sabia de qual campanha veio.
     // ad.linkUrl (no banco) guarda o destino REAL (usado pelo /api/r pra saber pra onde
     // mandar); o que é enviado ao Meta como link do criativo é SEMPRE a URL rastreada.
+    //
+    // Achado real (2026-11-01, lançamento de teste do tenant Artemis9): `NEXT_PUBLIC_APP_URL`
+    // é uma env var ÚNICA e GLOBAL que sempre aponta pro domínio PRINCIPAL de imóveis — a
+    // plataforma é multi-domínio (cada tenant pode ter seu próprio site público, via
+    // `tenants.website`, já usado pelo canonical/sitemap do Artemis4 desde a FASE de SEO),
+    // então usar essa env var aqui gerava um link rastreado apontando pro domínio ERRADO pra
+    // qualquer tenant com domínio próprio. Resolvido por tenant: `tenants.website` tem
+    // prioridade; cai no env var global só quando o tenant não tem domínio próprio
+    // configurado (ex.: tenants que usam o domínio compartilhado de imóveis).
+    const tenantSiteRes = await pool.query(
+      `SELECT website FROM public.tenants WHERE id = $1::uuid LIMIT 1`,
+      [payload.tenantId],
+    );
+    const tenantWebsite = (tenantSiteRes.rows[0]?.website || '').trim();
+    const publicDomain = tenantWebsite
+      ? (tenantWebsite.startsWith('http') ? tenantWebsite.replace(/\/$/, '') : `https://${tenantWebsite.replace(/\/$/, '')}`)
+      : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
     const trackingId = `${campaign.id.slice(0, 8)}-${Date.now().toString(36)}`;
-    const publicDomain = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const trackedLinkUrl = `${publicDomain}/api/r/${trackingId}`;
 
     // 4. Criar ad
