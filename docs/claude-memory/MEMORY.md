@@ -26,3 +26,4 @@
 - [Nav Landing](feedback_landing_nav.md) — CTAs de landing para /admin/login usam <a> nativo, não Next <Link> (trava navegação na main thread)
 - [Verificação Visual no Navegador — Resolvida](project_browser_auth_unlock.md) — useAuth lê token do localStorage, não do cookie; playbook pra sessão autenticada real (só usar se o usuário pedir — ver feedback abaixo)
 - [Usuário testa, não Claude](feedback_user_tests_not_claude.md) — depois de implementar, sempre pedir pro usuário testar; nunca validar sozinho no navegador por padrão
+- [Deploy é sempre manual do usuário](feedback_deploy_manual_only.md) — nunca disparar `gh workflow run` do deploy sozinho, mesmo com estratégia já aprovada
