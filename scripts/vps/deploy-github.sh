@@ -260,7 +260,21 @@ log "[5/5] Reiniciando containers e aplicando migrations..."
 cd "$BASE_DIR"
 
 if [ "$AMBIENTE" == "producao" ]; then
-  docker compose -f "$COMPOSE_FILE" up -d --no-build prod_app prod_feed
+  # Achado real (2026-11-01, primeira tentativa de deploy de staging pós-acúmulo de várias
+  # fases de feature): `docker compose up -d` com `set -e` ativo ABORTA O SCRIPT INTEIRO se o
+  # próprio container subir e falhar o healthcheck ANTES do loop de espera manual abaixo sequer
+  # rodar — o Compose espera a saúde de serviços com `depends_on: condition: service_healthy`
+  # (aqui, prod_feed/staging_feed dependem do _app) já DENTRO do próprio `up -d`, com um timeout
+  # interno diferente do loop de 90s do script. Quando isso acontece, o script morre ali mesmo,
+  # sem nunca chegar nas migrations nem no diagnóstico de log que já existia mais abaixo — a
+  # falha real (o app crashando no boot) nunca aparecia no log do GitHub Actions. `|| { ... }`
+  # torna esse `up -d` tolerante e despeja o log do container na hora, antes de seguir pro resto
+  # do fluxo (que já tenta de novo com o loop manual + aplica migrations + confere o status
+  # final, com outro log em caso de falha persistente).
+  docker compose -f "$COMPOSE_FILE" up -d --no-build prod_app prod_feed || {
+    log "   ⚠️  'docker compose up' falhou (provável healthcheck do próprio container, não dependência externa) — log real do prod_app:"
+    docker compose -f "$COMPOSE_FILE" logs --tail=150 prod_app || true
+  }
 
   log "   → Aguardando prod_app ficar saudável (max 90s)..."
   elapsed=0
@@ -282,7 +296,11 @@ if [ "$AMBIENTE" == "producao" ]; then
   fi
 
 else
-  docker compose -f "$COMPOSE_FILE" up -d --no-build staging_app staging_feed
+  # Ver comentário equivalente no branch "producao" acima — mesma causa raiz.
+  docker compose -f "$COMPOSE_FILE" up -d --no-build staging_app staging_feed || {
+    log "   ⚠️  'docker compose up' falhou (provável healthcheck do próprio container, não dependência externa) — log real do staging_app:"
+    docker compose -f "$COMPOSE_FILE" logs --tail=150 staging_app || true
+  }
 
   log "   → Aguardando staging_app (max 90s)..."
   elapsed=0
