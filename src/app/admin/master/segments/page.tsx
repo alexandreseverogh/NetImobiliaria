@@ -28,6 +28,7 @@ import { SegmentFitCriteriaModal } from '@/components/admin/master/SegmentFitCri
 import { SegmentAtivoConfigModal } from '@/components/admin/master/SegmentAtivoConfigModal'
 import { SegmentLlmDefaultModal } from '@/components/admin/master/SegmentLlmDefaultModal'
 import { SegmentRegimentoModal, type RegimentoKey } from '@/components/admin/master/SegmentRegimentoModal'
+import { SegmentMetricsModal } from '@/components/admin/master/SegmentMetricsModal'
 
 interface Segment {
   id: string
@@ -109,6 +110,7 @@ export default function MasterSegmentsPage() {
   const [agentesSegment, setAgentesSegment] = useState<Segment | null>(null)
   const [fitCriteriaSegment, setFitCriteriaSegment] = useState<Segment | null>(null)
   const [llmDefaultSegment, setLlmDefaultSegment] = useState<Segment | null>(null)
+  const [metricsSegment, setMetricsSegment] = useState<Segment | null>(null)
   const [regimentoSegment, setRegimentoSegment] = useState<Segment | null>(null)
   const [ativoConfigSegment, setAtivoConfigSegment] = useState<Segment | null>(null)
   
@@ -769,7 +771,15 @@ export default function MasterSegmentsPage() {
         />
       )}
 
-      {/* Regimento do Segmento — índice documentado dos 11 modais acima; "Abrir" fecha o
+      {/* Catálogo de Métricas Dinâmico — Fase 1 (metadado por segmento) */}
+      {metricsSegment && (
+        <SegmentMetricsModal
+          segment={metricsSegment}
+          onClose={() => setMetricsSegment(null)}
+        />
+      )}
+
+      {/* Regimento do Segmento — índice documentado dos 12 modais acima; "Abrir" fecha o
           Regimento e abre o modal real correspondente, exatamente como abria direto da tabela. */}
       {regimentoSegment && (
         <SegmentRegimentoModal
@@ -790,6 +800,7 @@ export default function MasterSegmentsPage() {
               fitCriteria: setFitCriteriaSegment,
               ativoConfig: setAtivoConfigSegment,
               llmDefault: setLlmDefaultSegment,
+              metrics: setMetricsSegment,
             }
             setters[key](target)
           }}

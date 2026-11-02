@@ -17,14 +17,14 @@ import {
   XMarkIcon, ChevronDownIcon, ArrowRightIcon, BookOpenIcon,
   BuildingOffice2Icon, SparklesIcon, HashtagIcon, AdjustmentsHorizontalIcon,
   CircleStackIcon, UserGroupIcon, CpuChipIcon, BoltIcon, ScaleIcon,
-  ArchiveBoxIcon, BeakerIcon,
+  ArchiveBoxIcon, BeakerIcon, ChartBarIcon,
 } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/marketing-utils';
 
 export type RegimentoKey =
   | 'tenants' | 'angles' | 'interests' | 'benchmarks' | 'dataEntities'
   | 'distribution' | 'qualification' | 'agentes' | 'fitCriteria'
-  | 'ativoConfig' | 'llmDefault';
+  | 'ativoConfig' | 'llmDefault' | 'metrics';
 
 interface Segment { id: string; name: string }
 
@@ -254,6 +254,25 @@ const ITEMS: RegimentoItem[] = [
     example: 'Segmento com alto volume de mensagens pode usar um modelo mais rápido/barato como padrão, mesmo com o resto da plataforma usando outro globalmente.',
     impact: 'Só entra em jogo quando tenant/cliente deste segmento não tem config própria — nunca sobrescreve um modelo já configurado por eles.',
   },
+  {
+    key: 'metrics', color: 'indigo', icon: ChartBarIcon,
+    title: 'Catálogo de Métricas',
+    summary: 'Quais campos da Meta Insights API viram card/gráfico no dashboard e contexto pro LLM, por segmento.',
+    objective:
+      'A Meta oferece 200+ métricas; o dashboard hoje só captura um conjunto fixo e hardcoded. ' +
+      'Aqui o Master cura, por segmento, quais delas valem a pena promover — sem precisar de ' +
+      'código novo pra cada métrica adicionada. Fase 1 de 4 (schema + curadoria); as fases ' +
+      'seguintes ligam isso à sincronização real com a Meta e a uma tela de exploração densa.',
+    howToFill: [
+      'Campo Meta — o nome real pedido na API (ex.: "ctr", "video_p75_watched_actions"); clique numa sugestão comum pra já vir certo.',
+      'Rótulo — nome em PT-BR exibido no card/gráfico.',
+      'Unidade e Direção — decidem formatação e se "subir" é bom ou ruim (vira cor do card).',
+      'Benchmark (opcional) — casa com uma chave já cadastrada em Parâmetros do Agente deste mesmo segmento.',
+      'Card KPI — só as marcadas aparecem no topo do dashboard; o resto fica disponível na exploração detalhada (fase futura).',
+    ],
+    example: 'Campo "ctr" → rótulo "CTR (todos)", unidade %, direção "subir é bom", benchmark "ctr_min", marcado como KPI.',
+    impact: 'Alimenta diretamente o que aparece no dashboard de Campanhas e o texto de contexto que o LLM recebe no Briefing Estratégico — nenhuma dessas 2 superfícies ainda lê esta tabela (fases 2-4), mas o metadado já fica pronto pra quando ligarem.',
+  },
 ];
 
 function AccordionRow({
@@ -361,7 +380,7 @@ export function SegmentRegimentoModal({ segment, onClose, onOpen }: Props) {
         {/* Intro */}
         <div className="px-7 pt-5 pb-1 shrink-0">
           <p className="text-xs text-gray-500 leading-relaxed">
-            As 11 ferramentas de configuração deste segmento, documentadas — o que cada uma faz,
+            As 12 ferramentas de configuração deste segmento, documentadas — o que cada uma faz,
             como preencher, um exemplo real e o impacto de configurar. Clique no título pra
             expandir os detalhes, ou vá direto no botão <span className="font-bold text-gray-700">Abrir</span>{' '}
             quando já souber o que quer.

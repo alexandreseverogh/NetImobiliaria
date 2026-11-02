@@ -1,0 +1,352 @@
+'use client';
+
+/**
+ * Catálogo de Métricas Dinâmico — Fase 1 (ver docs/CHECKPOINT.md "Tarefa em andamento",
+ * 2026-11-02). Master cura, por segmento, quais campos da Meta Insights API viram
+ * card/gráfico/variável pro LLM — substitui aos poucos o conjunto fixo hardcoded.
+ *
+ * Sem "Sugerir com IA" de propósito: o catálogo de métricas da Meta é finito e bem
+ * documentado (não um nicho de negócio pra inferir) — chips de sugestão comuns servem melhor
+ * aqui do que uma chamada LLM.
+ */
+
+import { useState, useEffect } from 'react';
+import {
+  XMarkIcon, ChartBarIcon, CheckCircleIcon, PlusIcon, TrashIcon, QuestionMarkCircleIcon,
+} from '@heroicons/react/24/outline';
+import { cn } from '@/lib/marketing-utils';
+
+type MetricUnit = 'currency' | 'percent' | 'count' | 'ratio' | 'score';
+type MetricDirection = 'higher_is_better' | 'lower_is_better' | 'neutral';
+type MetricChartType = 'area' | 'line' | 'bar';
+type MetricCategory = 'desempenho' | 'diagnostico' | 'engajamento' | 'conversoes' | 'configuracoes';
+
+interface Metric {
+  metricKey: string;
+  metaField: string;
+  label: string;
+  unit: MetricUnit;
+  betterDirection: MetricDirection;
+  chartType: MetricChartType;
+  category: MetricCategory;
+  benchmarkKey: string | null;
+  isKpiCard: boolean;
+}
+
+interface Segment { id: string; name: string; slug: string }
+interface Props { segment: Segment; onClose: () => void }
+
+const UNIT_OPTIONS: { value: MetricUnit; label: string }[] = [
+  { value: 'currency', label: 'R$ (moeda)' },
+  { value: 'percent', label: '% (percentual)' },
+  { value: 'count', label: '# (contagem)' },
+  { value: 'ratio', label: 'razão (ex.: freq.)' },
+  { value: 'score', label: 'nota/ranking' },
+];
+const DIRECTION_OPTIONS: { value: MetricDirection; label: string }[] = [
+  { value: 'higher_is_better', label: 'subir é bom' },
+  { value: 'lower_is_better', label: 'subir é ruim' },
+  { value: 'neutral', label: 'neutro' },
+];
+const CHART_OPTIONS: { value: MetricChartType; label: string }[] = [
+  { value: 'line', label: 'linha' },
+  { value: 'area', label: 'área' },
+  { value: 'bar', label: 'barra' },
+];
+const CATEGORY_OPTIONS: { value: MetricCategory; label: string }[] = [
+  { value: 'desempenho', label: 'Desempenho' },
+  { value: 'diagnostico', label: 'Diagnóstico' },
+  { value: 'engajamento', label: 'Engajamento' },
+  { value: 'conversoes', label: 'Conversões' },
+  { value: 'configuracoes', label: 'Configurações' },
+];
+
+/** Sugestões comuns — campos reais e bem documentados da Meta Insights API, pra acelerar a
+ * curadoria. Não é o catálogo completo (200+) — é o núcleo de maior confiança/uso real. */
+const COMMON_SUGGESTIONS: Metric[] = [
+  { metricKey: 'spend', metaField: 'spend', label: 'Valor gasto', unit: 'currency', betterDirection: 'neutral', chartType: 'area', category: 'desempenho', benchmarkKey: null, isKpiCard: true },
+  { metricKey: 'impressions', metaField: 'impressions', label: 'Impressões', unit: 'count', betterDirection: 'neutral', chartType: 'line', category: 'desempenho', benchmarkKey: null, isKpiCard: false },
+  { metricKey: 'reach', metaField: 'reach', label: 'Alcance', unit: 'count', betterDirection: 'higher_is_better', chartType: 'line', category: 'desempenho', benchmarkKey: null, isKpiCard: false },
+  { metricKey: 'frequency', metaField: 'frequency', label: 'Frequência', unit: 'ratio', betterDirection: 'lower_is_better', chartType: 'line', category: 'diagnostico', benchmarkKey: 'frequency_max', isKpiCard: false },
+  { metricKey: 'ctr', metaField: 'ctr', label: 'CTR (todos)', unit: 'percent', betterDirection: 'higher_is_better', chartType: 'line', category: 'desempenho', benchmarkKey: 'ctr_min', isKpiCard: true },
+  { metricKey: 'cpc', metaField: 'cpc', label: 'CPC (todos)', unit: 'currency', betterDirection: 'lower_is_better', chartType: 'line', category: 'desempenho', benchmarkKey: null, isKpiCard: false },
+  { metricKey: 'cpm', metaField: 'cpm', label: 'CPM', unit: 'currency', betterDirection: 'lower_is_better', chartType: 'line', category: 'desempenho', benchmarkKey: null, isKpiCard: false },
+  { metricKey: 'inline_link_clicks', metaField: 'inline_link_clicks', label: 'Cliques no link', unit: 'count', betterDirection: 'higher_is_better', chartType: 'bar', category: 'desempenho', benchmarkKey: null, isKpiCard: false },
+  { metricKey: 'quality_ranking', metaField: 'quality_ranking', label: 'Classificação de qualidade', unit: 'score', betterDirection: 'higher_is_better', chartType: 'line', category: 'diagnostico', benchmarkKey: null, isKpiCard: false },
+  { metricKey: 'engagement_rate_ranking', metaField: 'engagement_rate_ranking', label: 'Classificação de engajamento', unit: 'score', betterDirection: 'higher_is_better', chartType: 'line', category: 'diagnostico', benchmarkKey: null, isKpiCard: false },
+  { metricKey: 'conversion_rate_ranking', metaField: 'conversion_rate_ranking', label: 'Classificação de conversão', unit: 'score', betterDirection: 'higher_is_better', chartType: 'line', category: 'diagnostico', benchmarkKey: null, isKpiCard: false },
+  { metricKey: 'video_p25', metaField: 'video_p25_watched_actions', label: 'Reproduções 25% do vídeo', unit: 'count', betterDirection: 'higher_is_better', chartType: 'bar', category: 'engajamento', benchmarkKey: null, isKpiCard: false },
+  { metricKey: 'video_p50', metaField: 'video_p50_watched_actions', label: 'Reproduções 50% do vídeo', unit: 'count', betterDirection: 'higher_is_better', chartType: 'bar', category: 'engajamento', benchmarkKey: null, isKpiCard: false },
+  { metricKey: 'video_p75', metaField: 'video_p75_watched_actions', label: 'Reproduções 75% do vídeo', unit: 'count', betterDirection: 'higher_is_better', chartType: 'bar', category: 'engajamento', benchmarkKey: null, isKpiCard: false },
+  { metricKey: 'post_engagement', metaField: 'actions', label: 'Engajamentos com o post', unit: 'count', betterDirection: 'higher_is_better', chartType: 'bar', category: 'engajamento', benchmarkKey: null, isKpiCard: false },
+  { metricKey: 'leads', metaField: 'actions', label: 'Leads (conversões)', unit: 'count', betterDirection: 'higher_is_better', chartType: 'bar', category: 'conversoes', benchmarkKey: null, isKpiCard: true },
+  { metricKey: 'cost_per_lead', metaField: 'cost_per_action_type', label: 'Custo por lead', unit: 'currency', betterDirection: 'lower_is_better', chartType: 'line', category: 'conversoes', benchmarkKey: 'cpl_ideal', isKpiCard: true },
+  { metricKey: 'purchase_roas', metaField: 'purchase_roas', label: 'ROAS de compras', unit: 'ratio', betterDirection: 'higher_is_better', chartType: 'line', category: 'conversoes', benchmarkKey: null, isKpiCard: false },
+];
+
+function emptyMetric(): Metric {
+  return {
+    metricKey: '', metaField: '', label: '', unit: 'count', betterDirection: 'higher_is_better',
+    chartType: 'line', category: 'desempenho', benchmarkKey: null, isKpiCard: false,
+  };
+}
+
+function MetricsHelpPanel() {
+  return (
+    <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-4 space-y-4 text-sm text-gray-700">
+      <div>
+        <p className="font-black text-gray-900 mb-1">Para que serve esta tela</p>
+        <p className="text-xs text-gray-600">
+          A Meta Ads Insights API oferece 200+ métricas — nosso dashboard hoje só captura um
+          conjunto fixo. Aqui o Master decide, por segmento, quais métricas da Meta viram
+          card/gráfico no dashboard e variável de contexto pro LLM (Briefing Estratégico,
+          Agente Autônomo) — sem precisar de código novo.
+        </p>
+      </div>
+      <div>
+        <p className="font-black text-gray-900 mb-1">Campos, em ordem de importância</p>
+        <ul className="text-xs text-gray-600 space-y-1">
+          <li><span className="font-semibold">Campo Meta</span> — o nome real pedido na API (ex.: <span className="font-mono bg-white rounded px-1">ctr</span>, <span className="font-mono bg-white rounded px-1">video_p75_watched_actions</span>). Precisa bater com a documentação da Meta.</li>
+          <li><span className="font-semibold">Rótulo</span> — nome em PT-BR exibido no card/gráfico.</li>
+          <li><span className="font-semibold">Unidade</span> — decide a formatação (R$, %, inteiro...).</li>
+          <li><span className="font-semibold">Direção</span> — "subir é bom" (ex.: CTR) vs. "subir é ruim" (ex.: CPC) — decide se o card fica verde ou vermelho.</li>
+          <li><span className="font-semibold">Benchmark</span> (opcional) — casa com uma chave já cadastrada em Parâmetros do Agente (ex.: <span className="font-mono bg-white rounded px-1">cpl_ideal</span>), pra comparar contra o limiar real do segmento.</li>
+          <li><span className="font-semibold">Card KPI</span> — só métricas marcadas aqui aparecem como card no topo do dashboard; as demais ficam disponíveis no Explorador de Métricas (fase futura).</li>
+        </ul>
+      </div>
+      <div>
+        <p className="font-black text-gray-900 mb-1">Onde não procurar "todas as 200"</p>
+        <p className="text-xs text-gray-600">
+          Pra análise bruta e ilimitada de qualquer métrica da Meta, use a própria ferramenta
+          de Relatórios de Anúncios da Meta — ela já faz isso melhor do que vale a pena
+          reconstruirmos. Aqui curamos só o que vale a pena promover dentro da nossa
+          plataforma (cruzado com CRM, multi-rede e insights de IA).
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export function SegmentMetricsModal({ segment, onClose }: Props) {
+  const [metrics, setMetrics] = useState<Metric[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveOk, setSaveOk] = useState(false);
+  const [error, setError] = useState('');
+  const [showHelp, setShowHelp] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/admin/master/segments/${segment.id}/metrics`, { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d) => setMetrics(Array.isArray(d.metrics) ? d.metrics : []))
+      .catch(() => setMetrics([]))
+      .finally(() => setLoading(false));
+  }, [segment.id]);
+
+  const updateMetric = (i: number, patch: Partial<Metric>) =>
+    setMetrics((prev) => prev.map((m, idx) => (idx === i ? { ...m, ...patch } : m)));
+  const removeMetric = (i: number) => setMetrics((prev) => prev.filter((_, idx) => idx !== i));
+  const addMetric = (seed?: Metric) =>
+    setMetrics((prev) => (seed && prev.some((m) => m.metricKey === seed.metricKey))
+      ? prev
+      : [...prev, seed ? { ...seed } : emptyMetric()]);
+
+  async function handleSave() {
+    setSaving(true); setError(''); setSaveOk(false);
+    try {
+      const clean = metrics.filter((m) => m.metaField.trim() && m.label.trim());
+      const res = await fetch(`/api/admin/master/segments/${segment.id}/metrics`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ metrics: clean }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Falha ao salvar');
+      setSaveOk(true);
+    } catch (e: any) {
+      setError(e.message ?? 'Erro ao salvar');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+          <div>
+            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-0.5">
+              Segmento · {segment.name}
+            </p>
+            <h2 className="text-lg font-black text-gray-900">Catálogo de Métricas</h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Quais campos da Meta Insights API viram card/gráfico/contexto de LLM neste segmento.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 ml-4 shrink-0">
+            <button
+              onClick={() => setShowHelp((v) => !v)}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all',
+                showHelp ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-100',
+              )}
+              title="Como preencher esta tela"
+            >
+              <QuestionMarkCircleIcon className="h-4 w-4" />
+              Ajuda
+            </button>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors">
+              <XMarkIcon className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {showHelp && <MetricsHelpPanel />}
+
+          <div>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
+              Sugestões comuns — clique pra adicionar
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {COMMON_SUGGESTIONS.map((s) => {
+                const added = metrics.some((m) => m.metricKey === s.metricKey);
+                return (
+                  <button
+                    key={s.metricKey}
+                    onClick={() => addMetric(s)}
+                    disabled={added}
+                    className={cn(
+                      'px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all',
+                      added
+                        ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
+                        : 'bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-50',
+                    )}
+                  >
+                    {added ? '✓ ' : '+ '}{s.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+              {metrics.length} métrica(s) curada(s)
+            </p>
+          </div>
+
+          {error && <p className="text-xs text-red-600 font-medium">⚠️ {error}</p>}
+
+          {loading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => <div key={i} className="h-20 rounded-xl bg-gray-100 animate-pulse" />)}
+            </div>
+          ) : metrics.length === 0 ? (
+            <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center">
+              <ChartBarIcon className="h-8 w-8 text-gray-200 mx-auto mb-2" />
+              <p className="text-sm font-medium text-gray-500">Nenhuma métrica configurada</p>
+              <p className="text-xs text-gray-400 mt-1">Clique numa sugestão acima ou adicione manualmente.</p>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {metrics.map((m, i) => (
+                <div key={i} className="rounded-xl border border-gray-200 p-3 bg-gray-50/50 grid grid-cols-12 gap-2 items-center">
+                  <input
+                    value={m.label}
+                    onChange={(e) => updateMetric(i, { label: e.target.value })}
+                    placeholder="Rótulo (ex: CTR)"
+                    className="col-span-3 px-2.5 py-1.5 rounded-lg border border-gray-200 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                  <input
+                    value={m.metaField}
+                    onChange={(e) => updateMetric(i, { metaField: e.target.value })}
+                    placeholder="campo Meta (ex: ctr)"
+                    className="col-span-3 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-mono text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                  <select
+                    value={m.category}
+                    onChange={(e) => updateMetric(i, { category: e.target.value as MetricCategory })}
+                    className="col-span-2 px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  >
+                    {CATEGORY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  <select
+                    value={m.unit}
+                    onChange={(e) => updateMetric(i, { unit: e.target.value as MetricUnit })}
+                    className="col-span-1 px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  >
+                    {UNIT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  <select
+                    value={m.betterDirection}
+                    onChange={(e) => updateMetric(i, { betterDirection: e.target.value as MetricDirection })}
+                    className="col-span-2 px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  >
+                    {DIRECTION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  <label className="col-span-1 flex items-center justify-center gap-1 text-[10px] font-semibold text-gray-500" title="Aparece como card no topo do dashboard">
+                    <input
+                      type="checkbox"
+                      checked={m.isKpiCard}
+                      onChange={(e) => updateMetric(i, { isKpiCard: e.target.checked })}
+                      className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-400"
+                    />
+                    KPI
+                  </label>
+                  <button onClick={() => removeMetric(i)} className="text-gray-300 hover:text-red-500 p-1 justify-self-end">
+                    <TrashIcon className="h-4 w-4" />
+                  </button>
+                  <select
+                    value={m.chartType}
+                    onChange={(e) => updateMetric(i, { chartType: e.target.value as MetricChartType })}
+                    className="col-span-2 px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  >
+                    {CHART_OPTIONS.map((o) => <option key={o.value} value={o.value}>Gráfico: {o.label}</option>)}
+                  </select>
+                  <input
+                    value={m.benchmarkKey ?? ''}
+                    onChange={(e) => updateMetric(i, { benchmarkKey: e.target.value || null })}
+                    placeholder="benchmark (opcional, ex: cpl_ideal)"
+                    className="col-span-6 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-mono text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button
+            onClick={() => addMetric()}
+            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-gray-300 text-xs font-bold text-gray-500 hover:border-indigo-300 hover:text-indigo-600 transition-all"
+          >
+            <PlusIcon className="h-3.5 w-3.5" /> Adicionar métrica manualmente
+          </button>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex items-center justify-end gap-3 shrink-0">
+          {saveOk && (
+            <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-semibold">
+              <CheckCircleIcon className="h-4 w-4" /> Salvo!
+            </span>
+          )}
+          <button onClick={onClose} className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-white transition-all">
+            Fechar
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className={cn(
+              'px-5 py-2 rounded-xl text-sm font-black text-white transition-all',
+              saving ? 'bg-gray-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 shadow-sm',
+            )}
+          >
+            {saving ? 'Salvando...' : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
