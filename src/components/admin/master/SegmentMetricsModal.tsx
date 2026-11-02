@@ -30,8 +30,13 @@ interface Metric {
   chartType: MetricChartType;
   category: MetricCategory;
   benchmarkKey: string | null;
+  /** Só relevante quando metaField é 'actions'/'action_values'/'cost_per_action_type'. */
+  actionType: string | null;
   isKpiCard: boolean;
 }
+
+/** Campos que exigem actionType pra resolver uma métrica específica (arrays genéricos). */
+const ARRAY_FIELDS = new Set(['actions', 'action_values', 'cost_per_action_type']);
 
 interface Segment { id: string; name: string; slug: string }
 interface Props { segment: Segment; onClose: () => void }
@@ -64,30 +69,32 @@ const CATEGORY_OPTIONS: { value: MetricCategory; label: string }[] = [
 /** Sugestões comuns — campos reais e bem documentados da Meta Insights API, pra acelerar a
  * curadoria. Não é o catálogo completo (200+) — é o núcleo de maior confiança/uso real. */
 const COMMON_SUGGESTIONS: Metric[] = [
-  { metricKey: 'spend', metaField: 'spend', label: 'Valor gasto', unit: 'currency', betterDirection: 'neutral', chartType: 'area', category: 'desempenho', benchmarkKey: null, isKpiCard: true },
-  { metricKey: 'impressions', metaField: 'impressions', label: 'Impressões', unit: 'count', betterDirection: 'neutral', chartType: 'line', category: 'desempenho', benchmarkKey: null, isKpiCard: false },
-  { metricKey: 'reach', metaField: 'reach', label: 'Alcance', unit: 'count', betterDirection: 'higher_is_better', chartType: 'line', category: 'desempenho', benchmarkKey: null, isKpiCard: false },
-  { metricKey: 'frequency', metaField: 'frequency', label: 'Frequência', unit: 'ratio', betterDirection: 'lower_is_better', chartType: 'line', category: 'diagnostico', benchmarkKey: 'frequency_max', isKpiCard: false },
-  { metricKey: 'ctr', metaField: 'ctr', label: 'CTR (todos)', unit: 'percent', betterDirection: 'higher_is_better', chartType: 'line', category: 'desempenho', benchmarkKey: 'ctr_min', isKpiCard: true },
-  { metricKey: 'cpc', metaField: 'cpc', label: 'CPC (todos)', unit: 'currency', betterDirection: 'lower_is_better', chartType: 'line', category: 'desempenho', benchmarkKey: null, isKpiCard: false },
-  { metricKey: 'cpm', metaField: 'cpm', label: 'CPM', unit: 'currency', betterDirection: 'lower_is_better', chartType: 'line', category: 'desempenho', benchmarkKey: null, isKpiCard: false },
-  { metricKey: 'inline_link_clicks', metaField: 'inline_link_clicks', label: 'Cliques no link', unit: 'count', betterDirection: 'higher_is_better', chartType: 'bar', category: 'desempenho', benchmarkKey: null, isKpiCard: false },
-  { metricKey: 'quality_ranking', metaField: 'quality_ranking', label: 'Classificação de qualidade', unit: 'score', betterDirection: 'higher_is_better', chartType: 'line', category: 'diagnostico', benchmarkKey: null, isKpiCard: false },
-  { metricKey: 'engagement_rate_ranking', metaField: 'engagement_rate_ranking', label: 'Classificação de engajamento', unit: 'score', betterDirection: 'higher_is_better', chartType: 'line', category: 'diagnostico', benchmarkKey: null, isKpiCard: false },
-  { metricKey: 'conversion_rate_ranking', metaField: 'conversion_rate_ranking', label: 'Classificação de conversão', unit: 'score', betterDirection: 'higher_is_better', chartType: 'line', category: 'diagnostico', benchmarkKey: null, isKpiCard: false },
-  { metricKey: 'video_p25', metaField: 'video_p25_watched_actions', label: 'Reproduções 25% do vídeo', unit: 'count', betterDirection: 'higher_is_better', chartType: 'bar', category: 'engajamento', benchmarkKey: null, isKpiCard: false },
-  { metricKey: 'video_p50', metaField: 'video_p50_watched_actions', label: 'Reproduções 50% do vídeo', unit: 'count', betterDirection: 'higher_is_better', chartType: 'bar', category: 'engajamento', benchmarkKey: null, isKpiCard: false },
-  { metricKey: 'video_p75', metaField: 'video_p75_watched_actions', label: 'Reproduções 75% do vídeo', unit: 'count', betterDirection: 'higher_is_better', chartType: 'bar', category: 'engajamento', benchmarkKey: null, isKpiCard: false },
-  { metricKey: 'post_engagement', metaField: 'actions', label: 'Engajamentos com o post', unit: 'count', betterDirection: 'higher_is_better', chartType: 'bar', category: 'engajamento', benchmarkKey: null, isKpiCard: false },
-  { metricKey: 'leads', metaField: 'actions', label: 'Leads (conversões)', unit: 'count', betterDirection: 'higher_is_better', chartType: 'bar', category: 'conversoes', benchmarkKey: null, isKpiCard: true },
-  { metricKey: 'cost_per_lead', metaField: 'cost_per_action_type', label: 'Custo por lead', unit: 'currency', betterDirection: 'lower_is_better', chartType: 'line', category: 'conversoes', benchmarkKey: 'cpl_ideal', isKpiCard: true },
-  { metricKey: 'purchase_roas', metaField: 'purchase_roas', label: 'ROAS de compras', unit: 'ratio', betterDirection: 'higher_is_better', chartType: 'line', category: 'conversoes', benchmarkKey: null, isKpiCard: false },
+  { metricKey: 'spend', metaField: 'spend', label: 'Valor gasto', unit: 'currency', betterDirection: 'neutral', chartType: 'area', category: 'desempenho', benchmarkKey: null, actionType: null, isKpiCard: true },
+  { metricKey: 'impressions', metaField: 'impressions', label: 'Impressões', unit: 'count', betterDirection: 'neutral', chartType: 'line', category: 'desempenho', benchmarkKey: null, actionType: null, isKpiCard: false },
+  { metricKey: 'reach', metaField: 'reach', label: 'Alcance', unit: 'count', betterDirection: 'higher_is_better', chartType: 'line', category: 'desempenho', benchmarkKey: null, actionType: null, isKpiCard: false },
+  { metricKey: 'frequency', metaField: 'frequency', label: 'Frequência', unit: 'ratio', betterDirection: 'lower_is_better', chartType: 'line', category: 'diagnostico', benchmarkKey: 'frequency_max', actionType: null, isKpiCard: false },
+  { metricKey: 'ctr', metaField: 'ctr', label: 'CTR (todos)', unit: 'percent', betterDirection: 'higher_is_better', chartType: 'line', category: 'desempenho', benchmarkKey: 'ctr_min', actionType: null, isKpiCard: true },
+  { metricKey: 'cpc', metaField: 'cpc', label: 'CPC (todos)', unit: 'currency', betterDirection: 'lower_is_better', chartType: 'line', category: 'desempenho', benchmarkKey: null, actionType: null, isKpiCard: false },
+  { metricKey: 'cpm', metaField: 'cpm', label: 'CPM', unit: 'currency', betterDirection: 'lower_is_better', chartType: 'line', category: 'desempenho', benchmarkKey: null, actionType: null, isKpiCard: false },
+  { metricKey: 'inline_link_clicks', metaField: 'inline_link_clicks', label: 'Cliques no link', unit: 'count', betterDirection: 'higher_is_better', chartType: 'bar', category: 'desempenho', benchmarkKey: null, actionType: null, isKpiCard: false },
+  { metricKey: 'quality_ranking', metaField: 'quality_ranking', label: 'Classificação de qualidade', unit: 'score', betterDirection: 'higher_is_better', chartType: 'line', category: 'diagnostico', benchmarkKey: null, actionType: null, isKpiCard: false },
+  { metricKey: 'engagement_rate_ranking', metaField: 'engagement_rate_ranking', label: 'Classificação de engajamento', unit: 'score', betterDirection: 'higher_is_better', chartType: 'line', category: 'diagnostico', benchmarkKey: null, actionType: null, isKpiCard: false },
+  { metricKey: 'conversion_rate_ranking', metaField: 'conversion_rate_ranking', label: 'Classificação de conversão', unit: 'score', betterDirection: 'higher_is_better', chartType: 'line', category: 'diagnostico', benchmarkKey: null, actionType: null, isKpiCard: false },
+  { metricKey: 'video_p25', metaField: 'video_p25_watched_actions', label: 'Reproduções 25% do vídeo', unit: 'count', betterDirection: 'higher_is_better', chartType: 'bar', category: 'engajamento', benchmarkKey: null, actionType: null, isKpiCard: false },
+  { metricKey: 'video_p50', metaField: 'video_p50_watched_actions', label: 'Reproduções 50% do vídeo', unit: 'count', betterDirection: 'higher_is_better', chartType: 'bar', category: 'engajamento', benchmarkKey: null, actionType: null, isKpiCard: false },
+  { metricKey: 'video_p75', metaField: 'video_p75_watched_actions', label: 'Reproduções 75% do vídeo', unit: 'count', betterDirection: 'higher_is_better', chartType: 'bar', category: 'engajamento', benchmarkKey: null, actionType: null, isKpiCard: false },
+  // leads/cost_per_lead usam o MESMO action_type ('lead') já comprovado no adapter real
+  // (metaAdsAdapter.ts, fetchInsights) — não inventado, copiado da convenção já em produção.
+  { metricKey: 'leads', metaField: 'actions', label: 'Leads (conversões)', unit: 'count', betterDirection: 'higher_is_better', chartType: 'bar', category: 'conversoes', benchmarkKey: null, actionType: 'lead', isKpiCard: true },
+  { metricKey: 'cost_per_lead', metaField: 'cost_per_action_type', label: 'Custo por lead', unit: 'currency', betterDirection: 'lower_is_better', chartType: 'line', category: 'conversoes', benchmarkKey: 'cpl_ideal', actionType: 'lead', isKpiCard: true },
+  { metricKey: 'post_engagement', metaField: 'actions', label: 'Engajamentos com o post', unit: 'count', betterDirection: 'higher_is_better', chartType: 'bar', category: 'engajamento', benchmarkKey: null, actionType: 'post_engagement', isKpiCard: false },
+  { metricKey: 'purchase_roas', metaField: 'purchase_roas', label: 'ROAS de compras', unit: 'ratio', betterDirection: 'higher_is_better', chartType: 'line', category: 'conversoes', benchmarkKey: null, actionType: null, isKpiCard: false },
 ];
 
 function emptyMetric(): Metric {
   return {
     metricKey: '', metaField: '', label: '', unit: 'count', betterDirection: 'higher_is_better',
-    chartType: 'line', category: 'desempenho', benchmarkKey: null, isKpiCard: false,
+    chartType: 'line', category: 'desempenho', benchmarkKey: null, actionType: null, isKpiCard: false,
   };
 }
 
@@ -111,6 +118,7 @@ function MetricsHelpPanel() {
           <li><span className="font-semibold">Unidade</span> — decide a formatação (R$, %, inteiro...).</li>
           <li><span className="font-semibold">Direção</span> — "subir é bom" (ex.: CTR) vs. "subir é ruim" (ex.: CPC) — decide se o card fica verde ou vermelho.</li>
           <li><span className="font-semibold">Benchmark</span> (opcional) — casa com uma chave já cadastrada em Parâmetros do Agente (ex.: <span className="font-mono bg-white rounded px-1">cpl_ideal</span>), pra comparar contra o limiar real do segmento.</li>
+          <li><span className="font-semibold">action_type</span> — só aparece pra 3 campos especiais da Meta (<span className="font-mono bg-white rounded px-1">actions</span>/<span className="font-mono bg-white rounded px-1">action_values</span>/<span className="font-mono bg-white rounded px-1">cost_per_action_type</span>), que voltam como lista de eventos, não um número só — é o tipo de evento específico que você quer extrair dessa lista (ex.: "lead" pra achar os leads dentro de "actions"). Sem preencher, a métrica fica salva mas nunca captura nada.</li>
           <li><span className="font-semibold">Card KPI</span> — só métricas marcadas aqui aparecem como card no topo do dashboard; as demais ficam disponíveis no Explorador de Métricas (fase futura).</li>
         </ul>
       </div>
@@ -253,7 +261,8 @@ export function SegmentMetricsModal({ segment, onClose }: Props) {
           ) : (
             <div className="space-y-2.5">
               {metrics.map((m, i) => (
-                <div key={i} className="rounded-xl border border-gray-200 p-3 bg-gray-50/50 grid grid-cols-12 gap-2 items-center">
+                <div key={i} className="rounded-xl border border-gray-200 p-3 bg-gray-50/50 space-y-1.5">
+                <div className="grid grid-cols-12 gap-2 items-center">
                   <input
                     value={m.label}
                     onChange={(e) => updateMetric(i, { label: e.target.value })}
@@ -310,8 +319,25 @@ export function SegmentMetricsModal({ segment, onClose }: Props) {
                     value={m.benchmarkKey ?? ''}
                     onChange={(e) => updateMetric(i, { benchmarkKey: e.target.value || null })}
                     placeholder="benchmark (opcional, ex: cpl_ideal)"
-                    className="col-span-6 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-mono text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    className={cn(
+                      'px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-mono text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-400',
+                      ARRAY_FIELDS.has(m.metaField) ? 'col-span-3' : 'col-span-6',
+                    )}
                   />
+                  {ARRAY_FIELDS.has(m.metaField) && (
+                    <input
+                      value={m.actionType ?? ''}
+                      onChange={(e) => updateMetric(i, { actionType: e.target.value || null })}
+                      placeholder="action_type (obrigatório p/ este campo, ex: lead)"
+                      className="col-span-3 px-2.5 py-1.5 rounded-lg border border-amber-200 bg-amber-50/50 text-xs font-mono text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  )}
+                </div>
+                  {ARRAY_FIELDS.has(m.metaField) && !m.actionType && (
+                    <p className="text-[10px] text-amber-600 font-semibold pl-1">
+                      ⚠️ Sem action_type, esta métrica nunca captura dado real — fica salva mas "morta".
+                    </p>
+                  )}
                 </div>
               ))}
             </div>
