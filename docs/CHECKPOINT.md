@@ -9351,7 +9351,51 @@
 
 ## Tarefa em andamento
 
-**Nenhuma.** Cascata Cliente → Tenant → Segmento(Master) → Global(Master) de modelo LLM e
+**Nenhuma.** Catálogo de Métricas Dinâmico — Fase 1 de 4 — **concluída e testada** em
+2026-11-02 (branch `feature/segment-metric-catalog`, commit `dca7ec5`, ainda sem PR/merge).
+Contexto: dashboard de Campanhas e os insights do LLM usam hoje um conjunto fixo e hardcoded
+de métricas (~20 colunas em `Insight`), enquanto a Meta Ads Insights API oferece 200+ métricas
+em 6 categorias (Desempenho/Diagnóstico/Engajamento/Conversões/Configurações) + dezenas de
+detalhamentos — levantamento completo feito ao vivo na própria UI da Meta junto com o usuário.
+Desenho acordado em 4 fases, sem doc formal (usuário preferiu ir direto pra implementação):
+1. **Fase 1 (concluída)** — tabela `campanhasmarketingdigital.segment_metric_catalog`
+   (metadado por segmento: `meta_field`/`label`/`unit`/`better_direction`/`chart_type`/
+   `is_kpi_card`/`benchmark_key` opcional ligando em `system_benchmarks.metric_key` do mesmo
+   segmento, mesmo padrão de `segment_angle_terms`) + modal de curadoria no Master
+   (`SegmentMetricsModal.tsx`, mesmo padrão visual de `SegmentAnglesModal`, registrado como
+   12º item no "Regimento do Segmento"). Chips de "sugestões comuns" em vez de "Sugerir com
+   IA" — catálogo finito e já documentado, não um nicho de negócio a inferir.
+2. Fase 2 (não iniciada) — adapter (`metaAdsAdapter.fetchInsights`) passa a buscar
+   exatamente os campos configurados; novo `custom_metrics JSONB` aditivo em `Insight`
+   (nunca mexe nas colunas fixas já existentes).
+3. Fase 3 (não iniciada) — página nova "Explorador de Métricas": tabela densa + seletor de
+   colunas por categoria/busca (mesmo padrão UX do "Personalizar tabela dinâmica" da própria
+   Meta, confirmado ao vivo nesta sessão) — nunca uma tela com 200+ cards de uma vez.
+4. Fase 4 (não iniciada) — `strategicBriefing.ts` passa a montar o texto de contexto
+   iterando a mesma tabela de metadado, em vez de campos fixos hardcoded no TypeScript.
+
+**Decisão de produto registrada:** pra análise bruta e ilimitada de qualquer uma das 200+
+métricas sem curadoria, a recomendação é usar a própria ferramenta de Relatórios da Meta —
+reconstruir um clone 1:1 seria esforço redundante; o valor real do Explorador (Fase 3) é
+cruzar com o que só a nossa plataforma tem (CRM, multi-rede, insights de LLM).
+
+**Testado:** GET/PUT/GET round-trip via API real contra o segmento Imobiliário real,
+persistência confirmada no banco (incl. acentos — corrigido um erro de encoding do próprio
+teste em `curl` inline no Git Bash, não um bug de código), dado de teste removido ao final.
+`tsc --noEmit` limpo. UI não verificada visualmente no navegador nesta sessão (o Browser pane
+estava logado no Meta Ads Manager) — segue o mesmo padrão já comprovado de `SegmentAnglesModal`.
+
+**Também nesta sessão, em branch separada (`feature/artemis9-whatsapp-inbound-media`,
+commit `96b111e`, ainda sem PR/merge):** WhatsApp Evolution configurado ponta a ponta pro
+tenant Artemis9 (instância compartilhada `teste-roteiro-crm-2`, mesmo número 5581998000047 já
+usado por 3 tenants de teste — webhook real configurado e testado) + fix real de mídia
+inbound (áudio/imagem/vídeo/documento chegavam só como texto vazio, agora sobem pro MinIO e
+viram anexo real). Saldo real de R$49,99 confirmado na conta de anúncios Meta da Artemis9
+(destrava o lançamento de campanha real, que segue pendente).
+
+---
+
+**Pendências herdadas, ainda abertas** (não atacadas nesta sessão): Cascata Cliente → Tenant → Segmento(Master) → Global(Master) de modelo LLM e
 prompts (CRM + Mensageria, Campanhas fora de propósito) está formalmente concluída e testada
 ponta a ponta com dado real — ver entrada no topo deste arquivo ("Atualizado em: 2026-08-28").
 Dono do lead manual (creator-as-owner) + exclusão híbrida de lead (permanente/
