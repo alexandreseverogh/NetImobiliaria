@@ -1,8 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { processInboundWhatsAppMessage } from '@/lib/whatsapp/inboundProcessor'
+import { uploadToS3 } from '@/lib/storage/s3-client'
+import { createHash } from 'crypto'
 
 export const dynamic = 'force-dynamic'
+
+/**
+ * Mapeia o tipo de mídia inbound pra contentType/extensão. A Evolution (com `webhookBase64:
+ * true` na config do webhook, ver docs/CHECKPOINT.md) embute o conteúdo já decodificado em
+ * `entry.message.base64` (sibling de audioMessage/imageMessage/etc, nunca dentro deles) — sem
+ * isso, o media key só existe no device do WhatsApp, inacessível depois do fato.
+ */
+const MEDIA_FIELDS: Array<{ key: string; contentType: 'audio' | 'image' | 'file' }> = [
+  { key: 'audioMessage', contentType: 'audio' },
+  { key: 'imageMessage', contentType: 'image' },
+  { key: 'videoMessage', contentType: 'file' },
+  { key: 'documentMessage', contentType: 'file' },
+  { key: 'stickerMessage', contentType: 'image' },
+]
+
+function extensionFromMimetype(mimetype: string | undefined): string {
+  const mime = (mimetype || '').split(';')[0].trim().toLowerCase()
+  const map: Record<string, string> = {
+    'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/aac': 'aac',
+    'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
+    'video/mp4': 'mp4', 'video/3gpp': '3gp',
+    'application/pdf': 'pdf',
+  }
+  return map[mime] || mime.split('/')[1]?.replace(/[^a-z0-9]/g, '') || 'bin'
+}
+
+/**
+ * Faz upload da mídia inbound (já decodificada pela Evolution) pro MinIO e retorna a URL
+ * pública — mesmo bucket/padrão já usado pra mídia de saída (ver botAdapter.ts). Best-effort:
+ * sem S3 configurado ou qualquer falha, retorna null (mensagem segue como texto, sem anexo).
+ */
+async function uploadInboundMedia(
+  tenantId: string,
+  phone: string,
+  base64: string,
+  mimetype: string | undefined,
+): Promise<string | null> {
+  try {
+    const buffer = Buffer.from(base64, 'base64')
+    const ext = extensionFromMimetype(mimetype)
+    const hash = createHash('md5').update(buffer).digest('hex').substring(0, 8)
+    const s3Key = `mensageria/${tenantId}/${phone}/${Date.now()}_${hash}.${ext}`
+    const result = await uploadToS3(s3Key, buffer, mimetype || 'application/octet-stream')
+    return result?.url ?? null
+  } catch (err) {
+    console.error('[evolution-webhook] falha ao subir mídia inbound pro storage:', err)
+    return null
+  }
+}
 
 /**
  * POST https://artemis4.com.br/api/public/evolution/webhook?token={evolution_webhook_secret}
@@ -96,7 +147,23 @@ export async function POST(request: NextRequest) {
       entry?.message?.documentMessage?.caption ||
       ''
 
-    if (!msgText && !phone) continue
+    // Detecta mídia (áudio/imagem/vídeo/documento/sticker) — a Evolution embute o conteúdo já
+    // decodificado em `entry.message.base64` (sibling do campo de tipo), só quando o webhook
+    // da instância está configurado com `webhookBase64: true`.
+    const mediaField = MEDIA_FIELDS.find((f) => entry?.message?.[f.key])
+    const mediaBase64: string | undefined = entry?.message?.base64
+    let contentType: 'text' | 'image' | 'audio' | 'file' = 'text'
+    let attachments: Array<{ url: string }> = []
+    if (mediaField && mediaBase64) {
+      const mimetype = entry?.message?.[mediaField.key]?.mimetype
+      const mediaUrl = await uploadInboundMedia(tenant.id, phone, mediaBase64, mimetype)
+      if (mediaUrl) {
+        contentType = mediaField.contentType
+        attachments = [{ url: mediaUrl }]
+      }
+    }
+
+    if (!msgText && !phone && attachments.length === 0) continue
 
     // 4. Normaliza e delega toda a lógica de negócio (atribuição + lead + Mensageria) pro
     // processador agnóstico de provider.
@@ -106,6 +173,8 @@ export async function POST(request: NextRequest) {
       phone,
       pushName,
       text: msgText || null,
+      contentType,
+      attachments,
       externalMessageId: entry?.key?.id ?? null,
     }).catch((err) => {
       console.error('[evolution-webhook] processInboundWhatsAppMessage falhou:', err)

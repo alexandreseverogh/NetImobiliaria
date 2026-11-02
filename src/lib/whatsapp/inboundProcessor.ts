@@ -27,6 +27,10 @@ export interface NormalizedWhatsAppInbound {
   text: string | null
   /** ID da mensagem no provider de origem — usado pra dedupe/idempotência na Mensageria */
   externalMessageId: string | null
+  /** Tipo de conteúdo da mensagem — 'text' (default) quando não há mídia anexada. */
+  contentType?: 'text' | 'image' | 'audio' | 'file'
+  /** Mídia já hospedada (URL pública) pelo adaptador do provider — ausente em mensagem de texto. */
+  attachments?: Array<{ url: string }>
 }
 
 /**
@@ -58,7 +62,7 @@ export interface InboundProcessResult {
 export async function processInboundWhatsAppMessage(
   input: NormalizedWhatsAppInbound,
 ): Promise<InboundProcessResult> {
-  const { tenantId, ownerClientId, pushName, text, externalMessageId } = input
+  const { tenantId, ownerClientId, pushName, text, externalMessageId, contentType, attachments } = input
   const phone = normalizeBrazilianMobile(input.phone)
 
   const refMatch = text?.match(/\[ref:([^\]]+)\]/)
@@ -87,6 +91,8 @@ export async function processInboundWhatsAppMessage(
       direction: 'inbound',
       senderType: 'contact',
       content: text || null,
+      contentType: contentType || 'text',
+      attachments: attachments || [],
       externalId: externalMessageId,
     })
     mensageriaResult = { contactId: r.contactId, conversationId: r.conversationId }

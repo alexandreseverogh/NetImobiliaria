@@ -9351,7 +9351,45 @@
 
 ## Tarefa em andamento
 
-**Nenhuma.** Cascata Cliente → Tenant → Segmento(Master) → Global(Master) de modelo LLM e
+**Catálogo de Métricas Dinâmico (Fase 1 de 4) — schema + UI do Master, iniciada em 2026-11-02.**
+Contexto: dashboard de Campanhas e os insights do LLM usam hoje um conjunto fixo e hardcoded de
+métricas (~20 colunas em `Insight`), enquanto a Meta Ads Insights API oferece 200+ métricas em
+6 categorias (Desempenho/Diagnóstico/Engajamento/Conversões/Configurações) + dezenas de
+detalhamentos (idade/gênero/posicionamento/dispositivo/hora/etc.) — levantamento completo feito
+ao vivo na própria UI da Meta junto com o usuário. Desenho acordado (4 fases, sem doc formal —
+usuário preferiu ir direto pra implementação):
+1. **Fase 1 (em andamento agora)** — tabela `system_segment_metrics` (metadado por segmento:
+   `meta_field`/`label`/`unit`/`better_direction`/`chart_type`/`is_kpi_card`/`benchmark_key`,
+   mesmo padrão de `segment_angle_terms`) + modal de curadoria no Master
+   (`/admin/master/segments`), mesmo padrão visual de `SegmentAnglesModal`/
+   `SegmentInterestsModal`.
+2. Fase 2 — adapter (`metaAdsAdapter.fetchInsights`) passa a buscar exatamente os campos
+   configurados; novo `custom_metrics JSONB` aditivo em `Insight` (nunca mexe nas colunas
+   fixas já existentes).
+3. Fase 3 — página nova "Explorador de Métricas": tabela densa + seletor de colunas por
+   categoria/busca (mesmo padrão UX do "Personalizar tabela dinâmica" da própria Meta,
+   confirmado ao vivo nesta sessão) — nunca uma tela com 200+ cards de uma vez.
+4. Fase 4 — Briefing/LLM (`strategicBriefing.ts`) passa a montar o texto de contexto
+   iterando a mesma tabela de metadado, em vez de campos fixos hardcoded no TypeScript.
+
+**Decisão de produto registrada:** pra análise bruta e ilimitada de qualquer uma das 200+
+métricas sem curadoria, a recomendação é usar a própria ferramenta de Relatórios da Meta —
+reconstruir um clone 1:1 seria esforço redundante; o valor real do Explorador (Fase 3) é
+cruzar com o que só a nossa plataforma tem (CRM, multi-rede, insights de LLM), não substituir
+a ferramenta nativa da Meta.
+
+**Também nesta sessão, antes desta frente (ver "Última tarefa concluída" abaixo):** WhatsApp
+Evolution configurado ponta a ponta pro tenant Artemis9 (instância compartilhada
+`teste-roteiro-crm-2`, mesmo número 5581998000047 já usado por 3 tenants de teste — webhook
+real configurado e testado) + fix real de mídia inbound (áudio/imagem/vídeo/documento
+chegavam só como texto vazio, agora sobem pro MinIO e viram anexo real) + saldo real de
+R$49,99 confirmado na conta de anúncios Meta da Artemis9 (destrava o lançamento de campanha
+real, que segue pendente).
+
+---
+
+**Pendências herdadas, ainda abertas** (não atacadas nesta sessão): Cascata Cliente → Tenant →
+Segmento(Master) → Global(Master) de modelo LLM e
 prompts (CRM + Mensageria, Campanhas fora de propósito) está formalmente concluída e testada
 ponta a ponta com dado real — ver entrada no topo deste arquivo ("Atualizado em: 2026-08-28").
 Dono do lead manual (creator-as-owner) + exclusão híbrida de lead (permanente/
