@@ -4,7 +4,7 @@ import pool from '@/lib/database/connection';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { resolveSegment } from '@/lib/intelligence/segmentResolver';
 import { resolveCampaignIdsBySegment } from '@/lib/marketing/segmentUtils';
-import { getSegmentMetrics, type SegmentMetric } from '@/lib/marketing/services/segmentMetricCatalogService';
+import { getEffectiveMetrics, type SegmentMetric } from '@/lib/marketing/services/segmentMetricCatalogService';
 
 /**
  * Catálogo de Métricas Dinâmico — Fase 3 (Explorador de Métricas).
@@ -76,12 +76,21 @@ export async function GET(request: NextRequest) {
     // `client_id = 'segment'::uuid` e quebraria.
     const campaignClientFilter = clientId === 'segment' ? undefined : clientId;
     const campaignIds = await resolveCampaignIdsBySegment(tenantId, segment.id, campaignClientFilter);
-    const catalog: SegmentMetric[] = await getSegmentMetrics(segment.id);
+
+    // Catálogo de Métricas Dinâmico — cascata Segmento → Tenant → Cliente (ver
+    // docs/CHECKPOINT.md, plano "typed-percolating-riddle"). Sentinelas de UI nunca viram
+    // clientId real aqui: 'own' e 'segment' (visão agregada "Todos os Clientes", sem 1 dono
+    // único) resolvem pelo escopo PRÓPRIO do tenant — decisão de borda de baixo risco, só afeta
+    // quais colunas aparecem numa tela de leitura, documentada no plano.
+    const clientScope = clientId && clientId !== 'own' && clientId !== 'segment' ? clientId : null;
+    const { metrics: catalog, resolvedLevel }: { metrics: SegmentMetric[]; resolvedLevel: string } =
+      await getEffectiveMetrics(tenantId, clientScope);
 
     if (campaignIds.length === 0) {
       return NextResponse.json({
         segment: { id: segment.id, name: segment.name },
         catalog,
+        resolvedLevel,
         rows: [] as ExplorerCampaignRow[],
       });
     }
@@ -185,6 +194,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       segment: { id: segment.id, name: segment.name },
       catalog,
+      resolvedLevel,
       rows,
     });
   } catch (error: any) {

@@ -33,6 +33,7 @@ import {
 import { cn } from '@/lib/marketing-utils';
 import { UpdateGuard } from '@/components/admin/PermissionGuard';
 import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector';
+import { MetricsCascadeSection } from '@/components/admin/campanhas/MetricsCascadeSection';
 
 // ─── Helpers compartilhados ───────────────────────────────────────────────────
 
@@ -1113,6 +1114,9 @@ function TenantSettingsView() {
           )}
         </div>
       </SectionCard>
+
+      {/* ── Métricas Curadas (cascata Segmento → Tenant → Cliente) ── */}
+      <MetricsCascadeSection />
 
       {/* ── Comunicação e Inteligência ── */}
       <SectionCard icon={Cog6ToothIcon} title="Agentes, Alertas e IA" description="Chave de IA e threshold do Agente Decisor de Campanhas">

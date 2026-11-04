@@ -5,6 +5,7 @@
  */
 
 import pool from '@/lib/database/connection';
+import { resolveSegment } from '@/lib/intelligence/segmentResolver';
 
 const S = 'campanhasmarketingdigital';
 
@@ -104,7 +105,7 @@ export async function saveSegmentMetrics(
            (segment_id, metric_key, meta_field, label, unit, better_direction, chart_type,
             category, benchmark_key, action_type, is_kpi_card, sort_order, is_active)
          VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, true)
-         ON CONFLICT (segment_id, metric_key) DO UPDATE SET
+         ON CONFLICT (segment_id, metric_key) WHERE segment_id IS NOT NULL DO UPDATE SET
            meta_field = EXCLUDED.meta_field, label = EXCLUDED.label, unit = EXCLUDED.unit,
            better_direction = EXCLUDED.better_direction, chart_type = EXCLUDED.chart_type,
            category = EXCLUDED.category, benchmark_key = EXCLUDED.benchmark_key,
@@ -130,6 +131,234 @@ export async function saveSegmentMetrics(
   } finally {
     client.release();
   }
+}
+
+// ─── Cascata Segmento → Tenant → Cliente (ver docs/CHECKPOINT.md, plano "typed-percolating-
+// riddle") ─────────────────────────────────────────────────────────────────────────────────
+// getSegmentMetrics/saveSegmentMetrics acima ficam intocadas de propósito — já filtram por
+// segment_id, que nas linhas novas abaixo é sempre NULL, então nunca leem/escrevem por engano
+// uma linha de tenant/cliente. As funções a seguir são autocontidas, cópias adaptadas (não um
+// genérico compartilhado) — mesmo padrão já aceito no código-base pra LLM (SegmentLlmDefaultModal
+// vs LlmCascadeSection são 2 implementações separadas, não uma só).
+
+export type MetricScopeLevel = 'client' | 'client_segment' | 'tenant' | 'segment';
+
+/** Override do PRÓPRIO tenant (tenant_id preenchido, client_id NULL). */
+export async function getTenantMetrics(tenantId: string): Promise<SegmentMetric[]> {
+  const { rows } = await pool.query(
+    `SELECT metric_key, meta_field, label, unit, better_direction, chart_type, category,
+            benchmark_key, action_type, is_kpi_card, sort_order, is_active
+       FROM ${S}.segment_metric_catalog
+      WHERE tenant_id = $1::uuid AND client_id IS NULL AND is_active = true
+      ORDER BY sort_order ASC, label ASC`,
+    [tenantId],
+  );
+  return rows.map(mapMetricRow);
+}
+
+/** Override de 1 cliente específico (tenant_id + client_id preenchidos). */
+export async function getClientMetrics(tenantId: string, clientId: string): Promise<SegmentMetric[]> {
+  const { rows } = await pool.query(
+    `SELECT metric_key, meta_field, label, unit, better_direction, chart_type, category,
+            benchmark_key, action_type, is_kpi_card, sort_order, is_active
+       FROM ${S}.segment_metric_catalog
+      WHERE tenant_id = $1::uuid AND client_id = $2::uuid AND is_active = true
+      ORDER BY sort_order ASC, label ASC`,
+    [tenantId, clientId],
+  );
+  return rows.map(mapMetricRow);
+}
+
+function mapMetricRow(r: any): SegmentMetric {
+  return {
+    metricKey: r.metric_key,
+    metaField: r.meta_field,
+    label: r.label,
+    unit: r.unit,
+    betterDirection: r.better_direction,
+    chartType: r.chart_type,
+    category: r.category,
+    benchmarkKey: r.benchmark_key,
+    actionType: r.action_type,
+    isKpiCard: r.is_kpi_card,
+    sortOrder: r.sort_order,
+    isActive: r.is_active,
+  };
+}
+
+/** Replace-all transacional pro override do TENANT — mesma mecânica de saveSegmentMetrics,
+ * escrevendo segment_id=NULL + tenant_id preenchido, client_id NULL. */
+export async function saveTenantMetrics(
+  tenantId: string,
+  metrics: Partial<SegmentMetric>[],
+): Promise<number> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `DELETE FROM ${S}.segment_metric_catalog WHERE tenant_id = $1::uuid AND client_id IS NULL`,
+      [tenantId],
+    );
+
+    let inserted = 0;
+    let order = 0;
+    for (const m of metrics) {
+      const metaField = (m.metaField || '').trim();
+      const label = (m.label || '').trim();
+      if (!metaField || !label) continue;
+      const metricKey = slugifyKey(m.metricKey || label);
+      if (!metricKey) continue;
+
+      await client.query(
+        `INSERT INTO ${S}.segment_metric_catalog
+           (tenant_id, client_id, metric_key, meta_field, label, unit, better_direction,
+            chart_type, category, benchmark_key, action_type, is_kpi_card, sort_order, is_active)
+         VALUES ($1::uuid, NULL, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, true)
+         ON CONFLICT (tenant_id, metric_key) WHERE tenant_id IS NOT NULL AND client_id IS NULL DO UPDATE SET
+           meta_field = EXCLUDED.meta_field, label = EXCLUDED.label, unit = EXCLUDED.unit,
+           better_direction = EXCLUDED.better_direction, chart_type = EXCLUDED.chart_type,
+           category = EXCLUDED.category, benchmark_key = EXCLUDED.benchmark_key,
+           action_type = EXCLUDED.action_type,
+           is_kpi_card = EXCLUDED.is_kpi_card, sort_order = EXCLUDED.sort_order,
+           is_active = true, updated_at = now()`,
+        [
+          tenantId, metricKey, metaField, label,
+          m.unit || 'count', m.betterDirection || 'higher_is_better', m.chartType || 'line',
+          m.category || 'gasto', m.benchmarkKey || null, m.actionType || null,
+          !!m.isKpiCard, order,
+        ],
+      );
+      inserted++;
+      order++;
+    }
+
+    await client.query('COMMIT');
+    return inserted;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/** Replace-all transacional pro override de 1 CLIENTE específico. */
+export async function saveClientMetrics(
+  tenantId: string,
+  clientId: string,
+  metrics: Partial<SegmentMetric>[],
+): Promise<number> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `DELETE FROM ${S}.segment_metric_catalog WHERE tenant_id = $1::uuid AND client_id = $2::uuid`,
+      [tenantId, clientId],
+    );
+
+    let inserted = 0;
+    let order = 0;
+    for (const m of metrics) {
+      const metaField = (m.metaField || '').trim();
+      const label = (m.label || '').trim();
+      if (!metaField || !label) continue;
+      const metricKey = slugifyKey(m.metricKey || label);
+      if (!metricKey) continue;
+
+      await client.query(
+        `INSERT INTO ${S}.segment_metric_catalog
+           (tenant_id, client_id, metric_key, meta_field, label, unit, better_direction,
+            chart_type, category, benchmark_key, action_type, is_kpi_card, sort_order, is_active)
+         VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, true)
+         ON CONFLICT (tenant_id, client_id, metric_key) WHERE client_id IS NOT NULL DO UPDATE SET
+           meta_field = EXCLUDED.meta_field, label = EXCLUDED.label, unit = EXCLUDED.unit,
+           better_direction = EXCLUDED.better_direction, chart_type = EXCLUDED.chart_type,
+           category = EXCLUDED.category, benchmark_key = EXCLUDED.benchmark_key,
+           action_type = EXCLUDED.action_type,
+           is_kpi_card = EXCLUDED.is_kpi_card, sort_order = EXCLUDED.sort_order,
+           is_active = true, updated_at = now()`,
+        [
+          tenantId, clientId, metricKey, metaField, label,
+          m.unit || 'count', m.betterDirection || 'higher_is_better', m.chartType || 'line',
+          m.category || 'gasto', m.benchmarkKey || null, m.actionType || null,
+          !!m.isKpiCard, order,
+        ],
+      );
+      inserted++;
+      order++;
+    }
+
+    await client.query('COMMIT');
+    return inserted;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/** Restaura herança — remove a linha de verdade, nunca "salva vazio" (lição já aprendida na
+ * cascata de LLM: upsert com COALESCE preservaria o valor antigo em vez de limpar). */
+export async function deleteTenantMetrics(tenantId: string): Promise<void> {
+  await pool.query(
+    `DELETE FROM ${S}.segment_metric_catalog WHERE tenant_id = $1::uuid AND client_id IS NULL`,
+    [tenantId],
+  );
+}
+
+export async function deleteClientMetrics(tenantId: string, clientId: string): Promise<void> {
+  await pool.query(
+    `DELETE FROM ${S}.segment_metric_catalog WHERE tenant_id = $1::uuid AND client_id = $2::uuid`,
+    [tenantId, clientId],
+  );
+}
+
+/**
+ * Resolve o catálogo EFETIVO pra um tenant/cliente — cascata completa, 4 resultados possíveis
+ * de `resolvedLevel`, nesta ordem de prioridade:
+ *
+ *   1. Override do PRÓPRIO cliente — sempre vence, decisão pontual e deliberada.
+ *   2. Cliente de segmento DISTINTO do tenant pula o override genérico do tenant — o default
+ *      vertical-específico do PRÓPRIO segmento do cliente é mais relevante pra calibração do
+ *      que um override pensado com o negócio do TENANT em mente (ex.: tenant "Marketing
+ *      Digital" tem clientes reais em "Venda de Carros"/"Saúde Digital" — um override genérico
+ *      de agência não tem por que valer pra esses verticais).
+ *   3. Override de tenant — só chega aqui sem (1) nem (2) acima.
+ *   4. Default do segmento do PRÓPRIO tenant.
+ *
+ * Sem `clientId` (escopo "Minha Empresa"): o passo 2 nunca dispara, cascata vira simplesmente
+ * Tenant → Segmento do tenant — igual LLM/Prompt hoje. Autocontida: resolve segmento
+ * internamente, callers não precisam chamar resolveSegment à parte só pra isso.
+ */
+export async function getEffectiveMetrics(
+  tenantId: string,
+  clientId: string | null,
+): Promise<{ metrics: SegmentMetric[]; resolvedLevel: MetricScopeLevel }> {
+  if (clientId) {
+    const rows = await getClientMetrics(tenantId, clientId);
+    if (rows.length > 0) return { metrics: rows, resolvedLevel: 'client' };
+  }
+
+  const tenantSegment = await resolveSegment(tenantId, null);
+  let clientOwnSegmentId: string | null = null;
+  if (clientId) {
+    const { rows } = await pool.query<{ segment_id: string | null }>(
+      `SELECT segment_id FROM public.clientes WHERE uuid = $1::uuid LIMIT 1`,
+      [clientId],
+    );
+    clientOwnSegmentId = rows[0]?.segment_id ?? null;
+  }
+  if (clientOwnSegmentId && clientOwnSegmentId !== tenantSegment?.id) {
+    const segMetrics = await getSegmentMetrics(clientOwnSegmentId);
+    return { metrics: segMetrics, resolvedLevel: 'client_segment' };
+  }
+
+  const tenantRows = await getTenantMetrics(tenantId);
+  if (tenantRows.length > 0) return { metrics: tenantRows, resolvedLevel: 'tenant' };
+
+  const segMetrics = tenantSegment?.id ? await getSegmentMetrics(tenantSegment.id) : [];
+  return { metrics: segMetrics, resolvedLevel: 'segment' };
 }
 
 /** Campos da Meta Insights API que são ARRAYS genéricos de {action_type, value} — exigem

@@ -9351,6 +9351,109 @@
 
 ## Tarefa em andamento
 
+**Cascata de Métricas Curadas: Segmento → Tenant → Cliente — implementada e testada no nível
+de banco/serviço/API; pendente só confirmação visual do usuário na UI (`npx tsc --noEmit`
+limpo em todo o projeto, 25/25 testes ao vivo passando, resíduo de teste confirmado zerado).**
+
+**Contexto do pedido:** o Catálogo de Métricas Dinâmico (sessões anteriores desta mesma
+conversa) era 1-tamanho-único por segmento — o usuário apontou que tenants/clientes diferentes
+têm exigência analítica distinta, e pediu a mesma hierarquia de resolução já usada em LLM
+(`getLlmClient`) e Prompts (`resolvePromptTemplate`): Cliente > Tenant > Segmento. Plano
+completo elaborado em modo de planejamento (`typed-percolating-riddle.md`), com uma rodada de
+`AskUserQuestion` confirmando 2 decisões (substituição total da lista, nunca mescla; editor
+pré-preenche com o herdado) e uma discussão adicional — iniciada pelo próprio usuário — sobre
+um caso real não coberto pelo desenho original: um tenant (ex. "Marketing Digital", segmento
+"Gestão de Marketing Digital") pode gerenciar clientes de segmentos GENUINAMENTE diferentes
+(ex. "AutoMax Veículos", segmento "Venda de Carros"). Decisão confirmada: o segmento PRÓPRIO
+do cliente, quando distinto do segmento do tenant, vence o override genérico do tenant — um
+override de tenant só se aplica por padrão a clientes do mesmo segmento dele; um override
+ESPECÍFICO pra aquele cliente sempre vence de qualquer forma.
+
+**Schema** (`prisma/migration-2026-11-05-metric-catalog-tenant-client-cascade.sql`) — mesma
+técnica já usada em `Settings` (LLM) e `system_prompt_templates`: `segment_metric_catalog`
+ganhou `tenant_id`/`client_id` nullable + `segment_id` virou nullable também, com um CHECK
+(`chk_smc_exactly_one_scope`) garantindo que toda linha é OU default do Master (segment_id) OU
+override de tenant (tenant_id, client_id NULL) OU override de cliente (os dois preenchidos) —
+nunca uma combinação inválida. 3 índices únicos parciais (`idx_smc_segment_unique`/
+`idx_smc_tenant_unique`/`idx_smc_client_unique`), cada um com `WHERE` mutuamente exclusivo. As
+19 linhas reais já curadas no segmento "Gestão de Marketing Digital" (sessão anterior)
+sobreviveram à migração sem nenhuma alteração de dado, confirmado via `\d` antes/depois.
+
+**Achado real de bug durante os testes, corrigido na hora:** o antigo `UNIQUE(segment_id,
+metric_key)` era uma constraint PLANA; virou um índice PARCIAL. Como Postgres exige que o
+`ON CONFLICT ... WHERE` de cada INSERT bata EXATAMENTE com o `WHERE` do índice arbiter (mesmo
+gotcha já documentado 2x no histórico deste projeto, pras cascatas de LLM e Prompt), as 3
+funções de save (`saveSegmentMetrics`, já existente, e as 2 novas `saveTenantMetrics`/
+`saveClientMetrics`) lançavam `42P10 — there is no unique or exclusion constraint matching the
+ON CONFLICT specification` em TODO insert, não só em caso de conflito real — ou seja,
+`saveSegmentMetrics` (a curadoria do Master, código que eu deliberadamente não pretendia
+tocar) teria ficado **completamente quebrada pra salvar qualquer coisa** se esse erro não
+tivesse sido pego no teste. Corrigido copiando o `WHERE` exato de cada índice nos 3
+`ON CONFLICT` — confirmado com um round-trip de escrita REAL no payload das 19 métricas reais
+do Master (replace-all com o próprio conteúdo capturado antes, zero risco de perda de dado),
+batendo byte-a-byte antes/depois.
+
+**Service layer** (`src/lib/marketing/services/segmentMetricCatalogService.ts`) —
+`getSegmentMetrics`/`saveSegmentMetrics` intocadas em LÓGICA (só o `ON CONFLICT` acima, forçado
+pela migração); novas `getTenantMetrics`/`getClientMetrics`/`saveTenantMetrics`/
+`saveClientMetrics`/`deleteTenantMetrics`/`deleteClientMetrics` + **`getEffectiveMetrics`**, a
+função central, autocontida (resolve segmento internamente via `resolveSegment`), cascata de 4
+resultados (`client` → `client_segment` → `tenant` → `segment`), substituição total em cada
+camada (nunca mescla, confirmado com o usuário).
+
+**API** (`src/app/api/admin/campanhas/settings/metrics/route.ts`, novo) — GET/PUT/DELETE,
+contrato espelhando `/api/crm/prompt-overrides` adaptado pra lista: `resolvedMetrics`/
+`resolvedLevel`/`overrideMetrics`/`segmentReferenceMetrics`/`editingLevel`/`segment`. Master
+pode inspecionar outro tenant via `?tenant_id=` (mesmo helper `resolveTenantId` de
+prompt-overrides). Consumidores existentes trocados de `getSegmentMetrics` pra
+`getEffectiveMetrics`: `agentMonitor.syncCampaignInsights` (Fase 2/captura — removeu a chamada
+redundante a `resolveSegment`, já embutida) e `metrics-explorer/route.ts` (Explorador —
+sentinelas de UI `'own'`/`'segment'` normalizadas pra `null`, visão agregada "Todos os
+Clientes" cai no escopo próprio do tenant). `segments/[id]/metrics/route.ts` (Master)
+intocada — só opera em `segment_id`, nunca vê as linhas novas.
+
+**UI nova** (`src/components/admin/campanhas/MetricsCascadeSection.tsx`, montada em
+`/admin/campanhas/configuracoes` → view do tenant) — achado real no caminho: o plano original
+presumia que existiria uma seção de LLM vizinha pra se ancorar (`LlmCascadeSection`), mas essa
+cascata NUNCA viveu em Configurações de Campanhas (removida de lá em 2026-09-01, só CRM/
+Mensageria a usam — comentário já deixado no código explicando por quê) — corrigido montando a
+seção nova direto, sem esse vizinho. Reaproveita `ClientSelector`/`useClientSelector` (toggle
+Minha Empresa/Cliente, mesmo padrão de `LlmCascadeSection`) + o MESMO array `COMMON_SUGGESTIONS`
+já curado em `SegmentMetricsModal.tsx` (Master) — exportado de lá e importado aqui, zero
+duplicação de dado. Badge de proveniência (verde "sobrescrito"/âmbar "herdado", com texto
+específico pro caso `client_segment` explicando que o override de tenant foi deliberadamente
+ignorado) + bloco colapsável "ver o que X configurou" + editor que pré-preenche com o herdado.
+
+**Testado ao vivo, 25/25, via script `ts-node` temporário** (removido ao final, nunca
+commitado) **contra dado real do tenant "Marketing Digital"** (19 métricas reais do Master,
+clientes reais em 4 segmentos distintos — AutoMax Veículos/Carros foi a prova decisiva do
+`client_segment`): baseline zero-regressão · override de tenant · override de cliente (mesmo
+segmento) sem vazar pro escopo tenant · cliente sem override, mesmo segmento, cai no tenant ·
+**cliente de segmento DISTINTO ignora o override de tenant e cai no próprio segmento — e com
+override específico, esse vence tudo** (a asserção central da frente) · restaurar herança nos
+2 níveis · isolamento entre tenants reais (Marketing Digital vs. Imovitec) · a mesma chamada
+que `syncCampaignInsights` faria internamente (não invocada de ponta a ponta — exigiria
+credencial real de rede, registrado como limitação honesta) · curadoria do Master (leitura E
+escrita real) · CHECK constraint rejeitando linha malformada direto via SQL · limpeza final
+confirmada `count(*)=0` nos overrides de teste, 19 métricas reais do Master intactas.
+
+**Achado incidental no processo, descoberto rodando `ts-node`:** o `tsconfig.json` deste
+projeto usa `module: 'esnext'`/`moduleResolution: 'bundler'` — `ts-node` por padrão respeita
+isso e emite ESM, que o loader nativo do Node 22 não resolve via `tsconfig-paths/register`
+(que só faz patch de `require` CommonJS). Fix: `TS_NODE_COMPILER_OPTIONS='{"module":
+"commonjs","moduleResolution":"node"}'` na frente do comando — útil registrar pra scripts
+`ts-node` futuros neste projeto.
+
+**Pendente, não feito por mim de propósito** (mesma disciplina já estabelecida nesta sessão —
+usuário testa, Claude não valida sozinho no navegador por padrão): confirmação visual da UI —
+o badge de proveniência no Explorador, a seção nova em Configurações, o fluxo completo de
+sobrescrever/restaurar clicando de verdade. Servidor dev do usuário (porta 3000) já reflete o
+código (nenhum arquivo `next.config.js` foi tocado nesta rodada, hot-reload deve pegar sozinho).
+
+---
+
+## Última tarefa concluída
+
 **SIM — código pronto e tipado, mas NÃO testado ao vivo desta vez: Docker instável de novo,
 mesmo sintoma já documentado hoje (não resolvido com o remédio de hoje mais cedo).** Usuário
 apontou, corretamente, que o Explorador de Métricas (página inteira, não só o modal de

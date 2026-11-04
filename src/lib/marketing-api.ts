@@ -320,6 +320,44 @@ export const deleteLlmSettings = (clientId: string) =>
 export const testLlmConnection = () =>
   api.post<{ success: boolean; provider: string; model: string; response?: string; error?: string }>('/settings/llm/test').then(r => r.data);
 
+// ─── Catálogo de Métricas — cascata Segmento → Tenant → Cliente ──────────────
+// Ver docs/CHECKPOINT.md (plano "typed-percolating-riddle"). Mesmo padrão do bloco de LLM
+// acima (clientId opcional → escopo tenant vs. cliente), mas este É consumido por Campanhas.
+export interface CascadeMetric {
+  metricKey: string;
+  metaField: string;
+  label: string;
+  unit: 'currency' | 'percent' | 'count' | 'ratio' | 'score';
+  betterDirection: 'higher_is_better' | 'lower_is_better' | 'neutral';
+  chartType: 'area' | 'line' | 'bar';
+  category: string;
+  benchmarkKey: string | null;
+  actionType: string | null;
+  isKpiCard: boolean;
+}
+
+export type MetricCascadeLevel = 'client' | 'client_segment' | 'tenant' | 'segment';
+
+export interface MetricCascadeResponse {
+  resolvedMetrics: CascadeMetric[];
+  resolvedLevel: MetricCascadeLevel;
+  overrideMetrics: CascadeMetric[] | null;
+  /** Segmento de referência pra ESTE escopo (do cliente, se ele tiver um próprio; senão do
+   * tenant) — null só se nenhum segmento resolveu (não deveria acontecer em runtime normal). */
+  segment: { id: string; name: string } | null;
+  segmentReferenceMetrics: CascadeMetric[];
+  editingLevel: 'tenant' | 'client';
+}
+
+export const getMetricsCascade = (clientId?: string | null) =>
+  api.get<MetricCascadeResponse>('/settings/metrics', { params: clientId ? { clientId } : undefined }).then(r => r.data);
+
+export const saveMetricsCascade = (data: { clientId?: string | null; metrics: Partial<CascadeMetric>[] }) =>
+  api.put('/settings/metrics', data).then(r => r.data);
+
+export const deleteMetricsCascade = (clientId: string | null) =>
+  api.delete('/settings/metrics', { params: clientId ? { clientId } : undefined }).then(r => r.data);
+
 export const testWhatsAppBriefing = () =>
   api.post('/settings/whatsapp/test-briefing').then(r => r.data);
 

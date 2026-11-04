@@ -29,7 +29,7 @@ type MetricCategory =
   | 'gasto' | 'distribuicao' | 'video' | 'cliques' | 'trafego'
   | 'engajamento' | 'mensagens' | 'diagnostico' | 'conversoes';
 
-interface Metric {
+export interface Metric {
   metricKey: string;
   metaField: string;
   label: string;
@@ -69,7 +69,7 @@ const CHART_OPTIONS: { value: MetricChartType; label: string }[] = [
 /** Ordem e rótulos batendo com as 2 abas reais de métrica da Meta ("Principais métricas" +
  * "Rastreamento" — a 3ª, "Configurações de anúncios", não é métrica) e os grupos dentro delas,
  * confirmados ao vivo em 2026-11-03. */
-const CATEGORY_OPTIONS: { value: MetricCategory; label: string }[] = [
+export const CATEGORY_OPTIONS: { value: MetricCategory; label: string }[] = [
   { value: 'gasto', label: 'Gasto' },
   { value: 'distribuicao', label: 'Distribuição' },
   { value: 'video', label: 'Vídeo' },
@@ -91,7 +91,7 @@ const CATEGORY_OPTIONS: { value: MetricCategory; label: string }[] = [
  * bloqueadas, métricas específicas do Instagram, alguns detalhes de mensageria) fica de fora de
  * propósito — melhor não oferecer do que oferecer uma métrica que nunca captura dado real.
  */
-const COMMON_SUGGESTIONS: Metric[] = [
+export const COMMON_SUGGESTIONS: Metric[] = [
   // ── Gasto ──────────────────────────────────────────────────────────────
   { metricKey: 'spend', metaField: 'spend', label: 'Valor gasto', unit: 'currency', betterDirection: 'neutral', chartType: 'area', category: 'gasto', benchmarkKey: null, actionType: null, isKpiCard: true },
 

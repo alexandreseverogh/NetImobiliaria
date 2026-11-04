@@ -8,8 +8,7 @@ import { generateStrategicBriefing } from './strategicBriefing';
 import { notifyWhatsApp, notifySlack, notifyDigest } from './agentNotificador';
 import { inferLifecycleStatus } from './campaignStateMachine';
 import { getProvisionedNetworkCodes } from './networkProvisioning';
-import { resolveSegment } from '../../intelligence/segmentResolver';
-import { getSegmentMetrics } from './segmentMetricCatalogService';
+import { getEffectiveMetrics } from './segmentMetricCatalogService';
 // Achado real na verificação de deploy (2026-09-03): este ciclo interno (disparado pelo
 // instrumentation.ts, roda dentro do próprio processo do Next.js) sempre fez só sync+decisor —
 // o agente de negativação do Google (A6) e o motor de realocação cross-rede (T4,
@@ -286,17 +285,17 @@ export async function syncCampaignInsights(
   since: string,
   until: string,
 ): Promise<number> {
-  // Catálogo de Métricas Dinâmico — Fase 2: resolve o segmento (cliente > tenant, mesma
-  // cascata já usada no resto da plataforma) e busca as métricas curadas pra pedir campo extra
-  // à rede e popular Insight.custom_metrics. Falha de resolução nunca bloqueia o sync normal —
-  // cai em array vazio, mesmo comportamento de antes desta fase (customMetrics sempre '{}').
-  let segmentMetrics: Awaited<ReturnType<typeof getSegmentMetrics>> = [];
+  // Catálogo de Métricas Dinâmico — cascata Segmento → Tenant → Cliente (ver docs/CHECKPOINT.md,
+  // plano "typed-percolating-riddle"): getEffectiveMetrics já resolve segmento internamente e
+  // respeita override de tenant/cliente, se houver. Falha de resolução nunca bloqueia o sync
+  // normal — cai em array vazio, mesmo comportamento de antes (customMetrics sempre '{}').
+  let segmentMetrics: Awaited<ReturnType<typeof getEffectiveMetrics>>['metrics'] = [];
   if (campaign.tenantId) {
     try {
-      const segment = await resolveSegment(campaign.tenantId, campaign.clientId ?? null);
-      if (segment) segmentMetrics = await getSegmentMetrics(segment.id);
+      const effective = await getEffectiveMetrics(campaign.tenantId, campaign.clientId ?? null);
+      segmentMetrics = effective.metrics;
     } catch (err) {
-      console.error(`[syncCampaignInsights] Erro ao resolver métricas do segmento (campanha ${campaign.id}):`, err);
+      console.error(`[syncCampaignInsights] Erro ao resolver métricas efetivas (campanha ${campaign.id}):`, err);
     }
   }
 

@@ -52,11 +52,27 @@ interface ExplorerRow {
   daysWithData: number;
 }
 
+type MetricResolvedLevel = 'client' | 'client_segment' | 'tenant' | 'segment';
+
 interface ExplorerResponse {
   segment: { id: string; name: string };
   catalog: CuratedMetric[];
+  resolvedLevel?: MetricResolvedLevel;
   rows: ExplorerRow[];
   error?: string;
+}
+
+// Cascata Segmento → Tenant → Cliente (ver docs/CHECKPOINT.md, plano "typed-percolating-
+// riddle") — texto de proveniência pro usuário saber de onde vem o catálogo de colunas atual,
+// mesma disciplina de descoberta explícita já aplicada nesta sessão (fix do botão de gráfico).
+function provenanceLabel(level: MetricResolvedLevel | undefined, segmentName: string): string {
+  switch (level) {
+    case 'client': return 'Métricas: configuração própria deste cliente';
+    case 'client_segment': return `Métricas: herdadas do segmento próprio deste cliente (diferente do seu)`;
+    case 'tenant': return 'Métricas: configuração própria da sua empresa';
+    case 'segment': return `Métricas: herdadas do segmento ${segmentName}`;
+    default: return '';
+  }
 }
 
 /** Coluna unificada — fixa (sempre disponível) ou curada (vem da resposta da API). */
@@ -512,8 +528,9 @@ export default function MetricsExplorerPage() {
               <p className="text-[10px] font-black text-gold-premium uppercase tracking-[0.3em] mb-1">Campanhas</p>
               <h1 className="text-xl font-black text-slate-100 tracking-tight">Explorador de Métricas</h1>
               <p className="text-xs text-slate-500">
-                {data?.segment?.name ? `Segmento: ${data.segment.name} · ` : ''}
-                Colunas fixas da plataforma + métricas curadas pelo Master pro seu segmento.
+                {data?.resolvedLevel
+                  ? provenanceLabel(data.resolvedLevel, data.segment?.name ?? '')
+                  : 'Colunas fixas da plataforma + métricas curadas pelo Master pro seu segmento.'}
               </p>
             </div>
           </div>
