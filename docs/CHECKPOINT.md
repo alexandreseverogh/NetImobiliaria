@@ -9351,9 +9351,36 @@
 
 ## Tarefa em andamento
 
-**Nenhuma.** Catálogo de Métricas Dinâmico — Fases 1 e 2 de 4 — **concluídas e testadas** em
-2026-11-02/03 (branch `feature/segment-metric-catalog`, ainda sem PR/merge).
-Contexto: dashboard de Campanhas e os insights do LLM usam hoje um conjunto fixo e hardcoded
+**SIM — interrompida por reboot da máquina (2026-11-04), não por fim de sessão.** Catálogo de
+Métricas Dinâmico, branch `feature/segment-metric-catalog` (ainda sem PR/merge) — Fases 1-3 de
+4 têm CÓDIGO pronto e commitado/pushed, mas **2 migrações SQL não foram aplicadas ao banco**
+porque o Docker Desktop travou no meio da sessão (reparse point órfão, só resolvido com
+reboot — ver "Achado de infraestrutura" mais abaixo). **Checklist exato pra retomar, nesta
+ordem, assim que o Docker voltar a responder (`docker ps` sem travar):**
+
+1. `docker exec -i netimobiliaria-db psql -U postgres -d net_imobiliaria < prisma/migration-2026-11-03-segment-metric-catalog-real-categories.sql`
+   — já tinha sido aplicada ANTES do Docker travar da 1ª vez (confirmado), mas reaplicar não
+   tem custo (`ALTER TABLE`/`DROP CONSTRAINT IF EXISTS`/`ADD CONSTRAINT`, idempotente na
+   prática mesmo sem `IF NOT EXISTS` explícito — só falha se já existir, o que é esperado).
+2. `docker exec -i netimobiliaria-db psql -U postgres -d net_imobiliaria < prisma/migration-2026-11-04-metrics-explorer-feature.sql`
+   — esta NUNCA foi aplicada (escrita depois do travamento). Registra a feature "Explorador de
+   Métricas" em `system_features`/`system_feature_modules`/`permissions`.
+3. Reconfirmar o round-trip do catálogo de métricas (categorias novas) contra o banco real —
+   script simples reaproveitando `saveSegmentMetrics`/`getSegmentMetrics` no segmento
+   Imobiliário, com limpeza no final (mesmo padrão já usado nos testes anteriores desta sessão,
+   antes do Docker cair — nunca chegou a rodar com sucesso).
+4. Provisionar `campanhas-metrics-explorer` pra pelo menos 1 tenant de teste real (via SQL
+   direto em `tenant_feature_overrides`, ou pedir confirmação do usuário antes — é ato
+   deliberado por regra do projeto, `docs/ACCESS_CONTROL.md`).
+5. Abrir `/admin/campanhas/explorador-metricas` de verdade (navegador ou sessão JWT) — primeira
+   vez que a tela roda contra dado real. Confirmar: segmento resolvido, colunas fixas E curadas
+   aparecendo, agregação SOMA/MÉDIA batendo com um cálculo manual via SQL pra pelo menos 2-3
+   campanhas reais, filtro de cliente/período funcionando.
+6. Só depois disso, decidir com o usuário se segue pra Fase 4 (`strategicBriefing.ts` lendo o
+   catálogo dinamicamente) ou fecha esta frente por ora.
+
+Contexto original da frente (sem mudança): dashboard de Campanhas e os insights do LLM usam
+hoje um conjunto fixo e hardcoded
 de métricas (~20 colunas em `Insight`), enquanto a Meta Ads Insights API oferece 200+ métricas
 em 6 categorias (Desempenho/Diagnóstico/Engajamento/Conversões/Configurações) + dezenas de
 detalhamentos — levantamento completo feito ao vivo na própria UI da Meta junto com o usuário.
@@ -9477,7 +9504,19 @@ reais listados) e a página de Ad Action Stats (action_type literais dos eventos
   conseguem tocar nele; todos retornam o mesmo erro de sistema. Não é falta de privilégio —
   é um handle travado no kernel, provavelmente órfão da morte abrupta dos processos zumbis.
   Não resolvido nesta sessão — usuário escolheu seguir com a evidência indireta em vez de
-  reiniciar a máquina. **Pendência real pra quando o usuário reiniciar por conta própria:**
+  reiniciar a máquina naquele momento. **Atualização, mais tarde na mesma sessão:** tentei
+  reiniciar o Docker Desktop sozinho de novo (mesmo `taskkill`+`wsl --shutdown`+relançar) — subiu
+  sem crashar desta vez, mas ficou instável (`docker ps` ora respondia, ora travava; `docker ps
+  -a` travava sempre). Usuário decidiu reiniciar a MÁQUINA (não só o Docker) — passo recomendado,
+  em andamento no momento desta interrupção. **Se o reboot completo não resolver sozinho**,
+  passo de fallback já passado ao usuário (nunca testado, meu shell não tem privilégio
+  administrativo): PowerShell como Administrador, `Remove-Item -Recurse -Force
+  "$env:LOCALAPPDATA\Docker\run" -ErrorAction SilentlyContinue`, depois abrir o Docker Desktop
+  normalmente — a pasta `run` só guarda sockets de runtime, apagá-la é seguro (não é dado).
+  **Nunca** usar "Reset to factory defaults"/"Clean install" do Docker Desktop sem avisar o
+  usuário antes — isso provavelmente apaga os volumes nomeados (`db_data`, `minio_data`) deste
+  projeto, não só configuração.
+  **Pendência real pra quando a máquina voltar:**
   reconfirmar o round-trip do catálogo de métricas (script simples, reaproveitar o padrão já
   usado nos testes anteriores desta sessão — `saveSegmentMetrics`/`getSegmentMetrics` reais
   contra o segmento Imobiliário, com limpeza no final).
