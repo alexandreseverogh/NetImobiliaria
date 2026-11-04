@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
           { AND: [{ networkId: { not: null } }, { externalId: { not: null } }] },
         ],
       },
-      select: { id: true, tenantId: true, metaCampaignId: true, externalId: true, networkId: true },
+      select: { id: true, tenantId: true, clientId: true, metaCampaignId: true, externalId: true, networkId: true },
     });
 
     if (campaigns.length === 0) {

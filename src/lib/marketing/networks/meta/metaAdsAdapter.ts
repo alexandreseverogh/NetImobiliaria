@@ -17,6 +17,11 @@ import {
   assertMetaInsightsRows,
   extractMetaMutateId,
 } from '../apiSchemas';
+import {
+  ALREADY_FETCHED_META_FIELDS,
+  buildCustomMetrics,
+  type SegmentMetric,
+} from '../../services/segmentMetricCatalogService';
 
 // ── Tier 3 do plano "Loop do ICP" (2026-09-04) — Custom Audience / Lookalike ────────────────
 // Fonte do contrato de API: developers.facebook.com/docs/marketing-api/audiences (consultado
@@ -940,25 +945,37 @@ export class MetaAdsAdapter implements AdNetworkService {
     await axios.post(this.url(externalId), { status, ...this.auth });
   }
 
-  async fetchInsights(externalId: string, dateRange: DateRange): Promise<NetworkInsight[]> {
+  async fetchInsights(
+    externalId: string,
+    dateRange: DateRange,
+    customMetrics?: SegmentMetric[],
+  ): Promise<NetworkInsight[]> {
+    const baseFields = [
+      'impressions', 'reach', 'clicks', 'spend', 'cpc', 'cpm', 'ctr',
+      'actions', 'frequency',
+      // ROI + conversão (seção 1.6)
+      'action_values', 'cost_per_action_type',
+      'quality_ranking', 'engagement_rate_ranking', 'conversion_rate_ranking',
+      'link_clicks', 'landing_page_views',
+      // FASE 5 — Video Metrics
+      'video_3_sec_watched_actions',
+      'video_15_sec_watched_actions',
+      'video_p25_watched_actions',
+      'video_p50_watched_actions',
+      'video_p75_watched_actions',
+      'video_p100_watched_actions',
+      'video_thruplay_watched_actions',
+    ];
+    // Catálogo de Métricas Dinâmico — Fase 2: campos extras curados pelo segmento que ainda
+    // não fazem parte da lista fixa acima (nunca duplica um campo já pedido).
+    const extraFields = (customMetrics || [])
+      .map((m) => m.metaField)
+      .filter((f) => f && !ALREADY_FETCHED_META_FIELDS.has(f));
+    const fields = Array.from(new Set([...baseFields, ...extraFields]));
+
     const res = await axios.get(this.url(`${externalId}/insights`), {
       params: {
-        fields: [
-          'impressions', 'reach', 'clicks', 'spend', 'cpc', 'cpm', 'ctr',
-          'actions', 'frequency',
-          // ROI + conversão (seção 1.6)
-          'action_values', 'cost_per_action_type',
-          'quality_ranking', 'engagement_rate_ranking', 'conversion_rate_ranking',
-          'link_clicks', 'landing_page_views',
-          // FASE 5 — Video Metrics
-          'video_3_sec_watched_actions',
-          'video_15_sec_watched_actions',
-          'video_p25_watched_actions',
-          'video_p50_watched_actions',
-          'video_p75_watched_actions',
-          'video_p100_watched_actions',
-          'video_thruplay_watched_actions',
-        ].join(','),
+        fields: fields.join(','),
         time_range:     JSON.stringify({ since: dateRange.since, until: dateRange.until }),
         time_increment: 1,
         ...this.auth,
@@ -1022,6 +1039,11 @@ export class MetaAdsAdapter implements AdNetworkService {
           raw_actions:          actions,
           raw_action_values:    actionValues,
         },
+        // Catálogo de Métricas Dinâmico — Fase 2: só as métricas curadas pelo segmento, nunca
+        // confundidas com os campos fixos acima — ver buildCustomMetrics.
+        customMetrics: customMetrics && customMetrics.length > 0
+          ? buildCustomMetrics(customMetrics, row)
+          : undefined,
       };
     });
   }

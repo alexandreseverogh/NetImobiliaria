@@ -8,6 +8,8 @@ import { generateStrategicBriefing } from './strategicBriefing';
 import { notifyWhatsApp, notifySlack, notifyDigest } from './agentNotificador';
 import { inferLifecycleStatus } from './campaignStateMachine';
 import { getProvisionedNetworkCodes } from './networkProvisioning';
+import { resolveSegment } from '../../intelligence/segmentResolver';
+import { getSegmentMetrics } from './segmentMetricCatalogService';
 // Achado real na verificação de deploy (2026-09-03): este ciclo interno (disparado pelo
 // instrumentation.ts, roda dentro do próprio processo do Next.js) sempre fez só sync+decisor —
 // o agente de negativação do Google (A6) e o motor de realocação cross-rede (T4,
@@ -169,7 +171,7 @@ export async function syncMetrics() {
         { AND: [{ networkId: { not: null } }, { externalId: { not: null } }] },
       ],
     },
-    select: { id: true, tenantId: true, metaCampaignId: true, externalId: true, networkId: true },
+    select: { id: true, tenantId: true, clientId: true, metaCampaignId: true, externalId: true, networkId: true },
   });
 
   // Resolve networkId ↔ code (public.ad_networks) — FASE 19.2 precisa do mapa code→id pra
@@ -279,12 +281,26 @@ export async function syncMetrics() {
  */
 export async function syncCampaignInsights(
   networkService: Awaited<ReturnType<typeof getNetworkServiceForTenant>>,
-  campaign: { id: string; tenantId: string | null },
+  campaign: { id: string; tenantId: string | null; clientId?: string | null },
   externalId: string,
   since: string,
   until: string,
 ): Promise<number> {
-  const insights = await networkService.fetchInsights(externalId, { since, until });
+  // Catálogo de Métricas Dinâmico — Fase 2: resolve o segmento (cliente > tenant, mesma
+  // cascata já usada no resto da plataforma) e busca as métricas curadas pra pedir campo extra
+  // à rede e popular Insight.custom_metrics. Falha de resolução nunca bloqueia o sync normal —
+  // cai em array vazio, mesmo comportamento de antes desta fase (customMetrics sempre '{}').
+  let segmentMetrics: Awaited<ReturnType<typeof getSegmentMetrics>> = [];
+  if (campaign.tenantId) {
+    try {
+      const segment = await resolveSegment(campaign.tenantId, campaign.clientId ?? null);
+      if (segment) segmentMetrics = await getSegmentMetrics(segment.id);
+    } catch (err) {
+      console.error(`[syncCampaignInsights] Erro ao resolver métricas do segmento (campanha ${campaign.id}):`, err);
+    }
+  }
+
+  const insights = await networkService.fetchInsights(externalId, { since, until }, segmentMetrics);
   let count = 0;
   for (const day of insights) {
     const insightId = `${campaign.id}-${day.date}`;
@@ -322,6 +338,8 @@ export async function syncCampaignInsights(
       searchBudgetLostIs:    day.searchBudgetLostIs    ?? 0,
       searchRankLostIs:      day.searchRankLostIs      ?? 0,
       conversionsValue:      day.conversionsValue      ?? 0,
+      // Catálogo de Métricas Dinâmico — Fase 2
+      customMetrics:         day.customMetrics         ?? {},
     };
     await prisma.insight.upsert({
       where: { id: insightId },

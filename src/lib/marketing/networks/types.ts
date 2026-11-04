@@ -42,6 +42,10 @@ export interface NetworkInsight {
   searchBudgetLostIs?:    number;  // % perdido por orçamento insuficiente
   searchRankLostIs?:      number;  // % perdido por rank/qualidade
   conversionsValue?:      number;  // valor monetário das conversões (para ROAS)
+  // Catálogo de Métricas Dinâmico — Fase 2: {metricKey: valor}, resolvido a partir das
+  // métricas curadas no segmento (campanhasmarketingdigital.segment_metric_catalog). Nunca
+  // inclui chave de métrica sem dado real (ver buildCustomMetrics).
+  customMetrics?: Record<string, number>;
 }
 
 export interface TargetingResult {
@@ -169,7 +173,9 @@ export interface AdNetworkService {
 
   updateCampaignStatus(externalId: string, status: 'ACTIVE' | 'PAUSED'): Promise<void>;
 
-  fetchInsights(externalId: string, dateRange: DateRange): Promise<NetworkInsight[]>;
+  /** `customMetrics` (Catálogo de Métricas Dinâmico, Fase 2) é opcional e só o adapter da Meta
+   * sabe usar hoje — a lista curada em segment_metric_catalog pro segmento do tenant/campanha. */
+  fetchInsights(externalId: string, dateRange: DateRange, customMetrics?: import('../services/segmentMetricCatalogService').SegmentMetric[]): Promise<NetworkInsight[]>;
 
   searchTargeting(type: 'interest' | 'location' | 'audience', query: string): Promise<TargetingResult[]>;
 

@@ -9351,23 +9351,39 @@
 
 ## Tarefa em andamento
 
-**Nenhuma.** Catálogo de Métricas Dinâmico — Fase 1 de 4 — **concluída e testada** em
-2026-11-02 (branch `feature/segment-metric-catalog`, commit `dca7ec5`, ainda sem PR/merge).
+**Nenhuma.** Catálogo de Métricas Dinâmico — Fases 1 e 2 de 4 — **concluídas e testadas** em
+2026-11-02/03 (branch `feature/segment-metric-catalog`, ainda sem PR/merge).
 Contexto: dashboard de Campanhas e os insights do LLM usam hoje um conjunto fixo e hardcoded
 de métricas (~20 colunas em `Insight`), enquanto a Meta Ads Insights API oferece 200+ métricas
 em 6 categorias (Desempenho/Diagnóstico/Engajamento/Conversões/Configurações) + dezenas de
 detalhamentos — levantamento completo feito ao vivo na própria UI da Meta junto com o usuário.
 Desenho acordado em 4 fases, sem doc formal (usuário preferiu ir direto pra implementação):
-1. **Fase 1 (concluída)** — tabela `campanhasmarketingdigital.segment_metric_catalog`
-   (metadado por segmento: `meta_field`/`label`/`unit`/`better_direction`/`chart_type`/
-   `is_kpi_card`/`benchmark_key` opcional ligando em `system_benchmarks.metric_key` do mesmo
-   segmento, mesmo padrão de `segment_angle_terms`) + modal de curadoria no Master
-   (`SegmentMetricsModal.tsx`, mesmo padrão visual de `SegmentAnglesModal`, registrado como
-   12º item no "Regimento do Segmento"). Chips de "sugestões comuns" em vez de "Sugerir com
-   IA" — catálogo finito e já documentado, não um nicho de negócio a inferir.
-2. Fase 2 (não iniciada) — adapter (`metaAdsAdapter.fetchInsights`) passa a buscar
-   exatamente os campos configurados; novo `custom_metrics JSONB` aditivo em `Insight`
-   (nunca mexe nas colunas fixas já existentes).
+1. **Fase 1 (concluída, commit `dca7ec5`)** — tabela
+   `campanhasmarketingdigital.segment_metric_catalog` (metadado por segmento: `meta_field`/
+   `label`/`unit`/`better_direction`/`chart_type`/`is_kpi_card`/`benchmark_key` opcional
+   ligando em `system_benchmarks.metric_key` do mesmo segmento, mesmo padrão de
+   `segment_angle_terms`) + modal de curadoria no Master (`SegmentMetricsModal.tsx`, mesmo
+   padrão visual de `SegmentAnglesModal`, registrado como 12º item no "Regimento do
+   Segmento"). Chips de "sugestões comuns" em vez de "Sugerir com IA" — catálogo finito e já
+   documentado, não um nicho de negócio a inferir.
+2. **Fase 2 (concluída)** — captura real: `AdNetworkService.fetchInsights` ganha um 3º
+   parâmetro opcional `customMetrics?: SegmentMetric[]` (compatível com todos os 5
+   implementadores — Google, FakeGoogle, FakeMeta, FakeTikTok continuam com a assinatura de 2
+   params, `tsc --noEmit` limpo no projeto inteiro). `MetaAdsAdapter.fetchInsights` passa a
+   pedir à API só os `meta_field`s curados que ainda não fazem parte da lista fixa de sempre
+   (`ALREADY_FETCHED_META_FIELDS`, nunca duplica), e resolve o valor real de cada métrica via
+   `buildCustomMetrics` (3 formatos de campo da Meta: escalar simples, array
+   `{action_type,value}` filtrado, array de vídeo sempre índice 0 — mesma convenção já usada
+   por `pickVideoAction`). Novo `custom_metrics JSONB NOT NULL DEFAULT '{}'` em `Insight`
+   (`migration-2026-11-02-insight-custom-metrics.sql`, aditivo — nunca mexe nas colunas fixas
+   já existentes). `agentMonitor.syncCampaignInsights` resolve o segmento efetivo da campanha
+   (cliente → tenant, via `resolveSegment` — a mesma cascata já usada no resto da plataforma),
+   busca as métricas curadas daquele segmento e repassa pro `fetchInsights`; persiste o
+   resultado em `Insight.customMetrics`. Os 2 pontos de entrada (`agentMonitor.syncMetrics` e
+   o endpoint manual `POST /insights/sync`) tiveram o `select` da query de campanhas corrigido
+   pra incluir `clientId` — sem isso a cascata de segmento nunca saberia o cliente da
+   campanha. Falha na resolução do segmento nunca bloqueia o sync normal (cai em array vazio,
+   `customMetrics` fica `{}`, comportamento idêntico a antes desta fase).
 3. Fase 3 (não iniciada) — página nova "Explorador de Métricas": tabela densa + seletor de
    colunas por categoria/busca (mesmo padrão UX do "Personalizar tabela dinâmica" da própria
    Meta, confirmado ao vivo nesta sessão) — nunca uma tela com 200+ cards de uma vez.
@@ -9379,11 +9395,29 @@ métricas sem curadoria, a recomendação é usar a própria ferramenta de Relat
 reconstruir um clone 1:1 seria esforço redundante; o valor real do Explorador (Fase 3) é
 cruzar com o que só a nossa plataforma tem (CRM, multi-rede, insights de LLM).
 
-**Testado:** GET/PUT/GET round-trip via API real contra o segmento Imobiliário real,
+**Testado (Fase 1):** GET/PUT/GET round-trip via API real contra o segmento Imobiliário real,
 persistência confirmada no banco (incl. acentos — corrigido um erro de encoding do próprio
 teste em `curl` inline no Git Bash, não um bug de código), dado de teste removido ao final.
-`tsc --noEmit` limpo. UI não verificada visualmente no navegador nesta sessão (o Browser pane
-estava logado no Meta Ads Manager) — segue o mesmo padrão já comprovado de `SegmentAnglesModal`.
+UI não verificada visualmente no navegador nesta sessão (o Browser pane estava logado no Meta
+Ads Manager) — segue o mesmo padrão já comprovado de `SegmentAnglesModal`.
+
+**Testado (Fase 2), ponta a ponta, com dado real, contra o código-fonte real** (via
+`ts-node`+`tsconfig-paths` carregando os `.ts` de produção diretamente, não cópias — técnica
+nova desta sessão: `TS_NODE_COMPILER_OPTIONS={module:'commonjs',moduleResolution:'node'}`
+antes de `require('ts-node/register')`): (1) teste isolado do adapter — mockado `axios` via
+monkey-patch de `Module.prototype.require` (nunca toca credencial real nem faz chamada de
+rede), 8/8 checks confirmando os 3 formatos de campo + a lista de campos enviada à Meta nunca
+duplica um já fixo; regressão sem nenhuma métrica configurada confirmada byte-a-byte idêntica
+ao comportamento de antes (`customMetrics: undefined`, mesma lista de 22 campos). (2) teste de
+wiring completo — curou 1 métrica real no segmento Imobiliário via `saveSegmentMetrics` (a
+MESMA função que a API do Master usa), chamou o `syncCampaignInsights` real com uma campanha
+de teste real (`test-fase2-campaign-001`, tenant Marketing Digital, cliente com segmento
+Imobiliário) e um `networkService.fetchInsights` mockado que captura o array recebido — 6/6
+checks: segmento resolvido corretamente, métrica curada chegou intacta no `fetchInsights`,
+`Insight` persistido com `customMetrics:{"leads_qualificados":9}` e colunas fixas (`spend`)
+intactas. Todo dado de teste removido depois (campanha, `Insight`, catálogo do segmento
+restaurado a vazio) — `count(*)=0`/catálogo vazio confirmados no próprio script. `npx tsc
+--noEmit` limpo no projeto inteiro, antes e depois.
 
 **Também nesta sessão, em branch separada (`feature/artemis9-whatsapp-inbound-media`,
 commit `96b111e`, ainda sem PR/merge):** WhatsApp Evolution configurado ponta a ponta pro

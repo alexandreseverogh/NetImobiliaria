@@ -233,6 +233,9 @@ model Insight {
   searchBudgetLostIs     Float    @default(0) @map("search_budget_lost_is")
   searchRankLostIs       Float    @default(0) @map("search_rank_lost_is")
   conversionsValue       Float    @default(0) @map("conversions_value")
+  // Catálogo de Métricas Dinâmico — Fase 2: bag {metricKey: valor} curado por segmento
+  // (ver segmentMetricCatalogService.ts). Aditivo — nunca substitui as colunas fixas acima.
+  customMetrics    Json     @default("{}") @map("custom_metrics")
   createdAt        DateTime @default(now())
 
   @@index([campaignId, date])
