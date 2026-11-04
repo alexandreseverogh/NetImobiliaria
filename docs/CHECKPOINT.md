@@ -9390,6 +9390,49 @@ Desenho acordado em 4 fases, sem doc formal (usuário preferiu ir direto pra imp
 4. Fase 4 (não iniciada) — `strategicBriefing.ts` passa a montar o texto de contexto
    iterando a mesma tabela de metadado, em vez de campos fixos hardcoded no TypeScript.
 
+**Correção de taxonomia (2026-11-03), depois da Fase 2:** usuário questionou por que a tela de
+curadoria só tinha ~18 sugestões (das ~150 reais) e por que não agrupadas pelas categorias reais
+da Meta — achado real: os 5 buckets de `category` da Fase 1
+(desempenho/diagnostico/engajamento/conversoes/configuracoes) tinham sido inventados sem olhar a
+UI real da Meta. Refeito o levantamento ao vivo, com o usuário logado no Gerenciador de
+Anúncios, em "Personalizar colunas" (as 3 abas expandidas via "Mostrar todas as métricas"):
+confirmado que só 2 das 3 abas são métrica de verdade — "Principais métricas" e "Rastreamento"
+(a 3ª, "Configurações de anúncios", é atributo/config — nome, orçamento, segmentação —, não
+cabe no modelo unit/direction/chartType). Pesquisados também os nomes reais de campo da API
+(não os rótulos em português da UI) contra a referência oficial auto-gerada da Meta
+(`developers.facebook.com/.../marketing-api/reference/ad-campaign-group/insights`, ~380 campos
+reais listados) e a página de Ad Action Stats (action_type literais dos eventos de conversão —
+`omni_purchase`, `omni_add_to_cart`, `lead`, `subscribe_total`, etc.).
+- **Migração** `migration-2026-11-03-segment-metric-catalog-real-categories.sql` — CHECK
+  constraint de `category` trocado pros 9 valores reais: `gasto`/`distribuicao`/`video`/
+  `cliques`/`trafego`/`engajamento`/`mensagens`/`diagnostico`/`conversoes` (`video` mescla as 2
+  seções de vídeo que a Meta separa só por aba de UI; `mensagens` existe na taxonomia mas ainda
+  sem sugestão confirmada — chamadas/mensageria específicas não tinham action_type documentado
+  com confiança). Tabela ainda vazia em produção, `ALTER` direto sem migração de dado.
+- **Achado real no próprio caminho de código, corrigido:** vários dos campos novos (
+  `video_play_actions`, `cost_per_thruplay`, `outbound_clicks`, `website_ctr`,
+  `website_purchase_roas`, `cost_per_2_sec_continuous_video_view`...) voltam da Meta como array
+  `{action_type, value}` de 1 elemento só, igual aos campos de vídeo — mas o resolver só
+  reconhecia esse formato pelo sufixo `_watched_actions`. Generalizado:
+  `isSingleValueActionArrayField()` (antes `isVideoWatchedActionsField`) agora checa contra uma
+  lista explícita de ~20 campos confirmados na doc oficial, além do sufixo antigo — nunca infere
+  por heurística de nome.
+- `COMMON_SUGGESTIONS` expandido de 18 → 45 métricas, cada uma com `meta_field`/`action_type`
+  confirmado na doc oficial (nenhuma chutada — o que não deu pra confirmar com certeza, como
+  métricas específicas de chamada/Instagram, ficou de fora de propósito). Chips da UI agora
+  renderizam agrupados por categoria, com cabeçalho — mesma ordem/nomes das seções reais da
+  Meta, em vez da lista achatada de antes.
+- **Testado:** resolver generalizado — 6/6 casos (os novos formatos de array resolvem por
+  índice 0, o caminho antigo de vídeo continua igual, `actions`+`action_type` continua exigindo
+  filtro — nunca vira índice-0 por engano, campo ausente nunca inventa 0). `npx tsc --noEmit`
+  limpo no projeto inteiro (1 erro real pego e corrigido no processo — `emptyMetric()` ainda
+  usava o valor antigo `'desempenho'`, que não existe mais no union type). A migração SQL foi
+  aplicada e confirmada contra o banco real antes do Docker Desktop engasgar no meio da sessão
+  (pipe do Docker parou de responder, mesmo sintoma já documentado antes neste arquivo) — o
+  round-trip *com os dados novos* não foi reconfirmado ao vivo depois disso, mas os literais de
+  categoria foram comparados byte-a-byte entre SQL/service/modal (idênticos) e o código de
+  save/read em si não mudou, só o tipo — risco residual baixo, registrado com honestidade.
+
 **Decisão de produto registrada:** pra análise bruta e ilimitada de qualquer uma das 200+
 métricas sem curadoria, a recomendação é usar a própria ferramenta de Relatórios da Meta —
 reconstruir um clone 1:1 seria esforço redundante; o valor real do Explorador (Fase 3) é

@@ -11,7 +11,15 @@ const S = 'campanhasmarketingdigital';
 export type MetricUnit = 'currency' | 'percent' | 'count' | 'ratio' | 'score';
 export type MetricDirection = 'higher_is_better' | 'lower_is_better' | 'neutral';
 export type MetricChartType = 'area' | 'line' | 'bar';
-export type MetricCategory = 'desempenho' | 'diagnostico' | 'engajamento' | 'conversoes' | 'configuracoes';
+/** Taxonomia real da Meta (Gerenciador de Anúncios → "Personalizar colunas"), levantada ao vivo
+ * em 2026-11-03 — não mais inventada. 'video' mescla "Reconhecimento > Mídia" com "Rastreamento >
+ * Mídia" (a Meta separa os dois só por abas de UI, mesmo assunto); 'mensagens' mescla
+ * "Engajamento > Mensagens/Ligações" com "Rastreamento > Mensagens e ligações > Bloqueios". A 3ª
+ * aba real da Meta ("Configurações de anúncios") não entra aqui — é atributo/config
+ * (nome/orçamento/segmentação), não métrica numérica graficável. */
+export type MetricCategory =
+  | 'gasto' | 'distribuicao' | 'video' | 'cliques' | 'trafego'
+  | 'engajamento' | 'mensagens' | 'diagnostico' | 'conversoes';
 
 export interface SegmentMetric {
   metricKey: string;
@@ -106,7 +114,7 @@ export async function saveSegmentMetrics(
         [
           segmentId, metricKey, metaField, label,
           m.unit || 'count', m.betterDirection || 'higher_is_better', m.chartType || 'line',
-          m.category || 'desempenho', m.benchmarkKey || null, m.actionType || null,
+          m.category || 'gasto', m.benchmarkKey || null, m.actionType || null,
           !!m.isKpiCard, order,
         ],
       );
@@ -128,11 +136,25 @@ export async function saveSegmentMetrics(
  * `action_type` pra resolver uma métrica específica, diferente de campo simples/plano. */
 const ARRAY_META_FIELDS = new Set(['actions', 'action_values', 'cost_per_action_type']);
 
-/** Campos de vídeo da Meta também voltam como array de {action_type, value}, mas sempre com
- * 1 elemento só — mesma convenção já usada no adapter hoje (pickVideoAction): pega o valor do
- * índice 0, sem precisar de action_type explícito. */
-function isVideoWatchedActionsField(metaField: string): boolean {
-  return metaField.endsWith('_watched_actions');
+/** Campos reais da Meta Insights API (`lista<AdsActionStats>`, confirmados na referência oficial
+ * auto-gerada em 2026-11-03) que sempre voltam com 1 elemento só no array, mesma convenção já
+ * usada no adapter hoje pra vídeo (pickVideoAction): pega o valor do índice 0, sem precisar de
+ * action_type explícito — diferente de `actions`/`action_values`/`cost_per_action_type`, que
+ * têm múltiplos action_type reais na mesma resposta e exigem filtro. Nunca chutado — cada campo
+ * aqui foi confirmado como `lista<AdsActionStats>` na doc oficial antes de entrar nesta lista. */
+const SINGLE_VALUE_ACTION_ARRAY_FIELDS = new Set([
+  'video_3_sec_watched_actions', 'video_15_sec_watched_actions',
+  'video_p25_watched_actions', 'video_p50_watched_actions', 'video_p75_watched_actions',
+  'video_p95_watched_actions', 'video_p100_watched_actions', 'video_thruplay_watched_actions',
+  'video_avg_time_watched_actions', 'video_play_actions', 'video_continuous_2_sec_watched_actions',
+  'cost_per_thruplay', 'cost_per_2_sec_continuous_video_view',
+  'website_ctr', 'website_purchase_roas', 'mobile_app_purchase_roas', 'purchase_roas',
+  'outbound_clicks', 'outbound_clicks_ctr', 'cost_per_outbound_click',
+  'cost_per_unique_outbound_click', 'unique_outbound_clicks',
+]);
+
+function isSingleValueActionArrayField(metaField: string): boolean {
+  return SINGLE_VALUE_ACTION_ARRAY_FIELDS.has(metaField) || metaField.endsWith('_watched_actions');
 }
 
 /** Nomes de meta_field distintos que já são pedidos fixo hoje em fetchInsights (ver
@@ -153,7 +175,7 @@ export const ALREADY_FETCHED_META_FIELDS = new Set([
  * `action_type`. `null` = não achou dado pra essa métrica nessa linha (nunca inventa 0).
  */
 export function resolveCustomMetricValue(metric: SegmentMetric, row: Record<string, any>): number | null {
-  if (isVideoWatchedActionsField(metric.metaField)) {
+  if (isSingleValueActionArrayField(metric.metaField)) {
     const arr: any[] = row[metric.metaField] || [];
     const v = arr?.[0]?.value;
     if (v === undefined || v === null) return null;
