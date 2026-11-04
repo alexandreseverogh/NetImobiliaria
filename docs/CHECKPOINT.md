@@ -9351,8 +9351,52 @@
 
 ## Tarefa em andamento
 
-**Nenhuma — 2 pedidos de refinamento sobre a Fase 3.1 concluídos: redesign visual do gráfico
-(skill `dataviz`) + correção da curadoria real do segmento "Gestão de Marketing Digital".**
+**SIM — código pronto e tipado, mas NÃO testado ao vivo desta vez: Docker instável de novo,
+mesmo sintoma já documentado hoje (não resolvido com o remédio de hoje mais cedo).** Usuário
+apontou, corretamente, que o Explorador de Métricas (página inteira, não só o modal de
+gráfico) ficava visualmente destoante do resto do módulo de Campanhas — fundo branco genérico
+(`bg-gray-50`) enquanto `/admin/campanhas/dashboard` usa o tema "Painel de Missão" do projeto
+(navy escuro + âmbar, ver `DESIGN.md`). Confirmado ao vivo (antes do Docker cair de novo) que
+o Dashboard real usa esse tema — e que isso viola uma regra explícita do próprio `DESIGN.md`
+("Don't criar dashboards com fundo branco genérico — a superfície navy é parte da identidade",
+"A Regra Antivetorial").
+
+**Implementado — página inteira reescrita pro tema "Painel de Missão"** (`bg-navy`/`navy-light`/
+`gold-premium`, tokens reais do `tailwind.config.js`, não inventados): header com eyebrow
+"CAMPANHAS" em âmbar + título branco (mesmo padrão do Dashboard real), cards/filtros/seletor de
+colunas/tabela todos em superfície navy com borda translúcida sutil, inputs com
+`colorScheme:'dark'` (mesmo truque já usado no Dashboard pros `<select>` nativos), botão
+"Colunas" e chips do seletor com estado ativo em âmbar/`navy-dark`. **Decisão: sempre dark, sem
+toggle claro/escuro** (diferente do Dashboard, que tem os dois) — "modo escuro-primário" já é o
+padrão do sistema, e menos variante reduz o risco de inconsistência. O modal de gráfico
+(Fase 3.1 anterior) também foi adaptado: tooltip no mesmo card escuro `#0d1421` já usado no
+tooltip do Dashboard, grid/eixo em tons claros translúcidos, paleta de série recalibrada pra
+cores mais claras/vibrantes (mesmo princípio do `predColors` do Dashboard — cores diferentes
+em dark vs light mode pro mesmo contraste).
+
+**`npx tsc --noEmit` confirmado limpo** depois da reescrita completa do arquivo.
+
+**NÃO testado ao vivo** — ao tentar verificar no navegador, o Docker Desktop apresentou o MESMO
+sintoma de infraestrutura já documentado em detalhe mais acima neste mesmo checkpoint ("Achado
+de infraestrutura"): porta TCP abre, mas o handshake de protocolo (Postgres via `pg`, e também
+HTTP do MinIO — confirmado que não é específico do Postgres, é geral de rede do Docker Desktop)
+nunca completa. **Diferente de hoje mais cedo, desta vez `docker restart netimobiliaria-db` NÃO
+resolveu** (container ficou `healthy` em 23s, mas a conexão real continuou travando). Não
+tentei a remediação mais agressiva (matar processos `Docker Desktop`/`com.docker.backend`,
+`wsl --shutdown`, relançar) de novo sozinho — da última vez isso levou a um crash mais sério
+(reparse point órfão) que só um reboot completo da máquina resolveu; não repetir sem o usuário
+saber. Servidor de preview parado, nenhuma tentativa adicional de contornar.
+
+**Pendência real, registrada com honestidade:** o redesign dark da página está implementado e
+tipado, mas **nunca foi visto rodando** — nem eu nem o usuário confirmamos visualmente que o
+tema escuro renderiza corretamente (cores, contraste, legibilidade dos chips/tabela, o modal de
+gráfico sobre o novo fundo). Risco residual real: pode haver discrepância de classe Tailwind,
+contraste insuficiente em algum texto, ou algo que só aparece ao olhar de verdade. **Próximo
+passo, assim que o Docker voltar a responder** (`docker ps` + um teste real de query via `pg`,
+não só `pg_isready`): abrir `/admin/campanhas/explorador-metricas` de verdade, confirmar
+visualmente contra o Dashboard real (mesma paleta, mesmo "peso" visual), testar o modal de
+gráfico nos 3 `chartType`s sobre o fundo escuro novo, e só então considerar este pedido
+concluído.
 
 **1) Redesign visual** — usuário apontou que o gráfico do commit anterior estava "pobre" e
 pediu uma skill de visualização de dados real. Carregada a skill `dataviz` (método agnóstico
