@@ -9433,6 +9433,22 @@ reais listados) e a página de Ad Action Stats (action_type literais dos eventos
   categoria foram comparados byte-a-byte entre SQL/service/modal (idênticos) e o código de
   save/read em si não mudou, só o tipo — risco residual baixo, registrado com honestidade.
 
+  **Tentativa de reiniciar o Docker pra reconfirmar — achado real de infraestrutura, não
+  resolvido, fora do escopo desta sessão:** os processos `Docker Desktop`/`com.docker.backend`
+  estavam zumbis desde 25/10 (10 dias), disputando a mesma instância. Matados via
+  `taskkill /F`, WSL derrubado por completo (`wsl --shutdown`) e Docker Desktop relançado do
+  zero — ao subir, crashou com erro genuíno: `removing C:\Users\T-GAMER\AppData\Local\Docker\
+  run\dockerInference: Não é possível o acesso ao arquivo pelo sistema`. Esse arquivo (reparse
+  point de 0 bytes, socket AF_UNIX órfão) está **inacessível em nível de SO** — nem
+  `Remove-Item -Force`, nem `del`/`rmdir` via `cmd`, nem `icacls` (nem pra LER a ACL)
+  conseguem tocar nele; todos retornam o mesmo erro de sistema. Não é falta de privilégio —
+  é um handle travado no kernel, provavelmente órfão da morte abrupta dos processos zumbis.
+  Não resolvido nesta sessão — usuário escolheu seguir com a evidência indireta em vez de
+  reiniciar a máquina. **Pendência real pra quando o usuário reiniciar por conta própria:**
+  reconfirmar o round-trip do catálogo de métricas (script simples, reaproveitar o padrão já
+  usado nos testes anteriores desta sessão — `saveSegmentMetrics`/`getSegmentMetrics` reais
+  contra o segmento Imobiliário, com limpeza no final).
+
 **Decisão de produto registrada:** pra análise bruta e ilimitada de qualquer uma das 200+
 métricas sem curadoria, a recomendação é usar a própria ferramenta de Relatórios da Meta —
 reconstruir um clone 1:1 seria esforço redundante; o valor real do Explorador (Fase 3) é
