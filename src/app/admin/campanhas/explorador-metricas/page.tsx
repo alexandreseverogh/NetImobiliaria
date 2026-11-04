@@ -17,7 +17,7 @@ import {
 } from '@heroicons/react/24/outline';
 import {
   ResponsiveContainer, LineChart, Line, AreaChart, Area, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  XAxis, YAxis, CartesianGrid, Tooltip,
 } from 'recharts';
 import { adminFetch } from '@/lib/auth/adminFetch';
 import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector';
@@ -131,18 +131,99 @@ function isChartable(unit: MetricUnit): boolean {
   return unit !== 'score';
 }
 
+// Paleta categórica — âmbar da marca (gold-premium) como slot 1, depois alternando frio/quente
+// pra manter cada vizinho distinguível à primeira vista; os 4 últimos são tons neutros de
+// apoio (só entram com muitas campanhas simultâneas, onde a legenda já carrega a identidade).
 const CHART_PALETTE = [
   '#c5a028', '#2563eb', '#059669', '#dc2626', '#7c3aed', '#0891b2',
   '#ea580c', '#4338ca', '#15803d', '#be185d', '#6b7280', '#a16207',
 ];
+
+const CHART_INK = { primary: '#111827', secondary: '#6b7280', muted: '#9ca3af', grid: '#eef0f3', axis: '#d1d5db' };
 
 interface TimeseriesPoint {
   date: string;
   [campaignId: string]: string | number | null;
 }
 
+function formatChartDate(d: string, withWeekday = false): string {
+  const [y, m, dd] = d.split('-').map(Number);
+  if (!y || !m || !dd) return d;
+  if (!withWeekday) return `${String(dd).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
+  const wd = new Date(Date.UTC(y, m - 1, dd)).toLocaleDateString('pt-BR', { weekday: 'short', timeZone: 'UTC' });
+  return `${wd.charAt(0).toUpperCase()}${wd.slice(1, 3)}, ${String(dd).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
+}
+
+/** Tooltip do gráfico — valor em destaque (Strong), nome da série em segundo plano, cada linha
+ * identificada por uma chave curta na cor da série (nunca uma caixa cheia) — o valor é o que o
+ * leitor veio buscar, a legenda já deu a identidade. */
+function ChartTooltipCard({ active, label, payload, unit, names, colorByKey }: {
+  active?: boolean;
+  label?: string;
+  payload?: { dataKey: string; value: number | null }[];
+  unit: MetricUnit;
+  names: Record<string, string>;
+  colorByKey: Record<string, string>;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+  const rows = payload.filter((p) => p.value !== null && p.value !== undefined);
+  if (rows.length === 0) return null;
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-lg shadow-gray-900/5 px-3.5 py-2.5 min-w-[180px]">
+      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{label ? formatChartDate(label, true) : ''}</p>
+      <div className="space-y-1">
+        {rows
+          .slice()
+          .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
+          .map((p) => (
+            <div key={p.dataKey} className="flex items-center justify-between gap-4">
+              <span className="flex items-center gap-1.5 min-w-0">
+                <span className="w-2.5 h-[2px] rounded-full shrink-0" style={{ backgroundColor: colorByKey[p.dataKey] }} />
+                <span className="text-[11px] text-gray-500 truncate">{names[p.dataKey] ?? p.dataKey}</span>
+              </span>
+              <span className="text-[12px] font-bold text-gray-900 tabular-nums shrink-0">{formatValue(p.value, unit)}</span>
+            </div>
+          ))}
+      </div>
+    </div>
+  );
+}
+
+/** Legenda — chave de linha (série line) ou retângulo (área/barra), nunca só a cor; some por
+ * completo quando há 1 série só (o título do card já diz o que é). */
+function ChartLegendRow({ items, chartType }: { items: { id: string; name: string; color: string }[]; chartType: MetricChartType }) {
+  if (items.length <= 1) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1 pt-3 mt-1 border-t border-gray-100">
+      {items.map((it) => (
+        <span key={it.id} className="flex items-center gap-1.5 text-[11px] text-gray-500">
+          {chartType === 'line' ? (
+            <span className="w-3 h-[2px] rounded-full shrink-0" style={{ backgroundColor: it.color }} />
+          ) : (
+            <span className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: it.color }} />
+          )}
+          <span className="truncate max-w-[220px]">{it.name}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function ChartSkeleton() {
+  return (
+    <div className="h-80 mt-3 flex items-end gap-2 px-2 pb-6 animate-pulse">
+      {[52, 68, 44, 80, 60, 90, 70, 56, 84, 48, 72, 64].map((h, i) => (
+        <div key={i} className="flex-1 bg-gray-100 rounded-t-lg" style={{ height: `${h}%` }} />
+      ))}
+    </div>
+  );
+}
+
 /** Modal de gráfico — série diária de 1 coluna (fixa ou curada), 1 linha/área/barra por
- * campanha atualmente visível na tabela (respeitando busca/filtro já aplicados). */
+ * campanha atualmente visível na tabela (respeitando busca/filtro já aplicados). Segue a skill
+ * `dataviz`: legenda sempre presente (some só com 1 série), tooltip com valor em destaque e
+ * chave de linha (nunca caixa cheia), grid hairline sólida, crosshair real no hover, área com
+ * wash em degradê (nunca bloco saturado), barras com cap/raio fixo. */
 function MetricChartModal({
   column, campaignIds, startDate, endDate, onClose,
 }: {
@@ -160,6 +241,10 @@ function MetricChartModal({
   // Mais de ~12 campanhas num mesmo gráfico vira ilegível — cobre o caso comum sem travar a
   // tela quando o escopo "Todos os Clientes" tiver dezenas de campanhas visíveis.
   const capped = useMemo(() => campaignIds.slice(0, 12), [campaignIds]);
+  const colorByKey = useMemo(
+    () => Object.fromEntries(capped.map((c, i) => [c.id, CHART_PALETTE[i % CHART_PALETTE.length]])),
+    [capped],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -194,61 +279,120 @@ function MetricChartModal({
     return () => { cancelled = true; };
   }, [column.key, column.source, startDate, endDate, capped]);
 
-  const formatDate = (d: string) => {
-    const [, m, dd] = d.split('-');
-    return `${dd}/${m}`;
-  };
   const formatAxisValue = (v: number) => formatValue(v, column.unit);
+  const legendItems = useMemo(
+    () => capped.map((c) => ({ id: c.id, name: c.name, color: colorByKey[c.id] })),
+    [capped, colorByKey],
+  );
 
   const ChartComp = column.chartType === 'area' ? AreaChart : column.chartType === 'bar' ? BarChart : LineChart;
+  const barSize = capped.length <= 1 ? 24 : capped.length <= 3 ? 16 : 10;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className={cn(CARD, 'w-full max-w-4xl max-h-[85vh] overflow-y-auto p-5')} onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-1">
-          <div>
-            <h2 className="text-sm font-black text-gray-900">{column.label}</h2>
-            <p className="text-[11px] text-gray-400">
-              Série diária · {capped.length} campanha{capped.length === 1 ? '' : 's'}
-              {campaignIds.length > capped.length ? ` (de ${campaignIds.length} visíveis — limitado a 12 pra legibilidade)` : ''}
-            </p>
+    <div className="fixed inset-0 z-50 bg-gray-900/50 backdrop-blur-[2px] flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-4xl max-h-[88vh] overflow-y-auto bg-white rounded-3xl border border-gray-200 shadow-2xl shadow-gray-900/20 p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gold-premium/10 flex items-center justify-center shrink-0">
+              <ChartBarIcon className="h-4.5 w-4.5 text-gold-premium" />
+            </div>
+            <div>
+              <h2 className="text-sm font-black text-gray-900">{column.label}</h2>
+              <p className="text-[11px] text-gray-400">
+                Série diária · {capped.length} campanha{capped.length === 1 ? '' : 's'}
+                {campaignIds.length > capped.length ? ` de ${campaignIds.length} (limitado a 12 pra legibilidade)` : ''}
+              </p>
+            </div>
           </div>
-          <button onClick={onClose} className="text-gray-300 hover:text-gray-600">
-            <XMarkIcon className="h-5 w-5" />
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-gray-300 hover:text-gray-600 hover:bg-gray-50 transition-colors shrink-0"
+          >
+            <XMarkIcon className="h-4.5 w-4.5" />
           </button>
         </div>
 
         {loading ? (
-          <div className="py-16 text-center text-sm text-gray-400">Carregando série...</div>
+          <ChartSkeleton />
         ) : error ? (
-          <p className="py-10 text-center text-xs text-red-600 font-medium">⚠️ {error}</p>
-        ) : !points || points.length === 0 ? (
-          <div className="py-16 text-center text-sm text-gray-400">Nenhum dado no período selecionado.</div>
-        ) : (
-          <div className="h-80 mt-3">
-            <ResponsiveContainer width="100%" height="100%">
-              <ChartComp data={points} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11 }} />
-                <YAxis tickFormatter={formatAxisValue} tick={{ fontSize: 11 }} width={70} />
-                <Tooltip
-                  labelFormatter={formatDate}
-                  formatter={(value: number, dataKey: string) => [formatValue(value, column.unit), names[dataKey] ?? dataKey]}
-                />
-                <Legend wrapperStyle={{ fontSize: 11 }} formatter={(key: string) => names[key] ?? key} />
-                {capped.map((c, i) => {
-                  const color = CHART_PALETTE[i % CHART_PALETTE.length];
-                  if (column.chartType === 'area') {
-                    return <Area key={c.id} type="monotone" dataKey={c.id} name={c.id} stroke={color} fill={color} fillOpacity={0.15} connectNulls />;
-                  }
-                  if (column.chartType === 'bar') {
-                    return <Bar key={c.id} dataKey={c.id} name={c.id} fill={color} />;
-                  }
-                  return <Line key={c.id} type="monotone" dataKey={c.id} name={c.id} stroke={color} strokeWidth={2} dot={false} connectNulls />;
-                })}
-              </ChartComp>
-            </ResponsiveContainer>
+          <div className="py-14 text-center">
+            <ChartBarIcon className="h-7 w-7 text-red-200 mx-auto mb-2" />
+            <p className="text-xs text-red-600 font-medium">⚠️ {error}</p>
           </div>
+        ) : !points || points.length === 0 ? (
+          <div className="py-14 text-center">
+            <ChartBarIcon className="h-7 w-7 text-gray-200 mx-auto mb-2" />
+            <p className="text-sm font-medium text-gray-400">Nenhum dado no período selecionado.</p>
+          </div>
+        ) : (
+          <>
+            <div className="h-80 mt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <ChartComp data={points} margin={{ top: 20, right: 12, left: 0, bottom: 0 }} barGap={2}>
+                  {column.chartType === 'area' && (
+                    <defs>
+                      {capped.map((c) => (
+                        <linearGradient key={c.id} id={`mcm-grad-${c.id}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={colorByKey[c.id]} stopOpacity={0.28} />
+                          <stop offset="95%" stopColor={colorByKey[c.id]} stopOpacity={0} />
+                        </linearGradient>
+                      ))}
+                    </defs>
+                  )}
+                  <CartesianGrid vertical={false} stroke={CHART_INK.grid} strokeWidth={1} />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(d: string) => formatChartDate(d)}
+                    tick={{ fontSize: 11, fill: CHART_INK.muted }}
+                    axisLine={{ stroke: CHART_INK.axis }}
+                    tickLine={false}
+                    minTickGap={24}
+                  />
+                  <YAxis
+                    tickFormatter={formatAxisValue}
+                    tick={{ fontSize: 11, fill: CHART_INK.muted }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={80}
+                  />
+                  <Tooltip
+                    content={<ChartTooltipCard unit={column.unit} names={names} colorByKey={colorByKey} />}
+                    cursor={column.chartType === 'bar'
+                      ? { fill: 'rgba(17,24,39,0.03)' }
+                      : { stroke: CHART_INK.axis, strokeWidth: 1 }}
+                  />
+                  {capped.map((c) => {
+                    const color = colorByKey[c.id];
+                    if (column.chartType === 'area') {
+                      return (
+                        <Area
+                          key={c.id} type="monotone" dataKey={c.id} name={c.id}
+                          stroke={color} strokeWidth={2} fill={`url(#mcm-grad-${c.id})`}
+                          dot={false} activeDot={{ r: 4, fill: color, stroke: '#fff', strokeWidth: 2 }}
+                          connectNulls
+                        />
+                      );
+                    }
+                    if (column.chartType === 'bar') {
+                      return <Bar key={c.id} dataKey={c.id} name={c.id} fill={color} radius={[4, 4, 0, 0]} maxBarSize={barSize} />;
+                    }
+                    return (
+                      <Line
+                        key={c.id} type="monotone" dataKey={c.id} name={c.id}
+                        stroke={color} strokeWidth={2} dot={false}
+                        activeDot={{ r: 4, fill: color, stroke: '#fff', strokeWidth: 2 }}
+                        connectNulls
+                      />
+                    );
+                  })}
+                </ChartComp>
+              </ResponsiveContainer>
+            </div>
+            <ChartLegendRow items={legendItems} chartType={column.chartType} />
+          </>
         )}
       </div>
     </div>

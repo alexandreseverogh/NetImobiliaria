@@ -9351,9 +9351,61 @@
 
 ## Tarefa em andamento
 
-**Nenhuma — Fase 3.1 (gráfico por coluna no Explorador de Métricas) concluída e testada
-ao vivo, com 3 bugs reais achados e corrigidos no processo.** Usuário perguntou pra que serve
-o campo `chart_type` (linha/área/barra) salvo na curadoria de cada métrica — achado real: era
+**Nenhuma — 2 pedidos de refinamento sobre a Fase 3.1 concluídos: redesign visual do gráfico
+(skill `dataviz`) + correção da curadoria real do segmento "Gestão de Marketing Digital".**
+
+**1) Redesign visual** — usuário apontou que o gráfico do commit anterior estava "pobre" e
+pediu uma skill de visualização de dados real. Carregada a skill `dataviz` (método agnóstico
+de design system: forma→cor→validação→specs de marca→interação→acessibilidade) e aplicados os
+princípios estruturais ao `MetricChartModal` — sem trocar a paleta do projeto por uma nova
+(reaproveitado `gold-premium` como slot categórico 1 + cores já usadas em outros charts do
+projeto, mantendo identidade visual consistente, não um palette genérico importado):
+- Tooltip reescrito como componente custom — valor em **destaque** (bold, tabular), nome da
+  série em segundo plano, cada linha identificada por uma **chave de linha curta** (nunca uma
+  caixa cheia), data formatada com dia da semana ("SEX, 09/10"), card com sombra/raio real.
+- Legenda sempre presente com ≥2 séries, **ausente com 1 série só** (o título já diz o que é
+  plotado) — chave de linha pra `chartType='line'`, retângulo pra área/barra (mesma convenção
+  da própria marca no gráfico).
+- Grid horizontal hairline sólida (não mais tracejada), eixos sem linha/tick desnecessários,
+  tons neutros recessivos.
+- Área com gradiente real (24%→0 de opacidade) em vez de wash plano; linhas 2px com ponto ativo
+  de 4px + anel branco no hover; barras com raio 4px só no topo, cap de espessura por nº de
+  séries (24px/16px/10px conforme a densidade).
+- Crosshair real: hairline vertical sólida pra linha/área; destaque da coluna inteira (banda
+  cinza sutil) pra barra — "a marca é o alvo do hover" em vez de depender de acertar 2px.
+- Skeleton de carregamento (barras pulsantes) em vez de texto "Carregando...".
+- **2 bugs reais achados testando ao vivo, corrigidos na hora:** (1) tick mais alto do eixo Y
+  cortava o "R" de "R$ 1.200,00" — não era bug de `Intl.NumberFormat` (confirmado via console,
+  a função retorna certo), era `width={64}` insuficiente pro valor mais longo; corrigido pra
+  `width={80}`. (2) margem superior do gráfico (`top: 12`) também curta, aumentada pra `20`.
+
+**2) Curadoria do segmento "Gestão de Marketing Digital" corrigida** — usuário pediu pra
+melhorar o preenchimento dos 6 campos de curadoria (rótulo/unidade/direção/benchmark/
+action_type/Card KPI) "com minha inteligência". Investigação das 19 métricas reais curadas
+nesse segmento: rótulo/unidade/direção/action_type já estavam corretos em todas (conferido
+campo a campo contra `COMMON_SUGGESTIONS`); `benchmark_key` já estava honesto (só
+`cost_per_lead`→`cpl_ideal` tem contraparte real nos benchmarks deste segmento — forçar
+qualquer outro vínculo seria inventar). **Achado real:** as 19 métricas estavam **todas** com
+`is_kpi_card=true` — defeituoso, já que meu próprio `COMMON_SUGGESTIONS` (a fonte que o Master
+usou pra adicionar cada uma via chip) só marca `true` pras métricas genuinamente decisivas
+(`cost_per_lead` tinha `isKpiCard:true` correto; as outras 18, `false`). Confirmado que não é
+bug de código (`addMetric` em `SegmentMetricsModal.tsx` copia `{...seed}` fielmente — o
+`isKpiCard` de cada sugestão É respeitado ao adicionar) — foi alguém marcando manualmente todo
+checkbox depois. Corrigido via `UPDATE segment_metric_catalog SET is_kpi_card=false WHERE
+segment_id=... AND metric_key<>'cost_per_lead'` (18 linhas) — só `cost_per_lead` continua Card
+KPI, as outras 18 ficam disponíveis no Explorador, exatamente o propósito do campo.
+
+**Testado ao vivo, ponta a ponta, tenant real "Marketing Digital"** (servidor `preview-alt`:
+3050, sessão JWT real): confirmado que a tabela do Explorador passou de "COLUNAS (29)" pra
+"COLUNAS (7)" default (6 fixas + Custo por lead) — a curadoria exagerada de KPI estava inflando
+o default visível pra qualquer usuário · gráfico de área (Valor gasto) reconfirmado com o
+mesmo pico de R$1.005,62 em 10/10 · gráfico de barras (Conversões) com hover destacando a
+coluna e tooltip mostrando "SEX, 09/10 ... 2" (bate com o SQL já verificado antes) · legenda
+confirmada ausente filtrando pra 1 campanha só (busca "TikTok") · "R$ 1.200,00" completo no
+eixo Y depois do fix de largura. `npx tsc --noEmit` limpo. Commit pendente.
+
+**(histórico desta mesma frente, Fase 3.1 original)** Usuário perguntou pra que serve o campo
+`chart_type` (linha/área/barra) salvo na curadoria de cada métrica — achado real: era
 metadado órfão, salvo desde a Fase 1 mas nunca lido por nenhum consumidor (nem a Fase 3, que
 saiu como tabela densa). Usuário pediu pra implementar o consumo.
 
