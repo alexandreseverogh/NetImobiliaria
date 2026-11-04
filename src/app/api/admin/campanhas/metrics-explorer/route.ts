@@ -115,9 +115,12 @@ export async function GET(request: NextRequest) {
 
     const fixedSumSql = FIXED_SUM_COLUMNS.map((c) => `SUM(${c}) AS ${c}`).join(', ');
 
+    // "campaignId" (coluna real, sem @map — camelCase) é o gotcha já documentado várias vezes
+    // neste projeto; nunca "campaign_id" (não existe). As demais colunas abaixo têm @map real
+    // pros nomes snake_case usados aqui (confirmado em schema.marketing.prisma).
     const { rows: aggRows } = await pool.query(
       `SELECT
-         campaign_id,
+         "campaignId" AS campaign_id,
          COUNT(*) AS days_with_data,
          ${fixedSumSql},
          AVG(NULLIF(search_impression_share, 0)) AS search_impression_share,
@@ -129,8 +132,8 @@ export async function GET(request: NextRequest) {
          (array_agg(learning_status ORDER BY date DESC))[1] AS learning_status
          ${customSelectSql ? ', ' + customSelectSql : ''}
        FROM campanhasmarketingdigital."Insight"
-       WHERE campaign_id = ANY($1::text[]) AND date >= $2::timestamptz AND date <= $3::timestamptz
-       GROUP BY campaign_id`,
+       WHERE "campaignId" = ANY($1::text[]) AND date >= $2::timestamptz AND date <= $3::timestamptz
+       GROUP BY "campaignId"`,
       [campaignIds, startDate, endDate],
     );
 

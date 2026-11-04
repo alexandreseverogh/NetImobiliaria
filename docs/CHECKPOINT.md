@@ -9351,33 +9351,59 @@
 
 ## Tarefa em andamento
 
-**SIM — interrompida por reboot da máquina (2026-11-04), não por fim de sessão.** Catálogo de
-Métricas Dinâmico, branch `feature/segment-metric-catalog` (ainda sem PR/merge) — Fases 1-3 de
-4 têm CÓDIGO pronto e commitado/pushed, mas **2 migrações SQL não foram aplicadas ao banco**
-porque o Docker Desktop travou no meio da sessão (reparse point órfão, só resolvido com
-reboot — ver "Achado de infraestrutura" mais abaixo). **Checklist exato pra retomar, nesta
-ordem, assim que o Docker voltar a responder (`docker ps` sem travar):**
+**Nenhuma — checklist de retomada pós-reboot executado por completo em 2026-11-04, com um bug
+real encontrado e corrigido no processo.** Catálogo de Métricas Dinâmico, branch
+`feature/segment-metric-catalog` (ainda sem PR/merge) — Fases 1-3 de 4 estão concluídas,
+testadas ao vivo contra dado real e commitadas.
 
-1. `docker exec -i netimobiliaria-db psql -U postgres -d net_imobiliaria < prisma/migration-2026-11-03-segment-metric-catalog-real-categories.sql`
-   — já tinha sido aplicada ANTES do Docker travar da 1ª vez (confirmado), mas reaplicar não
-   tem custo (`ALTER TABLE`/`DROP CONSTRAINT IF EXISTS`/`ADD CONSTRAINT`, idempotente na
-   prática mesmo sem `IF NOT EXISTS` explícito — só falha se já existir, o que é esperado).
-2. `docker exec -i netimobiliaria-db psql -U postgres -d net_imobiliaria < prisma/migration-2026-11-04-metrics-explorer-feature.sql`
-   — esta NUNCA foi aplicada (escrita depois do travamento). Registra a feature "Explorador de
-   Métricas" em `system_features`/`system_feature_modules`/`permissions`.
-3. Reconfirmar o round-trip do catálogo de métricas (categorias novas) contra o banco real —
-   script simples reaproveitando `saveSegmentMetrics`/`getSegmentMetrics` no segmento
-   Imobiliário, com limpeza no final (mesmo padrão já usado nos testes anteriores desta sessão,
-   antes do Docker cair — nunca chegou a rodar com sucesso).
-4. Provisionar `campanhas-metrics-explorer` pra pelo menos 1 tenant de teste real (via SQL
-   direto em `tenant_feature_overrides`, ou pedir confirmação do usuário antes — é ato
-   deliberado por regra do projeto, `docs/ACCESS_CONTROL.md`).
-5. Abrir `/admin/campanhas/explorador-metricas` de verdade (navegador ou sessão JWT) — primeira
-   vez que a tela roda contra dado real. Confirmar: segmento resolvido, colunas fixas E curadas
-   aparecendo, agregação SOMA/MÉDIA batendo com um cálculo manual via SQL pra pelo menos 2-3
-   campanhas reais, filtro de cliente/período funcionando.
-6. Só depois disso, decidir com o usuário se segue pra Fase 4 (`strategicBriefing.ts` lendo o
-   catálogo dinamicamente) ou fecha esta frente por ora.
+**As 2 migrações pendentes foram aplicadas com sucesso** assim que o Docker voltou a responder
+(`docker ps` limpo, 8 containers saudáveis): a de categorias reais (reaplicação idempotente,
+sem erro) e a de registro da feature "Explorador de Métricas" (`system_features` id 128,
+linkada ao módulo "Gestão de Campanhas de Marketing Digital", com as 2 permissões `read`/
+`execute` — confirmado via SQL, deliberadamente sem `tenant_feature_overrides` automático).
+
+**Round-trip do catálogo reconfirmado contra o banco real** (`saveSegmentMetrics`/
+`getSegmentMetrics`, segmento Imobiliário): 9 métricas de teste cobrindo as 9 categorias reais
+salvas e lidas de volta intactas, segmento restaurado a 0 métricas ao final — confirma que a
+taxonomia nova sobrevive ao ciclo completo contra o Postgres de verdade, não só em memória.
+
+**Bug real encontrado testando a tela ao vivo pela primeira vez, corrigido na hora:**
+`GET /api/admin/campanhas/metrics-explorer` usava `campaign_id` (snake_case) na query SQL
+crua contra `Insight` — mas essa coluna **não tem `@map`** no schema Prisma, então o nome real
+no Postgres é `"campaignId"` (camelCase, precisa de aspas) — o mesmo gotcha já documentado
+várias vezes neste arquivo em sessões anteriores (bug de timezone, Match Engine, etc.), que eu
+mesmo não conferi contra o schema antes de escrever a query original. Resultado: `⚠️ column
+"campaign_id" does not exist` na primeira carga real da tela — nunca pego pelo `tsc` (é SQL
+cru em string, não checado pelo compilador) nem pelos testes anteriores (que só validavam o
+catálogo, nunca a agregação de `Insight` em si). Corrigido trocando pras 2 ocorrências
+(`SELECT`/`WHERE`/`GROUP BY`) para `"campaignId"` com alias `AS campaign_id` pro resto do
+código não precisar mudar. `npx tsc --noEmit` confirmado limpo depois do fix.
+
+**Testado ao vivo, ponta a ponta, tenant real "Marketing Digital"** (sessão JWT real injetada,
+usuário `admmd`, servidor `preview-alt` porta 3050): depois do fix, a tela carregou com dado
+real — campanha "TikTok - Campanha Verde" mostrando R$4.889,40/67,0K impressões/2,3K cliques/
+3,49% CTR/R$2,09 CPC/49 conversões, as demais campanhas do período com R$0,00 honesto (sem
+`Insight` no range) · **matemática de agregação verificada contra SQL manual** no mesmo range
+exato de datas que a UI usava (`2026-10-06` a `2026-11-04`) — R$4889,40/66997/2339/3,49%/
+R$2,09/49, idêntico byte-a-byte ao que a tela mostrou, confirmando que CTR/CPC são recalculados
+como soma-dividida-por-soma, não média de diárias · **isolamento de métrica curada por
+segmento confirmado**: inseridas 2 métricas de teste no segmento "Gestão de Marketing Digital"
+(1 `isKpiCard:true`, 1 `isKpiCard:false`) — a primeira apareceu automaticamente como coluna
+default (honesto, mostrando "—" pra toda campanha, já que nenhum sync populou esse campo
+ainda), a segunda apareceu só no painel de colunas, desmarcada, agrupada corretamente em
+"Diagnóstico" — toggle manual testado, coluna aparece/desaparece na hora · **troca de cliente
+re-resolve segmento e catálogo corretamente**: selecionado o cliente "Alexandre Severo
+Soluções Tecnológicas" (segmento Imobiliário, diferente do segmento do tenant) — a tela trocou
+pra "Segmento: Imobiliário", as 2 colunas de teste do segmento errado sumiram sozinhas, as 4
+campanhas reais dele filtraram corretamente, coluna "Cliente" populou o nome · busca por texto
+("Smart Tower") filtrou pra 1 linha correta. Todo dado de teste (as 2 métricas curadas)
+removido depois, `count(*)=0` confirmado no segmento. Feature mantida provisionada pro tenant
+"Marketing Digital" (`tenant_feature_overrides`), pra o usuário continuar testando a tela real
+a qualquer momento — decisão deliberada, não um resíduo esquecido.
+
+**Decisão pendente, a ser tomada com o usuário:** se segue pra Fase 4 (`strategicBriefing.ts`
+lendo o catálogo dinamicamente) ou fecha esta frente por ora, já que as 3 primeiras fases estão
+completas e testadas.
 
 Contexto original da frente (sem mudança): dashboard de Campanhas e os insights do LLM usam
 hoje um conjunto fixo e hardcoded
@@ -9440,15 +9466,12 @@ Desenho acordado em 4 fases, sem doc formal (usuário preferiu ir direto pra imp
 4. Fase 4 (não iniciada) — `strategicBriefing.ts` passa a montar o texto de contexto
    iterando a mesma tabela de metadado, em vez de campos fixos hardcoded no TypeScript.
 
-**Testado (Fase 3):** `npx tsc --noEmit` limpo no projeto inteiro (API route + página).
-**Não testado ao vivo** — Docker Desktop seguiu travado nesta sessão (ver achado de infra
-registrado logo abaixo, reparse point órfão que só um reboot resolve) — nem a migração SQL
-nova foi aplicada ao banco, nem o endpoint/tela foram exercitados contra dado real. Revisão de
-código cuidadosa (reaproveita só funções já provadas — `resolveSegment`/
-`resolveCampaignIdsBySegment`/`getSegmentMetrics`, todas já testadas em sessões/fases
-anteriores) reduz o risco, mas não substitui teste real. **Pendência registrada:** aplicar
-`migration-2026-11-04-metrics-explorer-feature.sql`, provisionar a feature pra um tenant de
-teste real, e exercitar a tela com dado real assim que o Docker voltar.
+**Testado (Fase 3), depois do reboot que resolveu o Docker travado:** `npx tsc --noEmit` limpo
+no projeto inteiro (API route + página) · migração da feature aplicada · round-trip do
+catálogo reconfirmado contra o banco real · tela testada ao vivo ponta a ponta contra dado
+real, incluindo o fix do bug `campaign_id`→`"campaignId"` encontrado nesse teste (detalhe
+completo na entrada do topo deste checkpoint, "Tarefa em andamento"). Nenhuma pendência de
+teste restante nesta fase.
 
 **Correção de taxonomia (2026-11-03), depois da Fase 2:** usuário questionou por que a tela de
 curadoria só tinha ~18 sugestões (das ~150 reais) e por que não agrupadas pelas categorias reais
