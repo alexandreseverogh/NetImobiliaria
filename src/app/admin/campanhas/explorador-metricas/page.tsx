@@ -499,7 +499,9 @@ export default function MetricsExplorerPage() {
 
   return (
     <div className="min-h-screen bg-navy p-6">
-      <div className="max-w-[1600px] mx-auto space-y-5">
+      {/* Sem max-w — Dashboard real (dashboard/page.tsx) também não tem; em monitor widescreen a
+          tabela/grid deve ocupar a largura real, não sobrar vazio nas laterais. */}
+      <div className="space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
@@ -610,6 +612,14 @@ export default function MetricsExplorerPage() {
         {/* Tabela */}
         <div className={cn(CARD, 'overflow-hidden')}>
           {error && <p className="p-4 text-xs text-red-400 font-medium">⚠️ {error}</p>}
+          {!loading && !error && filteredRows.length > 0 && (
+            <div className="px-4 py-2 bg-gold-premium/[0.05] border-b border-white/[0.06] flex items-center gap-2">
+              <ChartBarIcon className="h-3.5 w-3.5 text-gold-premium shrink-0" />
+              <p className="text-[11px] text-slate-400">
+                Clique no ícone <ChartBarIcon className="h-3 w-3 inline text-gold-premium -mt-0.5" /> ao lado do nome de uma métrica pra ver a evolução diária em gráfico.
+              </p>
+            </div>
+          )}
           {loading ? (
             <div className="p-10 text-center text-sm text-slate-500">Carregando...</div>
           ) : filteredRows.length === 0 ? (
@@ -626,15 +636,16 @@ export default function MetricsExplorerPage() {
                     <th className="px-4 py-2.5 text-left font-black text-slate-500 uppercase tracking-wide">Cliente</th>
                     {selectedColumns.map((c) => (
                       <th key={c.key} className="px-4 py-2.5 text-right font-black text-slate-500 uppercase tracking-wide whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1 justify-end">
+                        <span className="inline-flex items-center gap-1.5 justify-end">
                           {c.label}
                           {isChartable(c.unit) && (
                             <button
                               onClick={() => setChartColumn(c)}
                               title={`Ver gráfico de ${c.label}`}
-                              className="text-slate-600 hover:text-gold-premium transition-colors"
+                              aria-label={`Ver gráfico de ${c.label}`}
+                              className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-gold-premium/10 text-gold-premium hover:bg-gold-premium hover:text-navy-dark transition-all cursor-pointer"
                             >
-                              <ChartBarIcon className="h-3.5 w-3.5" />
+                              <ChartBarIcon className="h-3 w-3" />
                             </button>
                           )}
                         </span>

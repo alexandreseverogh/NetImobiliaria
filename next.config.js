@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-// last-restart: 2026-10-31 — bundle preso numa versão anterior de Story.tsx/data.ts
+// last-restart: 2026-11-04 — Prisma singleton preso em conexão morta após restart do Postgres
 // (nuvem de 21 segmentos), força restart completo pra pegar o código novo.
 // Configurações baseadas no ambiente (sem TypeScript)
 const isDevelopment = process.env.NODE_ENV === 'development'
