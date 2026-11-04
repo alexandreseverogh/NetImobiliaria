@@ -13,8 +13,12 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  TableCellsIcon, AdjustmentsHorizontalIcon, MagnifyingGlassIcon, XMarkIcon,
+  TableCellsIcon, AdjustmentsHorizontalIcon, MagnifyingGlassIcon, XMarkIcon, ChartBarIcon,
 } from '@heroicons/react/24/outline';
+import {
+  ResponsiveContainer, LineChart, Line, AreaChart, Area, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+} from 'recharts';
 import { adminFetch } from '@/lib/auth/adminFetch';
 import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector';
 import DateInputPtBR from '@/components/ui/DateInputPtBR';
@@ -23,6 +27,7 @@ import { formatCurrencyCompact, formatNumber, formatPercent, cn } from '@/lib/ma
 // ─── Tipos ──────────────────────────────────────────────────────────────────
 
 type MetricUnit = 'currency' | 'percent' | 'count' | 'ratio' | 'score';
+type MetricChartType = 'line' | 'area' | 'bar';
 
 interface CuratedMetric {
   metricKey: string;
@@ -30,6 +35,7 @@ interface CuratedMetric {
   unit: MetricUnit;
   category: string;
   isKpiCard: boolean;
+  chartType: MetricChartType;
 }
 
 interface ExplorerRow {
@@ -56,35 +62,38 @@ interface ColumnDef {
   label: string;
   unit: MetricUnit;
   category: string;
+  chartType: MetricChartType;
 }
 
 // ─── Catálogo de colunas FIXAS (já existem em Insight, independente de curadoria) ─────────────
 // Mesma taxonomia de categoria das sugestões do Master (SegmentMetricsModal.tsx) — "google" é
 // categoria só desta tela (campos exclusivos do Google Ads, sem equivalente curável por segmento).
+// `chartType` segue a mesma convenção já usada nas sugestões do Master (área = valor acumulado,
+// linha = taxa/score contínuo, barra = contagem discreta por dia).
 const FIXED_METRICS: ColumnDef[] = [
-  { key: 'spend', source: 'fixed', label: 'Valor gasto', unit: 'currency', category: 'gasto' },
-  { key: 'impressions', source: 'fixed', label: 'Impressões', unit: 'count', category: 'distribuicao' },
-  { key: 'reach', source: 'fixed', label: 'Alcance', unit: 'count', category: 'distribuicao' },
-  { key: 'cpm', source: 'fixed', label: 'CPM', unit: 'currency', category: 'distribuicao' },
-  { key: 'clicks', source: 'fixed', label: 'Cliques', unit: 'count', category: 'cliques' },
-  { key: 'ctr', source: 'fixed', label: 'CTR', unit: 'percent', category: 'cliques' },
-  { key: 'cpc', source: 'fixed', label: 'CPC', unit: 'currency', category: 'cliques' },
-  { key: 'video_views_3s', source: 'fixed', label: 'Visualizações de vídeo (3s)', unit: 'count', category: 'video' },
-  { key: 'video_views_15s', source: 'fixed', label: 'Visualizações de vídeo (15s)', unit: 'count', category: 'video' },
-  { key: 'video_views_25_pct', source: 'fixed', label: 'Reproduções 25%', unit: 'count', category: 'video' },
-  { key: 'video_views_50_pct', source: 'fixed', label: 'Reproduções 50%', unit: 'count', category: 'video' },
-  { key: 'video_views_75_pct', source: 'fixed', label: 'Reproduções 75%', unit: 'count', category: 'video' },
-  { key: 'video_views_100_pct', source: 'fixed', label: 'Reproduções 100%', unit: 'count', category: 'video' },
-  { key: 'thruplay_views', source: 'fixed', label: 'ThruPlays', unit: 'count', category: 'video' },
-  { key: 'conversions', source: 'fixed', label: 'Conversões', unit: 'count', category: 'conversoes' },
-  { key: 'conversions_value', source: 'fixed', label: 'Valor de conversões', unit: 'currency', category: 'conversoes' },
-  { key: 'quality_ranking', source: 'fixed', label: 'Classificação de qualidade', unit: 'score', category: 'diagnostico' },
-  { key: 'engagement_rate_ranking', source: 'fixed', label: 'Classificação de engajamento', unit: 'score', category: 'diagnostico' },
-  { key: 'conversion_rate_ranking', source: 'fixed', label: 'Classificação de conversão', unit: 'score', category: 'diagnostico' },
-  { key: 'learning_status', source: 'fixed', label: 'Status de aprendizado', unit: 'score', category: 'diagnostico' },
-  { key: 'search_impression_share', source: 'fixed', label: 'Parcela de impressão (Google)', unit: 'percent', category: 'google' },
-  { key: 'search_budget_lost_is', source: 'fixed', label: 'IS perdida por orçamento (Google)', unit: 'percent', category: 'google' },
-  { key: 'search_rank_lost_is', source: 'fixed', label: 'IS perdida por ranking (Google)', unit: 'percent', category: 'google' },
+  { key: 'spend', source: 'fixed', label: 'Valor gasto', unit: 'currency', category: 'gasto', chartType: 'area' },
+  { key: 'impressions', source: 'fixed', label: 'Impressões', unit: 'count', category: 'distribuicao', chartType: 'line' },
+  { key: 'reach', source: 'fixed', label: 'Alcance', unit: 'count', category: 'distribuicao', chartType: 'line' },
+  { key: 'cpm', source: 'fixed', label: 'CPM', unit: 'currency', category: 'distribuicao', chartType: 'line' },
+  { key: 'clicks', source: 'fixed', label: 'Cliques', unit: 'count', category: 'cliques', chartType: 'bar' },
+  { key: 'ctr', source: 'fixed', label: 'CTR', unit: 'percent', category: 'cliques', chartType: 'line' },
+  { key: 'cpc', source: 'fixed', label: 'CPC', unit: 'currency', category: 'cliques', chartType: 'line' },
+  { key: 'video_views_3s', source: 'fixed', label: 'Visualizações de vídeo (3s)', unit: 'count', category: 'video', chartType: 'bar' },
+  { key: 'video_views_15s', source: 'fixed', label: 'Visualizações de vídeo (15s)', unit: 'count', category: 'video', chartType: 'bar' },
+  { key: 'video_views_25_pct', source: 'fixed', label: 'Reproduções 25%', unit: 'count', category: 'video', chartType: 'bar' },
+  { key: 'video_views_50_pct', source: 'fixed', label: 'Reproduções 50%', unit: 'count', category: 'video', chartType: 'bar' },
+  { key: 'video_views_75_pct', source: 'fixed', label: 'Reproduções 75%', unit: 'count', category: 'video', chartType: 'bar' },
+  { key: 'video_views_100_pct', source: 'fixed', label: 'Reproduções 100%', unit: 'count', category: 'video', chartType: 'bar' },
+  { key: 'thruplay_views', source: 'fixed', label: 'ThruPlays', unit: 'count', category: 'video', chartType: 'bar' },
+  { key: 'conversions', source: 'fixed', label: 'Conversões', unit: 'count', category: 'conversoes', chartType: 'bar' },
+  { key: 'conversions_value', source: 'fixed', label: 'Valor de conversões', unit: 'currency', category: 'conversoes', chartType: 'area' },
+  { key: 'quality_ranking', source: 'fixed', label: 'Classificação de qualidade', unit: 'score', category: 'diagnostico', chartType: 'line' },
+  { key: 'engagement_rate_ranking', source: 'fixed', label: 'Classificação de engajamento', unit: 'score', category: 'diagnostico', chartType: 'line' },
+  { key: 'conversion_rate_ranking', source: 'fixed', label: 'Classificação de conversão', unit: 'score', category: 'diagnostico', chartType: 'line' },
+  { key: 'learning_status', source: 'fixed', label: 'Status de aprendizado', unit: 'score', category: 'diagnostico', chartType: 'line' },
+  { key: 'search_impression_share', source: 'fixed', label: 'Parcela de impressão (Google)', unit: 'percent', category: 'google', chartType: 'line' },
+  { key: 'search_budget_lost_is', source: 'fixed', label: 'IS perdida por orçamento (Google)', unit: 'percent', category: 'google', chartType: 'line' },
+  { key: 'search_rank_lost_is', source: 'fixed', label: 'IS perdida por ranking (Google)', unit: 'percent', category: 'google', chartType: 'line' },
 ];
 
 const DEFAULT_FIXED_KEYS = new Set(['spend', 'impressions', 'clicks', 'ctr', 'cpc', 'conversions']);
@@ -116,6 +125,136 @@ function formatValue(value: number | string | null, unit: MetricUnit): string {
 
 const CARD = 'bg-white rounded-2xl border border-gray-200 shadow-sm';
 
+// Classificações (unit='score') são enum em texto (ABOVE_AVERAGE, LEARNING...), não número —
+// não tem série pra plotar como linha/área/barra. Mesmo critério usado no endpoint de série.
+function isChartable(unit: MetricUnit): boolean {
+  return unit !== 'score';
+}
+
+const CHART_PALETTE = [
+  '#c5a028', '#2563eb', '#059669', '#dc2626', '#7c3aed', '#0891b2',
+  '#ea580c', '#4338ca', '#15803d', '#be185d', '#6b7280', '#a16207',
+];
+
+interface TimeseriesPoint {
+  date: string;
+  [campaignId: string]: string | number | null;
+}
+
+/** Modal de gráfico — série diária de 1 coluna (fixa ou curada), 1 linha/área/barra por
+ * campanha atualmente visível na tabela (respeitando busca/filtro já aplicados). */
+function MetricChartModal({
+  column, campaignIds, startDate, endDate, onClose,
+}: {
+  column: ColumnDef;
+  campaignIds: { id: string; name: string }[];
+  startDate: string;
+  endDate: string;
+  onClose: () => void;
+}) {
+  const [points, setPoints] = useState<TimeseriesPoint[] | null>(null);
+  const [names, setNames] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // Mais de ~12 campanhas num mesmo gráfico vira ilegível — cobre o caso comum sem travar a
+  // tela quando o escopo "Todos os Clientes" tiver dezenas de campanhas visíveis.
+  const capped = useMemo(() => campaignIds.slice(0, 12), [campaignIds]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    const params = new URLSearchParams({
+      campaignIds: capped.map((c) => c.id).join(','),
+      metricKey: column.key,
+      source: column.source,
+      startDate,
+      endDate,
+    });
+    adminFetch(`/api/admin/campanhas/metrics-explorer/timeseries?${params}`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (cancelled) return;
+        if (json.error) throw new Error(json.error);
+        const series: { date: string; campaignId: string; campaignName: string; value: number | null }[] = json.series ?? [];
+        const byDate = new Map<string, TimeseriesPoint>();
+        const nameMap: Record<string, string> = {};
+        for (const s of series) {
+          nameMap[s.campaignId] = s.campaignName;
+          const entry = byDate.get(s.date) ?? { date: s.date };
+          entry[s.campaignId] = s.value;
+          byDate.set(s.date, entry);
+        }
+        setNames(nameMap);
+        setPoints(Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date)));
+      })
+      .catch((e: any) => !cancelled && setError(e.message ?? 'Erro ao carregar a série'))
+      .finally(() => !cancelled && setLoading(false));
+    return () => { cancelled = true; };
+  }, [column.key, column.source, startDate, endDate, capped]);
+
+  const formatDate = (d: string) => {
+    const [, m, dd] = d.split('-');
+    return `${dd}/${m}`;
+  };
+  const formatAxisValue = (v: number) => formatValue(v, column.unit);
+
+  const ChartComp = column.chartType === 'area' ? AreaChart : column.chartType === 'bar' ? BarChart : LineChart;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className={cn(CARD, 'w-full max-w-4xl max-h-[85vh] overflow-y-auto p-5')} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-1">
+          <div>
+            <h2 className="text-sm font-black text-gray-900">{column.label}</h2>
+            <p className="text-[11px] text-gray-400">
+              Série diária · {capped.length} campanha{capped.length === 1 ? '' : 's'}
+              {campaignIds.length > capped.length ? ` (de ${campaignIds.length} visíveis — limitado a 12 pra legibilidade)` : ''}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-gray-300 hover:text-gray-600">
+            <XMarkIcon className="h-5 w-5" />
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="py-16 text-center text-sm text-gray-400">Carregando série...</div>
+        ) : error ? (
+          <p className="py-10 text-center text-xs text-red-600 font-medium">⚠️ {error}</p>
+        ) : !points || points.length === 0 ? (
+          <div className="py-16 text-center text-sm text-gray-400">Nenhum dado no período selecionado.</div>
+        ) : (
+          <div className="h-80 mt-3">
+            <ResponsiveContainer width="100%" height="100%">
+              <ChartComp data={points} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11 }} />
+                <YAxis tickFormatter={formatAxisValue} tick={{ fontSize: 11 }} width={70} />
+                <Tooltip
+                  labelFormatter={formatDate}
+                  formatter={(value: number, dataKey: string) => [formatValue(value, column.unit), names[dataKey] ?? dataKey]}
+                />
+                <Legend wrapperStyle={{ fontSize: 11 }} formatter={(key: string) => names[key] ?? key} />
+                {capped.map((c, i) => {
+                  const color = CHART_PALETTE[i % CHART_PALETTE.length];
+                  if (column.chartType === 'area') {
+                    return <Area key={c.id} type="monotone" dataKey={c.id} name={c.id} stroke={color} fill={color} fillOpacity={0.15} connectNulls />;
+                  }
+                  if (column.chartType === 'bar') {
+                    return <Bar key={c.id} dataKey={c.id} name={c.id} fill={color} />;
+                  }
+                  return <Line key={c.id} type="monotone" dataKey={c.id} name={c.id} stroke={color} strokeWidth={2} dot={false} connectNulls />;
+                })}
+              </ChartComp>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Página ─────────────────────────────────────────────────────────────────
 
 export default function MetricsExplorerPage() {
@@ -132,6 +271,7 @@ export default function MetricsExplorerPage() {
   const [search, setSearch] = useState('');
   const [showPicker, setShowPicker] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<Set<string> | null>(null); // null = ainda não inicializado (usa default)
+  const [chartColumn, setChartColumn] = useState<ColumnDef | null>(null);
 
   const load = useCallback(async () => {
     if (!startDate || !endDate) return;
@@ -155,10 +295,17 @@ export default function MetricsExplorerPage() {
   useEffect(() => { load(); }, [load]);
 
   // Colunas disponíveis: fixas (sempre) + curadas (vêm da resposta, dependem do segmento).
+  // Nada no cadastro do Master (SegmentMetricsModal) impede curar um `metricKey` que já existe
+  // como coluna fixa — aqui a fixa sempre vence (mesmo dado, já exibido; manter as duas duplica
+  // a coluna e quebra a key do React).
   const allColumns: ColumnDef[] = useMemo(() => {
-    const custom: ColumnDef[] = (data?.catalog ?? []).map((m) => ({
-      key: m.metricKey, source: 'custom', label: m.label, unit: m.unit, category: m.category,
-    }));
+    const fixedKeys = new Set(FIXED_METRICS.map((f) => f.key));
+    const custom: ColumnDef[] = (data?.catalog ?? [])
+      .filter((m) => !fixedKeys.has(m.metricKey))
+      .map((m) => ({
+        key: m.metricKey, source: 'custom', label: m.label, unit: m.unit, category: m.category,
+        chartType: m.chartType,
+      }));
     return [...FIXED_METRICS, ...custom];
   }, [data?.catalog]);
 
@@ -313,7 +460,18 @@ export default function MetricsExplorerPage() {
                     <th className="px-4 py-2.5 text-left font-black text-gray-500 uppercase tracking-wide">Cliente</th>
                     {selectedColumns.map((c) => (
                       <th key={c.key} className="px-4 py-2.5 text-right font-black text-gray-500 uppercase tracking-wide whitespace-nowrap">
-                        {c.label}
+                        <span className="inline-flex items-center gap-1 justify-end">
+                          {c.label}
+                          {isChartable(c.unit) && (
+                            <button
+                              onClick={() => setChartColumn(c)}
+                              title={`Ver gráfico de ${c.label}`}
+                              className="text-gray-300 hover:text-gold-premium transition-colors"
+                            >
+                              <ChartBarIcon className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </span>
                       </th>
                     ))}
                   </tr>
@@ -345,6 +503,16 @@ export default function MetricsExplorerPage() {
           plataforma, não substitui o relatório nativo deles.
         </p>
       </div>
+
+      {chartColumn && (
+        <MetricChartModal
+          column={chartColumn}
+          campaignIds={filteredRows.map((r) => ({ id: r.campaignId, name: r.campaignName }))}
+          startDate={startDate}
+          endDate={endDate}
+          onClose={() => setChartColumn(null)}
+        />
+      )}
     </div>
   );
 }

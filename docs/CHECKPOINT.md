@@ -9351,10 +9351,51 @@
 
 ## Tarefa em andamento
 
-**Nenhuma — checklist de retomada pós-reboot executado por completo em 2026-11-04, com um bug
-real encontrado e corrigido no processo.** Catálogo de Métricas Dinâmico, branch
-`feature/segment-metric-catalog` (ainda sem PR/merge) — Fases 1-3 de 4 estão concluídas,
-testadas ao vivo contra dado real e commitadas.
+**Nenhuma — Fase 3.1 (gráfico por coluna no Explorador de Métricas) concluída e testada
+ao vivo, com 3 bugs reais achados e corrigidos no processo.** Usuário perguntou pra que serve
+o campo `chart_type` (linha/área/barra) salvo na curadoria de cada métrica — achado real: era
+metadado órfão, salvo desde a Fase 1 mas nunca lido por nenhum consumidor (nem a Fase 3, que
+saiu como tabela densa). Usuário pediu pra implementar o consumo.
+
+**Implementado:** botão de gráfico (ícone) no cabeçalho de cada coluna numerável da tabela do
+Explorador — abre um modal com a série diária daquela métrica, 1 linha/área/barra por campanha
+atualmente visível (respeita busca/filtro já aplicados na tabela, capado em 12 campanhas pra
+legibilidade), renderizando conforme o `chartType` curado (Master) ou o default atribuído à
+coluna fixa (mesma convenção das sugestões do Master: área = valor acumulado, linha = taxa/
+score contínuo, barra = contagem discreta). Novo endpoint `GET /metrics-explorer/timeseries`
+(`campaignIds` vêm do próprio frontend — as linhas já filtradas — e são revalidados contra o
+tenant autenticado antes de ler qualquer dado; nunca confia em escopo vindo do client sozinho).
+Colunas de classificação (`unit='score'`, enum em texto — ABOVE_AVERAGE etc.) não têm série
+numérica pra plotar — botão de gráfico fica ausente nelas, checado tanto no front quanto no
+endpoint (nunca confia só na UI pra essa regra).
+
+**3 bugs reais achados testando ao vivo contra dado real, todos corrigidos na hora:**
+1. **Data do eixo X/tooltip vindo como timestamp ISO completo** ("10T03:00:00.000Z/10" em vez
+   de "10/10") — o driver `pg` converte a coluna `date` do Postgres de volta pra objeto `Date`
+   do JS automaticamente, e `NextResponse.json` serializa isso como ISO completo (deslocado
+   pelo timezone do processo) — mesma classe de bug de timezone já documentada várias vezes
+   neste projeto, só que no sentido driver→resposta em vez de parâmetro→driver. Corrigido
+   trocando `date::date AS day` por `to_char(date, 'YYYY-MM-DD') AS day` (TEXT puro, sem
+   conversão no meio).
+2. **Tooltip mostrando o UUID cru da campanha** em vez do nome real — o `formatter` do Tooltip
+   do recharts só tratava o valor (2º argumento, o nome/dataKey, era ignorado). Corrigido
+   resolvendo o nome real via o mapa `names` já carregado da resposta da API.
+3. **Pré-existente, não introduzido nesta rodada** — uma métrica curada no segmento real
+   "Gestão de Marketing Digital" tem `metricKey='reach'`, colidindo com a coluna FIXA `reach`
+   — nada no cadastro do Master (`SegmentMetricsModal`) impede isso. Causava warning real de
+   key duplicada do React (`<th key={c.key}>`/`<td key={c.key}>`) e duplicava a mesma coluna
+   visualmente. Corrigido na raiz: `allColumns` agora filtra qualquer métrica curada cujo
+   `metricKey` já exista como coluna fixa antes de mesclar as duas listas — a fixa sempre
+   vence (mesmo dado, já exibido).
+
+**Testado ao vivo, ponta a ponta, tenant real "Marketing Digital"** (mesmo servidor `preview-
+alt`:3050, sessão JWT real): botão "Ver gráfico de Valor gasto" (chartType='area') → modal abriu
+com área real, pico de R$1.005,62 em 10/10 conferido byte-a-byte contra SQL direto · botão
+"Ver gráfico de Conversões" (chartType='bar') → barras discretas, os 7 valores diários do
+período (9,3,11,2,12,0,12, incluindo o dia com 0 sem barra visível) conferidos um a um contra
+SQL direto, soma 49 batendo exato com a célula da tabela principal · dedupe de `reach`
+confirmado (botão "Ver gráfico" aparece só 1x agora, warning do React sumiu). `npx tsc --noEmit`
+limpo em todos os arquivos. Commit pendente nesta mesma sessão.
 
 **As 2 migrações pendentes foram aplicadas com sucesso** assim que o Docker voltou a responder
 (`docker ps` limpo, 8 containers saudáveis): a de categorias reais (reaplicação idempotente,
