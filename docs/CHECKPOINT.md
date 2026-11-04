@@ -9384,11 +9384,44 @@ Desenho acordado em 4 fases, sem doc formal (usuário preferiu ir direto pra imp
    pra incluir `clientId` — sem isso a cascata de segmento nunca saberia o cliente da
    campanha. Falha na resolução do segmento nunca bloqueia o sync normal (cai em array vazio,
    `customMetrics` fica `{}`, comportamento idêntico a antes desta fase).
-3. Fase 3 (não iniciada) — página nova "Explorador de Métricas": tabela densa + seletor de
-   colunas por categoria/busca (mesmo padrão UX do "Personalizar tabela dinâmica" da própria
-   Meta, confirmado ao vivo nesta sessão) — nunca uma tela com 200+ cards de uma vez.
+3. **Fase 3 (implementada, 2026-11-04 — ver "testado" abaixo, risco residual registrado)** —
+   `/admin/campanhas/explorador-metricas` (novo): tabela densa campanha×métrica, seletor de
+   colunas agrupado por categoria (mesmo padrão da tela do Master), busca por nome, filtro de
+   cliente (`ClientSelector`) e período (`DateInputPtBR`). Mostra TANTO as ~23 colunas fixas já
+   existentes em `Insight` quanto as métricas curadas em `segment_metric_catalog` pro segmento
+   efetivo — nunca um clone 1:1 da Insights API inteira (pra isso, a própria ferramenta de
+   Relatórios da Meta, aviso fixo no rodapé da tela).
+   `GET /api/admin/campanhas/metrics-explorer` (novo) — resolve o segmento efetivo (cliente >
+   tenant, mesma cascata de sempre), agrega `Insight` por campanha no período via SQL direto.
+   **Regra de agregação, nunca soma cega** (mesmo cuidado já documentado no histórico deste
+   projeto pro bug de "CPL inflado por fan-out"): contagens/valores → SOMA; taxas/scores (unit
+   percent/ratio/score, ou `meta_field` com prefixo `cost_per_`) → MÉDIA dos dias com dado real;
+   CTR/CPC/CPM fixos → recalculados como soma-dividida-por-soma, nunca média dos valores diários
+   já computados; classificações/diagnóstico → valor do dia mais recente (snapshot, não
+   quantidade). `search_impression_share`/`search_budget_lost_is`/`search_rank_lost_is`
+   (Google-only, default 0 em campanha Meta) usam `NULLIF(x,0)` antes da média — senão campanha
+   não-Google dilui a média com zeros irrelevantes.
+   **Achado real, corrigido antes de qualquer teste:** `resolveCampaignIdsBySegment` só
+   reconhece `'own'` como sentinela de escopo — `clientFilter='segment'` (vindo do
+   `ClientSelector`, "Todos os Clientes") teria virado `client_id = 'segment'::uuid` e
+   quebrado com erro de UUID inválido. Corrigido normalizando `'segment'` → `undefined` antes de
+   chamar essa função (já que `resolveSegment`, usado em paralelo pra achar o segmento em si,
+   já trata `'segment'` corretamente como sentinela — só `resolveCampaignIdsBySegment` não).
+   Feature registrada no catálogo (`migration-2026-11-04-metrics-explorer-feature.sql`, mesmo
+   padrão de `campanhas-audiences`) — deliberadamente **não provisionada** pra nenhum tenant
+   ainda, decisão do Master via `/admin/master/provisioning`.
 4. Fase 4 (não iniciada) — `strategicBriefing.ts` passa a montar o texto de contexto
    iterando a mesma tabela de metadado, em vez de campos fixos hardcoded no TypeScript.
+
+**Testado (Fase 3):** `npx tsc --noEmit` limpo no projeto inteiro (API route + página).
+**Não testado ao vivo** — Docker Desktop seguiu travado nesta sessão (ver achado de infra
+registrado logo abaixo, reparse point órfão que só um reboot resolve) — nem a migração SQL
+nova foi aplicada ao banco, nem o endpoint/tela foram exercitados contra dado real. Revisão de
+código cuidadosa (reaproveita só funções já provadas — `resolveSegment`/
+`resolveCampaignIdsBySegment`/`getSegmentMetrics`, todas já testadas em sessões/fases
+anteriores) reduz o risco, mas não substitui teste real. **Pendência registrada:** aplicar
+`migration-2026-11-04-metrics-explorer-feature.sql`, provisionar a feature pra um tenant de
+teste real, e exercitar a tela com dado real assim que o Docker voltar.
 
 **Correção de taxonomia (2026-11-03), depois da Fase 2:** usuário questionou por que a tela de
 curadoria só tinha ~18 sugestões (das ~150 reais) e por que não agrupadas pelas categorias reais
