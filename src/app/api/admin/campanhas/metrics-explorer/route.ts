@@ -4,7 +4,7 @@ import pool from '@/lib/database/connection';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { resolveSegment } from '@/lib/intelligence/segmentResolver';
 import { resolveCampaignIdsBySegment } from '@/lib/marketing/segmentUtils';
-import { getEffectiveMetrics, type SegmentMetric } from '@/lib/marketing/services/segmentMetricCatalogService';
+import { getEffectiveMetrics, isAverageMetric, type SegmentMetric } from '@/lib/marketing/services/segmentMetricCatalogService';
 
 /**
  * Catálogo de Métricas Dinâmico — Fase 3 (Explorador de Métricas).
@@ -110,11 +110,9 @@ export async function GET(request: NextRequest) {
       for (const r of rows) clientNameById.set(r.uuid, r.nome);
     }
 
-    // Métricas curadas: separa SOMA vs MÉDIA pela mesma regra documentada acima — decidido pelo
-    // `unit` (nunca pelo nome da métrica, mesmo espírito de zero-hardcode do resto do catálogo).
-    const avgCustom = catalog.filter(
-      (m) => m.unit === 'percent' || m.unit === 'ratio' || m.unit === 'score' || m.metaField.startsWith('cost_per_'),
-    );
+    // Métricas curadas: separa SOMA vs MÉDIA via a mesma regra compartilhada com o Briefing
+    // Estratégico (Fase 4) — `isAverageMetric`, fonte única pra nunca divergir entre os dois.
+    const avgCustom = catalog.filter(isAverageMetric);
     const sumCustom = catalog.filter((m) => !avgCustom.includes(m));
 
     const customSelectSql = [

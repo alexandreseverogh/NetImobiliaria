@@ -5,6 +5,9 @@ import { generateAiInsights, expandEndOfDay } from './aiInsights';
 import { getAngleInsights, type AngleInsightsResult } from './angleInsightsService';
 import { getActiveSegmentsForScope } from './segmentTaxonomyService';
 import { getLeadEvents, sumLeads } from './leadEvents';
+import {
+  getEffectiveMetrics, getEffectiveMetricsForSegment, isAverageMetric, type SegmentMetric,
+} from './segmentMetricCatalogService';
 
 const S = 'campanhasmarketingdigital';
 
@@ -47,6 +50,9 @@ interface CampaignMetrics {
   dailyBudget: number;
   daysRunning: number;
   spendTrend: 'up' | 'down' | 'stable';
+  // Fase 4 — métricas curadas (Cliente → Tenant → Segmento), já agregadas no período;
+  // null = sem dado real pra essa métrica nesta campanha (nunca inventa 0).
+  customMetrics?: Record<string, number | null>;
 }
 
 interface BriefingContext {
@@ -76,6 +82,11 @@ interface BriefingContext {
   ruleInsights: any[];
   // FASE 14b — ângulo de comunicação efetivo
   angleInsights: AngleInsightsResult;
+  // Fase 4 — catálogo de métricas curadas efetivo para este escopo (Cliente → Tenant →
+  // Segmento), a mesma lista já usada pelo Explorador (Fase 3). Cada campanha em `campaigns`
+  // traz os valores agregados em `customMetrics`; este campo é só o metadado (label/unit/
+  // direção) pra dar sentido a esses números.
+  metricCatalog: SegmentMetric[];
 }
 
 function calculateSpendTrend(insights: any[]): 'up' | 'down' | 'stable' {
@@ -93,6 +104,49 @@ function calculateSpendTrend(insights: any[]): 'up' | 'down' | 'stable' {
 function pctDelta(current: number, previous: number): number {
   if (previous === 0) return current > 0 ? 100 : 0;
   return ((current - previous) / previous) * 100;
+}
+
+/** Fase 4 — agrega os `customMetrics` já gravados dia a dia em `Insight.customMetrics`
+ * (Fase 2) pro período inteiro de 1 campanha, usando a MESMA regra soma-vs-média do
+ * Explorador (Fase 3): taxa/score/custo → média dos dias com dado real; contagem/valor →
+ * soma. Métrica sem nenhum dia com dado real fica `null` (nunca inventa 0). */
+function aggregateCustomMetrics(
+  metrics: SegmentMetric[],
+  insights: { customMetrics: unknown }[],
+): Record<string, number | null> {
+  const out: Record<string, number | null> = {};
+  for (const m of metrics) {
+    const values: number[] = [];
+    for (const i of insights) {
+      const raw = (i.customMetrics as Record<string, unknown> | null | undefined)?.[m.metricKey];
+      const n = Number(raw);
+      if (raw !== undefined && raw !== null && Number.isFinite(n)) values.push(n);
+    }
+    if (values.length === 0) { out[m.metricKey] = null; continue; }
+    const sum = values.reduce((s, v) => s + v, 0);
+    out[m.metricKey] = isAverageMetric(m) ? sum / values.length : sum;
+  }
+  return out;
+}
+
+const METRIC_UNIT_LABEL: Record<string, string> = {
+  currency: 'R$', percent: '%', count: 'contagem', ratio: 'razão', score: 'pontuação',
+};
+const METRIC_DIRECTION_LABEL: Record<string, string> = {
+  higher_is_better: 'maior é melhor', lower_is_better: 'menor é melhor', neutral: 'neutro',
+};
+
+/** Fase 4 — descrição em texto natural do catálogo efetivo, pra o LLM entender o que cada
+ * chave em `customMetrics` (dentro de cada campanha de `campaigns_json`) significa, sem
+ * precisar adivinhar pelo nome bruto da métrica. */
+function formatMetricCatalogLegend(metrics: SegmentMetric[]): string {
+  if (metrics.length === 0) return 'Nenhuma métrica adicional curada para este escopo.';
+  const lines = metrics.map((m) => {
+    const unit = METRIC_UNIT_LABEL[m.unit] ?? m.unit;
+    const direction = METRIC_DIRECTION_LABEL[m.betterDirection] ?? m.betterDirection;
+    return `- customMetrics.${m.metricKey} (${unit}, ${direction}): ${m.label}`;
+  });
+  return `Cada campanha em "campaigns_json" tem um campo "customMetrics" com os valores abaixo, já agregados no período (null = sem dado real para aquela campanha):\n${lines.join('\n')}`;
 }
 
 export async function gatherBriefingContext(
@@ -129,6 +183,17 @@ export async function gatherBriefingContext(
     where: campaignFilter,
     include: { adSets: true },
   });
+
+  // Fase 4 — catálogo de métricas curadas efetivo (Cliente → Tenant → Segmento), mesma fonte
+  // já usada pelo Explorador (Fase 3). Quando o caller já sabe o segmento (geração por
+  // segmento, FASE 18.2), resolve por ele explicitamente — nunca re-deriva via resolveSegment,
+  // que erraria o segmento da iteração numa narrativa multi-segmento agregada.
+  const clientScope = clientId && clientId !== 'own' ? clientId : null;
+  const metricCatalog: SegmentMetric[] = tenantId
+    ? (segmentId
+        ? (await getEffectiveMetricsForSegment(tenantId, clientScope, segmentId)).metrics
+        : (await getEffectiveMetrics(tenantId, clientScope)).metrics)
+    : [];
 
   const campaignMetrics: CampaignMetrics[] = [];
   let totalSpend = 0, totalClicks = 0, totalImpressions = 0, totalLeads = 0;
@@ -187,6 +252,7 @@ export async function gatherBriefingContext(
       dailyBudget,
       daysRunning: insights.length,
       spendTrend: calculateSpendTrend(insights),
+      customMetrics: metricCatalog.length > 0 ? aggregateCustomMetrics(metricCatalog, insights) : undefined,
     });
 
     totalSpend += spend;
@@ -228,6 +294,7 @@ export async function gatherBriefingContext(
     },
     ruleInsights,
     angleInsights,
+    metricCatalog,
   };
 }
 
@@ -264,6 +331,9 @@ function buildBriefingVariables(
     angle_insights:    context.angleInsights?.textSummary ?? 'Análise de ângulo indisponível.',
     winning_angle:     context.angleInsights?.topAngle?.label ?? 'não identificado',
     worst_angle:       context.angleInsights?.worstAngle?.label ?? 'não identificado',
+    // Fase 4 — métricas curadas (disponível pra templates que declararem {{custom_metrics_legend}};
+    // os valores em si já viajam dentro de cada campanha de campaigns_json, mesmo sem essa linha).
+    custom_metrics_legend: formatMetricCatalogLegend(context.metricCatalog),
   };
 }
 

@@ -314,6 +314,14 @@ export async function deleteClientMetrics(tenantId: string, clientId: string): P
   );
 }
 
+/** Decide se uma métrica curada deve ser agregada por MÉDIA (taxa/score/custo) ou SOMA
+ * (contagem/valor) no período — mesma regra usada no Explorador (Fase 3) e no Briefing
+ * Estratégico (Fase 4), extraída aqui como fonte única pra nunca divergir entre os dois. */
+export function isAverageMetric(metric: SegmentMetric): boolean {
+  return metric.unit === 'percent' || metric.unit === 'ratio' || metric.unit === 'score'
+    || metric.metaField.startsWith('cost_per_');
+}
+
 /**
  * Resolve o catálogo EFETIVO pra um tenant/cliente — cascata completa, 4 resultados possíveis
  * de `resolvedLevel`, nesta ordem de prioridade:
@@ -358,6 +366,37 @@ export async function getEffectiveMetrics(
   if (tenantRows.length > 0) return { metrics: tenantRows, resolvedLevel: 'tenant' };
 
   const segMetrics = tenantSegment?.id ? await getSegmentMetrics(tenantSegment.id) : [];
+  return { metrics: segMetrics, resolvedLevel: 'segment' };
+}
+
+/**
+ * Variante de `getEffectiveMetrics` pra quando o caller JÁ SABE qual segmento está narrando
+ * (Briefing Estratégico multi-segmento, FASE 18.2/Fase 4 — cada chamada de
+ * `generateStrategicBriefing` recebe o segmento explícito via `getActiveSegmentsForScope`).
+ * Nunca re-deriva o segmento internamente via `resolveSegment` — isso erraria o segmento da
+ * iteração quando o escopo é agregado (`clientId` ausente, "Todos os Clientes") e o loop está
+ * narrando o segmento de um CLIENTE, não o do tenant. Mesma cascata Cliente > Tenant > Segmento,
+ * com o mesmo cuidado de nunca vazar o override do tenant pra um vertical que não é o dele.
+ */
+export async function getEffectiveMetricsForSegment(
+  tenantId: string,
+  clientId: string | null,
+  segmentId: string,
+): Promise<{ metrics: SegmentMetric[]; resolvedLevel: MetricScopeLevel }> {
+  if (clientId) {
+    const rows = await getClientMetrics(tenantId, clientId);
+    if (rows.length > 0) return { metrics: rows, resolvedLevel: 'client' };
+  }
+
+  // Override de tenant só vale quando o segmento sendo narrado é o PRÓPRIO segmento do tenant —
+  // mesmo critério já usado em getEffectiveMetrics pro branch client_segment.
+  const tenantSegment = await resolveSegment(tenantId, null);
+  if (tenantSegment?.id === segmentId) {
+    const tenantRows = await getTenantMetrics(tenantId);
+    if (tenantRows.length > 0) return { metrics: tenantRows, resolvedLevel: 'tenant' };
+  }
+
+  const segMetrics = await getSegmentMetrics(segmentId);
   return { metrics: segMetrics, resolvedLevel: 'segment' };
 }
 
