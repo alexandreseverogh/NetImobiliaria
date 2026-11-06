@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
+import { getPublicParamsTenantId } from '@/lib/rules/publicTenant'
 
 export const runtime = 'nodejs'
 
@@ -21,7 +22,8 @@ export async function GET(request: NextRequest) {
 
     // Buscar apenas os parâmetros permitidos para o corretor
     const result = await pool.query(
-      'SELECT valor_corretor, chave_pix_corretor, cidade_beneficiario_recebimento_corretor FROM parametros_imoveis LIMIT 1'
+      'SELECT valor_corretor, chave_pix_corretor, cidade_beneficiario_recebimento_corretor FROM parametros_imoveis WHERE tenant_id = $1 LIMIT 1',
+      [getPublicParamsTenantId()]
     )
 
     if (result.rows.length === 0) {

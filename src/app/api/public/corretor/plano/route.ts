@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
+import { getPublicParamsTenantId } from '@/lib/rules/publicTenant'
 
 export const runtime = 'nodejs'
 
@@ -16,7 +17,8 @@ export async function GET(request: NextRequest) {
         proximos_corretores_recebem_leads,
         sla_minutos_aceite_lead,
         cobranca_corretor_externo
-      FROM parametros_imoveis LIMIT 1`
+      FROM parametros_imoveis WHERE tenant_id = $1 LIMIT 1`,
+      [getPublicParamsTenantId()]
     )
 
     if (result.rows.length === 0) {
