@@ -163,6 +163,13 @@ export async function POST(request: NextRequest) {
       WHERE NOT EXISTS (SELECT 1 FROM kanban_colunas k WHERE k.tenant_id = $1)
     `, [tenantId]);
 
+    // Parâmetros de roteamento/SLA do tenant (fase 0 das regras configuráveis): o engine de
+    // distribuição exige esta linha e não tem mais valores fixos de reserva. Defaults da tabela.
+    await client.query(`
+      INSERT INTO parametros_imoveis (tenant_id) VALUES ($1)
+      ON CONFLICT (tenant_id) DO NOTHING
+    `, [tenantId]);
+
     // 5. Ativar Módulos e Auto-provisionar Permissões
     if (selected_modules && Array.isArray(selected_modules)) {
       for (const moduleId of selected_modules) {

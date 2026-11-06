@@ -38,6 +38,7 @@ describe.runIf(RUN_DB)('transbordo — isolamento por tenant e SLA por tenant (r
     tenantEmpty = await insertTenant(client, segmentId, `TESTE-TX-VAZIO-${suffix}`)
     await insertParams(client, tenantA, { interno: 30, externo: 9 })
     await insertParams(client, tenantB, { interno: 7, externo: 2 })
+    await insertParams(client, tenantEmpty, { interno: 15, externo: 5 })
     userA = await insertCorretor(client, tenantA, `a-${suffix}`)
     userB = await insertCorretor(client, tenantB, `b-${suffix}`)
   })
@@ -60,6 +61,13 @@ describe.runIf(RUN_DB)('transbordo — isolamento por tenant e SLA por tenant (r
   it('tenant sem nenhum corretor não cai no corretor de outro tenant', async () => {
     const r = await DistributionEngine.findBestCandidate({ lead_id: `t-${suffix}`, tenant_id: tenantEmpty }, [], client)
     expect(r).toBeNull()
+  })
+
+  it('tenant sem linha em parametros_imoveis recusa decidir (sem valores de reserva)', async () => {
+    const semParams = await insertTenant(client, segmentId, `TESTE-TX-SEMPARAM-${suffix}`)
+    await expect(
+      DistributionEngine.findBestCandidate({ lead_id: 'sp', tenant_id: semParams }, [], client),
+    ).rejects.toThrow(/parametros_imoveis ausente/)
   })
 
   it('SLA aplicado vem dos parâmetros do próprio tenant (30 para A, 7 para B)', async () => {

@@ -1,6 +1,9 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-11-06 — **Fase 0 do plano `docs/PLANO_REGRAS_CONFIGURAVEIS.md` em andamento (segurança e bugs isolados, com testes primeiro).**
+> **Atualizado em:** 2026-11-06 — **Fase 0 do plano `docs/PLANO_REGRAS_CONFIGURAVEIS.md` CONCLUÍDA (branch `feature/testes-integracao-transbordo`).**
+> Fechamento: `parametros_imoveis` agora existe para todo tenant (migração `prisma/migration-2026-11-06-parametros-imoveis-seed-all-tenants.sql`, 10 linhas criadas com os defaults da tabela, sem mudança de roteamento); criação de tenant grava a linha na mesma transação; `DistributionEngine` recusa decidir quando a linha falta (erro explícito, sem valores de reserva). Testes: 31 unitários + 16 de integração contra Postgres (`RUN_DB_INTEGRATION=1`), todos com ROLLBACK; `tsc --noEmit` limpo.
+> **Pendente, achado nesta fase e fora do escopo dela:** rotas públicas leem `parametros_imoveis LIMIT 1` sem tenant (`/api/public/corretor/parametros` devolve chave PIX/valor de um tenant qualquer; `/api/public/corretor/plano` idem). Exige decidir o tenant de contexto dessas rotas antes de corrigir. Migração de seed pendente de aplicação na VPS (batch).
+> Histórico anterior da fase 0 (ainda sem commit no momento da escrita):
 > Concluído até agora (ainda sem commit): Vitest instalado (`npm test`, testes em `tests/unit/`, 31 testes); PIN de aprovação unificado em `src/lib/rules/pinService.ts` (crypto.randomInt + comparação em tempo constante), substituindo `Math.random` em runner/reallocationEngine/agentDecisor e a comparação `!==` em 4 rotas de aprovação; segredo de cron unificado em `src/lib/security/cronAuth.ts` (falha fechada, sem fallback literal) em 15 rotas e no agendador; round-robin passa a usar o SLA configurado (`resolveRoundRobinSla`); zero deixa de virar padrão (`readNumericParam`); tenant padrão fixo removido do DistributionEngine (`requireTenantId`); leitura global morta de `parametros_imoveis` removida do transbordo.
 > Pendente da fase 0: confirmar typecheck completo; testes de transbordo por tenant em integração (Postgres); remover fallback de `parametros_imoveis` ausente quando o seed existir.
 
