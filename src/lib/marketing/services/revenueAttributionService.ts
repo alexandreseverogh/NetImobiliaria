@@ -37,6 +37,7 @@ export interface CampaignRevenueRow {
    *  assim, nunca inventa número). */
   avgFit: number | null
   leadsWithFit: number
+  weakLeads: number  // leads com score_fit < 45 (perfil fraco)
 }
 
 export interface RevenueAttributionTotals {
@@ -106,6 +107,7 @@ export async function getRevenueAttribution(params: {
     revenue: string
     avg_fit: string | null
     leads_with_fit: string
+    weak_leads: string
   }>(
     `
     WITH spend AS (
@@ -132,7 +134,8 @@ export async function getRevenueAttribution(params: {
       SELECT cohort.campaign_id,
              COUNT(DISTINCT cohort.lead_uuid) AS leads_identified,
              AVG(ls.score_fit) FILTER (WHERE ls.score_fit IS NOT NULL) AS avg_fit,
-             COUNT(DISTINCT cohort.lead_uuid) FILTER (WHERE ls.score_fit IS NOT NULL) AS leads_with_fit
+             COUNT(DISTINCT cohort.lead_uuid) FILTER (WHERE ls.score_fit IS NOT NULL) AS leads_with_fit,
+             COUNT(DISTINCT cohort.lead_uuid) FILTER (WHERE ls.score_fit < 45) AS weak_leads
       FROM cohort
       LEFT JOIN public.leads_staging ls ON ls.lead_uuid = cohort.lead_uuid
       GROUP BY cohort.campaign_id
@@ -153,7 +156,8 @@ export async function getRevenueAttribution(params: {
       COALESCE(deals.deals_won, 0)::text AS deals_won,
       COALESCE(deals.revenue, 0)::text AS revenue,
       leads.avg_fit::text AS avg_fit,
-      COALESCE(leads.leads_with_fit, 0)::text AS leads_with_fit
+      COALESCE(leads.leads_with_fit, 0)::text AS leads_with_fit,
+      COALESCE(leads.weak_leads, 0)::text AS weak_leads
     FROM spend
     LEFT JOIN leads ON leads.campaign_id = spend.campaign_id
     LEFT JOIN deals ON deals.campaign_id = spend.campaign_id
@@ -179,6 +183,7 @@ export async function getRevenueAttribution(params: {
       roasReal: spend > 0 ? revenue / spend : null,
       avgFit: r.avg_fit !== null ? parseFloat(r.avg_fit) : null,
       leadsWithFit: parseInt(r.leads_with_fit, 10),
+      weakLeads: parseInt(r.weak_leads, 10),
     }
   })
 

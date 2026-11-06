@@ -1,6 +1,10 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-10-14 — **Planejamento de integração do Jev (TypeSafe AI, pilares
+> **Atualizado em:** 2026-11-06 — **Fase 0 do plano `docs/PLANO_REGRAS_CONFIGURAVEIS.md` em andamento (segurança e bugs isolados, com testes primeiro).**
+> Concluído até agora (ainda sem commit): Vitest instalado (`npm test`, testes em `tests/unit/`, 31 testes); PIN de aprovação unificado em `src/lib/rules/pinService.ts` (crypto.randomInt + comparação em tempo constante), substituindo `Math.random` em runner/reallocationEngine/agentDecisor e a comparação `!==` em 4 rotas de aprovação; segredo de cron unificado em `src/lib/security/cronAuth.ts` (falha fechada, sem fallback literal) em 15 rotas e no agendador; round-robin passa a usar o SLA configurado (`resolveRoundRobinSla`); zero deixa de virar padrão (`readNumericParam`); tenant padrão fixo removido do DistributionEngine (`requireTenantId`); leitura global morta de `parametros_imoveis` removida do transbordo.
+> Pendente da fase 0: confirmar typecheck completo; testes de transbordo por tenant em integração (Postgres); remover fallback de `parametros_imoveis` ausente quando o seed existir.
+
+> **Atualizado em (anterior):** 2026-10-14 — **Planejamento de integração do Jev (TypeSafe AI, pilares
 > Choice/Score/Noul) iniciado em `docs/PLANO_INTEGRACAO_JEV.md`, e os 5 pré-requisitos reais
 > de hardcode legado identificados nesse planejamento (P1-P5) corrigidos e testados
 > rigorosamente nesta mesma sessão — nenhuma chamada real ao Jev feita ainda (Fase 0 do plano,
@@ -9449,6 +9453,57 @@ usuário testa, Claude não valida sozinho no navegador por padrão): confirmaç
 o badge de proveniência no Explorador, a seção nova em Configurações, o fluxo completo de
 sobrescrever/restaurar clicando de verdade. Servidor dev do usuário (porta 3000) já reflete o
 código (nenhum arquivo `next.config.js` foi tocado nesta rodada, hot-reload deve pegar sozinho).
+
+---
+
+## Última tarefa concluída
+
+**Fase 5 do Catálogo de Métricas Dinâmico — Insights da IA/agente decisor passam a enxergar as
+métricas curadas pelo Master, não só os campos fixos de `Insight` — implementada e testada ao
+vivo (3/3 cenários, `npx tsc --noEmit` limpo em todo o projeto, zero resíduo).**
+
+**Contexto:** próximo passo natural depois da Fase 4 (Briefing Estratégico já lê o catálogo,
+sessão anterior) — fechar o loop também no lado das decisões automáticas (`aiInsights.ts`/
+`agentDecisor.ts`), não só na narrativa.
+
+**Decisão de desenho:** toda métrica curada com `benchmarkKey` configurado (e
+`betterDirection` ≠ `neutral`) passa a gerar um insight tipo `ALERT` quando o valor real
+(agregado no mesmo período das demais regras, soma-vs-média via `isAverageMetric`) cruza o
+benchmark na direção errada — participa do MESMO pipeline de confiança/`AgentAction`/
+notificação que as regras fixas (CTR, frequência, Hook Rate etc.). Deliberadamente sempre
+`ALERT`, nunca PAUSE/SCALE/DOWNSCALE autônomo: o Master curou a métrica e o benchmark, não o
+tipo de resposta — inventar uma ação de budget a partir de uma métrica cujo significado de
+negócio o sistema não conhece de antemão seria overreach, mesmo critério já usado na regra de
+Hook Rate fraco.
+
+**Achado real de segurança, resolvido antes de qualquer teste:** `resolveBenchmark()`
+(existente) tem um fallback de emergência — quando o `metricKey` nunca foi configurado pro
+segmento, loga erro e retorna `SEGMENT_SEED_DEFAULTS[key]?.value ?? 0`. Como `benchmarkKey` é
+texto livre digitado pelo Master na tela de curadoria (sem validação contra uma lista fechada),
+um typo ou referência a uma chave inexistente comparado contra 0 sob `lower_is_better`
+dispararia falso-positivo em TODA campanha, sempre. Corrigido criando
+`resolveBenchmarkIfConfigured()` (novo, `benchmarkResolver.ts`) — mesmas 4 primeiras camadas
+(client override → tenant override → segmento+rede → segmento sem rede), mas retorna `null`
+em vez de cair no fallback — a regra nova nunca gera alerta quando o benchmark não está de
+fato configurado, só ignora a métrica silenciosamente.
+
+**Implementado** (`src/lib/marketing/services/aiInsights.ts`): catálogo efetivo resolvido POR
+CAMPANHA (via `campaign.clientId`, cascata Cliente → Tenant → Segmento já existente em
+`getEffectiveMetrics`), cacheado por `clientId` dentro da mesma chamada pra nunca resolver 2x o
+mesmo escopo; agregação do valor real reaproveita a mesma regra soma-vs-média do Explorador/
+Briefing (`isAverageMetric`, importado — nunca duplicada a lógica, só a chamada); confiança
+escalada pelo gap relativo ao benchmark (`0.55` a `0.88`, mesma faixa das demais regras ALERT).
+
+**Testado ao vivo, ponta a ponta, contra dado real** (tenant Marketing Digital, segmento
+"Gestão de Marketing Digital", único com métrica curada + benchmark real: `cost_per_lead`/
+`cpl_ideal=60`, campanha real "TikTok - Campanha Verde"): custo por lead real mutado pra R$95
+(acima do benchmark) → alerta gerado corretamente, confiança `0.7425` batendo exata com o
+cálculo manual, descrição citando valor real vs. benchmark · valor dentro do benchmark (R$40)
+→ zero alerta · métrica de teste com `benchmarkKey` nunca configurado pro segmento → zero
+alerta (confirma a guarda de segurança funcionando, não só por revisão de código). Todo dado
+de teste (1 métrica de teste no catálogo, `custom_metrics` mutado em 3 `Insight` reais, script
+`ts-node`) removido/revertido ao final, `count(*)=0`/`{}` confirmado via SQL. `npx tsc
+--noEmit`: zero erros em todo o projeto, antes e depois.
 
 ---
 
