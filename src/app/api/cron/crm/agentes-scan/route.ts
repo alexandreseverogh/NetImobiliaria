@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runCrmAgentScans } from '@/lib/crm/agents/runner'
 import { runRescueRetries } from '@/lib/crm/pendencia/rescueQueue'
+import { verifyCronSecret } from '@/lib/security/cronAuth';
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +20,7 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(request: NextRequest) {
   const secret = request.headers.get('x-cron-secret')
-  if (secret !== process.env.CRON_SECRET) {
+  if (!verifyCronSecret(secret)) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 

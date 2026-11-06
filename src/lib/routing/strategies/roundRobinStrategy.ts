@@ -1,4 +1,5 @@
 import type { DistributionStrategy, DistributionStrategyContext, DistributionStrategyResult } from './types'
+import { readNumericParam } from '@/lib/rules/numeric'
 
 /**
  * Distribuição por fila pura (round-robin) — sem geografia, sem dono de ativo. Pra segmentos
@@ -6,11 +7,26 @@ import type { DistributionStrategy, DistributionStrategyContext, DistributionStr
  * importa dar o próximo lead pra quem recebeu menos recentemente. config opcional:
  *   { slaMinutos } (default 15)
  */
+/**
+ * SLA aplicado ao candidato do round-robin. Mesma regra da estratégia geográfica: corretor
+ * externo usa o SLA externo, interno usa o interno. config.slaMinutos, quando presente, prevalece.
+ * Zero é valor válido (ver src/lib/rules/numeric.ts).
+ */
+export function resolveRoundRobinSla(params: { tipoCorretor: string | null | undefined; config: Record<string, any> }): number {
+  const { tipoCorretor, config } = params
+  if (config.slaMinutos !== undefined && config.slaMinutos !== null) {
+    return readNumericParam(config.slaMinutos, 15)
+  }
+  return tipoCorretor === 'Externo'
+    ? readNumericParam(config.slaExterno, 5)
+    : readNumericParam(config.slaInterno, 15)
+}
+
 export const roundRobinStrategy: DistributionStrategy = {
   key: 'round_robin',
 
   async findCandidate(ctx: DistributionStrategyContext): Promise<DistributionStrategyResult | null> {
-    const { slaMinutos = 15 } = ctx.config || {}
+    const config = ctx.config || {}
 
     const q = `
       SELECT
@@ -48,6 +64,7 @@ export const roundRobinStrategy: DistributionStrategy = {
     const row = r.rows[0]
     if (!row) return null
 
+    const slaMinutos = resolveRoundRobinSla({ tipoCorretor: row.tipo_corretor, config })
     const expiraEm = new Date()
     expiraEm.setMinutes(expiraEm.getMinutes() + slaMinutos)
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getReactivationAction, rejectReactivation } from '@/lib/crm/agents/reactivationExecutor'
+import { pinMatches } from '@/lib/rules/pinService';
 
 export const dynamic = 'force-dynamic'
 
@@ -60,7 +61,7 @@ export async function POST(
     return htmlResponse('⚠️ Status inválido', `Status "${action.status}" não permite rejeição agora.`, 400)
   }
 
-  if (!action.approvalPin || action.approvalPin.trim() !== pin.trim()) {
+  if (!pinMatches(pin, action.approvalPin)) {
     return htmlPinForm(
       params.id,
       action.leadNome || 'Lead',

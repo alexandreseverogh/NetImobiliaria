@@ -14,6 +14,7 @@ import { getAngleInsights } from './angleInsightsService';
 import { resolveCampaignSegment, computeBudgetPlan } from './budgetPlanner';
 import { resolveBenchmarks } from '../../intelligence/benchmarkResolver';
 import { isReallocationCircuitBreakerTripped } from './reallocationMeasurement';
+import { issuePin } from '@/lib/rules/pinService';
 
 const CONFIDENCE_THRESHOLD = parseFloat(process.env.AGENT_CONFIDENCE_THRESHOLD || '0.85');
 const PUBLIC_DOMAIN = process.env.PUBLIC_DOMAIN || 'http://localhost:3001';
@@ -92,8 +93,9 @@ export async function runDecisor(tenantId?: string): Promise<{ actionsCreated: n
     const clientName = (clientRow as any)[0]?.nome ?? '';
 
     const isOffensive = OFFENSIVE_TYPES.includes(insight.type);
-    const pin = isOffensive ? Math.floor(100000 + Math.random() * 900000).toString() : null;
-    const pinExp = isOffensive ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null;
+    const issued = isOffensive ? issuePin() : null;
+    const pin = issued?.pin ?? null;
+    const pinExp = issued?.expiresAt ?? null;
 
     const actionId = randomUUID();
     const actionStatus = DEFENSIVE_TYPES.includes(insight.type)

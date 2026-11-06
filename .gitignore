@@ -229,3 +229,7 @@ backup*.sql
 # porque contêm planejamento/documentação. Não ignorar markdown.
 
 cron_debug.txt
+
+# Testes unitários de regras de negócio versionados (ver docs/PLANO_REGRAS_CONFIGURAVEIS.md)
+!tests/
+!tests/unit/

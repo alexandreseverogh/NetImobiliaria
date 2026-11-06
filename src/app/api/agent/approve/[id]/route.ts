@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/marketing/prisma';
 import { executeAction } from '@/lib/marketing/services/agentDecisor';
 import pool from '@/lib/database/connection';
+import { pinMatches } from '@/lib/rules/pinService';
 
 export const dynamic = 'force-dynamic';
 
@@ -109,7 +110,7 @@ export async function POST(
     return htmlResponse('⏰ PIN expirado', 'O PIN de aprovação expirou (válido por 24h). O agente criará uma nova sugestão.', 400);
   }
 
-  if (!action.approvalPin || action.approvalPin.trim() !== pin.trim()) {
+  if (!pinMatches(pin, action.approvalPin)) {
     return htmlPinForm(params.id, action, '❌ PIN incorreto. Verifique o WhatsApp e tente novamente.');
   }
 

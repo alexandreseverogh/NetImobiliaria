@@ -5,6 +5,7 @@ import { resolveEffectiveAgentConfig } from './effectiveConfig'
 import { CRM_AGENTS } from './index'
 import type { EffectiveAgentConfig } from './effectiveConfig'
 import type { CrmAgentResult } from './types'
+import { issuePin } from '@/lib/rules/pinService';
 
 const PUBLIC_DOMAIN = process.env.PUBLIC_DOMAIN || 'http://localhost:3001'
 
@@ -169,8 +170,9 @@ export async function recordAction(
   result: CrmAgentResult,
 ): Promise<string> {
   const isOffensive = result.type === 'OFFENSIVE'
-  const pin = isOffensive ? Math.floor(100000 + Math.random() * 900000).toString() : null
-  const pinExp = isOffensive ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null
+  const issued = isOffensive ? issuePin() : null
+  const pin = issued?.pin ?? null
+  const pinExp = issued?.expiresAt ?? null
   const status = isOffensive ? 'PENDING_APPROVAL' : 'NOTIFIED'
   const actionId = randomUUID()
 

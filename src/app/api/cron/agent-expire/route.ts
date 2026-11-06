@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/database/connection';
+import { verifyCronSecret } from '@/lib/security/cronAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +9,7 @@ export const dynamic = 'force-dynamic';
 // Chamado pelo cron (ex: a cada hora). Protegido por CRON_SECRET.
 export async function GET(req: NextRequest) {
   const secret = req.headers.get('x-cron-secret') ?? req.nextUrl.searchParams.get('secret');
-  if (secret !== process.env.CRON_SECRET) {
+  if (!verifyCronSecret(secret)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

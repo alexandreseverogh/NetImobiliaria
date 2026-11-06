@@ -4,6 +4,7 @@ import { routeProspectAndNotify } from '@/lib/routing/prospectRouter';
 import emailService from '@/services/emailService';
 import fs from 'fs';
 import path from 'path';
+import { verifyCronSecret } from '@/lib/security/cronAuth';
 
 function cronDebugLog(msg: string) {
     try {
@@ -18,9 +19,9 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
     cronDebugLog('GET /api/cron/transbordo called');
     const authHeader = request.headers.get('Authorization');
-    const secret = process.env.CRON_SECRET || 'your-secret-key'; // Fallback para desenvolvimento
+    const provided = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
 
-    if (!authHeader || authHeader !== `Bearer ${secret}`) {
+    if (!verifyCronSecret(provided)) {
         cronDebugLog('Unauthorized cron access attempt');
         return NextResponse.json({ success: false, message: 'Não autorizado' }, { status: 401 });
     }
@@ -28,11 +29,9 @@ export async function GET(request: Request) {
     const client = await pool.connect();
 
     try {
-        // 1. Ler Parâmetros Gerais
-        const paramsRes = await client.query('SELECT proximos_corretores_recebem_leads, proximos_corretores_recebem_leads_internos, sla_minutos_aceite_lead FROM parametros_imoveis LIMIT 1');
-        const limitExternal = parseInt(paramsRes.rows[0]?.proximos_corretores_recebem_leads || '3');
-        const limitInternal = parseInt(paramsRes.rows[0]?.proximos_corretores_recebem_leads_internos || '3');
-        const slaMinutos = parseInt(paramsRes.rows[0]?.sla_minutos_aceite_lead || '5');
+        // Parâmetros de limite/SLA NÃO são lidos aqui: são por tenant e o roteamento
+        // (DistributionEngine / prospectRouter) os resolve no contexto de cada atribuição.
+        // A leitura global com LIMIT 1 anterior não era usada e contrariava a regra multi-tenant.
 
         // --- BLOCO 0: AUTOLIMPEZA DE HISTÓRICO (EXPURGO 30 DIAS) ---
         // Mantemos o banco leve removendo registros antigos de auditoria/histórico

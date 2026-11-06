@@ -1,6 +1,8 @@
 import pool from '@/lib/database/connection'
 import { DISTRIBUTION_STRATEGIES } from './strategies'
 import type { DistributionStrategyContext, DistributionStrategyResult } from './strategies/types'
+import { requireTenantId } from '@/lib/rules/tenantScope';
+import { readNumericParam } from '@/lib/rules/numeric';
 
 /**
  * 🛰️ MOTOR DE DISTRIBUIÇÃO UNIFICADO (CRM v2.0)
@@ -45,7 +47,7 @@ export class DistributionEngine {
     excludeIds: string[] = [],
     dbClient: any = pool
   ): Promise<RoutedBroker | null> {
-    const tenantId = ctx.tenant_id || '00000000-0000-0000-0000-000000000001';
+    const tenantId = requireTenantId(ctx.tenant_id);
     console.log(`[DistributionEngine] Iniciando busca para lead ${ctx.lead_id}. Tenant: ${tenantId}`);
 
     // 1. Resolve o segmento do tenant (fallback: slug='geral' quando o tenant não tem
@@ -78,10 +80,10 @@ export class DistributionEngine {
     const paramsRes = await dbClient.query('SELECT * FROM public.parametros_imoveis WHERE tenant_id = $1 LIMIT 1', [tenantId]);
     const params = paramsRes.rows[0] || {};
     const slaDefaults = {
-      limitExternal: parseInt(params.proximos_corretores_recebem_leads) || 3,
-      limitInternal: parseInt(params.proximos_corretores_recebem_leads_internos) || 3,
-      slaExterno: parseInt(params.sla_minutos_aceite_lead) || 5,
-      slaInterno: parseInt(params.sla_minutos_aceite_lead_interno) || 15,
+      limitExternal: readNumericParam(params.proximos_corretores_recebem_leads, 3),
+      limitInternal: readNumericParam(params.proximos_corretores_recebem_leads_internos, 3),
+      slaExterno: readNumericParam(params.sla_minutos_aceite_lead, 5),
+      slaInterno: readNumericParam(params.sla_minutos_aceite_lead_interno, 15),
     };
 
     // 3. Buscar a lista ordenada de estratégias ativas deste segmento

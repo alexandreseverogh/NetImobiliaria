@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { getReactivationAction, approveReactivation } from '@/lib/crm/agents/reactivationExecutor'
+import { pinMatches } from '@/lib/rules/pinService';
 
 export const dynamic = 'force-dynamic'
 
@@ -76,7 +77,7 @@ export async function POST(
     return htmlResponse('⏰ PIN expirado', 'O PIN de confirmação expirou (válido por 24h).', 400)
   }
 
-  if (!action.approvalPin || action.approvalPin.trim() !== pin.trim()) {
+  if (!pinMatches(pin, action.approvalPin)) {
     return htmlPinForm(
       params.id,
       action.leadNome || 'Lead',

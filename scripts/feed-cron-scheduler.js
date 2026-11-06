@@ -13,7 +13,11 @@ require('dotenv').config({ path: '.env.local' });
 const cron = require('node-cron');
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-const CRON_SECRET = process.env.CRON_SECRET || 'your-secret-key';
+const CRON_SECRET = process.env.CRON_SECRET;
+if (!CRON_SECRET) {
+  console.error('[FATAL] CRON_SECRET não definido. O agendador não inicia sem segredo.');
+  process.exit(1);
+}
 
 /**
  * Cria novos jobs na fila

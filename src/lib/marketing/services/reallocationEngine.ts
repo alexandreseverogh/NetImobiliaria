@@ -6,6 +6,7 @@ import { getLeadEvents, sumLeads } from './leadEvents';
 import { networkLabel } from '@/lib/marketing-utils';
 import { isReallocationCircuitBreakerTripped } from './reallocationMeasurement';
 import type { DigestItem } from './agentNotificador';
+import { issuePin } from '@/lib/rules/pinService';
 
 const PUBLIC_DOMAIN = process.env.PUBLIC_DOMAIN || 'http://localhost:3001';
 const fmtBRL = (cents: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
@@ -304,8 +305,7 @@ export async function runReallocationAgent(tenantId: string): Promise<{ proposal
 
   for (const c of selected) {
     const actionId = randomUUID();
-    const pin = Math.floor(100000 + Math.random() * 900000).toString();
-    const pinExp = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const { pin, expiresAt: pinExp } = issuePin();
 
     const clientRow = c.clientId
       ? await prisma.$queryRaw<{ nome: string }[]>`SELECT nome FROM public.clientes WHERE uuid = ${c.clientId}::uuid LIMIT 1`.catch(() => [])

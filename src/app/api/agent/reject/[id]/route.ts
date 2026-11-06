@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/marketing/prisma';
+import { pinMatches } from '@/lib/rules/pinService';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,7 +86,7 @@ export async function POST(
   }
 
   // Verificar PIN
-  if (!action.approvalPin || action.approvalPin.trim() !== pin.trim()) {
+  if (!pinMatches(pin, action.approvalPin)) {
     return htmlPinForm(
       params.id,
       action.campaignName,
