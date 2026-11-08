@@ -15,12 +15,16 @@ type Perfil = {
   logradouro: string; numero: string; complemento: string; bairro: string;
   cep: string; cidade: string; estado: string;
   primaryColor: string; secondaryColor: string;
+  numeroWhatsapp: string; slackWebhookUrl: string;
+  calendario: boolean; googleEmail: string; duracaoVisita: number;
 };
 
 const EMPTY: Perfil = {
   razaoSocial: '', cnpjCpf: '', emailContato: '', telefone: '',
   logradouro: '', numero: '', complemento: '', bairro: '',
   cep: '', cidade: '', estado: '', primaryColor: '', secondaryColor: '',
+  numeroWhatsapp: '', slackWebhookUrl: '',
+  calendario: false, googleEmail: '', duracaoVisita: 60,
 };
 
 function Input({ label, value, onChange, placeholder, maxLength }: {
@@ -131,6 +135,41 @@ export function DadosCadastraisSection() {
         <div className="md:col-span-2"><Input label="CEP" value={data.cep} onChange={set('cep')} /></div>
         <div className="md:col-span-3"><Input label="Cidade" value={data.cidade} onChange={set('cidade')} /></div>
         <div className="md:col-span-1"><Input label="UF" value={data.estado} onChange={set('estado')} maxLength={2} /></div>
+      </div>
+
+      <div className="space-y-4">
+        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Comunicação e alertas</p>
+        <div className="grid md:grid-cols-2 gap-4">
+          <Input label="Número WhatsApp para alertas (DDD + número)" value={data.numeroWhatsapp} onChange={set('numeroWhatsapp')} placeholder="5581999999999" />
+          <Input label="Webhook do Slack" value={data.slackWebhookUrl} onChange={set('slackWebhookUrl')} placeholder="https://hooks.slack.com/services/..." />
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Google Calendar</p>
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={data.calendario}
+            onChange={e => setData(prev => ({ ...prev, calendario: e.target.checked }))}
+            className="h-4 w-4 rounded border-gray-300"
+          />
+          <span className="text-sm font-semibold text-gray-700">Ativar agendamento de visitas com Google Calendar</span>
+        </label>
+        <div className="grid md:grid-cols-2 gap-4">
+          <Input label="E-mail Google da empresa" value={data.googleEmail} onChange={set('googleEmail')} />
+          <div>
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Duração padrão da visita (minutos)</label>
+            <input
+              type="number"
+              min={15}
+              max={480}
+              value={data.duracaoVisita}
+              onChange={e => setData(prev => ({ ...prev, duracaoVisita: Number(e.target.value) }))}
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+            />
+          </div>
+        </div>
       </div>
 
       <div>
