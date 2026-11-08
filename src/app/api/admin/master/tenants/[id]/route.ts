@@ -3,6 +3,7 @@ import { verifyToken } from '@/lib/auth/jwt';
 import { requireApiPermission } from '@/lib/auth/apiPermissions';
 import pool from '@/lib/database/connection';
 import bcrypt from 'bcryptjs';
+import { normalizePublicDomain } from '@/lib/tenant/publicDomain';
 
 export async function GET(
   request: NextRequest,
@@ -73,7 +74,7 @@ export async function PATCH(
       primary_color, secondary_color,
       anthropic_api_key, slack_webhook_url, evolution_api_url, evolution_api_key, evolution_instance, agent_confidence_threshold,
       numero_whatsapp, crm_clientes, associa_segmento_negocio_cliente, marketing_digital,
-      isento_marketingdigital, isento_mensageria, isento_crm
+      isento_marketingdigital, isento_mensageria, isento_crm, public_domain
     } = body;
 
     await client.query('BEGIN');
@@ -150,8 +151,9 @@ export async function PATCH(
         isento_crm = COALESCE($31, isento_crm),
         associa_segmento_negocio_cliente = COALESCE($32, associa_segmento_negocio_cliente),
         marketing_digital = COALESCE($33, marketing_digital),
+        public_domain = CASE WHEN $34::boolean THEN $35 ELSE public_domain END,
         updated_at = NOW()
-      WHERE id = $34
+      WHERE id = $36
       RETURNING *
     `;
 
@@ -179,6 +181,8 @@ export async function PATCH(
       isento_crm !== undefined ? isento_crm : null,
       associa_segmento_negocio_cliente !== undefined ? associa_segmento_negocio_cliente : null,
       marketing_digital !== undefined ? marketing_digital : null,
+      public_domain !== undefined,
+      public_domain ? normalizePublicDomain(public_domain) : null,
       id
     ];
 
@@ -193,6 +197,9 @@ export async function PATCH(
     return NextResponse.json({ success: true, tenant: result.rows[0] });
   } catch (error: any) {
     if (client) await client.query('ROLLBACK');
+    if (error?.code === '23505' && String(error?.constraint || '').includes('public_domain')) {
+      return NextResponse.json({ error: 'Este domínio já está associado a outra empresa' }, { status: 409 });
+    }
     console.error('Error updating tenant:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   } finally {

@@ -73,6 +73,11 @@ export async function POST(request: NextRequest) {
       numero_whatsapp
     } = body;
 
+    // Segmento é obrigatório para todo tenant (decisão 2026-11-07).
+    if (!segment_id) {
+      return NextResponse.json({ error: 'Segmento de negócios do tenant é obrigatório' }, { status: 400 });
+    }
+
     await client.query('BEGIN');
 
     // 1. Inserir Tenant

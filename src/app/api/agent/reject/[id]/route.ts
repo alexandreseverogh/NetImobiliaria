@@ -100,7 +100,7 @@ export async function POST(
   await setStatus(params.id, 'REJECTED');
 
   // docs/PLANO_TIKTOK.md T4 — sincroniza o status da BudgetReallocation vinculada, senão fica
-  // presa em 'PROPOSED' pra sempre (o cron de medição D+14 e o histórico leriam errado).
+  // presa em 'PROPOSED' pra sempre (o cron de medição e o histórico leriam errado).
   if (action.type === 'REALLOCATE_BUDGET') {
     await prisma.$executeRaw`
       UPDATE campanhasmarketingdigital."BudgetReallocation"

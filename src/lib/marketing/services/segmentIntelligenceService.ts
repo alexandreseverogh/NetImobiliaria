@@ -11,6 +11,7 @@ import pool from '@/lib/database/connection';
 import { invokeWithTemplate } from '../../intelligence/llmInvoker';
 import { generateAiInsights } from './aiInsights';
 import { getLeadEvents, leadsByCampaign as groupLeadsByCampaign } from './leadEvents';
+import { resolveBenchmark } from '../../intelligence/benchmarkResolver';
 import type { SegmentDashboardResponse } from '../../../app/api/admin/campanhas/dashboard/segment/route';
 
 const S = 'campanhasmarketingdigital';
@@ -96,7 +97,7 @@ function buildAnglesText(
 
 // ─── Detectar padrões cross-cliente ──────────────────────────────────────────
 
-function detectPatterns(data: SegmentDashboardResponse): SegmentPattern[] {
+function detectPatterns(data: SegmentDashboardResponse, goodCplFactor: number): SegmentPattern[] {
   const patterns: SegmentPattern[] = [];
   const all = [
     ...(data.tenantOwn ? [data.tenantOwn] : []),
@@ -142,7 +143,7 @@ function detectPatterns(data: SegmentDashboardResponse): SegmentPattern[] {
   const scale = all.filter(c =>
     c.metrics.cpl != null &&
     cplIdeal != null &&
-    c.metrics.cpl < cplIdeal * 0.85 &&
+    c.metrics.cpl < cplIdeal * goodCplFactor &&
     c.metrics.leads >= 5,
   );
   if (scale.length > 0) {
@@ -229,7 +230,8 @@ export async function generateSegmentIntelligence(
   data: SegmentDashboardResponse,
   tenantId: string,
 ): Promise<SegmentIntelligenceResult> {
-  const patterns      = detectPatterns(data);
+  const goodCplFactor = await resolveBenchmark('good_cpl_factor', tenantId, data.segment.id);
+  const patterns      = detectPatterns(data, goodCplFactor);
   const anglesSummary = await buildAnglesSummary(data, tenantId, data.segment.id);
   const vocab         = data.segment.vocabulary ?? {};
   const bench         = data.benchmark;

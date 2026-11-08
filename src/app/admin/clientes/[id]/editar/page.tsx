@@ -77,19 +77,8 @@ export default function EditarClientePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Segmento de negócios do cliente — só solicitado quando o TENANT ativou isso
-  // (tenants.associa_segmento_negocio_cliente, curado pelo Master em /admin/master/tenants).
-  const [associaSegmento, setAssociaSegmento] = useState(false)
   const [segments, setSegments] = useState<SegmentOption[]>([])
   const [segmentsLoading, setSegmentsLoading] = useState(true)
-
-  useEffect(() => {
-    get('/api/admin/clientes/tem-segmento-negocio')
-      .then(res => res.ok ? res.json() : { associaSegmento: false })
-      .then(data => setAssociaSegmento(!!data.associaSegmento))
-      .catch(() => setAssociaSegmento(false))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // Disparada em paralelo com a checagem acima (não depende de associaSegmento) — evita
   // encadear 2 requisições sequenciais só pra popular as opções do <select>. O campo já
@@ -132,6 +121,9 @@ export default function EditarClientePage() {
   // Quando desligado, o tipo é derivado automaticamente de qual documento está preenchido:
   // CNPJ → comprador_pj (pessoa jurídica), CPF → consumidor_pf (pessoa física).
   const [contaGerenciada, setContaGerenciada] = useState(false)
+
+  // Segmento obrigatório para todo cliente, exceto consumidor PF (decisão 2026-11-07).
+  const exigeSegmento = deriveTipoCliente(contaGerenciada, formData.cpf, formData.cnpj) !== 'consumidor_pf'
 
   // Se o toggle for desligado (ou marketing_digital não estiver ativo) enquanto a aba "Config.
   // Meta" está aberta, a tela ficaria em branco — o botão da aba já some do menu, mas activeTab
@@ -823,7 +815,7 @@ export default function EditarClientePage() {
       finalErrors.cidade = 'Cidade é obrigatória'
     }
 
-    if (associaSegmento && !formData.segment_id) {
+    if (exigeSegmento && !formData.segment_id) {
       finalErrors.segment_id = 'Segmento de negócios é obrigatório'
     }
 
@@ -871,7 +863,7 @@ export default function EditarClientePage() {
           tipo_cliente: hasMarketingDigital
             ? deriveTipoCliente(contaGerenciada, formData.cpf, formData.cnpj)
             : undefined,
-          segment_id: associaSegmento ? (formData.segment_id || null) : undefined,
+          segment_id: formData.segment_id || null,
           updated_by: user?.nome || 'system'
         })
       })
@@ -1154,7 +1146,7 @@ export default function EditarClientePage() {
         )}
 
         {/* Segmento de Negócios — só quando o tenant ativou isso (associa_segmento_negocio_cliente) */}
-        {associaSegmento && (
+        {exigeSegmento && (
           <div>
             <label htmlFor="segment_id" className="block text-sm font-medium text-gray-700 mb-2">
               Segmento de Negócios *

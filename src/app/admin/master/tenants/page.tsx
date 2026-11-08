@@ -168,9 +168,6 @@ export default function MasterTenantsPage() {
       if (segmentsRes.ok) {
         const data = await segmentsRes.json()
         setSegments(data.segments)
-        if (data.segments.length > 0 && !newTenant.segment_id) {
-          setNewTenant(prev => ({ ...prev, segment_id: data.segments[0].id }))
-        }
       }
 
       if (modulesRes.ok) {
@@ -242,12 +239,16 @@ export default function MasterTenantsPage() {
 
   const handleCreateTenant = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!newTenant.segment_id) {
+      alert('Selecione o segmento de negócios da empresa. Ele é obrigatório.')
+      return
+    }
     try {
       const response = await post('/api/admin/master/tenants', newTenant)
       if (response.ok) {
         setShowModal(false)
         setNewTenant({ 
-          name: '', slug: '', segment_id: segments[0]?.id || '', logo: '', logo_mime_type: '',
+          name: '', slug: '', segment_id: '', logo: '', logo_mime_type: '',
           cnpj_cpf: '', logradouro: '', numero: '', bairro: '', cidade: '', estado: '', cep: '', telefone: '', email_contato: '',
           admin_nome: '', admin_username: '', admin_email: '', admin_password: '',
           selected_modules: [],
@@ -335,6 +336,10 @@ export default function MasterTenantsPage() {
 
   const handleUpdateTenant = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!editingTenant?.segment_id) {
+      alert('Selecione o segmento de negócios da empresa. Ele é obrigatório.')
+      return
+    }
     try {
       const { id, ...data } = editingTenant
       
@@ -509,7 +514,7 @@ export default function MasterTenantsPage() {
                <button
                 onClick={() => {
                   setNewTenant({
-                    name: '', slug: '', segment_id: segments[0]?.id || '', logo: '', logo_mime_type: '',
+                    name: '', slug: '', segment_id: '', logo: '', logo_mime_type: '',
                     cnpj_cpf: '', logradouro: '', numero: '', bairro: '', cidade: '', estado: '', cep: '', telefone: '', email_contato: '',
                     admin_nome: '', admin_username: '', admin_email: '', admin_password: '',
                     selected_modules: [],
@@ -740,8 +745,9 @@ export default function MasterTenantsPage() {
                       <div className="flex gap-4">
                         <input type="text" placeholder="Slug (ex: imobiliaria-x)" value={newTenant.slug} onChange={e => setNewTenant({...newTenant, slug: e.target.value.toLowerCase().replace(/\s+/g, '-')})}
                           className="flex-1 px-5 py-4 rounded-xl bg-gray-50 border-gray-100 font-mono text-xs focus:ring-2 focus:ring-blue-500 transition-all lowercase" required />
-                        <select value={newTenant.segment_id} onChange={e => setNewTenant({...newTenant, segment_id: e.target.value})}
+                        <select value={newTenant.segment_id} onChange={e => setNewTenant({...newTenant, segment_id: e.target.value})} required
                           className="w-40 px-4 py-4 rounded-xl bg-gray-50 border-gray-100 font-black text-[10px] uppercase cursor-pointer">
+                          <option value="" disabled>SELECIONE…</option>
                           {segments.map(s => (
                             <option key={s.id} value={s.id}>{s.name.toUpperCase()}</option>
                           ))}
@@ -1065,7 +1071,7 @@ export default function MasterTenantsPage() {
                           className="w-full px-5 py-4 rounded-xl bg-gray-50 border-gray-100 font-mono text-xs focus:ring-2 focus:ring-blue-500 transition-all" placeholder="00.000.000/0000-00" />
                         
                         <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Segmento Master</label>
-                        <select value={editingTenant.segment_id || ''} onChange={e => setEditingTenant({...editingTenant, segment_id: e.target.value})}
+                        <select value={editingTenant.segment_id || ''} onChange={e => setEditingTenant({...editingTenant, segment_id: e.target.value})} required
                           className="w-full px-5 py-4 rounded-xl bg-gray-50 border-gray-100 font-black text-xs focus:ring-2 focus:ring-blue-500 transition-all uppercase cursor-pointer">
                           {segments.map(s => (
                             <option key={s.id} value={s.id}>{s.name.toUpperCase()}</option>
@@ -1137,25 +1143,8 @@ export default function MasterTenantsPage() {
                            </div>
                         </div>
 
-                        {/* Segmento de Negócio para Clientes (2026-09-23) */}
                         <div className="col-span-2 pt-4 border-t border-gray-100">
                            <h4 className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-4">Cadastro de Clientes</h4>
-                           <div
-                             className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 cursor-pointer"
-                             onClick={() => setEditingTenant({ ...editingTenant, associa_segmento_negocio_cliente: !editingTenant?.associa_segmento_negocio_cliente })}
-                           >
-                             <div className="pr-4">
-                               <p className="text-[9px] font-black text-gray-700 uppercase">Segmento de Negócio para Clientes</p>
-                               <p className="text-[8px] text-gray-400 font-bold mt-0.5 leading-relaxed">
-                                 Quando ativo, criar/editar cliente exige selecionar o segmento de
-                                 negócios dele — para tenants que gerenciam clientes de vários
-                                 segmentos distintos. Desativado por padrão.
-                               </p>
-                             </div>
-                             <div className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${editingTenant?.associa_segmento_negocio_cliente ? 'bg-emerald-600' : 'bg-gray-300'}`}>
-                               <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform ${editingTenant?.associa_segmento_negocio_cliente ? 'translate-x-6' : 'translate-x-1'}`} />
-                             </div>
-                           </div>
                            <div
                              className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 cursor-pointer mt-3"
                              onClick={() => setEditingTenant({ ...editingTenant, marketing_digital: !editingTenant?.marketing_digital })}

@@ -207,10 +207,10 @@ function RankedTable({ performers }: { performers: CrossPerformer[] }) {
   const withCpl = performers.filter(p => p.cpl !== null);
   const maxCpl  = withCpl.length > 0 ? Math.max(...withCpl.map(p => p.cpl!)) : 1;
 
-  // Cor do índice de eficiência (cpl ÷ cplCritical): < 0,6 ótimo · < 1 atenção · ≥ 1 crítico
-  function effColor(eff: number): string {
-    if (eff < 0.6) return 'text-emerald-600';
-    if (eff < 1)   return 'text-amber-600';
+  // Cor da faixa de eficiência: calculada pela API com os benchmarks do escopo (nunca no front)
+  function effColor(band: CrossPerformer['efficiencyBand']): string {
+    if (band === 'good') return 'text-emerald-600';
+    if (band === 'warn') return 'text-amber-600';
     return 'text-red-500';
   }
 
@@ -224,15 +224,15 @@ function RankedTable({ performers }: { performers: CrossPerformer[] }) {
   // Barra normalizada pelo índice de eficiência (comparável entre segmentos).
   // Fallback: clientes sem benchmark crítico usam CPL absoluto vs maxCpl do conjunto.
   function barWidth(p: CrossPerformer): number {
-    if (p.efficiencyIndex !== null) return Math.min((p.efficiencyIndex / 1.5) * 100, 100);
+    if (p.efficiencyIndex !== null && p.efficiencyBarMax) return Math.min((p.efficiencyIndex / p.efficiencyBarMax) * 100, 100);
     if (p.cpl !== null)             return Math.min((p.cpl / maxCpl) * 100, 100);
     return 0;
   }
 
   function barColor(p: CrossPerformer): string {
     if (p.efficiencyIndex !== null) {
-      if (p.efficiencyIndex < 0.6) return 'bg-emerald-500';
-      if (p.efficiencyIndex < 1)   return 'bg-amber-400';
+      if (p.efficiencyBand === 'good') return 'bg-emerald-500';
+      if (p.efficiencyBand === 'warn') return 'bg-amber-400';
       return 'bg-red-400';
     }
     return 'bg-indigo-400';
@@ -278,7 +278,7 @@ function RankedTable({ performers }: { performers: CrossPerformer[] }) {
                     <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wide">✅ top {rank}</span>
                   )}
                   {p.efficiencyIndex !== null && (
-                    <span className={`text-[9px] font-black uppercase tracking-wide ${effColor(p.efficiencyIndex)}`}>
+                    <span className={`text-[9px] font-black uppercase tracking-wide ${effColor(p.efficiencyBand)}`}>
                       {Math.round(p.efficiencyIndex * 100)}% do CPL crítico
                     </span>
                   )}
@@ -365,12 +365,13 @@ function RankedTable({ performers }: { performers: CrossPerformer[] }) {
 
 interface AngleApiResult extends AngleInsightsResult {
   narrative?: string | null;
+  efficiencyGoodMax?: number;
 }
 
-function AngleCplBar({ cpl, maxCpl }: { cpl: number | null; maxCpl: number }) {
+function AngleCplBar({ cpl, maxCpl, goodMax }: { cpl: number | null; maxCpl: number; goodMax: number }) {
   if (cpl === null || maxCpl === 0) return <span className="text-xs text-gray-400">—</span>;
   const pct   = Math.min((cpl / (maxCpl * 1.1)) * 100, 100);
-  const color = cpl === maxCpl ? 'bg-red-400' : cpl < maxCpl * 0.6 ? 'bg-emerald-500' : 'bg-amber-400';
+  const color = cpl === maxCpl ? 'bg-red-400' : cpl < maxCpl * goodMax ? 'bg-emerald-500' : 'bg-amber-400';
   return (
     <div className="flex items-center gap-2 min-w-[120px]">
       <span className="text-xs font-bold text-gray-800 w-16 text-right shrink-0">{formatCurrency(cpl)}</span>
@@ -404,6 +405,7 @@ function AngleWidget({ period, segmentId, segmentName }: { period: string; segme
   };
 
   const maxCpl   = data?.angleStats.filter(s => s.cpl !== null).reduce((m, s) => Math.max(m, s.cpl!), 0) ?? 0;
+  const angleGoodMax = data?.efficiencyGoodMax ?? 0;
   const maxSpend = data?.angleStats.reduce((m, s) => Math.max(m, s.spend), 0) ?? 0;
 
   return (
@@ -531,7 +533,7 @@ function AngleWidget({ period, segmentId, segmentName }: { period: string; segme
                     {s.ctr > 0 ? `${s.ctr.toFixed(2)}%` : '—'}
                   </span>
                   <div className="flex justify-end">
-                    <AngleCplBar cpl={s.cpl} maxCpl={maxCpl} />
+                    <AngleCplBar cpl={s.cpl} maxCpl={maxCpl} goodMax={angleGoodMax} />
                   </div>
                   <span className="text-xs text-gray-600 text-right font-medium">{formatCurrency(s.spend)}</span>
                 </motion.div>
@@ -689,6 +691,8 @@ export default function CrossInsightsPage() {
               <option value="30">30 dias</option>
               <option value="60">60 dias</option>
               <option value="90">90 dias</option>
+              <option value="180">180 dias</option>
+              <option value="365">365 dias</option>
             </select>
 
             {/* Filtro de segmento — só aparece se há ≥ 2 segmentos */}

@@ -30,6 +30,10 @@ export type LeadSourceMethod =
 
 export const LEAD_SOURCE_BY_NETWORK: Record<string, LeadSourceMethod> = {
   meta: 'cta_engagement',
+  // TikTok tratado como Meta (decisão 2026-07): lead só conta por clique de WhatsApp ou
+  // formulário pelo nosso fluxo (CtaInteraction/CtaSubmission). As conversões que a API do
+  // TikTok devolve em Insight.conversions NÃO viram lead, porque não trazem identidade da
+  // pessoa. Se no futuro quisermos contá-las como o Google, trocar para 'insight_conversions'.
   tiktok: 'cta_engagement',
   // Cobre também YouTube — roda sob o mesmo adapter/credenciais do Google Ads (decisão
   // 2026-05-29, docs/claude-memory ou histórico de CHECKPOINT.md — "YouTube = canal sob

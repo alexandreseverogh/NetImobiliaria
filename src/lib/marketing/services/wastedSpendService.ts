@@ -2,6 +2,7 @@ import prisma from '../prisma';
 import pool from '@/lib/database/connection';
 import { resolveSegment } from '../../intelligence/segmentResolver';
 import { resolveBenchmarks } from '../../intelligence/benchmarkResolver';
+import { classifyCpl } from '../../rules/statusClassifier';
 import { getLeadEvents, leadsByCampaign as groupLeadsByCampaign } from './leadEvents';
 import { resolveCampaignNetworkCodes } from '../networkFilterUtils';
 import { hasCrmModule } from './revenueAttributionService';
@@ -55,7 +56,7 @@ export async function calculateWastedSpend(
   const realClientId = (clientId && clientId !== 'own' && clientId !== 'segment') ? clientId : null;
 
   const segment = await resolveSegment(tenantId, realClientId ?? undefined);
-  const BENCHMARK_KEYS = ['cpl_ideal', 'cpl_critical', 'ctr_min', 'frequency_max', 'spend_no_lead', 'min_leads_scale', 'min_days_running'];
+  const BENCHMARK_KEYS = ['cpl_ideal', 'cpl_critical', 'warn_cpl_factor', 'ctr_min', 'frequency_max', 'spend_no_lead', 'min_leads_scale', 'min_days_running'];
   // Benchmark "sem rede" — usado no relatório vazio e como fallback de rótulo antes de saber
   // quais redes existem no escopo (as explicações genéricas de categoria usam este).
   const b = await resolveBenchmarks(BENCHMARK_KEYS, tenantId, segment?.id ?? null, realClientId);
@@ -161,7 +162,7 @@ export async function calculateWastedSpend(
     }
 
     // HIGH_CPL_SPEND — CPL above critical threshold
-    if (!classified.has(s.id) && s.leads > 0 && s.cpl > b.cpl_critical) {
+    if (!classified.has(s.id) && s.leads > 0 && s.cpl >= b.cpl_critical) {
       const wasted = Math.max(0, s.totalSpend - s.leads * b.cpl_ideal);
       highCpl.push({
         id: s.id, name: s.name,
@@ -173,7 +174,7 @@ export async function calculateWastedSpend(
     }
 
     // ELEVATED_CPL_SPEND — CPL acima do ideal mas abaixo do crítico (desperdício "leve")
-    if (!classified.has(s.id) && s.leads > 0 && s.cpl > b.cpl_ideal && s.cpl <= b.cpl_critical) {
+    if (!classified.has(s.id) && s.leads > 0 && classifyCpl(s.cpl, { cplIdeal: b.cpl_ideal, cplCritical: b.cpl_critical }, b.warn_cpl_factor) === 'warn') {
       const wasted = Math.max(0, s.totalSpend - s.leads * b.cpl_ideal);
       if (wasted > 0) {
         elevatedCpl.push({

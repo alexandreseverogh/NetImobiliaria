@@ -364,7 +364,7 @@ export default function DesperdicioPage() {
               </div>
             )}
 
-            {/* Histórico de Realocações — prova de valor do módulo pro gestor (D+14) */}
+            {/* Histórico de Realocações — prova de valor do módulo pro gestor (veredito após a janela de medição) */}
             {realocHistory.length > 0 && (
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                 <h2 className="text-sm font-black text-gray-900 mb-4">Histórico de Realocações</h2>

@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/cron/campanhas/realloc-measure
- * docs/PLANO_TIKTOK.md §8.4 — mede, D+14 depois de cada realocação de verba EXECUTED, se o
+ * docs/PLANO_TIKTOK.md §8.4 — mede, após a janela configurada de cada realocação de verba EXECUTED, se o
  * ganho de leads projetado se confirmou de verdade (grava actual_lead_gain + verdict). Fecha o
  * loop de aprendizado do motor de realocação (T4) — sem isso ele nunca melhora, e o circuit
  * breaker (§8.4/H15) nunca teria dado de onde disparar.

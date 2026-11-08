@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
-import { getPublicParamsTenantId } from '@/lib/rules/publicTenant'
+import { resolveTenantByPublicHost } from '@/lib/tenant/publicDomain'
 
 export const runtime = 'nodejs'
 
-// API pública para exibir informações do plano de corretor (sem autenticação)
+// API pública para exibir informações do plano de corretor (sem autenticação).
+// A empresa é descoberta pelo domínio da requisição (tenants.public_domain).
 export async function GET(request: NextRequest) {
   try {
+    const tenantId = await resolveTenantByPublicHost(request.headers.get('host'))
+    if (!tenantId) {
+      return NextResponse.json({ success: false, error: 'Site não configurado' }, { status: 404 })
+    }
     // Buscar apenas os parâmetros públicos para exibição no popup
     const result = await pool.query(
       `SELECT 
@@ -18,7 +23,7 @@ export async function GET(request: NextRequest) {
         sla_minutos_aceite_lead,
         cobranca_corretor_externo
       FROM parametros_imoveis WHERE tenant_id = $1 LIMIT 1`,
-      [getPublicParamsTenantId()]
+      [tenantId]
     )
 
     if (result.rows.length === 0) {

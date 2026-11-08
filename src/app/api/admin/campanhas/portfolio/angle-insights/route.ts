@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { getAngleInsights } from '@/lib/marketing/services/angleInsightsService';
 import { invokeForContext } from '@/lib/intelligence/llmInvoker';
+import { resolveBenchmark } from '@/lib/intelligence/benchmarkResolver';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,7 +56,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ...result, narrative });
+    // Faixa de "ótimo" vinda do mesmo benchmark do cross-insights (calibração comparável).
+    const goodMaxBench = await resolveBenchmark('efficiency_good_max', payload.tenantId, segmentId ?? null, clientId ?? null);
+
+    return NextResponse.json({ ...result, narrative, efficiencyGoodMax: goodMaxBench });
   } catch (error: any) {
     console.error('GET /angle-insights error:', error);
     return NextResponse.json({ error: error.message || 'Erro ao carregar insights de ângulo' }, { status: 500 });

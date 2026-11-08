@@ -19,6 +19,8 @@ import { CreateGuard, UpdateGuard } from '@/components/admin/PermissionGuard'
 import { SegmentInterestsModal } from '@/components/admin/master/SegmentInterestsModal'
 import { SegmentAnglesModal } from '@/components/admin/master/SegmentAnglesModal'
 import { SegmentBenchmarksModal } from '@/components/admin/master/SegmentBenchmarksModal'
+import { SegmentAuditBandsModal } from '@/components/admin/master/SegmentAuditBandsModal'
+import { SegmentAuditTextsModal } from '@/components/admin/master/SegmentAuditTextsModal'
 import { SegmentDataEntitiesModal } from '@/components/admin/master/SegmentDataEntitiesModal'
 import { SegmentTenantsModal } from '@/components/admin/master/SegmentTenantsModal'
 import { SegmentDistributionModal } from '@/components/admin/master/SegmentDistributionModal'
@@ -111,6 +113,8 @@ export default function MasterSegmentsPage() {
   const [fitCriteriaSegment, setFitCriteriaSegment] = useState<Segment | null>(null)
   const [llmDefaultSegment, setLlmDefaultSegment] = useState<Segment | null>(null)
   const [metricsSegment, setMetricsSegment] = useState<Segment | null>(null)
+  const [auditBandsSegment, setAuditBandsSegment] = useState<Segment | null>(null)
+  const [auditTextsSegment, setAuditTextsSegment] = useState<Segment | null>(null)
   const [regimentoSegment, setRegimentoSegment] = useState<Segment | null>(null)
   const [ativoConfigSegment, setAtivoConfigSegment] = useState<Segment | null>(null)
   
@@ -771,6 +775,20 @@ export default function MasterSegmentsPage() {
         />
       )}
 
+      {/* Pontuação da Auditoria — faixas e notas (audit_scoring_bands) */}
+      {auditTextsSegment && (
+        <SegmentAuditTextsModal
+          segment={auditTextsSegment}
+          onClose={() => setAuditTextsSegment(null)}
+        />
+      )}
+      {auditBandsSegment && (
+        <SegmentAuditBandsModal
+          segment={auditBandsSegment}
+          onClose={() => setAuditBandsSegment(null)}
+        />
+      )}
+
       {/* Catálogo de Métricas Dinâmico — Fase 1 (metadado por segmento) */}
       {metricsSegment && (
         <SegmentMetricsModal
@@ -801,6 +819,8 @@ export default function MasterSegmentsPage() {
               ativoConfig: setAtivoConfigSegment,
               llmDefault: setLlmDefaultSegment,
               metrics: setMetricsSegment,
+              auditBands: setAuditBandsSegment,
+              auditTexts: setAuditTextsSegment,
             }
             setters[key](target)
           }}
