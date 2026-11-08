@@ -108,7 +108,12 @@ export async function generateAuditReport(
   // ── Coletar dados em paralelo ──────────────────────────────
   const [wastedRaw, healthRaw, metricsRaw, funnelRaw] = await Promise.all([
     calculateWastedSpend(tenantId, clientId, periodDays).catch(() => null),
-    runTrackingHealthCheck(tenantId, clientId).catch(() => null),
+    // 'segment' e 'own' são sentinelas da tela (Todos os Clientes / Minha Empresa), não IDs de cliente.
+    runTrackingHealthCheck(tenantId, clientId && clientId !== 'segment' && clientId !== 'own' ? clientId : null)
+      .catch(err => {
+        console.error('[AUDIT] Falha no check de rastreamento — usando valor padrão:', err);
+        return null;
+      }),
     collectCampaignMetrics(tenantId, clientId, startDate, campaignId),
     collectFunnelMetrics(tenantId, clientId, startDate, campaignId),
   ]);
