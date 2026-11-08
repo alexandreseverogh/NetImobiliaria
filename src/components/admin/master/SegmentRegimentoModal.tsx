@@ -24,7 +24,7 @@ import { cn } from '@/lib/marketing-utils';
 export type RegimentoKey =
   | 'tenants' | 'angles' | 'interests' | 'benchmarks' | 'dataEntities'
   | 'distribution' | 'qualification' | 'agentes' | 'fitCriteria'
-  | 'ativoConfig' | 'llmDefault' | 'metrics';
+  | 'ativoConfig' | 'llmDefault' | 'metrics' | 'auditBands' | 'auditTexts';
 
 interface Segment { id: string; name: string }
 
@@ -253,6 +253,38 @@ const ITEMS: RegimentoItem[] = [
     howToFill: ['Escolha provider + modelo + API key, ou deixe "Sem default" pra herdar a linha global da plataforma.'],
     example: 'Segmento com alto volume de mensagens pode usar um modelo mais rápido/barato como padrão, mesmo com o resto da plataforma usando outro globalmente.',
     impact: 'Só entra em jogo quando tenant/cliente deste segmento não tem config própria — nunca sobrescreve um modelo já configurado por eles.',
+  },
+  {
+    key: 'auditBands', color: 'amber', icon: AdjustmentsHorizontalIcon,
+    title: 'Pontuação da Auditoria',
+    summary: 'As faixas e notas que transformam métricas em scorecard, problemas e oportunidades da auditoria.',
+    objective:
+      'Nenhum número de decisão da auditoria fica no código: pesos das dimensões, faixas de CPL, ' +
+      'desperdício, funil e criativo, notas de cada faixa, cortes de status e limiares de problema ' +
+      'e oportunidade. Cada regra é avaliada de cima para baixo; a primeira faixa que casa define a nota.',
+    howToFill: [
+      'Cada dimensão agrupa regras. Uma regra é uma tabela de faixas: comparação, limite e nota.',
+      'A última faixa de cada regra é sempre "qualquer valor" (fallback) e não pode ser removida.',
+      'Limites de razão (ex.: CPL ÷ ideal) são múltiplos do benchmark do segmento, não valores absolutos.',
+      'A descrição de cada faixa aparece no texto de detalhe da auditoria.',
+    ],
+    example: 'CPL até 1× o ideal → nota 90; até 1,5× → 70; até 2,5× → 45; acima → 20.',
+    impact: 'Afeta a nota de auditoria de todo cliente/tenant deste segmento que não tiver regra própria.',
+  },
+  {
+    key: 'auditTexts', color: 'amber', icon: AdjustmentsHorizontalIcon,
+    title: 'Textos e Limites da Auditoria',
+    summary: 'As estimativas exibidas nos conselhos do relatório e a quantidade de itens mostrados.',
+    objective:
+      'Nenhuma estimativa nem limite de exibição da auditoria fica no código. Cada segmento define ' +
+      'seus próprios intervalos (ex.: redução de CPL) e quantos problemas e oportunidades aparecem.',
+    howToFill: [
+      'Estimativas com intervalo têm mínimo e máximo; limites de exibição têm um único valor.',
+      'O texto dos conselhos é fixo; os números dentro dele vêm daqui.',
+      'Limites precisam ser inteiros maiores que zero.',
+    ],
+    example: 'Redução de CPL de 15 a 30% aparece como "Redução estimada de 15–30% no CPL médio".',
+    impact: 'Afeta os conselhos e a quantidade de itens do relatório de auditoria deste segmento.',
   },
   {
     key: 'metrics', color: 'indigo', icon: ChartBarIcon,

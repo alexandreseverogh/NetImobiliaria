@@ -76,17 +76,8 @@ export default function NovoClientePage() {
 
   // Segmento de negócios do cliente — só solicitado quando o TENANT ativou isso
   // (tenants.associa_segmento_negocio_cliente, curado pelo Master em /admin/master/tenants).
-  const [associaSegmento, setAssociaSegmento] = useState(false)
   const [segments, setSegments] = useState<SegmentOption[]>([])
   const [segmentsLoading, setSegmentsLoading] = useState(true)
-
-  useEffect(() => {
-    get('/api/admin/clientes/tem-segmento-negocio')
-      .then(res => res.ok ? res.json() : { associaSegmento: false })
-      .then(data => setAssociaSegmento(!!data.associaSegmento))
-      .catch(() => setAssociaSegmento(false))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // Disparada em paralelo com a checagem acima (não depende de associaSegmento) — evita
   // encadear 2 requisições sequenciais só pra popular as opções do <select>. O campo já
@@ -120,6 +111,9 @@ export default function NovoClientePage() {
   // Default ligado — preserva o comportamento anterior (todo cliente criado por esta tela
   // administrativa sempre nascia conta_gerenciada, já que é o caso de uso principal aqui).
   const [contaGerenciada, setContaGerenciada] = useState(true)
+
+  // Segmento obrigatório para todo cliente, exceto consumidor PF (decisão 2026-11-07).
+  const exigeSegmento = deriveTipoCliente(hasMarketingDigital && contaGerenciada, formData.cpf, formData.cnpj) !== 'consumidor_pf'
 
   const [errors, setErrors] = useState<ValidationErrors>({})
   const [cpfValidating, setCpfValidating] = useState(false)
@@ -667,7 +661,7 @@ export default function NovoClientePage() {
       finalErrors.cidade = 'Cidade é obrigatória'
     }
 
-    if (associaSegmento && !formData.segment_id) {
+    if (exigeSegmento && !formData.segment_id) {
       finalErrors.segment_id = 'Segmento de negócios é obrigatório'
     }
 
@@ -733,7 +727,7 @@ export default function NovoClientePage() {
         // Sem marketing_digital, o toggle nunca é oferecido — equivale a estar sempre
         // desligado, então o tipo é sempre inferido pelo documento preenchido.
         tipo_cliente: deriveTipoCliente(hasMarketingDigital && contaGerenciada, formData.cpf, formData.cnpj),
-        segment_id: associaSegmento ? (formData.segment_id || null) : null,
+        segment_id: formData.segment_id || null,
         created_by: user?.nome || 'system'
       }
 
@@ -864,8 +858,8 @@ export default function NovoClientePage() {
               )}
             </div>
 
-            {/* Segmento de Negócios — só quando o tenant ativou isso (associa_segmento_negocio_cliente) */}
-            {associaSegmento && (
+            {/* Segmento de Negócios — obrigatório para todo cliente, exceto consumidor PF (2026-11-07) */}
+            {exigeSegmento && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Segmento de Negócios *

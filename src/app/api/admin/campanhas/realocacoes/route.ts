@@ -4,7 +4,7 @@
  * docs/PLANO_TIKTOK.md §8.6 — superfícies de UI do motor de realocação cross-rede (T4):
  * "oportunidades vivas" (propostas aguardando aprovação, o gancho do card no dashboard e da
  * seção "Para onde mover" no Desperdício) + "histórico" (o que já foi decidido/executado, com
- * o veredito D+14 quando disponível — a prova de valor do módulo pro gestor).
+ * o veredito da medição (janela realloc_window_days) quando disponível — a prova de valor do módulo pro gestor).
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/marketing/prisma';

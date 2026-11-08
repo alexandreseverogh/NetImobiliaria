@@ -56,7 +56,47 @@ const SIGNAL_FIELDS: FieldDef[] = [
   { key: 'pressure_w_quality',    label: 'Peso Qualidade (Pressão)',   unit: 'NUM', fallback: 0.25, hint: 'Peso do quality_ranking no índice de pressão (engagement + conversão + qualidade = 1).' },
 ];
 
-const ALL_FIELDS = [...DETECTION_FIELDS, ...EXECUTION_FIELDS, ...SIGNAL_FIELDS];
+// ── Eficiência & CPL: faixas de cross-insights, fatores de alerta de CPL ─────────
+const EFFICIENCY_FIELDS: FieldDef[] = [
+  { key: 'efficiency_good_max', label: 'Eficiência: limite de ótimo',       unit: 'NUM', fallback: 0.6,  hint: 'Índice CPL ÷ CPL crítico abaixo disto é ótimo (verde).' },
+  { key: 'efficiency_warn_max', label: 'Eficiência: limite de atenção',     unit: 'NUM', fallback: 1.0,  hint: 'Índice abaixo disto é atenção (âmbar); igual ou acima é crítico.' },
+  { key: 'efficiency_bar_max',  label: 'Eficiência: escala da barra',       unit: 'NUM', fallback: 1.5,  hint: 'Índice acima disto preenche a barra inteira.' },
+  { key: 'good_cpl_factor',     label: 'Fator de CPL bom',                  unit: 'NUM', fallback: 0.85, hint: 'CPL abaixo de ideal × este fator é considerado bom na inteligência de segmento.' },
+  { key: 'warn_cpl_factor',     label: 'Fator de alerta de CPL',            unit: 'NUM', fallback: 1.15, hint: 'CPL acima de ideal × este fator é alerta (âmbar), abaixo do crítico.' },
+  { key: 'cpl_critical_multiplier', label: 'Múltiplo do CPL crítico',       unit: 'NUM', fallback: 2.5,  hint: 'CPL é crítico quando passa deste múltiplo do CPL ideal (DOWNSCALE).' },
+];
+
+// ── Realocação de verba: janela, circuit breaker ────────────────────────────────
+const REALLOC_FIELDS: FieldDef[] = [
+  { key: 'realloc_window_days',          label: 'Janela de realocação (dias)',          unit: 'NUM', fallback: 14, hint: 'Janela de métricas usada para avaliar candidatos a realocação de verba.' },
+  { key: 'realloc_circuit_threshold',    label: 'Propostas malsucedidas p/ desligar',   unit: 'NUM', fallback: 3,  hint: 'Quantidade de propostas BACKFIRED que desliga a sugestão automática de realocação.' },
+  { key: 'realloc_circuit_window_days',  label: 'Janela do circuit breaker (dias)',     unit: 'NUM', fallback: 90, hint: 'Período em que as propostas BACKFIRED são contadas para o circuit breaker.' },
+];
+
+// ── Qualidade de lead (fit): limites de lead fraco e forte ─────────────────────
+const FIT_FIELDS: FieldDef[] = [
+  { key: 'fit_public_weak_max',   label: 'Fit máx. de lead fraco (público)',   unit: 'NUM', fallback: 45, hint: 'Leads com fit abaixo disto indicam ajuste de público na captação.' },
+  { key: 'fit_queue_strong_min',  label: 'Fit mín. de lead forte (fila)',      unit: 'NUM', fallback: 65, hint: 'Leads com fit igual ou acima disto sobem na fila de atendimento.' },
+];
+
+// Casas decimais por grupo: fatores e índices sempre com 2 casas, para ler de forma
+// uniforme na tela (ex.: 0.60 / 1.00 / 1.50). Valores inteiros (leads, dias) ficam sem casas.
+const DECIMALS_BY_KEY: Record<string, number> = {
+  efficiency_good_max: 2, efficiency_warn_max: 2, efficiency_bar_max: 2,
+  good_cpl_factor: 2, warn_cpl_factor: 2, cpl_critical_multiplier: 2,
+  pressure_w_engagement: 2, pressure_w_conversion: 2, pressure_w_quality: 2,
+  fir_floor: 2, cpm_delta_max: 2,
+};
+
+function formatFieldValue(f: FieldDef, n: number): string {
+  const d = DECIMALS_BY_KEY[f.key];
+  return d !== undefined ? n.toFixed(d) : String(Number(n));
+}
+
+const ALL_FIELDS = [
+  ...DETECTION_FIELDS, ...EXECUTION_FIELDS, ...SIGNAL_FIELDS,
+  ...EFFICIENCY_FIELDS, ...REALLOC_FIELDS, ...FIT_FIELDS,
+];
 
 // ── Field: componente de nível de módulo para evitar remount a cada keystroke ──
 interface FieldProps {
@@ -189,13 +229,13 @@ export function SegmentBenchmarksModal({ segment, onClose }: Props) {
         const map: Record<string, string> = {};
         for (const f of ALL_FIELDS) {
           const found = rows.find(r => r.metric_key === f.key);
-          map[f.key] = found != null ? String(Number(found.value)) : String(f.fallback);
+          map[f.key] = found != null ? formatFieldValue(f, Number(found.value)) : formatFieldValue(f, f.fallback);
         }
         setValues(map);
       })
       .catch(() => {
         const map: Record<string, string> = {};
-        for (const f of ALL_FIELDS) map[f.key] = String(f.fallback);
+        for (const f of ALL_FIELDS) map[f.key] = formatFieldValue(f, f.fallback);
         setValues(map);
       })
       .finally(() => setLoading(false));
@@ -314,6 +354,51 @@ export function SegmentBenchmarksModal({ segment, onClose }: Props) {
                 </p>
                 <div className="grid grid-cols-2 gap-x-5 gap-y-4">
                   {SIGNAL_FIELDS.map(f => (
+                    <Field key={f.key} f={f} value={values[f.key] ?? ''} onChange={handleChange} />
+                  ))}
+                </div>
+              </section>
+
+              {/* Eficiência & CPL */}
+              <section>
+                <div className="flex items-center gap-2 mb-3">
+                  <SignalIcon className="h-4 w-4 text-slate-500" />
+                  <h3 className="text-xs font-black text-slate-700 uppercase tracking-widest">Eficiência & CPL</h3>
+                  <div className="flex-1 h-px bg-slate-100" />
+                </div>
+                <p className="text-[11px] text-gray-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 mb-3">
+                  Faixas de cor do cross-insights, da barra de CPL do portfólio e dos alertas de CPL. Mesmo critério para todos os escopos do segmento.
+                </p>
+                <div className="grid grid-cols-3 gap-x-5 gap-y-4">
+                  {EFFICIENCY_FIELDS.map(f => (
+                    <Field key={f.key} f={f} value={values[f.key] ?? ''} onChange={handleChange} />
+                  ))}
+                </div>
+              </section>
+
+              {/* Realocação de verba */}
+              <section>
+                <div className="flex items-center gap-2 mb-3">
+                  <SignalIcon className="h-4 w-4 text-slate-500" />
+                  <h3 className="text-xs font-black text-slate-700 uppercase tracking-widest">Realocação de verba</h3>
+                  <div className="flex-1 h-px bg-slate-100" />
+                </div>
+                <div className="grid grid-cols-3 gap-x-5 gap-y-4">
+                  {REALLOC_FIELDS.map(f => (
+                    <Field key={f.key} f={f} value={values[f.key] ?? ''} onChange={handleChange} />
+                  ))}
+                </div>
+              </section>
+
+              {/* Qualidade de lead (fit) */}
+              <section>
+                <div className="flex items-center gap-2 mb-3">
+                  <SignalIcon className="h-4 w-4 text-slate-500" />
+                  <h3 className="text-xs font-black text-slate-700 uppercase tracking-widest">Qualidade de lead (fit)</h3>
+                  <div className="flex-1 h-px bg-slate-100" />
+                </div>
+                <div className="grid grid-cols-2 gap-x-5 gap-y-4">
+                  {FIT_FIELDS.map(f => (
                     <Field key={f.key} f={f} value={values[f.key] ?? ''} onChange={handleChange} />
                   ))}
                 </div>

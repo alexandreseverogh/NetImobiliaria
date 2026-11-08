@@ -42,15 +42,17 @@ function HealthDot({ health }: { health: PortfolioClientCampaign['health'] }) {
   return <span className={`inline-block w-2 h-2 rounded-full ${color}`} />;
 }
 
-function CplBar({ cpl, cplIdeal, cplCritical }: {
-  cpl: number | null; cplIdeal: number | null; cplCritical: number | null;
+// A classificação vem pronta da API (status calculado pelo classifyCpl); o front só desenha.
+function CplBar({ cpl, cplCritical, barMax, status }: {
+  cpl: number | null; cplCritical: number | null; barMax: number; status: PortfolioClient['status'];
 }) {
   if (cpl === null || cplCritical === null) return <span className="text-gray-400 text-xs">—</span>;
-  const max    = cplCritical * 1.3;
+  const max    = cplCritical * barMax;
   const pct    = Math.min((cpl / max) * 100, 100);
-  const color  = cpl >= cplCritical ? 'bg-red-500'
-               : cplIdeal && cpl > cplIdeal ? 'bg-amber-400'
-               : 'bg-emerald-500';
+  const color  = status === 'critical' ? 'bg-red-500'
+               : status === 'warn'     ? 'bg-amber-400'
+               : status === 'ok'       ? 'bg-emerald-500'
+               : 'bg-gray-300';
   return (
     <div className="flex items-center gap-2 min-w-[100px]">
       <span className="text-xs font-semibold text-gray-700 w-16 text-right">{formatCurrency(cpl)}</span>
@@ -387,6 +389,8 @@ export default function PortfolioPage() {
                 <option value="30">30 dias</option>
                 <option value="60">60 dias</option>
                 <option value="90">90 dias</option>
+                <option value="180">180 dias</option>
+                <option value="365">365 dias</option>
               </select>
             </div>
 
@@ -694,8 +698,9 @@ export default function PortfolioPage() {
                     <td className="px-4 py-4">
                       <CplBar
                         cpl={client.metrics.cpl}
-                        cplIdeal={client.benchmarks.cplIdeal}
                         cplCritical={client.benchmarks.cplCritical}
+                        barMax={client.benchmarks.efficiencyBarMax}
+                        status={client.status}
                       />
                       {client.benchmarks.cplIdeal !== null && (
                         <p className="text-[10px] text-gray-400 mt-0.5">Meta: {formatCurrency(client.benchmarks.cplIdeal)}</p>

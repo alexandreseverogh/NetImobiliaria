@@ -101,13 +101,16 @@ export async function PUT(
     // segmento_negocio_cliente) — checado no servidor, nunca confiando só na UI. `segment_id`
     // ausente (undefined) no body significa "não mexer" (edição parcial); `null`/'' explícito
     // é o que dispara a exigência, igual a criação.
-    if (segment_id !== undefined) {
-      const { rows: tenantRows } = await pool.query(
-        `SELECT associa_segmento_negocio_cliente FROM public.tenants WHERE id = $1::uuid`,
-        [tenantId],
+    // Segmento é obrigatório para cliente conta_gerenciada (decisão 2026-11-07). Avalia o estado
+    // FINAL do cliente (valor enviado, ou o já gravado quando o campo não veio no body).
+    {
+      const { rows: atualRows } = await pool.query(
+        `SELECT tipo_cliente, segment_id FROM public.clientes WHERE uuid = $1::uuid`,
+        [params.id],
       )
-      const exigeSegmento = tenantRows[0]?.associa_segmento_negocio_cliente === true
-      if (exigeSegmento && !segment_id) {
+      const tipoFinal    = tipo_cliente !== undefined ? tipo_cliente : atualRows[0]?.tipo_cliente
+      const segmentoFinal = segment_id !== undefined ? segment_id : atualRows[0]?.segment_id
+      if (tipoFinal !== 'consumidor_pf' && !segmentoFinal) {
         return NextResponse.json(
           { error: 'Segmento de negócios do cliente é obrigatório' },
           { status: 400 }

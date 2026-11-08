@@ -83,7 +83,6 @@ export async function GET(request: NextRequest) {
             OR c.uuid IS NOT NULL
              )
        GROUP BY ss.id, ss.name, ss.slug, ss.icon, ss.color_theme, t.segment_id
-       HAVING COUNT(DISTINCT cam.id) > 0
        ORDER BY COUNT(DISTINCT cam.id) DESC, ss.name ASC`,
       [payload.tenantId, startDate, endDate],
     );

@@ -102,7 +102,7 @@ function DashboardPage() {
   // abaixo). As 3 camadas de profundidade voltam a ser o único eixo de navegação.
   const [activeLayer, setActiveLayer]       = useState<'COMMAND' | 'ANALYTICS' | 'DEEP_DIVE'>('COMMAND');
 
-  const [dateRange, setDateRange]           = useState('1'); // 'Hoje' como padrão
+  const [dateRange, setDateRange]           = useState(''); // sem período padrão: dados só após escolha explícita
   const [startDate, setStartDate]           = useState('');
   const [endDate, setEndDate]               = useState('');
   const endDateRef = React.useRef<HTMLInputElement>(null);
@@ -129,10 +129,53 @@ function DashboardPage() {
     toggleSegment, activateSegment, clearSegments,
   } = useSegmentSelector({ startDate: segmentPeriodStart, endDate: segmentPeriodEnd });
 
+  // ── Regra de exibição de escopo ─────────────────────────────────────────────
+  // Lista de clientes do tenant SEM filtro de segmento (a regra depende do conjunto completo).
+  const [tenantClients, setTenantClients] = useState<{ id: string; name: string; segment_id: string | null }[]>([]);
+  useEffect(() => {
+    fetch('/api/admin/campanhas/clients', { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : []))
+      .then(d => setTenantClients(Array.isArray(d) ? d : (d?.clients ?? [])))
+      .catch(() => setTenantClients([]));
+  }, []);
+  // Escopos: Minha Empresa | Clientes | Segmentos. Só existem se a empresa tem clientes.
+  const hasClients = tenantClients.length > 0;
+  const [scope, setScope] = useState<'own' | 'clients' | 'segments'>('own');
+  const effectiveScope = hasClients ? scope : 'own';
+  const [selectedClientId, setSelectedClientId] = useState('');
+  const clientSegmentIds = [...new Set(tenantClients.map(c => c.segment_id).filter((v): v is string => !!v))];
+  const clientSegments = segments.filter(s => clientSegmentIds.includes(s.id));
+  // Lista de cliente: só se há mais de um cliente. Lista de segmento: só se há mais de um segmento.
+  const showClientPicker  = effectiveScope === 'clients'  && tenantClients.length > 1;
+  const showSegmentPicker = effectiveScope === 'segments' && clientSegmentIds.length > 1;
+
   // clientFilter é sempre relativo ao segmento ativo.
   // isOwnSegment define o default: 'own' só no segmento do tenant; senão 'segment'.
   const isOwnSegment = segments.find(s => s.id === activeSegment)?.isOwn ?? false;
   const { clients, loading: clientsLoading, clientFilter, setClientFilter } = useClientSelector('dashboard', activeSegment, isOwnSegment);
+
+  // Estado final por escopo (segmento e cliente ativos). Declarado DEPOIS do hook acima,
+  // para que o clientFilter escolhido aqui prevaleça sobre o default que o hook define.
+  useEffect(() => {
+    if (effectiveScope === 'own') {
+      if (segments.length === 0) return;
+      const own = segments.find(s => s.isOwn)?.id ?? segments[0].id;
+      if (activeSegment !== own) activateSegment(own);
+      setClientFilter('own');
+      return;
+    }
+    if (effectiveScope === 'clients') {
+      const client = tenantClients.length === 1 ? tenantClients[0] : tenantClients.find(c => c.id === selectedClientId);
+      if (!client) { if (activeSegment) clearSegments(); return; }
+      if (client.segment_id && activeSegment !== client.segment_id) activateSegment(client.segment_id);
+      setClientFilter(client.id);
+      return;
+    }
+    // Segmentos: um segmento só (escolhido pelo usuário, ou automático se houver apenas um)
+    if (clientSegmentIds.length === 1 && activeSegment !== clientSegmentIds[0]) activateSegment(clientSegmentIds[0]);
+    if (activeSegment) setClientFilter('segment');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveScope, selectedClientId, tenantClients, segments, activeSegment, clientSegmentIds.join(',')]);
 
   // Dados do modo "Todos os Clientes"
   const [segmentDashData, setSegmentDashData]     = useState<SegmentDashboardResponse | null>(null);
@@ -174,7 +217,7 @@ function DashboardPage() {
 
   // Carregar dados do segmento (modo "Todos os Clientes")
   useEffect(() => {
-    if (!activeSegment || clientFilter !== 'segment') return;
+    if (!activeSegment || clientFilter !== 'segment' || !((startDate && endDate) || dateRange)) return;
     setSegmentDashLoading(true);
     const params = new URLSearchParams({ segmentId: activeSegment });
     if (startDate && endDate) {
@@ -193,10 +236,10 @@ function DashboardPage() {
   }, [activeSegment, clientFilter, dateRange, startDate, endDate]);
 
   useEffect(() => {
-    // Não carregar nada enquanto nenhum segmento estiver selecionado
+    // Não carregar nada enquanto nenhum segmento ou período estiver selecionado
     if (!activeSegment) return;
+    if (!((startDate && endDate) || dateRange)) return;
     // No modo segmento os dados são carregados pelo useEffect acima
-    if (clientFilter === 'segment') return;
     loadData();
   },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -342,7 +385,13 @@ function DashboardPage() {
     finally { setGeneratingBriefing(false); }
   }
 
-  function handleQuickDate(days: string) { setStartDate(''); setEndDate(''); setDateRange(days); }
+  // Rascunho do período (o que o usuário está editando). Só vira aplicado ao clicar em Consultar.
+  const [draftStart, setDraftStart] = useState('');
+  const [draftEnd, setDraftEnd]     = useState('');
+  const [draftRange, setDraftRange] = useState('');
+  function handleQuickDate(days: string) { setDraftStart(''); setDraftEnd(''); setDraftRange(days); }
+  function applyPeriod() { setStartDate(draftStart); setEndDate(draftEnd); setDateRange(draftRange); }
+  const canConsult = !!((draftStart && draftEnd) || draftRange);
 
   // ─── Derived ────────────────────────────────────────────────────────────────
   const t         = data?.currentPeriod.totals;
@@ -434,12 +483,13 @@ function DashboardPage() {
     return full ? `${d}/${m}/${y}` : `${d}/${m}`;
   };
 
-  const periodBadgeLabel = startDate && endDate
+  const hasPeriod = !!(startDate && endDate) || !!dateRange;
+  const periodBadgeLabel = !hasPeriod ? '—' : startDate && endDate
     ? `${fmtFilterDate(startDate)} – ${fmtFilterDate(endDate)}`
     : dateRange === '1' ? 'Hoje'
     : `${dateRange}d`;
 
-  const periodLabel = startDate && endDate
+  const periodLabel = !hasPeriod ? 'Selecione o período' : startDate && endDate
     ? `${fmtFilterDate(startDate, true)} — ${fmtFilterDate(endDate, true)}`
     : dateRange === '1' ? 'Hoje'
     : `Últimos ${dateRange} dias`;
@@ -495,27 +545,53 @@ function DashboardPage() {
           </div>
           <div className="flex items-start gap-3 flex-wrap">
             <div className="flex flex-col gap-2">
-              <SegmentSelector
+              {hasClients && (
+                <div className={cn('inline-flex p-1 rounded-xl gap-1 self-start', isDark ? 'bg-white/5' : 'bg-slate-100')}>
+                  {([['own', 'Minha Empresa'], ['clients', 'Clientes'], ['segments', 'Segmentos']] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => {
+                        setScope(value);
+                        setSelectedClientId('');
+                        if (value !== 'own') clearSegments();
+                      }}
+                      className={cn(
+                        'px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wide transition-colors',
+                        effectiveScope === value
+                          ? 'bg-[#c5a028] text-[#020c1b]'
+                          : (isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'),
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {showClientPicker && (
+                <select
+                  value={selectedClientId}
+                  onChange={e => setSelectedClientId(e.target.value)}
+                  style={{ colorScheme: isDark ? 'dark' : 'light' }}
+                  className={cn('px-4 py-2.5 rounded-xl text-xs font-black border outline-none cursor-pointer',
+                    isDark ? 'bg-[#0d1421] border-white/10 text-slate-200' : 'bg-white border-slate-200 text-slate-800')}
+                >
+                  <option value="" className={isDark ? 'bg-[#0d1421] text-slate-200' : 'bg-white text-slate-800'}>Selecione um cliente…</option>
+                  {tenantClients.map(c => (
+                    <option key={c.id} value={c.id} className={isDark ? 'bg-[#0d1421] text-slate-200' : 'bg-white text-slate-800'}>{c.name}</option>
+                  ))}
+                </select>
+              )}
+              {showSegmentPicker && <SegmentSelector
                 selected={segmentFilter}
                 activeSegment={activeSegment}
                 onToggle={toggleSegment}
                 onActivate={activateSegment}
                 onClear={clearSegments}
-                segments={segments}
+                segments={clientSegments}
                 loading={segmentsLoading}
                 isDark={isDark}
-              />
-              {activeSegment && (
-                <ClientSelector
-                  value={clientFilter}
-                  onChange={setClientFilter}
-                  clients={clients}
-                  loading={clientsLoading}
-                  storageKey="dashboard"
-                  variant="toggle"
-                  activeSegmentName={segments.find(s => s.id === activeSegment)?.name}
-                />
-              )}
+              />}
             </div>
             {/* Dark / Light toggle */}
             <button
@@ -547,8 +623,64 @@ function DashboardPage() {
           </div>
         </div>
 
-        <TokenExpiryBanner isDark={isDark} />
-        <DiscontinuedNetworkBanner isDark={isDark} discontinuedNetworks={data?.discontinuedNetworks || []} />
+        {/* ── Período: sempre visível, independente de escopo/segmento/cliente ── */}
+        <div className={`rounded-2xl p-4 mb-6 ${cardBase}`}>
+          <div className="flex flex-wrap items-end justify-end gap-3">
+            <div>
+              <label className={`block text-[10px] font-black uppercase tracking-widest mb-1.5 ${txFaint}`}>De</label>
+              <DateInputPtBR
+                value={draftStart}
+                onChange={iso => {
+                  setDraftStart(iso);
+                  setDraftRange('');
+                  if (iso && !draftEnd) setDraftEnd(new Date().toISOString().split('T')[0]);
+                }}
+                onComplete={() => endDateRef.current?.focus()}
+                style={selectStyle} className={selectBase} />
+            </div>
+            <div>
+              <label className={`block text-[10px] font-black uppercase tracking-widest mb-1.5 ${txFaint}`}>Até</label>
+              <DateInputPtBR
+                ref={endDateRef}
+                value={draftEnd}
+                onChange={iso => { setDraftEnd(iso); setDraftRange(''); }}
+                style={selectStyle} className={selectBase} />
+            </div>
+            <div>
+              <label className={`block text-[10px] font-black uppercase tracking-widest mb-1.5 ${txFaint}`}>Período</label>
+              <div className={cn('flex gap-1 rounded-xl p-1 border',
+                isDark ? 'bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.05)]' : 'bg-slate-50 border-slate-200')}>
+                {[
+                  { value: '1',  label: 'Hoje' },
+                  { value: '7',  label: '7d'   },
+                  { value: '15', label: '15d'  },
+                  { value: '30', label: '30d'  },
+                ].map(({ value, label }) => (
+                  <button key={value} onClick={() => handleQuickDate(value)}
+                    className={cn('px-3 py-1.5 rounded-lg text-xs font-black transition-colors', draftRange === value
+                      ? 'bg-gold-premium text-navy-dark'
+                      : isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-500 hover:text-slate-900')}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className={`block text-[10px] font-black uppercase tracking-widest mb-1.5 invisible`}>.</label>
+              <button
+                type="button"
+                onClick={applyPeriod}
+                disabled={!canConsult}
+                className={cn('px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-colors',
+                  canConsult
+                    ? 'bg-[#2563eb] text-white hover:bg-[#1d4ed8]'
+                    : (isDark ? 'bg-white/5 text-slate-600 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed'))}
+              >
+                Consultar
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* ── Filters ───────────────────────────────────────────────────────── */}
         <div className={`rounded-2xl p-4 mb-6 ${cardBase}`}>
@@ -612,47 +744,15 @@ function DashboardPage() {
                 {adSets.map(as_ => <option key={as_.id} value={as_.id}>{as_.name}</option>)}
               </select>
             </div>
-            <div>
-              <label className={`block text-[10px] font-black uppercase tracking-widest mb-1.5 ${txFaint}`}>De</label>
-              <DateInputPtBR
-                value={startDate}
-                onChange={iso => {
-                  setStartDate(iso);
-                  setDateRange('');
-                  if (iso && !endDate) setEndDate(new Date().toISOString().split('T')[0]);
-                }}
-                onComplete={() => endDateRef.current?.focus()}
-                style={selectStyle} className={selectBase} />
-            </div>
-            <div>
-              <label className={`block text-[10px] font-black uppercase tracking-widest mb-1.5 ${txFaint}`}>Até</label>
-              <DateInputPtBR
-                ref={endDateRef}
-                value={endDate}
-                onChange={iso => { setEndDate(iso); setDateRange(''); }}
-                style={selectStyle} className={selectBase} />
-            </div>
-            <div>
-              <label className={`block text-[10px] font-black uppercase tracking-widest mb-1.5 ${txFaint}`}>Período</label>
-              <div className={cn('flex gap-1 rounded-xl p-1 border',
-                isDark ? 'bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.05)]' : 'bg-slate-50 border-slate-200')}>
-                {[
-                  { value: '1',  label: 'Hoje' },
-                  { value: '7',  label: '7d'   },
-                  { value: '15', label: '15d'  },
-                  { value: '30', label: '30d'  },
-                ].map(({ value, label }) => (
-                  <button key={value} onClick={() => handleQuickDate(value)}
-                    className={cn('px-3 py-1.5 rounded-lg text-xs font-black transition-colors', dateRange === value
-                      ? 'bg-gold-premium text-navy-dark'
-                      : isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-500 hover:text-slate-900')}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
+
+        {/* Token do Business Manager do tenant: vale para todos os escopos */}
+        <TokenExpiryBanner isDark={isDark} />
+        {/* Aviso de rede descontinuada só faz sentido com um escopo escolhido (dados carregados) */}
+        {activeSegment && (
+          <DiscontinuedNetworkBanner isDark={isDark} discontinuedNetworks={data?.discontinuedNetworks || []} />
+        )}
 
         {/* ── Estado: nenhum segmento selecionado ───────────────────────────── */}
         {!activeSegment && (
@@ -688,7 +788,21 @@ function DashboardPage() {
         {/* ══════════════════════════════════════════════════════════════════
             MODO "TODOS OS CLIENTES" — Inteligência de Segmento
         ══════════════════════════════════════════════════════════════════ */}
-        {activeSegment && isSegmentMode && (
+        {activeSegment && !hasPeriod && (
+          <div className={cn(
+            'rounded-2xl p-12 text-center flex flex-col items-center gap-2',
+            isDark ? 'bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)]' : 'bg-white border border-slate-200 shadow-sm',
+          )}>
+            <p className={cn('text-base font-black', isDark ? 'text-slate-300' : 'text-slate-800')}>
+              Selecione o período para visualizar os resultados
+            </p>
+            <p className={cn('text-sm', isDark ? 'text-slate-500' : 'text-slate-400')}>
+              Use De/Até ou um dos atalhos acima (7d, 15d, 30d).
+            </p>
+          </div>
+        )}
+
+        {activeSegment && hasPeriod && isSegmentMode && activeLayer === 'COMMAND' && (
           <SegmentDashboard
             segmentData={segmentDashData}
             loading={segmentDashLoading}
@@ -709,7 +823,7 @@ function DashboardPage() {
         )}
 
         {/* ── Conteúdo — só exibe quando há segmento ativo e NÃO é modo segmento ── */}
-        {activeSegment && !isSegmentMode && <>
+        {activeSegment && <>
         
         {/* ── Layer Navigation (Tabs) + Consultar Campanhas ── */}
         <div className="flex items-center gap-3 mb-8 flex-wrap">
@@ -752,7 +866,7 @@ function DashboardPage() {
           </div>
         </div>
 
-        {activeLayer === 'COMMAND' && (
+        {hasPeriod && activeLayer === 'COMMAND' && !isSegmentMode && (
           <CommandCenterView
             isDark={isDark} loading={loading} data={data} aiInsights={aiInsights}
             hookSaturation={hookSaturation} cardBase={cardBase} tx={tx} txMuted={txMuted} txFaint={txFaint}
@@ -765,7 +879,7 @@ function DashboardPage() {
           />
         )}
 
-        {activeLayer === 'ANALYTICS' && (
+        {hasPeriod && activeLayer === 'ANALYTICS' && (
           <AnalyticsView 
             isDark={isDark}
             data={data}
@@ -791,7 +905,7 @@ function DashboardPage() {
           />
         )}
 
-        {activeLayer === 'DEEP_DIVE' && (
+        {hasPeriod && activeLayer === 'DEEP_DIVE' && (
           <>
         {/* ── Content ───────────────────────────────────────────────────────── */}
         {loading ? (

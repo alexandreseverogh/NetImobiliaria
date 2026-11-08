@@ -108,14 +108,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Segmento de negócios só é obrigatório quando o TENANT exige isso (tenants.associa_
-    // segmento_negocio_cliente) — checado no servidor, nunca confiando só na UI. Ver
-    // GET /api/admin/clientes/tem-segmento-negocio.
-    const { rows: tenantRows } = await pool.query(
-      `SELECT associa_segmento_negocio_cliente FROM public.tenants WHERE id = $1::uuid`,
-      [tenantId],
-    )
-    const exigeSegmento = tenantRows[0]?.associa_segmento_negocio_cliente === true
+    // Segmento é obrigatório para todo cliente, exceto consumidor PF (decisão 2026-11-07).
+    // Checado no servidor; o CHECK do banco é a última barreira.
+    const exigeSegmento = (tipoClienteValido ?? 'consumidor_pf') !== 'consumidor_pf'
     if (exigeSegmento && !segment_id) {
       return NextResponse.json(
         { error: 'Segmento de negócios do cliente é obrigatório' },

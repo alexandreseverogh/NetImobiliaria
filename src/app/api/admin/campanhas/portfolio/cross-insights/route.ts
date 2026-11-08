@@ -17,7 +17,10 @@ import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { requireApiPermission } from '@/lib/auth/apiPermissions';
 import pool from '@/lib/database/connection';
 import { invokeWithTemplate } from '@/lib/intelligence/llmInvoker';
+import { resolveBenchmark } from '@/lib/intelligence/benchmarkResolver';
 import { getLeadEvents, leadsByCampaign as groupLeadsByCampaign } from '@/lib/marketing/services/leadEvents';
+import { classifyCpl } from '@/lib/rules/statusClassifier';
+import { resolveWarnCplFactor } from '@/lib/rules/warnFactor';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +52,10 @@ export interface CrossPerformer {
   // tornando o ranking comparável entre segmentos distintos (< 1 = abaixo do crítico).
   // null quando não há CPL ou o segmento não tem cplCritical configurado.
   efficiencyIndex: number | null;
+  // Faixa do índice pelos benchmarks do escopo: good (ótimo) · warn (atenção) · critical
+  efficiencyBand:  'good' | 'warn' | 'critical' | null;
+  // Índice que preenche a barra inteira (benchmark efficiency_bar_max)
+  efficiencyBarMax: number | null;
 }
 
 export interface CrossSegment {
@@ -87,6 +94,7 @@ export interface CrossInsightsResponse {
 /* ── tipo interno ────────────────────────────────────────────────── */
 
 type ClientEntry = {
+  scopeKey?:    string;
   isTenant:     boolean;
   clientName:   string;
   segmentId:    string | null;
@@ -380,6 +388,32 @@ export async function GET(request: NextRequest) {
     `, [payload.tenantId]);
     const tenantInfo = tenantRow.rows[0];
 
+    // Fator de alerta por escopo (segmento + cliente), resolvido uma vez por escopo
+    const warnByScope = new Map<string, number | null>();
+    for (const row of metricsQuery.rows) {
+      const info  = row.client_id ? clientInfoMap.get(row.client_id) : null;
+      const segId = info?.segment_id ?? tenantInfo?.segment_id ?? null;
+      const key   = `${segId ?? ''}|${row.client_id ?? ''}`;
+      if (warnByScope.has(key)) continue;
+      const hasIdeal = (info?.cpl_ideal ?? tenantInfo?.cpl_ideal) != null;
+      warnByScope.set(key, hasIdeal ? await resolveWarnCplFactor(payload.tenantId, segId, row.client_id) : null);
+    }
+
+    // Faixas de eficiência por escopo (benchmarks do banco; nunca constantes no código)
+    const effByScope = new Map<string, { good: number; warn: number; barMax: number }>();
+    for (const row of metricsQuery.rows) {
+      const info  = row.client_id ? clientInfoMap.get(row.client_id) : null;
+      const segId = info?.segment_id ?? tenantInfo?.segment_id ?? null;
+      const key   = `${segId ?? ''}|${row.client_id ?? ''}`;
+      if (effByScope.has(key)) continue;
+      const [good, warn, barMax] = await Promise.all([
+        resolveBenchmark('efficiency_good_max', payload.tenantId, segId, row.client_id),
+        resolveBenchmark('efficiency_warn_max', payload.tenantId, segId, row.client_id),
+        resolveBenchmark('efficiency_bar_max',  payload.tenantId, segId, row.client_id),
+      ]);
+      effByScope.set(key, { good, warn, barMax });
+    }
+
     // Lista consolidada de clientes com dados enriquecidos
     const clientList: ClientEntry[] = metricsQuery.rows.map(row => {
       const isTenant = row.client_id === null;
@@ -406,13 +440,11 @@ export async function GET(request: NextRequest) {
       const cpl    = leads > 0 ? spend / leads : null;
       const ctr    = imp   > 0 ? (clicks / imp) * 100 : null;
 
-      let status: 'ok' | 'warn' | 'critical' | 'nodata' = 'nodata';
-      if (spend > 0) {
-        if (cpl === null)                                                       status = 'nodata';
-        else if (bench.cplCritical !== null && cpl >= bench.cplCritical)        status = 'critical';
-        else if (bench.cplIdeal    !== null && cpl  > bench.cplIdeal)           status = 'warn';
-        else                                                                    status = 'ok';
-      }
+      const scopeKey   = `${segId ?? ''}|${row.client_id ?? ''}`;
+      const warnFactor = warnByScope.get(scopeKey) ?? null;
+      const status: 'ok' | 'warn' | 'critical' | 'nodata' = spend > 0
+        ? classifyCpl(cpl, { cplIdeal: bench.cplIdeal, cplCritical: bench.cplCritical }, warnFactor)
+        : 'nodata';
 
       return {
         isTenant,
@@ -422,6 +454,7 @@ export async function GET(request: NextRequest) {
         cpl, spend, leads, ctr, status,
         cplIdeal:    bench.cplIdeal,
         cplCritical: bench.cplCritical,
+        scopeKey,
       };
     });
 
@@ -474,6 +507,13 @@ export async function GET(request: NextRequest) {
       status:          c.status,
       cplCritical:     c.cplCritical,
       efficiencyIndex: effIndex(c),
+      efficiencyBand:  (() => {
+        const idx = effIndex(c);
+        const eff = c.scopeKey ? effByScope.get(c.scopeKey) : undefined;
+        if (idx === null || !eff) return null;
+        return idx < eff.good ? 'good' : idx < eff.warn ? 'warn' : 'critical';
+      })(),
+      efficiencyBarMax: (c.scopeKey ? effByScope.get(c.scopeKey)?.barMax : undefined) ?? null,
     }));
 
     const underperformers = realClients

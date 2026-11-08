@@ -3,6 +3,8 @@ import { getTokenPayload } from '@/lib/auth/jwt-node';
 import pool from '@/lib/database/connection';
 import prisma from '@/lib/marketing/prisma';
 import { getLeadEvents, sumLeads, leadsByDay } from '@/lib/marketing/services/leadEvents';
+import { classifyCpl } from '@/lib/rules/statusClassifier';
+import { resolveWarnCplFactor } from '@/lib/rules/warnFactor';
 
 export const dynamic = 'force-dynamic';
 
@@ -94,12 +96,10 @@ function clientStatus(
   cplIdeal: number | null,
   cplCritical: number | null,
   hasData: boolean,
+  warnFactor: number | null,
 ): ClientSegmentMetrics['status'] {
   if (!hasData) return 'nodata';
-  if (cpl == null) return 'nodata';
-  if (cplCritical && cpl > cplCritical) return 'critical';
-  if (cplIdeal && cpl > cplIdeal * 1.15) return 'warn';
-  return 'ok';
+  return classifyCpl(cpl, { cplIdeal, cplCritical }, warnFactor);
 }
 
 // ─── GET /api/admin/campanhas/dashboard/segment ───────────────────────────────
@@ -313,6 +313,7 @@ export async function GET(request: NextRequest) {
 
     const cplIdeal    = seg.cpl_ideal   ? Number(seg.cpl_ideal)   : null;
     const cplCritical = seg.cpl_critical ? Number(seg.cpl_critical) : null;
+    const warnFactor  = cplIdeal !== null ? await resolveWarnCplFactor(tenantId, segmentId) : null;
 
     // ── 6. Enriquecer cada cliente com deltas e status ────────────────────────
     const enrichClient = (c: ClientSegmentData): ClientSegmentData => {
@@ -324,7 +325,7 @@ export async function GET(request: NextRequest) {
           ...c.metrics,
           deltaCplVsBenchmark: cpl != null ? pctDelta(cpl, cplMedian) : null,
           deltaCtrVsBenchmark: ctr > 0     ? pctDelta(ctr, ctrMedian) : null,
-          status:              clientStatus(cpl, cplIdeal, cplCritical, hasData),
+          status:              clientStatus(cpl, cplIdeal, cplCritical, hasData, warnFactor),
         },
       };
     }

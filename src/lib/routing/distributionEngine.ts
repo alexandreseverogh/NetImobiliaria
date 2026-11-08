@@ -78,7 +78,12 @@ export class DistributionEngine {
     // 2. Buscar Parâmetros de SLA e Limites (Garantindo Zero Hardcoding) — tenant-wide,
     // reaproveitados por qualquer estratégia que precise (geo_area, round_robin).
     const paramsRes = await dbClient.query('SELECT * FROM public.parametros_imoveis WHERE tenant_id = $1 LIMIT 1', [tenantId]);
-    const params = paramsRes.rows[0] || {};
+    // Sem a linha de parâmetros do tenant a decisão para com erro explícito: nunca roteamos
+    // com SLA/limites inventados no código (fase 0 das regras configuráveis).
+    const params = paramsRes.rows[0];
+    if (!params) {
+      throw new Error(`parametros_imoveis ausente para o tenant ${tenantId}: configure os parâmetros de distribuição antes de rotear leads`);
+    }
     const slaDefaults = {
       limitExternal: readNumericParam(params.proximos_corretores_recebem_leads, 3),
       limitInternal: readNumericParam(params.proximos_corretores_recebem_leads_internos, 3),

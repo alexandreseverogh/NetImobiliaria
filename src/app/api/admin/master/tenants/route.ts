@@ -73,6 +73,11 @@ export async function POST(request: NextRequest) {
       numero_whatsapp
     } = body;
 
+    // Segmento é obrigatório para todo tenant (decisão 2026-11-07).
+    if (!segment_id) {
+      return NextResponse.json({ error: 'Segmento de negócios do tenant é obrigatório' }, { status: 400 });
+    }
+
     await client.query('BEGIN');
 
     // 1. Inserir Tenant
@@ -161,6 +166,13 @@ export async function POST(request: NextRequest) {
         ('perdido',          'Perdido',             7, '#EF4444', 'XCircleIcon',                     24, false, true)
       ) AS c(nome, titulo, ordem, cor, icone, sla, ganho, perda)
       WHERE NOT EXISTS (SELECT 1 FROM kanban_colunas k WHERE k.tenant_id = $1)
+    `, [tenantId]);
+
+    // Parâmetros de roteamento/SLA do tenant (fase 0 das regras configuráveis): o engine de
+    // distribuição exige esta linha e não tem mais valores fixos de reserva. Defaults da tabela.
+    await client.query(`
+      INSERT INTO parametros_imoveis (tenant_id) VALUES ($1)
+      ON CONFLICT (tenant_id) DO NOTHING
     `, [tenantId]);
 
     // 5. Ativar Módulos e Auto-provisionar Permissões

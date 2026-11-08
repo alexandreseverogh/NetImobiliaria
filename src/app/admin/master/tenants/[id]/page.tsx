@@ -173,6 +173,10 @@ export default function TenantDetailPage() {
   /* ── Save tenant data ── */
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
+    if (!tenant?.segment_id) {
+      alert('Selecione o segmento de negócios da empresa. Ele é obrigatório.')
+      return
+    }
     try {
       setSaving(true)
       const res = await patch(`/api/admin/master/tenants/${id}`, tenant)
@@ -502,34 +506,12 @@ export default function TenantDetailPage() {
                     </div>
                     <div>
                       <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Segmento</label>
-                      <select value={tenant.segment_id || ''} onChange={e => setTenant({ ...tenant, segment_id: e.target.value })}
+                      <select value={tenant.segment_id || ''} onChange={e => setTenant({ ...tenant, segment_id: e.target.value })} required
                         className="w-full px-5 py-4 rounded-2xl bg-gray-50 border border-gray-100 font-black text-[10px] uppercase focus:ring-2 focus:ring-blue-500 outline-none transition-all cursor-pointer">
                         {segments.map(s => (
                           <option key={s.id} value={s.id}>{s.name.toUpperCase()}</option>
                         ))}
                       </select>
-                    </div>
-                    <div className="md:col-span-2 p-5 bg-gray-50 rounded-2xl flex items-center justify-between mt-1">
-                      <div className="pr-4">
-                        <p className="text-xs font-black uppercase tracking-tight text-gray-900">
-                          Segmento de Negócio para Clientes
-                        </p>
-                        <p className="text-[11px] text-gray-400 mt-1">
-                          Quando ativo, as telas de criar/editar cliente (<code className="text-[10px]">/admin/clientes</code>)
-                          exigem selecionar o segmento de negócios de cada cliente — necessário
-                          quando este tenant gerencia clientes de vários segmentos distintos (ex.:
-                          uma agência de marketing digital com clientes de saúde, veículos, etc.).
-                          Desativado por padrão — tenants com clientes de um único segmento não
-                          precisam disso.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setTenant({ ...tenant, associa_segmento_negocio_cliente: !tenant.associa_segmento_negocio_cliente })}
-                        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${tenant.associa_segmento_negocio_cliente ? 'bg-emerald-600' : 'bg-gray-300'}`}
-                      >
-                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${tenant.associa_segmento_negocio_cliente ? 'translate-x-6' : 'translate-x-1'}`} />
-                      </button>
                     </div>
                     <div className="md:col-span-2 p-5 bg-gray-50 rounded-2xl flex items-center justify-between">
                       <div className="pr-4">
@@ -653,6 +635,12 @@ export default function TenantDetailPage() {
                       <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">E-mail de Contato</label>
                       <input type="email" value={tenant.email_contato || ''} onChange={e => setTenant({ ...tenant, email_contato: e.target.value })}
                         className="w-full px-5 py-4 rounded-2xl bg-gray-50 border border-gray-100 font-bold text-[10px] uppercase focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Domínio do Site Público</label>
+                      <input type="text" placeholder="ex.: imobiliariax.com.br" value={tenant.public_domain || ''} onChange={e => setTenant({ ...tenant, public_domain: e.target.value })}
+                        className="w-full px-5 py-4 rounded-2xl bg-gray-50 border border-gray-100 font-bold text-[10px] lowercase focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
+                      <p className="text-[10px] text-gray-400 mt-2">Usado pelas páginas públicas (popup de corretor) para identificar a empresa. Deixe vazio se o site não for público.</p>
                     </div>
                     <div>
                       <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Telefone Principal</label>

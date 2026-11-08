@@ -17,6 +17,8 @@ import { resolveSegment } from '@/lib/intelligence/segmentResolver';
 import { resolveBenchmarks } from '@/lib/intelligence/benchmarkResolver';
 import { invokeForContext } from '@/lib/intelligence/llmInvoker';
 import { getLeadEvents, sumLeads } from './leadEvents';
+import { loadAuditBands, singleValue, statusFor, bandFor, scoreByBands, type AuditBandSet } from './auditScoringBands';
+import { loadAuditTexts, textParam, formatRange, type AuditTextParam } from './auditTextSettings';
 
 // ─────────────────────────────────────────────────────────────
 //  TIPOS PÚBLICOS
@@ -75,16 +77,8 @@ export interface AuditReportData {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  PESOS DAS DIMENSÕES (somam 100)
+//  Pesos, notas e cortes vêm de audit_scoring_bands (ver auditScoringBands.ts)
 // ─────────────────────────────────────────────────────────────
-
-const DIMENSION_WEIGHTS: Record<string, number> = {
-  performance:      30,
-  spend_efficiency: 25,
-  funnel_health:    20,
-  tracking:         15,
-  creative:         10,
-};
 
 // ─────────────────────────────────────────────────────────────
 //  GERAÇÃO DO RELATÓRIO
@@ -101,6 +95,9 @@ export async function generateAuditReport(
   const startDate = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
 
   const segment = await resolveSegment(tenantId, clientId ?? undefined);
+  if (!segment) throw new Error('Auditoria sem segmento configurado — defina o segmento do tenant ou cliente.');
+  const bands = await loadAuditBands(segment.id);
+  const texts = await loadAuditTexts(segment.id);
   const b = await resolveBenchmarks(
     ['cpl_ideal', 'cpl_critical', 'ctr_min', 'frequency_max', 'hook_rate_critical'],
     tenantId,
@@ -117,19 +114,19 @@ export async function generateAuditReport(
   ]);
 
   // ── Dimensão 1: Performance ────────────────────────────────
-  const perfDim = scoreDimensionPerformance(metricsRaw, b);
+  const perfDim = scoreDimensionPerformance(metricsRaw, b, bands);
 
   // ── Dimensão 2: Spend Efficiency ──────────────────────────
-  const spendDim = scoreDimensionSpendEfficiency(wastedRaw, metricsRaw);
+  const spendDim = scoreDimensionSpendEfficiency(wastedRaw, metricsRaw, bands);
 
   // ── Dimensão 3: Funnel Health ──────────────────────────────
-  const funnelDim = scoreDimensionFunnel(funnelRaw, b);
+  const funnelDim = scoreDimensionFunnel(funnelRaw, b, bands);
 
   // ── Dimensão 4: Tracking ──────────────────────────────────
-  const trackingDim = scoreDimensionTracking(healthRaw);
+  const trackingDim = scoreDimensionTracking(healthRaw, bands);
 
   // ── Dimensão 5: Creative ──────────────────────────────────
-  const creativeDim = scoreDimensionCreative(metricsRaw, b);
+  const creativeDim = scoreDimensionCreative(metricsRaw, b, bands);
 
   const scorecard: ScorecardDimension[] = [
     perfDim, spendDim, funnelDim, trackingDim, creativeDim,
@@ -137,18 +134,19 @@ export async function generateAuditReport(
 
   // ── Overall Score (média ponderada) ───────────────────────
   const totalWeight = scorecard.reduce((s, d) => s + d.weight, 0);
+  // (pesos vêm de audit_scoring_bands; somam o que o segmento configurou)
   const overallScore = Math.round(
     scorecard.reduce((s, d) => s + d.score * d.weight, 0) / totalWeight,
   );
 
   // ── Problemas (top 3 piores dimensões + issues específicos) ─
-  const problems = buildProblems(scorecard, wastedRaw, metricsRaw, funnelRaw, b);
+  const problems = buildProblems(scorecard, wastedRaw, metricsRaw, funnelRaw, b, bands, texts, segment.id);
 
   // ── Oportunidades (top 3 melhorias de maior impacto) ──────
-  const opportunities = buildOpportunities(scorecard, metricsRaw, funnelRaw, b);
+  const opportunities = buildOpportunities(scorecard, metricsRaw, funnelRaw, b, bands, texts, segment.id);
 
   // ── Wasted Spend consolidado ───────────────────────────────
-  const wastedSpend = buildWastedSpendSummary(wastedRaw);
+  const wastedSpend = buildWastedSpendSummary(wastedRaw, textParam(texts, segment.id, 'client_campaigns_top').min, textParam(texts, segment.id, 'tenant_campaigns_top').min);
 
   // ── Plano de ação ─────────────────────────────────────────
   const actionPlan = buildActionPlan(problems, opportunities, wastedRaw);
@@ -429,68 +427,74 @@ async function collectFunnelMetrics(
 function scoreDimensionPerformance(
   m: CampaignMetrics,
   b: Record<string, number>,
+  bands: AuditBandSet,
 ): ScorecardDimension {
-  let score = 60; // base
+  let score = singleValue(bands, 'performance', 'base');
   let detail = 'Sem dados suficientes para avaliar performance.';
 
   if (m.totalSpend > 0) {
     if (m.totalLeads === 0) {
-      score = 10;
+      score = singleValue(bands, 'performance', 'no_leads');
       detail = `Nenhum lead gerado com R$${m.totalSpend.toFixed(0)} investidos.`;
     } else {
       const cplRatio = b.cpl_ideal > 0 ? m.cpl / b.cpl_ideal : 1;
-      if (cplRatio <= 1)      { score = 90; detail = `CPL R$${m.cpl.toFixed(0)} abaixo do ideal (R$${b.cpl_ideal?.toFixed(0) ?? '—'}).`; }
-      else if (cplRatio <= 1.5) { score = 70; detail = `CPL R$${m.cpl.toFixed(0)} ligeiramente acima do ideal.`; }
-      else if (cplRatio <= 2.5) { score = 45; detail = `CPL R$${m.cpl.toFixed(0)} vs ideal R$${b.cpl_ideal?.toFixed(0) ?? '—'} — atenção.`; }
-      else                    { score = 20; detail = `CPL R$${m.cpl.toFixed(0)} crítico (${cplRatio.toFixed(1)}× acima do ideal).`; }
+      const band = bandFor(bands, 'performance', 'cpl_ratio', cplRatio);
+      score = band.score;
+      detail = `${band.label ?? 'CPL'}: R$${m.cpl.toFixed(0)} vs ideal R$${b.cpl_ideal?.toFixed(0) ?? '—'} (${cplRatio.toFixed(1)}×).`;
     }
   }
 
   return {
     id: 'performance', label: 'Performance', score,
-    weight: DIMENSION_WEIGHTS.performance,
+    weight: singleValue(bands, 'performance', 'weight'),
     detail,
-    status: score >= 70 ? 'ok' : score >= 45 ? 'warn' : 'critical',
+    status: statusFor(bands, 'performance', score),
   };
 }
 
 function scoreDimensionSpendEfficiency(
   wasted: Awaited<ReturnType<typeof calculateWastedSpend>> | null,
   m: CampaignMetrics,
+  bands: AuditBandSet,
 ): ScorecardDimension {
-  let score = 80;
+  let score = singleValue(bands, 'spend_efficiency', 'base');
   let detail = 'Sem dados de desperdício.';
 
   if (wasted && m.totalSpend > 0) {
     const pct = (wasted.totalWasted / m.totalSpend) * 100;
-    if (pct === 0)      { score = 95; detail = 'Nenhum desperdício detectado no período.'; }
-    else if (pct <= 10) { score = 80; detail = `${pct.toFixed(0)}% de desperdício — dentro do aceitável.`; }
-    else if (pct <= 25) { score = 55; detail = `${pct.toFixed(0)}% de desperdício — R$${wasted.totalWasted.toFixed(0)} recuperáveis.`; }
-    else if (pct <= 50) { score = 30; detail = `${pct.toFixed(0)}% de desperdício — R$${wasted.totalWasted.toFixed(0)} em risco alto.`; }
-    else                { score = 10; detail = `${pct.toFixed(0)}% do investimento em desperdício crítico.`; }
+    const band = bandFor(bands, 'spend_efficiency', 'waste_pct', pct);
+    score = band.score;
+    detail = `${pct.toFixed(0)}% de desperdício — ${band.label ?? ''} (R$${wasted.totalWasted.toFixed(0)}).`;
   }
 
   return {
     id: 'spend_efficiency', label: 'Eficiência de Verba', score,
-    weight: DIMENSION_WEIGHTS.spend_efficiency,
+    weight: singleValue(bands, 'spend_efficiency', 'weight'),
     detail,
-    status: score >= 70 ? 'ok' : score >= 40 ? 'warn' : 'critical',
+    status: statusFor(bands, 'spend_efficiency', score),
   };
 }
 
 function scoreDimensionFunnel(
   f: FunnelMetrics,
   b: Record<string, number>,
+  bands: AuditBandSet,
 ): ScorecardDimension {
-  const ctrMin = b.ctr_min ?? 1.5;
-  let score = 60;
+  const ctrMin = b.ctr_min ?? singleValue(bands, 'reference', 'ctr_min');
+  let score = singleValue(bands, 'funnel_health', 'base');
   let detail = 'Sem dados de funil suficientes.';
 
   if (f.tofCtr > 0 || f.mofLtr > 0 || f.bofCvr > 0) {
-    const ctrScore  = f.tofCtr  >= ctrMin * 2 ? 100 : f.tofCtr  >= ctrMin ? 70 : f.tofCtr > 0 ? 35 : 50;
-    const ltrScore  = f.mofLtr  >= 5 ? 100 : f.mofLtr >= 2 ? 70 : f.mofLtr > 0 ? 35 : 50;
-    const cvrScore  = f.bofCvr  >= 3 ? 100 : f.bofCvr >= 1 ? 70 : f.bofCvr > 0 ? 35 : 50;
-    score = Math.round((ctrScore * 0.35 + ltrScore * 0.35 + cvrScore * 0.30));
+    // CTR é comparado como razão sobre o mínimo do segmento (ctr ÷ ctr_min).
+    const ctrRatio = ctrMin > 0 ? f.tofCtr / ctrMin : (f.tofCtr > 0 ? Infinity : 0);
+    const ctrScore = scoreByBands(bands, 'funnel_health', 'ctr_ratio', ctrRatio);
+    const ltrScore = scoreByBands(bands, 'funnel_health', 'lead_rate', f.mofLtr);
+    const cvrScore = scoreByBands(bands, 'funnel_health', 'conv_rate', f.bofCvr);
+    score = Math.round(
+      ctrScore * singleValue(bands, 'funnel_health', 'weight_tof')
+      + ltrScore * singleValue(bands, 'funnel_health', 'weight_mof')
+      + cvrScore * singleValue(bands, 'funnel_health', 'weight_bof'),
+    );
 
     const bottleneckLabel = f.bottleneck === 'TOF' ? `CTR ${f.tofCtr.toFixed(1)}%`
       : f.bottleneck === 'MOF' ? `Lead Rate ${f.mofLtr.toFixed(1)}%`
@@ -503,16 +507,17 @@ function scoreDimensionFunnel(
 
   return {
     id: 'funnel_health', label: 'Saúde do Funil', score,
-    weight: DIMENSION_WEIGHTS.funnel_health,
+    weight: singleValue(bands, 'funnel_health', 'weight'),
     detail,
-    status: score >= 70 ? 'ok' : score >= 45 ? 'warn' : 'critical',
+    status: statusFor(bands, 'funnel_health', score),
   };
 }
 
 function scoreDimensionTracking(
   health: Awaited<ReturnType<typeof runTrackingHealthCheck>> | null,
+  bands: AuditBandSet,
 ): ScorecardDimension {
-  const score = health?.overallScore ?? 50;
+  const score = health?.overallScore ?? singleValue(bands, 'tracking', 'fallback');
   const issues = (health?.issues ?? []) as any[];
   const criticalCount = issues.filter((i: any) => i.severity === 'critical').length;
 
@@ -524,26 +529,33 @@ function scoreDimensionTracking(
 
   return {
     id: 'tracking', label: 'Saúde do Rastreamento', score,
-    weight: DIMENSION_WEIGHTS.tracking,
+    weight: singleValue(bands, 'tracking', 'weight'),
     detail,
-    status: score >= 70 ? 'ok' : score >= 45 ? 'warn' : 'critical',
+    status: statusFor(bands, 'tracking', score),
   };
 }
 
 function scoreDimensionCreative(
   m: CampaignMetrics,
   b: Record<string, number>,
+  bands: AuditBandSet,
 ): ScorecardDimension {
-  let score = 65;
+  let score = singleValue(bands, 'creative', 'base');
   let detail = 'Sem métricas de criativo disponíveis.';
 
   if (m.avgFrequency > 0 || m.avgHookRate > 0) {
-    const freqMax = b.frequency_max ?? 3.5;
-    const hookCrit = b.hook_rate_critical ?? 8;
+    const freqRef  = b.frequency_max ?? singleValue(bands, 'reference', 'frequency_max');
+    const hookRef  = b.hook_rate_critical ?? singleValue(bands, 'reference', 'hook_rate_critical');
 
-    const freqScore  = m.avgFrequency <= freqMax ? 90 : m.avgFrequency <= freqMax * 1.5 ? 55 : 20;
-    const hookScore  = m.avgHookRate === 0 ? 60 : m.avgHookRate >= hookCrit * 1.5 ? 90 : m.avgHookRate >= hookCrit ? 60 : 25;
-    score = Math.round(freqScore * 0.6 + hookScore * 0.4);
+    const freqRatio = freqRef > 0 ? m.avgFrequency / freqRef : (m.avgFrequency > 0 ? Infinity : 0);
+    const hookRatio = hookRef > 0 ? m.avgHookRate / hookRef : (m.avgHookRate > 0 ? Infinity : 0);
+
+    const freqScore = scoreByBands(bands, 'creative', 'freq_ratio', freqRatio);
+    const hookScore = scoreByBands(bands, 'creative', 'hook_ratio', hookRatio);
+    score = Math.round(
+      freqScore * singleValue(bands, 'creative', 'weight_freq')
+      + hookScore * singleValue(bands, 'creative', 'weight_hook'),
+    );
 
     const parts = [];
     if (m.avgFrequency > 0) parts.push(`Frequência ${m.avgFrequency.toFixed(1)}x`);
@@ -553,9 +565,9 @@ function scoreDimensionCreative(
 
   return {
     id: 'creative', label: 'Saúde Criativa', score,
-    weight: DIMENSION_WEIGHTS.creative,
+    weight: singleValue(bands, 'creative', 'weight'),
     detail,
-    status: score >= 70 ? 'ok' : score >= 45 ? 'warn' : 'critical',
+    status: statusFor(bands, 'creative', score),
   };
 }
 
@@ -569,14 +581,21 @@ function buildProblems(
   m: CampaignMetrics,
   f: FunnelMetrics,
   b: Record<string, number>,
+  bands: AuditBandSet,
+  texts: Map<string, AuditTextParam>,
+  segmentId: string,
 ): AuditProblem[] {
+  const triggerMin = singleValue(bands, 'problem', 'trigger_min');
+  const cplCriticalRef = b.cpl_critical ?? singleValue(bands, 'reference', 'cpl_critical');
   const problems: AuditProblem[] = [];
+  const dimLimit = textParam(texts, segmentId, 'problem_dimensions').min;
+  const maxProblems = textParam(texts, segmentId, 'max_problems').min;
 
   // Extrair da dimensão com pior score
   const sorted = [...scorecard].sort((a, b) => a.score - b.score);
 
-  for (const dim of sorted.slice(0, 5)) {
-    if (problems.length >= 3) break;
+  for (const dim of sorted.slice(0, dimLimit)) {
+    if (problems.length >= maxProblems) break;
     if (dim.status === 'ok') continue;
 
     if (dim.id === 'performance' && m.totalLeads === 0 && m.totalSpend > 0) {
@@ -588,11 +607,11 @@ function buildProblems(
         dimensionId: 'performance',
         metric: `R$${m.totalSpend.toFixed(0)} sem retorno`,
       });
-    } else if (dim.id === 'performance' && m.cpl > (b.cpl_critical ?? 999)) {
+    } else if (dim.id === 'performance' && m.cpl >= cplCriticalRef) {
       problems.push({
         rank: problems.length + 1,
         title: 'CPL acima do limite crítico',
-        description: `CPL atual de R$${m.cpl.toFixed(0)} supera o limite crítico de R$${b.cpl_critical?.toFixed(0) ?? '—'}. Campanha operando no vermelho.`,
+        description: `CPL atual de R$${m.cpl.toFixed(0)} supera o limite crítico de R$${cplCriticalRef.toFixed(0)}. Campanha operando no vermelho.`,
         impact: 'high',
         dimensionId: 'performance',
         metric: `CPL R$${m.cpl.toFixed(0)}`,
@@ -603,7 +622,7 @@ function buildProblems(
         rank: problems.length + 1,
         title: 'Desperdício de verba detectado',
         description: `R$${wasted.totalWasted.toFixed(0)} (${pct}% do investimento) em campanhas ineficientes: sem leads, CPL crítico ou público saturado.`,
-        impact: wasted.totalWasted > 500 ? 'high' : 'medium',
+        impact: wasted.totalWasted > singleValue(bands, 'problem', 'waste_high_brl') ? 'high' : 'medium',
         dimensionId: 'spend_efficiency',
         metric: `R$${wasted.totalWasted.toFixed(0)} desperdiçados`,
       });
@@ -619,16 +638,16 @@ function buildProblems(
         dimensionId: 'funnel_health',
         metric: rateLabel,
       });
-    } else if (dim.id === 'tracking' && dim.score < 50) {
+    } else if (dim.id === 'tracking' && dim.score < triggerMin) {
       problems.push({
         rank: problems.length + 1,
         title: 'Falha no tracking de conversões',
         description: `Score de tracking ${dim.score}/100. Dados imprecisos comprometem a otimização automática do Meta e a atribuição de leads.`,
-        impact: dim.score < 30 ? 'high' : 'medium',
+        impact: dim.score < singleValue(bands, 'problem', 'tracking_high_below') ? 'high' : 'medium',
         dimensionId: 'tracking',
         metric: `Score ${dim.score}/100`,
       });
-    } else if (dim.id === 'creative' && dim.score < 50) {
+    } else if (dim.id === 'creative' && dim.score < triggerMin) {
       problems.push({
         rank: problems.length + 1,
         title: 'Fadiga criativa detectada',
@@ -651,7 +670,7 @@ function buildProblems(
     });
   }
 
-  return problems.slice(0, 3);
+  return problems.slice(0, maxProblems);
 }
 
 function buildOpportunities(
@@ -659,27 +678,40 @@ function buildOpportunities(
   m: CampaignMetrics,
   f: FunnelMetrics,
   b: Record<string, number>,
+  bands: AuditBandSet,
+  texts: Map<string, AuditTextParam>,
+  segmentId: string,
 ): AuditOpportunity[] {
   const opps: AuditOpportunity[] = [];
+  const leadFactor   = textParam(texts, segmentId, 'lead_gain_factor').min;
+  const cplRed       = textParam(texts, segmentId, 'cpl_reduction');
+  const trackGain    = textParam(texts, segmentId, 'tracking_gain');
+  const scaleGain    = textParam(texts, segmentId, 'scale_gain');
+  const llaRange     = textParam(texts, segmentId, 'lla_range');
+  const maxOpps      = textParam(texts, segmentId, 'max_opportunities').min;
+  const ctrRef  = b.ctr_min ?? singleValue(bands, 'reference', 'ctr_min');
+  const ctrGoal = ctrRef * singleValue(bands, 'opportunity', 'ctr_factor');
+  const cplIdealRef = b.cpl_ideal ?? singleValue(bands, 'reference', 'cpl_ideal');
 
   // Oportunidades por dimensão em ordem de impacto potencial
-  if (f.tofCtr > 0 && f.tofCtr < (b.ctr_min ?? 1.5) * 2) {
+  if (f.tofCtr > 0 && f.tofCtr < ctrGoal) {
     opps.push({
       rank: 1,
       title: 'Dobrar CTR no Topo do Funil',
-      description: `CTR atual de ${f.tofCtr.toFixed(1)}%. Testar novos formatos de criativo (vídeo curto, UGC) e hooks mais diretos pode atingir ${((b.ctr_min ?? 1.5) * 2).toFixed(1)}%.`,
-      potentialGain: `+${Math.round(f.tofCtr * 0.8)} leads adicionais/mês estimados`,
+      description: `CTR atual de ${f.tofCtr.toFixed(1)}%. Testar novos formatos de criativo (vídeo curto, UGC) e hooks mais diretos pode atingir ${ctrGoal.toFixed(1)}%.`,
+      potentialGain: `+${Math.round(f.tofCtr * leadFactor)} leads adicionais/mês estimados`,
       dimensionId: 'funnel_health',
     });
   }
 
-  if (m.cpl > 0 && m.cpl > (b.cpl_ideal ?? 50)) {
-    const saving = (m.cpl - (b.cpl_ideal ?? 50)) * m.totalLeads;
+  if (m.cpl > 0 && m.cpl > cplIdealRef) {
+    const saving = (m.cpl - cplIdealRef) * m.totalLeads;
     opps.push({
       rank: opps.length + 1,
       title: 'Reduzir CPL ao nível ideal',
-      description: `CPL atual R$${m.cpl.toFixed(0)} vs ideal R$${b.cpl_ideal?.toFixed(0) ?? '—'}. Otimização de lances + segmentação LLA pode recuperar eficiência.`,
+      description: `CPL atual R$${m.cpl.toFixed(0)} vs ideal R$${cplIdealRef.toFixed(0)}. Otimização de lances + segmentação LLA pode recuperar eficiência.`,
       potentialGain: `Economia estimada R$${saving.toFixed(0)}/mês`,
+      // (mesmo cálculo; a estimativa aqui é o valor exato, não um intervalo)
       dimensionId: 'performance',
     });
   }
@@ -689,33 +721,33 @@ function buildOpportunities(
       rank: opps.length + 1,
       title: 'Ativar Meio do Funil (MOF)',
       description: 'Nenhuma campanha de engajamento ativa. Campanhas MOF nutrem leads quentes e reduzem CPL nas campanhas BOF.',
-      potentialGain: 'Redução estimada de 15-30% no CPL médio',
+      potentialGain: `Redução estimada de ${formatRange(cplRed)}% no CPL médio`,
       dimensionId: 'funnel_health',
     });
   }
 
   const trackingDim = scorecard.find(d => d.id === 'tracking');
-  if (trackingDim && trackingDim.score < 80) {
+  if (trackingDim && trackingDim.score < singleValue(bands, 'opportunity', 'tracking_below')) {
     opps.push({
       rank: opps.length + 1,
       title: 'Melhorar qualidade do tracking',
       description: `Score ${trackingDim.score}/100. Corrigir configurações de pixel e Conversions API melhora a otimização automática do Meta.`,
-      potentialGain: '10-20% de eficiência de campanha com dados limpos',
+      potentialGain: `${formatRange(trackGain)}% de eficiência de campanha com dados limpos`,
       dimensionId: 'tracking',
     });
   }
 
-  if (opps.length < 3) {
+  if (opps.length < maxOpps) {
     opps.push({
       rank: opps.length + 1,
       title: 'Expandir para novas audiências',
-      description: 'Com performance saudável, testar Lookalike Audiences (LLA 1-3%) dos leads existentes para escalar o volume sem elevar CPL.',
-      potentialGain: 'Escala de +40-80% de leads mantendo CPL',
+      description: `Com performance saudável, testar Lookalike Audiences (LLA ${formatRange(llaRange)}%) dos leads existentes para escalar o volume sem elevar CPL.`,
+      potentialGain: `Escala de +${formatRange(scaleGain)}% de leads mantendo CPL`,
       dimensionId: 'performance',
     });
   }
 
-  return opps.slice(0, 3);
+  return opps.slice(0, maxOpps);
 }
 
 function buildActionPlan(
@@ -789,7 +821,7 @@ function buildActionPlan(
   return plan;
 }
 
-function buildWastedSpendSummary(wasted: any) {
+function buildWastedSpendSummary(wasted: any, perCategoryTop: number, totalTop: number) {
   if (!wasted) {
     return { total: 0, byCategory: {}, topCampaigns: [] };
   }
@@ -800,18 +832,18 @@ function buildWastedSpendSummary(wasted: any) {
   for (const [key, cat] of Object.entries(wasted.byCategory ?? {})) {
     const c = cat as any;
     byCategory[key] = c.amount ?? 0;
-    for (const camp of (c.campaigns ?? []).slice(0, 2)) {
+    for (const camp of (c.campaigns ?? []).slice(0, perCategoryTop)) {
       topCampaigns.push({ name: camp.name, amount: camp.wasted, reason: camp.details });
     }
   }
 
-  // Sort by amount desc, take top 3
+  // Ordena por valor desperdiçado e mantém o total configurado por segmento
   topCampaigns.sort((a, b) => b.amount - a.amount);
 
   return {
     total: wasted.totalWasted ?? 0,
     byCategory,
-    topCampaigns: topCampaigns.slice(0, 3),
+    topCampaigns: topCampaigns.slice(0, totalTop),
   };
 }
 

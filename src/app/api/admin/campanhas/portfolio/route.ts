@@ -10,6 +10,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { requireApiPermission } from '@/lib/auth/apiPermissions';
+import { classifyCpl } from '@/lib/rules/statusClassifier';
+import { resolveWarnCplFactor } from '@/lib/rules/warnFactor';
+import { resolveEfficiencyBarMax } from '@/lib/rules/efficiencyBands';
 import pool from '@/lib/database/connection';
 import { getLeadEvents, leadsByCampaign as groupLeadsByCampaign } from '@/lib/marketing/services/leadEvents';
 
@@ -49,6 +52,7 @@ export interface PortfolioClient {
     cplIdeal:    number | null;
     cplCritical: number | null;
     ctrMin:      number | null;
+    efficiencyBarMax: number;
   };
   status:    'ok' | 'warn' | 'critical' | 'nodata';
   campaigns: PortfolioClientCampaign[];
@@ -79,12 +83,9 @@ function computeStatus(
   cplIdeal: number | null,
   cplCritical: number | null,
   spend: number,
+  warnFactor: number | null,
 ): 'ok' | 'warn' | 'critical' | 'nodata' {
-  if (spend === 0) return 'nodata';
-  if (cpl === null) return 'nodata';
-  if (cplCritical !== null && cpl >= cplCritical) return 'critical';
-  if (cplIdeal !== null && cpl > cplIdeal) return 'warn';
-  return 'ok';
+  return classifyCpl(cpl, { cplIdeal, cplCritical }, warnFactor, spend);
 }
 
 /* ── GET ────────────────────────────────────────────────────────── */
@@ -189,7 +190,7 @@ export async function GET(request: NextRequest) {
         name:           r.campaign_name,
         externalStatus: r.campaign_status,
         metrics:        { spend: cSpend, leads: cLeads, cpl: cCpl, impressions: cImpr, clicks: cClicks, ctr: cCtr },
-        health:         computeStatus(cCpl, null, null, cSpend),
+        health:         computeStatus(cCpl, null, null, cSpend, null),
       };
       if (!campaignsByClient.has(key)) campaignsByClient.set(key, []);
       campaignsByClient.get(key)!.push(camp);
@@ -277,6 +278,8 @@ export async function GET(request: NextRequest) {
 
     /* ── 6. Montar resposta ──────────────────────────────────────── */
     const clients: PortfolioClient[] = [];
+    const warnCache = new Map<string, number | null>();
+    const barMaxCache = new Map<string, number>();
 
     for (const row of metricsQuery.rows) {
       const mapKey   = row.client_id ?? '__own__';
@@ -295,9 +298,21 @@ export async function GET(request: NextRequest) {
       const leads       = leadsMap.get(mapKey) ?? 0;
       const cpl         = leads > 0 ? spend / leads : null;
       const ctr         = impressions > 0 ? (clicks / impressions) * 100 : null;
+      const warnKey     = `${segId ?? ''}|${row.client_id ?? ''}`;
+      if (!warnCache.has(warnKey)) {
+        warnCache.set(warnKey, benchmarks.cplIdeal !== null
+          ? await resolveWarnCplFactor(payload.tenantId, segId, row.client_id)
+          : null);
+      }
+      const warnFactor = warnCache.get(warnKey) ?? null;
 
       // Filtrar por segmento se solicitado
       if (segmentId && segId !== segmentId) continue;
+
+      if (!barMaxCache.has(warnKey)) {
+        barMaxCache.set(warnKey, await resolveEfficiencyBarMax(payload.tenantId, segId, row.client_id));
+      }
+      const efficiencyBarMax = barMaxCache.get(warnKey)!;
 
       clients.push({
         clientId:   row.client_id,
@@ -312,8 +327,8 @@ export async function GET(request: NextRequest) {
             }
           : null,
         metrics: { spend, leads, cpl, ctr, impressions, clicks, campaigns: parseInt(row.campaign_count) },
-        benchmarks,
-        status:    computeStatus(cpl, benchmarks.cplIdeal, benchmarks.cplCritical, spend),
+        benchmarks: { ...benchmarks, efficiencyBarMax },
+        status:    computeStatus(cpl, benchmarks.cplIdeal, benchmarks.cplCritical, spend, warnFactor),
         campaigns: campaignsByClient.get(mapKey) ?? [],
         logoUrl:   row.client_id
           ? (info?.logo_url ?? null)

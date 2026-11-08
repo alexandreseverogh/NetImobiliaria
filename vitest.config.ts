@@ -5,7 +5,7 @@ import path from 'path'
 // Testes de integração contra Postgres ficam em scripts próprios (ver docs/PLANO_REGRAS_CONFIGURAVEIS.md, §6.2).
 export default defineConfig({
   test: {
-    include: ['tests/unit/**/*.test.ts'],
+    include: ['tests/unit/**/*.test.ts', 'tests/integration/**/*.test.ts'],
     environment: 'node',
   },
   resolve: {
