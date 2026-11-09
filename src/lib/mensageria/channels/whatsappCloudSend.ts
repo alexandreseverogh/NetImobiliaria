@@ -22,6 +22,39 @@ export interface WhatsAppCloudInboxConfig {
   access_token?: string | null
 }
 
+/** Janela de atendimento da Meta: texto livre só é aceito até 24h após a última msg do cliente. */
+export const SERVICE_WINDOW_MS = 24 * 60 * 60 * 1000
+
+/** Pura: a janela de 24h está aberta em `now` dado o instante da última msg recebida? */
+export function isWithinServiceWindow(lastInboundAt: Date | null, now: Date = new Date()): boolean {
+  if (!lastInboundAt) return false
+  return now.getTime() - lastInboundAt.getTime() < SERVICE_WINDOW_MS
+}
+
+async function getLastInboundAt(conversationId: string): Promise<Date | null> {
+  const { rows } = await pool.query(
+    `SELECT max(created_at) AS last_in FROM mensageria.messages
+      WHERE conversation_id = $1 AND direction = 'inbound'`,
+    [conversationId],
+  )
+  return rows[0]?.last_in ? new Date(rows[0].last_in) : null
+}
+
+/**
+ * Mensagem de erro se o envio de texto livre estiver fora da janela (ou se a conversa não for
+ * identificada). null = pode enviar. Quando recusa, a Meta nunca é chamada.
+ */
+async function windowError(conversationId?: string | null): Promise<string | null> {
+  if (!conversationId) {
+    return 'Envio fora da janela de 24h exige template aprovado: conversa não identificada.'
+  }
+  const lastIn = await getLastInboundAt(conversationId)
+  if (!isWithinServiceWindow(lastIn)) {
+    return 'Janela de 24h encerrada: o cliente não respondeu nas últimas 24 horas. Só é possível enviar templates aprovados (ainda não suportado).'
+  }
+  return null
+}
+
 /**
  * Contador do mês (seção 2.3/2.4 do plano) — só visibilidade/aviso, nunca é o que decide se a
  * Meta entrega ou não a mensagem (isso é 100% do lado da Meta). Best-effort: uma falha aqui
@@ -80,7 +113,10 @@ export async function sendWhatsAppCloudMessage(
   config: WhatsAppCloudInboxConfig,
   toPhone: string,
   text: string,
+  conversationId?: string | null,
 ): Promise<{ ok: boolean; externalId?: string; error?: string }> {
+  const blocked = await windowError(conversationId)
+  if (blocked) return { ok: false, error: blocked }
   return postMessage(config, {
     messaging_product: 'whatsapp',
     to: normalizePhone(toPhone),
@@ -94,7 +130,10 @@ export async function sendWhatsAppCloudMedia(
   toPhone: string,
   mediaUrl: string,
   caption?: string,
+  conversationId?: string | null,
 ): Promise<{ ok: boolean; externalId?: string; error?: string }> {
+  const blocked = await windowError(conversationId)
+  if (blocked) return { ok: false, error: blocked }
   return postMessage(config, {
     messaging_product: 'whatsapp',
     to: normalizePhone(toPhone),

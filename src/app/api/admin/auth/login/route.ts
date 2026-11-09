@@ -6,7 +6,7 @@ import twoFactorAuthService from '../../../../../services/twoFactorAuthService';
 import { User, UserWithRole } from '../../../../../lib/database/users';
 import { logLoginAttempt as logSecurityLoginAttempt, logSuspiciousActivity } from '../../../../../lib/monitoring/securityMonitor';
 import { AUTH_CONFIG } from '@/lib/config/auth';
-import { applyLoginRateLimit } from '@/lib/security/rate-limiter';
+import { isLoginBlocked, registerFailedLogin } from '@/lib/security/rate-limiter';
 import { invalidateUser } from '@/lib/cache/cache-service';
 import { getAuditConfigs, BILLING_BLOCK_CLAUSE } from '@/lib/database/userPermissions';
 
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ✔️ Rate Limiting: bloqueia ataques de força bruta por IP
-    const rateLimitResponse = await applyLoginRateLimit(request);
+    const rateLimitResponse = await isLoginBlocked(request);
     if (rateLimitResponse) return rateLimitResponse;
 
     // Obter IP real do cliente (múltiplas tentativas)
@@ -219,6 +219,7 @@ export async function POST(request: NextRequest) {
 
       // Log no sistema de monitoramento de segurança
       logSecurityLoginAttempt(ipAddress, userAgent, false, undefined);
+      await registerFailedLogin(request);
 
       return NextResponse.json(
         { success: false, message: 'Credenciais inválidas' },
@@ -242,6 +243,7 @@ export async function POST(request: NextRequest) {
 
       // Log no sistema de monitoramento de segurança
       logSecurityLoginAttempt(ipAddress, userAgent, false, user.id);
+      await registerFailedLogin(request);
 
       return NextResponse.json(
         { success: false, message: 'Conta desativada' },
@@ -277,6 +279,7 @@ export async function POST(request: NextRequest) {
 
       // Log no sistema de monitoramento de segurança
       logSecurityLoginAttempt(ipAddress, userAgent, false, user.id);
+      await registerFailedLogin(request);
 
       return NextResponse.json(
         { success: false, message: 'Credenciais inválidas' },
@@ -555,6 +558,7 @@ export async function POST(request: NextRequest) {
             client.release();
           }
 
+          await registerFailedLogin(request);
           return NextResponse.json(
             { success: false, message: validationResult.message },
             { status: 401 }

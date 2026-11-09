@@ -80,7 +80,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   // 2. Envio real pelo canal (pulado para notas internas)
   let sendResult: { ok: boolean; externalId?: string; error?: string } = { ok: true }
   if (!isPrivate && conv.channel_type === 'whatsapp') {
-    sendResult = await sendWhatsAppMessage(conv.provider, conv.config, conv.phone, content)
+    sendResult = await sendWhatsAppMessage(conv.provider, conv.config, conv.phone, content, params.id)
     await pool.query(
       `UPDATE mensageria.messages
           SET delivery_status = $1, external_id = COALESCE($2, external_id)
