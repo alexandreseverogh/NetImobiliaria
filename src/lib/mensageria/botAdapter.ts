@@ -492,9 +492,14 @@ async function deliverIfWhatsApp(
 ): Promise<void> {
   if (!messageId || channelType !== 'whatsapp' || !config || !phone) return
   try {
+    const { rows: convRows } = await pool.query(
+      `SELECT conversation_id FROM ${SCHEMA}.messages WHERE id = $1`,
+      [messageId],
+    )
+    const conversationId: string | null = convRows[0]?.conversation_id ?? null
     const result = payload.kind === 'text'
-      ? await sendWhatsAppMessage(provider, config, phone, payload.text)
-      : await sendWhatsAppMedia(provider, config, phone, payload.url)
+      ? await sendWhatsAppMessage(provider, config, phone, payload.text, conversationId)
+      : await sendWhatsAppMedia(provider, config, phone, payload.url, undefined, conversationId)
     await pool.query(
       `UPDATE ${SCHEMA}.messages SET delivery_status = $1, external_id = COALESCE($2, external_id) WHERE id = $3`,
       [result.ok ? 'sent' : 'failed', result.externalId ?? null, messageId],

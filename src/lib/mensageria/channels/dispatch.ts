@@ -22,8 +22,9 @@ export async function sendWhatsAppMessage(
   config: WhatsAppSendConfig,
   toPhone: string,
   text: string,
+  conversationId?: string | null,
 ): Promise<WhatsAppSendResult> {
-  if (provider === 'whatsapp_cloud') return sendWhatsAppCloudMessage(config, toPhone, text)
+  if (provider === 'whatsapp_cloud') return sendWhatsAppCloudMessage(config, toPhone, text, conversationId)
   return sendEvolutionMessage(config as any, toPhone, text)
 }
 
@@ -33,7 +34,8 @@ export async function sendWhatsAppMedia(
   toPhone: string,
   mediaUrl: string,
   caption?: string,
+  conversationId?: string | null,
 ): Promise<WhatsAppSendResult> {
-  if (provider === 'whatsapp_cloud') return sendWhatsAppCloudMedia(config, toPhone, mediaUrl, caption)
+  if (provider === 'whatsapp_cloud') return sendWhatsAppCloudMedia(config, toPhone, mediaUrl, caption, conversationId)
   return sendEvolutionMedia(config as any, toPhone, mediaUrl, caption)
 }
