@@ -165,6 +165,33 @@ export async function applyLoginRateLimit(
 }
 
 /**
+ * Verifica se o IP já esgotou as tentativas FALHAS de login, sem consumir nenhuma.
+ * Login bem-sucedido nunca conta: só credenciais erradas, conta desativada ou 2FA inválido.
+ */
+export async function isLoginBlocked(request: NextRequest): Promise<NextResponse | null> {
+  const ip = getClientId(request)
+  const state = await loginLimiter.get(`login:${ip}`)
+  if (state && state.remainingPoints <= 0) {
+    const retryAfter = Math.ceil(state.msBeforeNext / 1000)
+    return NextResponse.json(
+      { error: 'Muitas tentativas de login. Tente novamente em breve.', retryAfterSeconds: retryAfter },
+      { status: 429, headers: { 'Retry-After': retryAfter.toString() } }
+    )
+  }
+  return null
+}
+
+/** Registra uma tentativa de login que falhou (consome um ponto do limite). */
+export async function registerFailedLogin(request: NextRequest): Promise<void> {
+  const ip = getClientId(request)
+  try {
+    await loginLimiter.consume(`login:${ip}`)
+  } catch {
+    // Limite já esgotado: a próxima requisição será bloqueada por isLoginBlocked.
+  }
+}
+
+/**
  * Aplica rate limit para APIs públicas.
  */
 export async function applyPublicRateLimit(

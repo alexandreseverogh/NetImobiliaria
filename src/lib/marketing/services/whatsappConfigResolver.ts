@@ -111,13 +111,40 @@ export async function resolveEvolutionPairedNumber(
     if (c?.evolution_instance) return c.numero_whatsapp || null
   }
 
+  // Número realmente pareado = dono da instância na própria Evolution. Não usar
+  // tenants.numero_whatsapp aqui: esse campo é o número dos alertas, não o que está conectado.
   const { rows } = await pool.query(
-    `SELECT numero_whatsapp, evolution_instance FROM public.tenants WHERE id = $1`,
+    `SELECT evolution_api_url, evolution_api_key, evolution_instance FROM public.tenants WHERE id = $1`,
     [tenantId],
   )
   const t = rows[0]
-  if (t?.evolution_instance) return t.numero_whatsapp || null
-  return null
+  if (!t?.evolution_instance || !t?.evolution_api_url || !t?.evolution_api_key) return null
+  return fetchEvolutionOwnerNumber(t.evolution_api_url, t.evolution_api_key, t.evolution_instance)
+}
+
+/**
+ * Consulta a Evolution e devolve só os dígitos do número dono da instância (ownerJid).
+ * Qualquer falha (rede, HTTP, formato inesperado) devolve null: "não sei", nunca um número chutado.
+ */
+async function fetchEvolutionOwnerNumber(
+  apiUrl: string,
+  apiKey: string,
+  instance: string,
+): Promise<string | null> {
+  try {
+    const url = `${apiUrl.replace(/\/+$/, '')}/instance/fetchInstances?instanceName=${encodeURIComponent(instance)}`
+    const res = await fetch(url, { headers: { apikey: apiKey }, signal: AbortSignal.timeout(5000) })
+    if (!res.ok) return null
+    const data: any = await res.json()
+    const items: any[] = Array.isArray(data) ? data : [data]
+    const match = items.find(i => (i?.name ?? i?.instance?.instanceName) === instance) ?? items[0]
+    const owner: string | undefined = match?.ownerJid ?? match?.instance?.owner
+    if (!owner) return null
+    const digits = owner.split('@')[0].replace(/\D/g, '')
+    return digits || null
+  } catch {
+    return null
+  }
 }
 
 /**

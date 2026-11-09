@@ -24,6 +24,7 @@ import { UpdateGuard } from '@/components/admin/PermissionGuard';
 import { DadosEmpresaHelpButton } from '@/components/admin/dados-empresa/HelpModal';
 import { DadosCadastraisSection } from '@/components/admin/dados-empresa/DadosCadastraisSection';
 import { WhatsAppCampanhasSection } from '@/components/admin/dados-empresa/WhatsAppCampanhasSection';
+import { WhatsAppConexaoSection } from '@/components/admin/dados-empresa/WhatsAppConexaoSection';
 
 /**
  * "Dados da Empresa" — self-service do próprio tenant admin pros campos tenant-wide que antes
@@ -534,6 +535,7 @@ export default function DadosEmpresaPage() {
         <div className="space-y-6">
           <DadosCadastraisSection />
           <WhatsAppCampanhasSection />
+          <WhatsAppConexaoSection />
           <TechSettingsSection />
           <MetaIdentitySection />
           <WhatsAppCloudSection />
