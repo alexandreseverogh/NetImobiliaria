@@ -215,6 +215,123 @@ export class MetaAdsAdapter implements AdNetworkService {
    * (teto de 200 — além disso é caso raro o bastante pra não valer complicar com paginação
    * completa nesta 1ª versão; o usuário sempre pode filtrar/buscar as mais recentes).
    */
+  /**
+   * Imagens em tamanho original da publicação de origem do anúncio (full_picture). Precisa do
+   * token da página, que depende da Identidade Meta configurada. Sem ela, devolve [] sem erro.
+   */
+  async fetchPostImages(storyId: string): Promise<string[]> {
+    if (!storyId) return [];
+    try {
+      const pageToken = await this.resolvePageAccessToken();
+      const res = await axios.get(this.url(storyId), {
+        params: { access_token: pageToken, fields: 'full_picture,attachments{media{image{src}},subattachments{media{image{src}}}}' },
+        timeout: 15000,
+      });
+      const out: string[] = [];
+      if (res.data?.full_picture) out.push(res.data.full_picture);
+      for (const a of res.data?.attachments?.data ?? []) {
+        for (const sub of a.subattachments?.data ?? []) if (sub.media?.image?.src) out.push(sub.media.image.src);
+        if (a.media?.image?.src) out.push(a.media.image.src);
+      }
+      return Array.from(new Set(out));
+    } catch {
+      return [];
+    }
+  }
+
+  /** URLs em tamanho original das imagens, a partir dos hashes (endpoint adimages da conta). */
+  async fetchAdImageUrls(imageHashes: string[]): Promise<Record<string, string>> {
+    const hashes = Array.from(new Set(imageHashes.filter(Boolean)));
+    if (hashes.length === 0) return {};
+    const res = await axios.get(this.url(`act_${this.adAccountId}/adimages`), {
+      params: { ...this.auth, hashes: JSON.stringify(hashes), fields: 'hash,url', limit: 100 },
+      timeout: 15000,
+    });
+    const out: Record<string, string> = {};
+    for (const row of Array.isArray(res.data?.data) ? res.data.data : []) {
+      if (row.hash && row.url) out[row.hash] = row.url;
+    }
+    return out;
+  }
+
+  /** Métricas diárias de um anúncio, com rankings de qualidade e retenção de vídeo da Meta. */
+  async fetchAdInsights(externalAdId: string, since: string, until: string): Promise<import('../types').ExternalAdInsightDay[]> {
+    const res = await axios.get(this.url(`${externalAdId}/insights`), {
+      params: {
+        ...this.auth,
+        time_range: JSON.stringify({ since, until }),
+        time_increment: 1,
+        fields: 'date_start,impressions,reach,clicks,spend,frequency,actions,video_play_actions,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,quality_ranking,engagement_rate_ranking,conversion_rate_ranking',
+        limit: 200,
+      },
+      timeout: 15000,
+    });
+    const rows = Array.isArray(res.data?.data) ? res.data.data : [];
+    const actionValue = (arr: any, type: string) => {
+      const f = Array.isArray(arr) ? arr.find((a: any) => a.action_type === type) : null;
+      return parseInt(f?.value || 0, 10) || 0;
+    };
+    const firstValue = (arr: any) => (Array.isArray(arr) && arr[0] ? parseInt(arr[0].value || 0, 10) || 0 : 0);
+    return rows.map((r: any) => ({
+      date: r.date_start,
+      impressions: parseInt(r.impressions || 0, 10) || 0,
+      reach: parseInt(r.reach || 0, 10) || 0,
+      clicks: parseInt(r.clicks || 0, 10) || 0,
+      spend: parseFloat(r.spend || 0) || 0,
+      frequency: parseFloat(r.frequency || 0) || 0,
+      messagingConversations: actionValue(r.actions, 'onsite_conversion.messaging_conversation_started_7d'),
+      qualityRanking: r.quality_ranking ?? null,
+      engagementRateRanking: r.engagement_rate_ranking ?? null,
+      conversionRateRanking: r.conversion_rate_ranking ?? null,
+      videoViews3s: firstValue(r.video_play_actions),
+      videoViewsP25: firstValue(r.video_p25_watched_actions),
+      videoViewsP50: firstValue(r.video_p50_watched_actions),
+      videoViewsP75: firstValue(r.video_p75_watched_actions),
+      videoViewsP100: firstValue(r.video_p100_watched_actions),
+    }));
+  }
+
+  /** Anúncios reais de uma campanha, com o texto do criativo e o link de destino. */
+  async fetchCampaignAds(externalCampaignId: string): Promise<import('../types').ExternalAdSummary[]> {
+    const res = await axios.get(this.url(`${externalCampaignId}/ads`), {
+      params: {
+        ...this.auth,
+        fields: 'id,name,status,adset_id,creative{title,body,call_to_action_type,thumbnail_url,image_url,image_hash,effective_object_story_id,object_story_spec}',
+        limit: 200,
+      },
+      timeout: 15000,
+    });
+    const rows = Array.isArray(res.data?.data) ? res.data.data : [];
+    return rows.map((r: any) => {
+      const story = r.creative?.object_story_spec ?? {};
+      const cards: any[] = Array.isArray(story.link_data?.child_attachments) ? story.link_data.child_attachments : [];
+      const isVideo = !!story.video_data;
+      const isCarousel = cards.length > 0;
+      const link = story.link_data?.link ?? null;
+      // Carrossel: cada cartão tem a sua imagem. Vídeo: a miniatura do vídeo. Imagem: a própria.
+      const imageUrls: string[] = isCarousel
+        ? cards.map((c: any) => c.picture).filter(Boolean)
+        : [r.creative?.image_url || r.creative?.thumbnail_url].filter(Boolean);
+      const imageHashes: string[] = isCarousel
+        ? cards.map((c: any) => c.image_hash).filter(Boolean)
+        : [r.creative?.image_hash].filter(Boolean);
+      return {
+        externalId: String(r.id),
+        externalAdSetId: String(r.adset_id),
+        name: r.name || '(sem nome)',
+        status: r.status || 'UNKNOWN',
+        creativeType: isCarousel ? 'CAROUSEL' : isVideo ? 'VIDEO' : 'IMAGE',
+        headline: r.creative?.title ?? story.link_data?.name ?? null,
+        body: r.creative?.body ?? story.link_data?.message ?? '',
+        ctaType: r.creative?.call_to_action_type ?? story.link_data?.call_to_action?.type ?? null,
+        linkUrl: link,
+        imageUrls,
+        imageHashes,
+        storyId: r.creative?.effective_object_story_id ? String(r.creative.effective_object_story_id) : null,
+      };
+    });
+  }
+
   /** Conjuntos de anúncios reais de uma campanha, com o targeting de localização (geo_locations). */
   async fetchCampaignAdSets(externalCampaignId: string): Promise<import('../types').ExternalAdSetSummary[]> {
     const res = await axios.get(this.url(`${externalCampaignId}/adsets`), {

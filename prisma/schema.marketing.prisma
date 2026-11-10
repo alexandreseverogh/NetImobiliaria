@@ -186,12 +186,14 @@ model Ad {
   status       String   @default("PAUSED")
   creativeType String
   images       String[]
+  thumbnails   String[] @default([])
   body         String
   headline     String?
   linkUrl      String?
   ctaType      String   @default("LEARN_MORE")
   trackingId   String?  @unique
   createdAt    DateTime @default(now())
+  adInsights   AdInsight[]
 }
 
 model Insight {
@@ -655,3 +657,29 @@ model CreativeGenerationJob {
 // Credenciais do Google Ads (e demais redes) vivem em public.tenant_network_credentials
 // (mesmo padrão já usado pelo Meta) — ver docs/PLANO_GOOGLE_TIKTOK.md, decisão de consolidação
 // 2026-07-19. Não há model dedicado para isso; acesso via pool.query (schema public).
+
+model AdInsight {
+  id                     String   @id
+  adId                   String
+  ad                     Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
+  campaignId             String
+  tenantId               String?  @db.Uuid
+  date                   DateTime @db.Date
+  impressions            Int      @default(0)
+  reach                  Int      @default(0)
+  clicks                 Int      @default(0)
+  spend                  Float    @default(0)
+  frequency              Float    @default(0)
+  messagingConversations Int      @default(0)
+  qualityRanking         String?
+  engagementRateRanking  String?
+  conversionRateRanking  String?
+  videoViews3s           Int      @default(0)
+  videoViewsP25          Int      @default(0)
+  videoViewsP50          Int      @default(0)
+  videoViewsP75          Int      @default(0)
+  videoViewsP100         Int      @default(0)
+
+  @@unique([adId, date])
+  @@index([campaignId, date])
+}
