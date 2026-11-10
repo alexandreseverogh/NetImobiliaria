@@ -56,30 +56,9 @@ export default function AdminHeader({ user, onLogout, onMenuClick, title = 'Áre
     }
   }
 
-  const getLogo = () => {
-    const tenant = user?.currentTenant
-
-    // 🏢 USUÁRIO DE TENANT (EMPRESA) - PRIORIDADE 1
-    if (tenant?.logo) {
-      console.log(`🏢 Logo: Tenant detectado (${tenant.name}) - Exibindo logo da empresa`);
-      return tenant.logo
-    }
-
-    // 🛡️ [GUARDIAN] REGRA DE NEGÓCIO: LOGO MASTER DA PLATAFORMA - PRIORIDADE 2
-    const isMasterAdmin = (user as any)?.is_system_role === true;
-    if (isMasterAdmin) {
-      console.log('👑 Logo: Administrador Master detectado - Exibindo Artemis');
-      return '/Assets/artemis4_light_b.png'
-    }
-
-    // 🔄 FALLBACK FINAL
-    const isMasterArea = tenant?.name?.toUpperCase().includes('MASTER') ||
-      tenant?.slug === 'master'
-
-    if (isMasterArea) return '/Assets/artemis4_light_b.png'
-
-    return '/Assets/artemis4_light_b.png' // Fallback definitivo
-  }
+  // Logomarca fixa da plataforma no canto superior esquerdo. A logo do tenant NÃO entra aqui:
+  // ela aparece na sidebar, ao lado do nome da empresa.
+  const getLogo = () => '/Assets/artemis9/artemis9_logo_fundo_branco_transparente.png'
 
   // Verificação de segurança para evitar erros
   if (!user || !user.nome) {
@@ -89,7 +68,7 @@ export default function AdminHeader({ user, onLogout, onMenuClick, title = 'Áre
           <div className="flex justify-between items-center h-16">
             <div className="flex-1 flex items-center space-x-3">
               <Link href="/admin">
-                <img src={getLogo()} alt="Logo" className="h-16 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+                <img src={getLogo()} alt="Artemis9" className="h-12 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
               </Link>
               <h1 className="text-lg font-semibold text-gray-900">
                 {title}
@@ -133,11 +112,11 @@ export default function AdminHeader({ user, onLogout, onMenuClick, title = 'Áre
               {isDark ? (
                 // Asset padrão tem fundo branco opaco — badge evita caixa branca
                 // crua contra o header escuro (ex.: layout da Central de Mensagens).
-                <div className="h-12 w-12 rounded-xl bg-white flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity">
-                  <img src={getLogo()} alt="Logo" className="h-9 w-auto object-contain" />
+                <div className="rounded-xl bg-white px-3 py-1.5 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity">
+                  <img src={getLogo()} alt="Artemis9" className="h-9 w-auto object-contain" />
                 </div>
               ) : (
-                <img src={getLogo()} alt="Logo" className="h-16 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+                <img src={getLogo()} alt="Artemis9" className="h-12 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
               )}
             </Link>
             <h1 className={`text-lg font-bold ${titleColor} tracking-tight`}>

@@ -38,7 +38,8 @@ export function useSidebarMenu(systemId: string = 'admin') {
     primaryColor: string; 
     secondaryColor: string;
     tenantName?: string;
-  }>({ 
+    logo?: string | null;
+  }>({
     mode: 'light', 
     primaryColor: '#2563eb',
     secondaryColor: '#F1F1F1',

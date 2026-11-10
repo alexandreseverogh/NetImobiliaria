@@ -156,31 +156,17 @@ export function Nav({
     <header className="a4-nav">
       <div className="a4-wrap a4-wrap--wide a4-nav__inner">
         <Link href="/artemis4" className="a4-nav__brand" aria-label="Artemis9 — início">
-          {/* next/image de propósito: o arquivo original é 1024x1024 / 206 KB e
-              renderiza a 26px. Com <img> cru o visitante baixava os 206 KB
-              inteiros no topo da página, acima da dobra. */}
-          <span className="a4-nav__mark">
-            <Image
-              src="/Assets/artemis4_light_b.png"
-              alt=""
-              width={26}
-              height={26}
-              priority
-              draggable={false}
-            />
-          </span>
-          <span className="a4-nav__wordmark">
-            Artemis<b>9</b>
-          </span>
-          {/* 10px é o piso: a 9px o texto ficava ilegível mesmo com contraste OK */}
-          <span className="a4-nav__tag">
-            <span className="a4-label" style={{ fontSize: '0.625rem', display: 'block', letterSpacing: '0.1em' }}>
-              Marketing · CRM
-            </span>
-            <span className="a4-label" style={{ fontSize: '0.625rem', display: 'block', letterSpacing: '0.1em' }}>
-              Mensageria
-            </span>
-          </span>
+          {/* Logomarca oficial (fundo escuro). next/image de propósito: o arquivo tem
+              1293x338 e é exibido a ~52px de altura; o otimizador entrega o tamanho certo. */}
+          <Image
+            src="/Assets/artemis9/artemis9_logo_header_transparente.png"
+            alt="Artemis9"
+            width={1293}
+            height={338}
+            priority
+            draggable={false}
+            className="a4-nav__logo"
+          />
         </Link>
 
         <nav className="a4-nav__links" aria-label="Seções">

@@ -30,6 +30,14 @@
   flex: none;
   text-decoration: none;
 }
+.a4-nav__logo {
+  height: 52px;
+  width: auto;
+  max-width: 260px;
+  object-fit: contain;
+  display: block;
+}
+@media (max-width: 40rem) { .a4-nav__logo { height: 44px; } }
 .a4-nav__mark {
   background: #fff;
   border-radius: 9px;

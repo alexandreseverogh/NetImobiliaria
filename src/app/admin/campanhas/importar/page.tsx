@@ -8,6 +8,7 @@ import {
   ChevronDownIcon,
 } from '@heroicons/react/24/outline';
 import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector';
+import { ComoObterCodigosMetaModal } from '@/components/marketing/ComoObterCodigosMetaModal';
 import {
   getImportableCampaigns, importCampaign, getManualRef, generateManualRef,
   type ExternalCampaign,
@@ -38,6 +39,7 @@ export default function ImportarCampanhasPage() {
   const [loading, setLoading]       = useState(false);
   const [searched, setSearched]     = useState(false);
   const [campaigns, setCampaigns]   = useState<ExternalCampaign[]>([]);
+  const [showGuide, setShowGuide]   = useState(false);
   const [error, setError]           = useState('');
   const [importingId, setImportingId] = useState<string | null>(null);
   // externalId → id local da Campaign — alimentado tanto por quem já veio marcado
@@ -98,6 +100,14 @@ export default function ImportarCampanhasPage() {
           ser trazidas aqui pra análise — orçamento, leads, CPL, funil — sem depender de terem sido
           criadas pelo nosso assistente.
         </p>
+
+        <button
+          onClick={() => setShowGuide(true)}
+          className="mb-6 text-xs font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-800 underline underline-offset-4"
+        >
+          Como obter códigos para importação de campanhas
+        </button>
+        <ComoObterCodigosMetaModal open={showGuide} onClose={() => setShowGuide(false)} />
 
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
           <div className="flex flex-wrap items-center justify-between gap-4">

@@ -181,21 +181,21 @@ function LoginContent() {
           {isCRM ? (
             // Fundo branco opaco do asset novo (sem transparência) — badge branca
             // arredondada evita caixa branca crua contra o fundo escuro do CRM.
-            <div className="h-32 w-32 flex items-center justify-center rounded-full bg-white shadow-[0_0_25px_rgba(59,130,246,0.5)] transition-all duration-700 hover:scale-110">
+            <div className="flex items-center justify-center rounded-2xl bg-white px-6 py-4 shadow-[0_0_25px_rgba(59,130,246,0.5)] transition-all duration-700 hover:scale-105">
               <img
-                src="/Assets/artemis4_light_b.png"
-                alt="Artemis"
-                className="h-24 w-24 object-contain"
+                src="/Assets/artemis9/artemis9_logo_fundo_branco_transparente.png"
+                alt="Artemis9"
+                className="h-16 w-auto max-w-full object-contain"
               />
             </div>
           ) : (
-            <div className="mx-auto h-20 w-20 flex items-center justify-center rounded-full bg-white shadow-lg">
+            <div className="mx-auto flex items-center justify-center rounded-2xl bg-white px-6 py-4 shadow-lg">
               <Image
-                src="/Assets/artemis4_light_b.png"
-                alt="Artemis4"
-                width={128}
-                height={128}
-                className="h-24 w-24 object-contain"
+                src="/Assets/artemis9/artemis9_logo_fundo_branco_transparente.png"
+                alt="Artemis9"
+                width={1279}
+                height={337}
+                className="h-16 w-auto max-w-full object-contain"
                 priority
               />
             </div>
@@ -207,7 +207,7 @@ function LoginContent() {
                 <span className="text-blue-600 drop-shadow-sm">Águia</span>
               </>
             ) : (
-              'Artemis4'
+              'Artemis9'
             )}
           </h2>
           <p className="mt-2 text-center text-[10px] font-black uppercase tracking-[0.3em] ml-1">
