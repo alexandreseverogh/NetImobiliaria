@@ -78,24 +78,6 @@ export function AnalyticsView({
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
-      {/* ── KPI Grid ── */}
-      <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 ${hookRate !== null ? 'xl:[grid-template-columns:repeat(13,minmax(0,1fr))] xl:gap-1.5' : 'xl:grid-cols-12 xl:gap-2'}`}>
-        <KpiCard isDark={isDark} label="Campanhas Ativas" value={String(campaigns.filter(c => c.status === 'ACTIVE').length)} color={isDark ? 'text-emerald-400' : 'text-emerald-600'} tooltip={`${campaigns.length} campanha${campaigns.length !== 1 ? 's' : ''} no total`} />
-        <KpiCard isDark={isDark} label="Gasto"      value={formatCurrencyCompact(t?.spend || 0)}             fullValue={formatCurrency(t?.spend || 0)}                    delta={d?.spend}       color={isDark ? 'text-red-400'     : 'text-red-600'}     invertDelta />
-        <KpiCard isDark={isDark} label="Impressões" value={formatNumber(t?.impressions || 0)}                 delta={d?.impressions} color={isDark ? 'text-blue-400'    : 'text-blue-600'} />
-        <KpiCard isDark={isDark} label="Alcance"    value={formatNumber(t?.reach || 0)}                       delta={d?.reach}       color={isDark ? 'text-cyan-400'    : 'text-cyan-600'} />
-        <KpiCard isDark={isDark} label="Cliques"    value={formatNumber(t?.clicks || 0)}                      delta={d?.clicks}      color={isDark ? 'text-emerald-400' : 'text-emerald-600'} />
-        <KpiCard isDark={isDark} label="CTR"        value={formatPercent(t?.ctr || 0)}                        delta={d?.ctr}         color={isDark ? 'text-amber-400'   : 'text-amber-600'} />
-        <KpiCard isDark={isDark} label="CPC"        value={formatCurrencyCompact(t?.cpc || 0)}                fullValue={formatCurrency(t?.cpc || 0)}                      delta={d?.cpc}         color={isDark ? 'text-orange-400'  : 'text-orange-600'} invertDelta />
-        <KpiCard isDark={isDark} label="CPM"        value={formatCurrencyCompact(t?.cpm || 0)}                fullValue={formatCurrency(t?.cpm || 0)}                      delta={d?.cpm}         color={isDark ? 'text-violet-400'  : 'text-violet-600'} invertDelta />
-        <KpiCard isDark={isDark} label="Conversões" value={formatNumber(t?.conversions || 0)}                 delta={d?.conversions} color={isDark ? 'text-pink-400'    : 'text-pink-600'} />
-        <KpiCard isDark={isDark} label="Leads"      value={formatNumber(data?.currentPeriod.leadCount || 0)}  delta={d?.leads}       color={isDark ? 'text-indigo-400'  : 'text-indigo-600'} />
-        <KpiCard isDark={isDark} label="CPL"        value={cpl !== null ? formatCurrencyCompact(cpl) : '—'}  fullValue={cpl !== null ? formatCurrency(cpl) : '—'}         color={isDark ? 'text-teal-400'    : 'text-teal-600'} />
-        <KpiCard isDark={isDark} label="Budget/dia" value={formatCurrencyCompact(campaignSpendData.reduce((s, c) => s + c.value, 0))} fullValue={formatCurrency(campaignSpendData.reduce((s, c) => s + c.value, 0))} color={isDark ? 'text-slate-300' : 'text-slate-800'} />
-        {hookRate !== null && (
-          <HookRateKpiCard isDark={isDark} value={hookRate} color={hookRateColor} benchmarks={hookRateBenchmarks} />
-        )}
-      </div>
 
       {/* ── Retrovisor (Performance Histórica) ── */}
       <div className={cn(

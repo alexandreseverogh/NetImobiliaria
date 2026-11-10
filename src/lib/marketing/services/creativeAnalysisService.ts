@@ -198,6 +198,37 @@ async function callVisionLlm(
 
 // ── Main: analyzeCreativeAsset ─────────────────────────────────────────────────
 
+/**
+ * Fila de análise Vision: uma chamada por vez, com pausa entre elas, e nova tentativa com espera
+ * crescente quando o provider responde 429 (cota) ou 503 (alta demanda). Sem isso, o botão
+ * "Re-analisar todos" disparava 14 chamadas simultâneas e estourava a cota gratuita do Gemini.
+ */
+const VISION_PAUSE_MS = 4000;
+const VISION_RETRY_WAITS_MS = [20000, 45000, 90000];
+let visionChain: Promise<unknown> = Promise.resolve();
+
+function isRetryableProviderError(msg: string): boolean {
+  return /(429)|(503)|RESOURCE_EXHAUSTED|UNAVAILABLE|high demand|quota/i.test(msg);
+}
+
+function runVisionQueued<T>(task: () => Promise<T>): Promise<T> {
+  const run = async (): Promise<T> => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await task();
+      } catch (err: any) {
+        const msg = String(err?.message ?? '');
+        if (!isRetryableProviderError(msg) || attempt >= VISION_RETRY_WAITS_MS.length) throw err;
+        console.warn(`[CreativeAnalysis] provider ocupado ou sem cota (tentativa ${attempt + 1}), aguardando ${VISION_RETRY_WAITS_MS[attempt] / 1000}s`);
+        await new Promise((r) => setTimeout(r, VISION_RETRY_WAITS_MS[attempt]));
+      }
+    }
+  };
+  const next = visionChain.then(run, run);
+  visionChain = next.catch(() => undefined).then(() => new Promise((r) => setTimeout(r, VISION_PAUSE_MS)));
+  return next;
+}
+
 export async function analyzeCreativeAsset(assetId: string): Promise<void> {
   const pool = getPool();
 
@@ -279,7 +310,7 @@ export async function analyzeCreativeAsset(assetId: string): Promise<void> {
 
     let result: CreativeAnalysisResult;
     try {
-      result = await callVisionLlm(imageBase64, mimeType, llmCfg, visionPrompt);
+      result = await runVisionQueued(() => callVisionLlm(imageBase64, mimeType, llmCfg, visionPrompt));
     } catch (visionErr: any) {
       console.warn('[CreativeAnalysis] Vision falhou:', visionErr.message);
 

@@ -68,10 +68,12 @@ interface CampaignData {
   name: string;
   objective: string;
   status: string;
+  /** IDs publicados na rede. Sem eles, a campanha nunca foi publicada (é um rascunho). */
+  externalId?: string | null;
+  metaCampaignId?: string | null;
   lifecycleStatus?: string | null;
   funnelStage?: string | null;
   specialAdCategory?: string | null;
-  metaCampaignId?: string | null;
   // Código real da rede (meta/google/tiktok...), resolvido no servidor via ad_networks —
   // nunca mais assumir "Meta Ads" fixo (ver networkLabel() mais abaixo).
   networkCode?: string;
@@ -285,6 +287,121 @@ function badgeCls(tone: BadgeTone, isDark: boolean): string {
 
 // ── Status Badge ──────────────────────────────────────────────────
 // Values come from DB; status = Campaign.status | lifecycle_status
+
+/**
+ * Badge de status com ação de ativar/pausar. Campanha PAUSADA mostra "Ativar" (começa a
+ * veicular e gastar verba); ATIVA mostra "Pausar". A rota de status propaga para campanha,
+ * conjuntos e anúncios, tanto no banco quanto na rede de anúncios.
+ */
+function CampaignStatusControl({ campaignId, status, isDraft = false, onDeleted, isDark = false }: { campaignId: string; status: string; isDraft?: boolean; onDeleted?: () => void; isDark?: boolean }) {
+  const [current, setCurrent] = useState(status);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => { setCurrent(status); }, [status]);
+
+  const next = current === 'ACTIVE' ? 'PAUSED' : current === 'PAUSED' ? 'ACTIVE' : null;
+
+  async function toggle() {
+    if (!next) return;
+    if (next === 'ACTIVE' && !window.confirm('Ativar esta campanha? Ela começa a veicular e gastar verba imediatamente.')) return;
+    setBusy(true);
+    setErr('');
+    try {
+      const res = await adminFetch(`/api/admin/campanhas/campaigns/${campaignId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: next }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `Erro ${res.status}`);
+      setCurrent(next);
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <StatusBadge status={current} isDark={isDark} />
+      {next && (
+        <button
+          type="button"
+          onClick={toggle}
+          disabled={busy}
+          className={cn(
+            'px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest disabled:opacity-50',
+            next === 'ACTIVE'
+              ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+              : 'bg-amber-500 text-white hover:bg-amber-600',
+          )}
+        >
+          {busy ? '...' : next === 'ACTIVE' ? 'Ativar' : 'Pausar'}
+        </button>
+      )}
+      {isDraft && (
+        <button
+          type="button"
+          onClick={removeDraft}
+          disabled={busy}
+          className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50"
+          title="Exclui o rascunho. Só aparece para campanhas que nunca foram publicadas na rede."
+        >
+          Excluir rascunho
+        </button>
+      )}
+      {current !== 'ARCHIVED' && !isDraft && (
+        <button
+          type="button"
+          onClick={archive}
+          disabled={busy}
+          className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-50"
+          title="Pausa na rede e arquiva. Some da lista padrão, mas o histórico é mantido."
+        >
+          Arquivar
+        </button>
+      )}
+      {err && <span className="text-[10px] text-red-500" title={err}>erro</span>}
+    </span>
+  );
+
+  async function removeDraft() {
+    if (!window.confirm('Excluir este rascunho? Ele nunca foi publicado na rede. A exclusão não pode ser desfeita.')) return;
+    setBusy(true);
+    setErr('');
+    try {
+      const res = await adminFetch(`/api/admin/campanhas/campaigns/${campaignId}`, { method: 'DELETE' });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `Erro ${res.status}`);
+      onDeleted?.();
+    } catch (e: any) {
+      setErr(e.message);
+      setBusy(false);
+    }
+  }
+
+  async function archive() {
+    if (!window.confirm('Arquivar esta campanha? Ela será pausada na Meta e arquivada. Some da lista padrão, mas o histórico de leads e métricas é mantido.')) return;
+    setBusy(true);
+    setErr('');
+    try {
+      const res = await adminFetch(`/api/admin/campanhas/campaigns/${campaignId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'ARCHIVED' }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `Erro ${res.status}`);
+      setCurrent('ARCHIVED');
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+}
 
 function StatusBadge({ status, isDark = false }: { status: string; isDark?: boolean }) {
   const cfg: Record<string, { label: string; tone: BadgeTone }> = {
@@ -1076,7 +1193,7 @@ function ScheduleDisplay({
 
 // ── Campaign Card ─────────────────────────────────────────────────
 
-function CampaignCard({ campaign, index, isDark = false }: { campaign: CampaignData; index: number; isDark?: boolean }) {
+function CampaignCard({ campaign, index, isDark = false, onDeleted }: { campaign: CampaignData; index: number; isDark?: boolean; onDeleted?: () => void }) {
   const [interestsExpanded, setInterestsExpanded] = useState(false);
   // FASE 14/14d — ângulo + fonte editáveis localmente sem recarregar a lista
   const [localAngle, setLocalAngle]             = useState<string | null>(campaign.declaredAngle ?? null);
@@ -1113,7 +1230,15 @@ function CampaignCard({ campaign, index, isDark = false }: { campaign: CampaignD
         {/* Badges row */}
         <div className="flex items-start justify-between gap-2 mb-2.5">
           <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
-            <StatusBadge status={campaign.status} isDark={isDark} />
+            <CampaignStatusControl
+              campaignId={campaign.id}
+              status={campaign.status}
+              // Rascunho = nunca publicado na rede (sem ID externo). Lifecycle DRAFT NÃO conta:
+              // campanhas já publicadas e pausadas também ficam com lifecycle DRAFT.
+              isDraft={!campaign.externalId && !campaign.metaCampaignId}
+              onDeleted={onDeleted}
+              isDark={isDark}
+            />
             {campaign.lifecycleStatus && campaign.lifecycleStatus !== campaign.status && (
               <StatusBadge status={campaign.lifecycleStatus} isDark={isDark} />
             )}
@@ -1692,7 +1817,8 @@ export default function CampanhasModal({
 
   const filtered = campaigns.filter(c => {
     const matchSearch   = !search          || c.name.toLowerCase().includes(search.trim().toLowerCase());
-    const matchStatus   = !statusFilter    || c.status === statusFilter;
+    // Arquivadas ficam fora da lista padrão; aparecem só quando o filtro de status pede por elas.
+    const matchStatus   = statusFilter ? c.status === statusFilter : c.status !== 'ARCHIVED';
     const matchNetwork  = !networkFilter   || (c.networkCode ?? 'meta') === networkFilter;
     const matchCampaign = !campaignIdFilter || c.id === campaignIdFilter;
     const matchPeriod   = overlapsPeriod(c);
@@ -2081,7 +2207,13 @@ export default function CampanhasModal({
                   <>
                     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                       {paginated.map((campaign, i) => (
-                        <CampaignCard key={campaign.id} campaign={campaign} index={i} isDark={isDark} />
+                        <CampaignCard
+                          key={campaign.id}
+                          campaign={campaign}
+                          index={i}
+                          isDark={isDark}
+                          onDeleted={() => setCampaigns(prev => prev.filter(c => c.id !== campaign.id))}
+                        />
                       ))}
                     </div>
                     <Pagination

@@ -21,6 +21,9 @@ export interface NetworkInsight {
   frequency: number;
   conversions: number;
   leads: number;
+  // Sinais de WhatsApp reportados pela própria Meta (independem do nosso rastreio)
+  metaLinkClicks?: number;
+  metaConversationsStarted?: number;
   // FASE 5 — Video Metrics
   videoViews3s?: number;
   videoViews15s?: number;
@@ -64,6 +67,8 @@ export interface CreateCampaignInput {
   name: string;
   objective: string;
   specialAdCategory?: string;
+  /** true = nasce ATIVA na rede (gasta verba já). Padrão false = nasce PAUSADA, para revisão humana. */
+  launchNow?: boolean;
   /** Meta Pixel ID — para promoted_object. Derivado das credentials se não informado. */
   pixelId?: string;
   /** Tipo do evento de conversão (ex: LEAD, PURCHASE). Derivado do network_defaults do segmento. */
@@ -171,7 +176,7 @@ export interface AdNetworkService {
 
   createCampaign(input: CreateCampaignInput | GoogleCampaignInput): Promise<CreateCampaignResult>;
 
-  updateCampaignStatus(externalId: string, status: 'ACTIVE' | 'PAUSED'): Promise<void>;
+  updateCampaignStatus(externalId: string, status: 'ACTIVE' | 'PAUSED' | 'ARCHIVED'): Promise<void>;
 
   /** `customMetrics` (Catálogo de Métricas Dinâmico, Fase 2) é opcional e só o adapter da Meta
    * sabe usar hoje — a lista curada em segment_metric_catalog pro segmento do tenant/campanha. */
@@ -188,11 +193,31 @@ export interface AdNetworkService {
    *  que nunca passaram pelo nosso wizard (ex.: lançadas direto no Meta Ads Manager). Base
    *  da funcionalidade "Importar Campanhas Existentes" — ver /admin/campanhas/importar. */
   fetchAccountCampaigns?(): Promise<ExternalCampaignSummary[]>;
+
+  /** Opcional — lista os conjuntos de anúncios de UMA campanha real da rede, com localização. */
+  fetchCampaignAdSets?(externalCampaignId: string): Promise<ExternalAdSetSummary[]>;
 }
 
 /** Resumo de 1 campanha vista direto na API da rede, pra fluxo de importação (ver
  *  fetchAccountCampaigns acima) — deliberadamente mínimo, só o que basta pro usuário decidir
  *  se quer importar e pra criarmos a linha local de Campaign. */
+/** Conjunto de anúncios real de uma campanha na rede, com o direcionamento de localização
+ *  (geo_locations da Meta). Base do mapa de geolocalização de campanhas importadas. */
+export interface ExternalAdSetSummary {
+  externalId: string;
+  name: string;
+  dailyBudget: number;          // centavos
+  startTime: string | null;
+  endTime: string | null;
+  optimizationGoal: string;
+  billingEvent: string;
+  ageMin: number;
+  ageMax: number;
+  genders: number[];
+  /** Objeto bruto de localização da rede (ex.: Meta geo_locations: regions/cities/custom_locations). */
+  geoLocations: Record<string, any> | null;
+}
+
 export interface ExternalCampaignSummary {
   externalId: string;
   name: string;

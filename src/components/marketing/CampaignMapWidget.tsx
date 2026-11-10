@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { XMarkIcon, ArrowsPointingOutIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, ArrowsPointingOutIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { adminFetch } from '@/lib/auth/adminFetch';
 
 interface CampaignInfo {
   id: string;
@@ -170,6 +171,9 @@ export function CampaignMapWidget({ isDark, clientId, segmentId, startDate, endD
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState<string | null>(null);
   const [expanded, setExpanded]   = useState(false);
+  const [syncing, setSyncing]     = useState(false);
+  const [syncMsg, setSyncMsg]     = useState<string | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
   const mapRef              = useRef<HTMLDivElement>(null);
   const leafletRef          = useRef<any>(null);
   const expandedMapRef      = useRef<HTMLDivElement>(null);
@@ -206,7 +210,28 @@ export function CampaignMapWidget({ isDark, clientId, segmentId, startDate, endD
         setError(e.message);
         setLoading(false);
       });
-  }, [clientId, segmentId, startDate, endDate]);
+  }, [clientId, segmentId, startDate, endDate, reloadTick]);
+
+  // Relê da Meta a localização das campanhas importadas e recarrega o mapa.
+  async function syncLocations() {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const res = await adminFetch('/api/admin/campanhas/campaigns/sync-locations', { method: 'POST' });
+      const d = await res.json();
+      if (!res.ok || d.error) {
+        setSyncMsg(d.error ?? `Falha (HTTP ${res.status})`);
+      } else {
+        const failed = d.errors?.length ?? 0;
+        setSyncMsg(failed ? `${d.updated} de ${d.campaigns} atualizadas — ${failed} com erro` : `${d.updated} campanha(s) atualizada(s)`);
+        setReloadTick(t => t + 1);
+      }
+    } catch (e: any) {
+      setSyncMsg(e?.message ?? 'Falha ao atualizar');
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   // ── Initialize / update compact Leaflet map ────────────────────────────────
   useEffect(() => {
@@ -312,6 +337,22 @@ export function CampaignMapWidget({ isDark, clientId, segmentId, startDate, endD
           <div>
             <h3 className={`text-sm font-black ${tx}`}>Geolocalização das Campanhas</h3>
             <p className={`text-[10px] mt-0.5 ${txFaint}`}>Distribuição geográfica dos públicos-alvo</p>
+          </div>
+          <div className="flex flex-col items-end gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={syncLocations}
+              disabled={syncing}
+              className={`flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1.5 rounded-lg uppercase tracking-widest transition-colors disabled:opacity-60 ${
+                isDark ? 'bg-white/5 text-slate-300 hover:bg-white/10 border border-white/10'
+                       : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
+              }`}
+              title="Relê da Meta a localização dos conjuntos de anúncios das campanhas importadas"
+            >
+              <ArrowPathIcon className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Atualizando…' : 'Atualizar localização'}
+            </button>
+            {syncMsg && <span className={`text-[10px] ${txFaint}`}>{syncMsg}</span>}
           </div>
           {!loading && (
             <div className="flex gap-2 shrink-0">

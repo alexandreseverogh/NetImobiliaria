@@ -90,7 +90,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     // Verificar permissão de exclusão server-side
-    const denied = await requireApiPermission(request, 'campanhasmarketingdigital', 'DELETE');
+    // 'configuracoes-campanhas' é o recurso real do admin do tenant (ver rota de status).
+    const denied = await requireApiPermission(request, 'configuracoes-campanhas', 'DELETE');
     if (denied) return denied;
 
     const payload = getTokenPayload(request);
@@ -104,6 +105,24 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     if (!campaign) {
       return NextResponse.json({ error: 'Campanha não encontrada' }, { status: 404 });
+    }
+
+    // Exclusão física só para rascunhos: nunca publicada na rede e sem métricas.
+    // Campanha publicada precisa ser ARQUIVADA (ver rota de status), para não perder o histórico
+    // de leads e métricas, nem deixar uma campanha viva na Meta sem controle.
+    const publicada = Boolean((campaign as any).externalId || (campaign as any).metaCampaignId);
+    if (publicada) {
+      return NextResponse.json(
+        { error: 'Campanha já publicada na rede. Arquive-a em vez de excluir, para manter o histórico.' },
+        { status: 409 },
+      );
+    }
+    const temMetricas = await prisma.insight.count({ where: { campaignId: params.id } });
+    if (temMetricas > 0) {
+      return NextResponse.json(
+        { error: 'Campanha com métricas registradas. Arquive-a em vez de excluir.' },
+        { status: 409 },
+      );
     }
 
     await prisma.campaign.delete({ where: { id: params.id } });

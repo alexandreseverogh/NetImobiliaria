@@ -214,6 +214,9 @@ model Insight {
   videoViews       Int?
   // FASE 5 — Video Metrics
   videoViews3s     Int      @default(0) @map("video_views_3s")
+  // Sinais de WhatsApp reportados pela Meta (ver migration-2026-11-10-insight-meta-whatsapp-signals)
+  metaLinkClicks            Int @default(0) @map("meta_link_clicks")
+  metaConversationsStarted  Int @default(0) @map("meta_conversations_started")
   videoViews15s    Int      @default(0) @map("video_views_15s")
   videoViews25Pct  Int      @default(0) @map("video_views_25_pct")
   videoViews50Pct  Int      @default(0) @map("video_views_50_pct")

@@ -103,6 +103,8 @@ export interface InsightData {
   ctr: number;
   conversions: number;
   frequency: number;
+  metaLinkClicks?: number;
+  metaConversationsStarted?: number;
   // FASE 5 — Video Metrics
   videoViews3s?: number;
   videoViews15s?: number;
@@ -446,6 +448,8 @@ export interface DashboardFullData {
   // Subconjunto de availableNetworks que NÃO está mais contratado pelo tenant agora — dado
   // histórico continua contando nos cálculos (nunca escondido retroativamente), só avisa.
   discontinuedNetworks?: string[];
+  // Sinais de WhatsApp reportados pela própria Meta (independem do nosso rastreio de cliques)
+  metaSignals?: { linkClicks: number; conversationsStarted: number; cpl: number | null };
   funnelData: FunnelData;
 }
 

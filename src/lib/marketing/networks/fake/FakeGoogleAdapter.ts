@@ -53,7 +53,7 @@ export class FakeGoogleAdapter extends GoogleAdsAdapter {
     };
   }
 
-  async updateCampaignStatus(externalId: string, status: 'ACTIVE' | 'PAUSED'): Promise<void> {
+  async updateCampaignStatus(externalId: string, status: 'ACTIVE' | 'PAUSED' | 'ARCHIVED'): Promise<void> {
     // no-op — nenhuma rede real por trás do fake
   }
 

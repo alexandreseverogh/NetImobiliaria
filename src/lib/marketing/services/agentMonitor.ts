@@ -318,6 +318,9 @@ export async function syncCampaignInsights(
       // não tinha sido notado porque os dados de teste desta sessão sempre vieram de seed SQL
       // (que grava a coluna direto), nunca de um sync real passando por aqui.
       conversions:      day.conversions ?? 0,
+      // Sinais de WhatsApp reportados pela Meta (cliques no anúncio e conversas iniciadas)
+      metaLinkClicks:            day.metaLinkClicks            ?? 0,
+      metaConversationsStarted:  day.metaConversationsStarted  ?? 0,
       // FASE 5 — Video Metrics
       videoViews3s:     day.videoViews3s     ?? 0,
       videoViews15s:    day.videoViews15s    ?? 0,

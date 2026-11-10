@@ -4,6 +4,7 @@ import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { requireApiPermission } from '@/lib/auth/apiPermissions';
 import { getNetworkServiceForTenant } from '@/lib/marketing/networks/factory';
 import type { ExternalCampaignSummary, NetworkCode } from '@/lib/marketing/networks/types';
+import { syncCampaignAdSets } from '@/lib/marketing/services/importedAdSetsSync';
 
 export const dynamic = 'force-dynamic';
 
@@ -129,7 +130,9 @@ export async function POST(request: NextRequest) {
     `;
     const networkId = netRes[0]?.id ?? null;
 
-    const resolvedClientId = !clientId || clientId === 'own' ? null : clientId;
+    // 'own' = Minha Empresa; 'segment' = Todos os Clientes (sentinela de UI, nunca um UUID).
+    // Gravar qualquer um desses como clientId estourava o uuid no banco.
+    const resolvedClientId = !clientId || clientId === 'own' || clientId === 'segment' ? null : clientId;
 
     const created = await prisma.campaign.create({
       data: {
@@ -147,7 +150,18 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ campaign: created }, { status: 201 });
+    // Espelha os conjuntos de anúncios com a localização real (alimenta o mapa). Best-effort:
+    // falha de leitura não desfaz a importação — o botão "Atualizar localização" reexecuta.
+    let adSetsSynced = 0;
+    try {
+      const service = await getNetworkServiceForTenant(tenantId, network, resolvedClientId);
+      const r = await syncCampaignAdSets(created.id, externalId, service);
+      adSetsSynced = r.adSets;
+    } catch (e: any) {
+      console.warn('[import] sync de conjuntos de anúncios falhou:', e?.message);
+    }
+
+    return NextResponse.json({ campaign: created, adSetsSynced }, { status: 201 });
   } catch (err: any) {
     if (err?.code === 'P2002') {
       return NextResponse.json({ error: 'Esta campanha já foi importada.' }, { status: 409 });

@@ -86,7 +86,7 @@ export function CommandCenterView({
   const leadsByCampaign = data.leadsByCampaign || {};
 
   // Health Score — Hook Rate (vídeo) + tendência REAL de CPL, calculada em cima da MESMA série
-  // que o gráfico "Evolução (Gasto vs Leads)" já mostra (chartData: spend + conversions por
+  // que o gráfico "Evolução das Campanhas" já mostra (chartData: spend + conversions por
   // dia) — antes usava a contagem de Lead da tabela separada, uma fonte DIFERENTE da que o
   // gráfico plota, o que já é uma inconsistência à parte.
   //
@@ -169,7 +169,7 @@ export function CommandCenterView({
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
       {/* ── Top Level KPIs (Macro) ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 2xl:[grid-template-columns:repeat(14,minmax(0,1fr))] gap-2 2xl:gap-1.5">
         <KpiCard isDark={isDark} label="Campanhas Ativas" value={String(activeCampaigns)} color={isDark ? 'text-emerald-400' : 'text-emerald-600'} />
         <KpiCard isDark={isDark} label="Gasto Total" value={formatCurrencyCompact(t.spend)} fullValue={formatCurrency(t.spend)} delta={d?.spend} color={isDark ? 'text-slate-100' : 'text-slate-900'} invertDelta 
           breakdown={
@@ -195,6 +195,15 @@ export function CommandCenterView({
               : undefined
           }
         />
+        <KpiCard isDark={isDark} label="CPL (Meta)" value={data.metaSignals?.cpl != null ? formatCurrencyCompact(data.metaSignals.cpl) : '—'} fullValue={data.metaSignals?.cpl != null ? formatCurrency(data.metaSignals.cpl) : '—'} color={isDark ? 'text-teal-400' : 'text-teal-600'} tooltip="Gasto Meta ÷ conversas iniciadas no WhatsApp (sinal reportado pela própria Meta)" />
+        <KpiCard isDark={isDark} label="Impressões" value={formatNumber(t.impressions || 0)} delta={d?.impressions} color={isDark ? 'text-blue-400' : 'text-blue-600'} />
+        <KpiCard isDark={isDark} label="Alcance" value={formatNumber(t.reach || 0)} delta={d?.reach} color={isDark ? 'text-cyan-400' : 'text-cyan-600'} />
+        <KpiCard isDark={isDark} label="Cliques" value={formatNumber(t.clicks || 0)} delta={d?.clicks} color={isDark ? 'text-emerald-400' : 'text-emerald-600'} />
+        <KpiCard isDark={isDark} label="CPC" value={formatCurrencyCompact(t.cpc || 0)} fullValue={formatCurrency(t.cpc || 0)} delta={d?.cpc} color={isDark ? 'text-orange-400' : 'text-orange-600'} invertDelta />
+        <KpiCard isDark={isDark} label="CPM" value={formatCurrencyCompact(t.cpm || 0)} fullValue={formatCurrency(t.cpm || 0)} delta={d?.cpm} color={isDark ? 'text-violet-400' : 'text-violet-600'} invertDelta />
+        <KpiCard isDark={isDark} label="Conversões" value={formatNumber(t.conversions || 0)} delta={d?.conversions} color={isDark ? 'text-pink-400' : 'text-pink-600'} />
+        <KpiCard isDark={isDark} label="Cliques WhatsApp (Meta)" value={formatNumber(data.metaSignals?.linkClicks || 0)} color={isDark ? 'text-emerald-400' : 'text-emerald-600'} tooltip="Cliques no link reportados pela Meta" />
+        <KpiCard isDark={isDark} label="Conversas iniciadas (Meta)" value={formatNumber(data.metaSignals?.conversationsStarted || 0)} color={isDark ? 'text-sky-400' : 'text-sky-600'} tooltip="Conversas iniciadas no WhatsApp reportadas pela Meta (7 dias)" />
         {hookRate !== null ? (
           <HookRateKpiCard isDark={isDark} value={hookRate} color={isDark ? 'text-amber-400' : 'text-amber-600'} benchmarks={hookRateBenchmarks} />
         ) : (
@@ -209,7 +218,7 @@ export function CommandCenterView({
         <div className={cn('lg:col-span-2 p-6 rounded-3xl border flex flex-col', cardBase, isDark ? 'border-[rgba(255,255,255,0.05)]' : 'border-slate-200')}>
           <div className="flex items-center justify-between mb-4">
              <div>
-               <h3 className={cn('text-base font-black', tx)}>Evolução (Gasto vs Leads)</h3>
+               <h3 className={cn('text-base font-black', tx)}>Evolução das Campanhas</h3>
                <p className={cn('text-xs', txMuted)}>{periodLabel}</p>
              </div>
           </div>
@@ -218,9 +227,13 @@ export function CommandCenterView({
               data={chartData} 
               xKey="date"
               height={250}
+              yLeftLabel="Gasto em R$"
+              yRightLabel="Quantidade"
               metrics={[
                 { key: 'spend', label: 'Gasto', color: isDark ? '#6366f1' : '#4f46e5', type: 'area', yAxisId: 'left', formatter: (v: number) => formatCurrency(v) },
-                { key: 'conversions', label: 'Leads', color: isDark ? '#34d399' : '#10b981', type: 'line', yAxisId: 'right' }
+                { key: 'conversions', label: 'Leads', color: isDark ? '#34d399' : '#10b981', type: 'line', yAxisId: 'right' },
+                { key: 'metaLinkClicks', label: 'Cliques WhatsApp (Meta)', color: isDark ? '#22d3ee' : '#0891b2', type: 'line', yAxisId: 'right' },
+                { key: 'metaConversationsStarted', label: 'Conversas iniciadas (Meta)', color: isDark ? '#f472b6' : '#db2777', type: 'line', yAxisId: 'right' }
               ]} 
               isDark={isDark} 
             />

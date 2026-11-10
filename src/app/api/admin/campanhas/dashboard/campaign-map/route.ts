@@ -96,6 +96,57 @@ function resolveCoords(key: string): [number, number] | null {
   return null;
 }
 
+// Estado (nome normalizado, sem acento) → UF. A Meta devolve regiões/cidades pelo NOME do
+// estado (ex.: region "Pernambuco"), não pela sigla.
+const UF_BY_STATE_NAME: Record<string, string> = {
+  'acre': 'AC', 'alagoas': 'AL', 'amapa': 'AP', 'amazonas': 'AM', 'bahia': 'BA', 'ceara': 'CE',
+  'distrito federal': 'DF', 'espirito santo': 'ES', 'goias': 'GO', 'maranhao': 'MA',
+  'mato grosso': 'MT', 'mato grosso do sul': 'MS', 'minas gerais': 'MG', 'para': 'PA',
+  'paraiba': 'PB', 'parana': 'PR', 'pernambuco': 'PE', 'piaui': 'PI', 'rio de janeiro': 'RJ',
+  'rio grande do norte': 'RN', 'rio grande do sul': 'RS', 'rondonia': 'RO', 'roraima': 'RR',
+  'santa catarina': 'SC', 'sao paulo': 'SP', 'sergipe': 'SE', 'tocantins': 'TO',
+};
+
+function normName(s: string): string {
+  return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+}
+
+/** Coordenadas de uma cidade pelo nome (sem acento) dentro da UF; cai no centro da UF. */
+function resolveCityCoords(uf: string, cityName: string): [number, number] | null {
+  const target = normName(cityName);
+  for (const [key, coords] of Object.entries(REGION_COORDS)) {
+    const parts = key.split(':');
+    if (parts.length === 3 && parts[0] === 'BR' && parts[1] === uf && normName(parts[2]) === target) return coords;
+  }
+  return REGION_COORDS[`BR:${uf}`] ?? null;
+}
+
+/**
+ * Converte o geo_locations da Meta (regions/cities/countries) em pontos plotáveis.
+ * Cidades usam o raio da Meta (em km; milhas são convertidas). Cidade sem UF conhecida é ignorada.
+ */
+function metaGeoPoints(geo: any): Array<{ key: string; name: string; lat: number; lng: number; radius?: number }> {
+  const out: Array<{ key: string; name: string; lat: number; lng: number; radius?: number }> = [];
+  for (const r of Array.isArray(geo?.regions) ? geo.regions : []) {
+    const uf = UF_BY_STATE_NAME[normName(r?.name)];
+    const c = uf ? REGION_COORDS[`BR:${uf}`] : null;
+    if (c) out.push({ key: `BR:${uf}`, name: r.name, lat: c[0], lng: c[1] });
+  }
+  for (const ci of Array.isArray(geo?.cities) ? geo.cities : []) {
+    const uf = UF_BY_STATE_NAME[normName(ci?.region)];
+    if (!uf) continue;
+    const c = resolveCityCoords(uf, ci?.name || '');
+    if (!c) continue;
+    const km = ci.radius ? (ci.distance_unit === 'mile' ? ci.radius * 1.609 : ci.radius) : undefined;
+    out.push({ key: `BR:${uf}:${ci.name}`, name: ci.name, lat: c[0], lng: c[1], radius: km });
+  }
+  // Brasil inteiro (sem regiões/cidades específicas): um ponto central.
+  if (out.length === 0 && Array.isArray(geo?.countries) && geo.countries.includes('BR')) {
+    out.push({ key: 'BR', name: 'Brasil', lat: REGION_COORDS['BR'][0], lng: REGION_COORDS['BR'][1] });
+  }
+  return out;
+}
+
 export interface CampaignMapLocation {
   name: string;
   lat: number;
@@ -215,7 +266,7 @@ export async function GET(request: NextRequest) {
     }
 
     for (const row of result.rows) {
-      const loc = row.locations as any;
+      const loc = (row.locations as any) || {};
       const campaign = {
         id:     row.campaign_id as string,
         name:   row.campaign_name as string,
@@ -235,6 +286,26 @@ export async function GET(request: NextRequest) {
             lng:    cl.longitude,
             radius: cl.radius,
           }, campaign);
+        }
+        continue;
+      }
+
+      // Format 2b: places da Meta (lugar específico com lat/lng e raio) — formato real observado
+      if (Array.isArray(loc.places)) {
+        for (const pl of loc.places) {
+          if (typeof pl?.latitude !== 'number' || typeof pl?.longitude !== 'number') continue;
+          const km = pl.radius ? (pl.distance_unit === 'mile' ? pl.radius * 1.609 : pl.radius) : undefined;
+          addCampaignToLocation(`${pl.latitude.toFixed(4)},${pl.longitude.toFixed(4)}`, {
+            name: pl.name || 'Local', lat: pl.latitude, lng: pl.longitude, radius: km,
+          }, campaign);
+        }
+        continue;
+      }
+
+      // Format 3: geo_locations da Meta (regions/cities/countries) — formato real dos conjuntos
+      if (Array.isArray(loc.regions) || Array.isArray(loc.cities) || Array.isArray(loc.countries)) {
+        for (const p of metaGeoPoints(loc)) {
+          addCampaignToLocation(p.key, { name: p.name, lat: p.lat, lng: p.lng, radius: p.radius }, campaign);
         }
         continue;
       }

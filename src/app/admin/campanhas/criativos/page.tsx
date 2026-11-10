@@ -889,6 +889,7 @@ function AssetCard({
   onGenerate:  (asset: CreativeAsset) => void;
 }) {
   const [imgErr, setImgErr] = useState(false);
+  const [sceneOpen, setSceneOpen] = useState(false);
   const status = asset.analysis_status ?? 'pending';
 
   return (
@@ -977,9 +978,15 @@ function AssetCard({
 
         {/* Scene description */}
         {status === 'done' && asset.scene_description && (
-          <p className="text-[10px] text-slate-500 leading-relaxed line-clamp-2">
-            {asset.scene_description}
-          </p>
+          <button
+            type="button"
+            onClick={() => setSceneOpen(v => !v)}
+            className="block w-full text-left text-[10px] text-slate-500 leading-relaxed hover:text-slate-700"
+            aria-expanded={sceneOpen}
+          >
+            <span className={sceneOpen ? '' : 'line-clamp-2'}>{asset.scene_description}</span>
+            <span className="mt-0.5 block font-bold text-slate-400">{sceneOpen ? 'ver menos' : 'ver mais'}</span>
+          </button>
         )}
 
         {/* Footer */}
