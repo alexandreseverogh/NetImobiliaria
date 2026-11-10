@@ -23,7 +23,7 @@ interface AdminSidebarProps {
   user: AdminUser
   onLogout: () => Promise<void>
   systemId?: string
-  theme?: { mode: 'light' | 'dark'; primaryColor: string; secondaryColor?: string; tenantName?: string }
+  theme?: { mode: 'light' | 'dark'; primaryColor: string; secondaryColor?: string; tenantName?: string; logo?: string | null }
   menuItems?: SidebarMenuWithChildren[]
   loading?: boolean
   error?: string | null
@@ -388,22 +388,20 @@ export default function AdminSidebar({
           sticky h-16 (64px) e ocupa espaço normal de documento — h-screen aqui somaria +64px
           além da viewport, criando scroll fantasma na janela inteira do painel admin. */}
       <aside className={`hidden lg:flex lg:w-80 lg:flex-col lg:flex-shrink-0 h-[calc(100vh-4rem)] sticky top-16 ${sidebarBg} overflow-hidden shadow-sm`}>
-        <div className="px-6 py-10 flex items-center group cursor-pointer border-b border-gray-50">
-          <div 
-            className="flex-shrink-0 h-12 w-12 rounded-2xl flex items-center justify-center text-white font-black italic text-2xl shadow-xl transition-all duration-500 group-hover:scale-110 group-hover:rotate-3"
-            style={{ 
-              backgroundColor: activeTheme.primaryColor,
-              boxShadow: `0 8px 20px -4px ${activeTheme.primaryColor}66`
-            }}
-          >
-            {activeTheme.tenantName?.charAt(0).toUpperCase() || 'N'}
-          </div>
-          <div className="ml-4 overflow-hidden">
+        <div className="px-6 py-10 flex items-center justify-between gap-3 group cursor-pointer border-b border-gray-50">
+          <div className="overflow-hidden min-w-0">
              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 mb-0.5">Unidade Logada</p>
              <h2 className="text-sm font-black uppercase italic tracking-tighter text-gray-900 truncate leading-tight group-hover:text-blue-600 transition-colors">
                {activeTheme.tenantName || 'Net Imobiliária'}
              </h2>
           </div>
+          {/* Logomarca do tenant logado (à direita do nome). Sem logo próprio, cai na
+              logomarca compacta da plataforma — nunca fica um quadrado vazio. */}
+          <img
+            src={activeTheme.logo || '/Assets/artemis9/artemis9_logo_sidebar_compacta.png'}
+            alt={activeTheme.tenantName || 'Logomarca'}
+            className="flex-shrink-0 h-10 w-auto max-w-[7.5rem] object-contain transition-transform duration-500 group-hover:scale-105"
+          />
         </div>
 
         {canReorderMenu && menuItems.length > 1 && (

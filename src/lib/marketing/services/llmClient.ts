@@ -208,10 +208,18 @@ async function makeAnthropicClient(apiKey: string, model: string): Promise<LlmCl
  */
 async function postChatCompletion(baseURL: string, apiKey: string, body: Record<string, unknown>): Promise<any> {
   const url = `${baseURL.replace(/\/+$/, '')}/chat/completions`;
+  // Limite explícito: sem ele, um provider lento/sem resposta deixava a requisição pendente
+  // para sempre (botão "Testar" travado em "TESTANDO..."). 60s é folga para LLM lento.
   const res = await fetch(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(60_000),
+  }).catch((err: any) => {
+    if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
+      throw new Error('O provider de IA não respondeu em 60 segundos. Tente novamente ou troque de modelo.');
+    }
+    throw err;
   });
   const text = await res.text();
   if (!res.ok) {

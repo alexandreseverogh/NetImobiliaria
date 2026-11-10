@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/database/connection';
 import { verifyTokenNode } from '@/lib/auth/jwt-node';
+import { resolveTenantLogo } from '@/lib/tenant/resolveTenantLogo';
 
 // ============================================================
 // GET /api/admin/sidebar/menu
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
       const result = await pool.query(query, [userId, systemId, tenantId]);
 
       // 4. Buscar Tema configurado para este tenant ou sistema
-      let theme = { mode: 'light', primaryColor: '#2563eb', secondaryColor: '#F1F1F1', tenantName: 'Net Imobiliária' };
+      let theme: { mode: string; primaryColor: string; secondaryColor: string; tenantName: string; logo: string | null } = { mode: 'light', primaryColor: '#2563eb', secondaryColor: '#F1F1F1', tenantName: 'Net Imobiliária', logo: null };
       
       if (tenantId) {
         const tenantThemeQuery = `
@@ -56,7 +57,8 @@ export async function GET(request: NextRequest) {
             mode: 'light', // Por enquanto fixo light, mas pode ser expandido
             primaryColor: t.primary_color || '#2563eb',
             secondaryColor: t.secondary_color || '#F1F1F1',
-            tenantName: t.name
+            tenantName: t.name,
+            logo: await resolveTenantLogo(tenantId),
           };
         }
       }

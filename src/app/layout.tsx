@@ -7,6 +7,10 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'Imovtec',
   description: 'Sistema de gestão imobiliária Imovitec',
+  icons: {
+    icon: '/Assets/artemis9/artemis9_favicon_256.png',
+    apple: '/Assets/artemis9/artemis9_favicon_256.png',
+  },
 }
 
 export default function RootLayout({
