@@ -3,6 +3,7 @@ import { prisma } from '@/lib/marketing/prisma';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { getNetworkServiceForTenant } from '@/lib/marketing/networks/factory';
 import { syncCampaignInsights } from '@/lib/marketing/services/agentMonitor';
+import { syncAdInsights } from '@/lib/marketing/services/adInsightsSync';
 import { getProvisionedNetworkCodes } from '@/lib/marketing/services/networkProvisioning';
 import { requireApiPermission } from '@/lib/auth/apiPermissions';
 import type { NetworkCode } from '@/lib/marketing/networks/types';
@@ -93,6 +94,11 @@ export async function POST(request: NextRequest) {
 
       try {
         const count = await syncCampaignInsights(networkService, campaign, externalId, since, until);
+        // Feedback por anúncio (rankings, retenção, conversas). Falha aqui não invalida a campanha.
+        if (networkCode === 'meta') {
+          try { await syncAdInsights(networkService, campaign.id, tenantId, since, until); }
+          catch (adErr: any) { console.warn('[sync] métricas por anúncio falharam:', adErr?.message); }
+        }
         bucket.synced += count;
         bucket.campaigns += 1;
         totalSynced += count;

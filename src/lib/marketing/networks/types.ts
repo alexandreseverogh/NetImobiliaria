@@ -196,11 +196,61 @@ export interface AdNetworkService {
 
   /** Opcional — lista os conjuntos de anúncios de UMA campanha real da rede, com localização. */
   fetchCampaignAdSets?(externalCampaignId: string): Promise<ExternalAdSetSummary[]>;
+
+  /** Opcional — lista os anúncios reais de uma campanha, com o texto do criativo. */
+  fetchCampaignAds?(externalCampaignId: string): Promise<ExternalAdSummary[]>;
+
+  /** Opcional — métricas diárias de um anúncio (nível anúncio, não campanha). */
+  fetchAdInsights?(externalAdId: string, since: string, until: string): Promise<ExternalAdInsightDay[]>;
+
+  /** Opcional — URLs em tamanho original para hashes de imagem (hash → URL). */
+  fetchAdImageUrls?(imageHashes: string[]): Promise<Record<string, string>>;
+
+  /** Opcional — imagens em tamanho original da publicação de origem. */
+  fetchPostImages?(storyId: string): Promise<string[]>;
 }
 
 /** Resumo de 1 campanha vista direto na API da rede, pra fluxo de importação (ver
  *  fetchAccountCampaigns acima) — deliberadamente mínimo, só o que basta pro usuário decidir
  *  se quer importar e pra criarmos a linha local de Campaign. */
+/** Métricas de UM anúncio num dia (feedback da rede sobre o criativo). */
+export interface ExternalAdInsightDay {
+  date: string;                 // YYYY-MM-DD
+  impressions: number;
+  reach: number;
+  clicks: number;
+  spend: number;
+  frequency: number;
+  messagingConversations: number;
+  qualityRanking: string | null;
+  engagementRateRanking: string | null;
+  conversionRateRanking: string | null;
+  videoViews3s: number;
+  videoViewsP25: number;
+  videoViewsP50: number;
+  videoViewsP75: number;
+  videoViewsP100: number;
+}
+
+/** Anúncio real de uma campanha na rede, com o texto do criativo (espelho local em Ad). */
+export interface ExternalAdSummary {
+  externalId: string;
+  externalAdSetId: string;
+  name: string;
+  status: string;
+  creativeType: 'IMAGE' | 'VIDEO' | 'CAROUSEL';
+  headline: string | null;
+  body: string;
+  ctaType: string | null;
+  linkUrl: string | null;
+  /** URLs temporárias das imagens/miniaturas (uma por cartão, no carrossel). Expiram: baixar e guardar. */
+  imageUrls: string[];
+  /** Hashes das imagens (uma por cartão). Permitem buscar a versão em tamanho original. */
+  imageHashes: string[];
+  /** ID da publicação de origem do anúncio (para buscar a imagem original quando não há hash). */
+  storyId: string | null;
+}
+
 /** Conjunto de anúncios real de uma campanha na rede, com o direcionamento de localização
  *  (geo_locations da Meta). Base do mapa de geolocalização de campanhas importadas. */
 export interface ExternalAdSetSummary {

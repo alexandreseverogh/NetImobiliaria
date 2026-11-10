@@ -48,6 +48,7 @@ const PALETTE_DARK  = ['#818cf8', '#34d399', '#fbbf24', '#f87171', '#60a5fa', '#
 const PALETTE_LIGHT = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#ec4899'];
 import { CommandCenterView } from '@/components/marketing/dashboard/CommandCenterView';
 import { AnalyticsView } from '@/components/marketing/dashboard/AnalyticsView';
+import { CreativesPerformanceView } from '@/components/marketing/dashboard/CreativesPerformanceView';
 import { DeepDiveView } from '@/components/marketing/dashboard/DeepDiveView';
 import { GoogleAdsView } from '@/components/marketing/dashboard/GoogleAdsView';
 import { CampaignsTable } from '@/components/marketing/dashboard/CampaignsTable';
@@ -100,7 +101,7 @@ function DashboardPage() {
   const [isDark, setIsDark]                 = useState(true); // dark by default
   // PARTE D1 — "GOOGLE" deixou de ser uma aba paralela; rede agora é filtro (ver networkFilter
   // abaixo). As 3 camadas de profundidade voltam a ser o único eixo de navegação.
-  const [activeLayer, setActiveLayer]       = useState<'COMMAND' | 'ANALYTICS' | 'DEEP_DIVE'>('COMMAND');
+  const [activeLayer, setActiveLayer]       = useState<'COMMAND' | 'ANALYTICS' | 'DEEP_DIVE' | 'CREATIVES'>('COMMAND');
 
   const [dateRange, setDateRange]           = useState(''); // sem período padrão: dados só após escolha explícita
   const [startDate, setStartDate]           = useState('');
@@ -865,6 +866,12 @@ function DashboardPage() {
             >
                Inteligência Profunda
             </button>
+            <button
+               onClick={() => setActiveLayer('CREATIVES')}
+               className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-colors', activeLayer === 'CREATIVES' ? 'bg-gold-premium text-navy-dark' : (isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'))}
+            >
+               Criativos
+            </button>
           </div>
         </div>
 
@@ -982,6 +989,10 @@ function DashboardPage() {
         {/* Fecha activeLayer !== COMMAND */}
         </>
         )}
+        {hasPeriod && activeLayer === 'CREATIVES' && (
+          <CreativesPerformanceView isDark={isDark} periodDays={effectivePeriodDays} clientFilter={clientFilter} />
+        )}
+
         {/* Fecha {activeSegment && <> ... </>} */}
         </>}
       </div>
