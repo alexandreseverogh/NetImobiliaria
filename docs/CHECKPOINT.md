@@ -15932,3 +15932,24 @@ Segregado em 2 estágios. Ver `docs/PLANO_ACAO_MESTRE_EVOLUCAO_PLATAFORMA.md` se
 - `docs/PLANO_ACAO_MESTRE_EVOLUCAO_PLATAFORMA.md` — Plano completo das 11 fases (versão 1.3.1)
 - `docs/ACCESS_CONTROL.md` — Lógica de controle de acesso e sidebar
 - `CLAUDE.md` — Documentação técnica principal (arquitetura, APIs, infra)
+
+## Histórico de mensagens na ficha do lead (decisão 2026-11-10)
+
+**Contexto:** testes do simulador revelaram que mensagem externa de contato que já tem lead
+atualiza só `updated_at` do lead, sem registrar histórico. Mensagens do próprio tenant (celular
+conectado, `fromMe=true`) agora são gravadas como `outbound`/`system` na conversa do destinatário,
+sem criar lead nem atribuição (corrigido em `src/app/api/public/evolution/webhook/route.ts`).
+
+**Decisões:**
+1. Histórico aparece **dentro da ficha do lead**, na seção de mensagens, junto de outros tipos de
+   atividade (visita presencial etc.).
+2. **Não gravar texto de mensagem em `atividades_lead`** — duplicaria a Mensageria, infla a tabela
+   e acopla o CRM ao canal.
+3. Desenho: tabela neutra `lead_timeline` guardando **referências** (`tipo_origem`, `origem_id`,
+   `occurred_at`), não conteúdo. A ficha lê a linha do tempo e busca o detalhe na fonte certa.
+4. **Tenant só-CRM não vê conversas de WhatsApp** (aceito pelo usuário). Só aparecem atividades.
+5. Nada hardcoded: o tipo de atividade "Mensagem WhatsApp" deve ser cadastrado por tenant em
+   `tipos_atividade`; se ausente, o histórico não é gravado, sem erro.
+
+**Pendente:** implementar `lead_timeline`, o vínculo de mensagens externas com o lead existente,
+e a leitura na ficha.
