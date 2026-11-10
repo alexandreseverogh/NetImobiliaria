@@ -332,7 +332,7 @@ export class GoogleAdsAdapter implements AdNetworkService {
     }
   }
 
-  async updateCampaignStatus(externalId: string, status: 'ACTIVE' | 'PAUSED'): Promise<void> {
+  async updateCampaignStatus(externalId: string, status: 'ACTIVE' | 'PAUSED' | 'ARCHIVED'): Promise<void> {
     console.log(`[GoogleAdsAdapter] Updating campaign ${externalId} to status ${status}`);
     try {
       const gStatus = status === 'ACTIVE' ? enums.CampaignStatus.ENABLED : enums.CampaignStatus.PAUSED;

@@ -140,7 +140,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
   /** Preenchido só após o POST /campaigns ter sucesso — troca o wizard pela tela de
    *  confirmação (LaunchSuccessScreen), que tenta mostrar o ângulo que a IA inferiu em vez de
    *  navegar embora sem o usuário nunca saber o que foi decidido. */
-  const [launched, setLaunched] = useState<{ assetIds: string[]; declaredAngle: string } | null>(null);
+  const [launched, setLaunched] = useState<{ assetIds: string[]; declaredAngle: string; launchNow: boolean } | null>(null);
 
   function handleExit() {
     if (!confirm('Sair agora descarta os dados preenchidos nesta campanha. Deseja continuar?')) return;
@@ -386,14 +386,14 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
     setStep(step + 1);
   }
 
-  function attemptSubmit() {
+  function attemptSubmit(launchNow = false) {
     if (validationErrors.length > 0) {
       const affectedSteps = new Set(validationErrors.map(e => e.step));
       setAttemptedSteps(prev => new Set([...Array.from(prev), ...Array.from(affectedSteps)]));
       setStep(Math.min(...Array.from(affectedSteps)));
       return;
     }
-    handleSubmit();
+    handleSubmit(launchNow);
   }
 
   function buildLocationsPayload(entries: LocationEntry[]) {
@@ -406,7 +406,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
     };
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(launchNow = false) {
     setSubmitting(true);
     try {
       // Build Meta API adset_schedule format
@@ -470,10 +470,12 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
         initiativeId:      form.initiativeId || undefined,    // vínculo opcional à iniciativa
         clientId:          clientId || undefined,
         assetIds:          assetIds.length > 0 ? assetIds : undefined,
+        // false = salva PAUSADA (ativar depois); true = lança já ATIVA (gasta verba)
+        launchNow,
       });
       // Troca pela tela de confirmação em vez de navegar embora na hora — é ela quem chama
       // onSuccess() quando o usuário clicar em continuar (ver LaunchSuccessScreen).
-      setLaunched({ assetIds, declaredAngle: form.declaredAngle || '' });
+      setLaunched({ assetIds, declaredAngle: form.declaredAngle || '', launchNow });
     } catch (err: any) {
       const msg = err?.response?.data?.error || err?.message || 'Erro ao criar campanha. Verifique os dados e tente novamente.';
       alert(msg);
@@ -487,6 +489,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
       <LaunchSuccessScreen
         assetIds={launched.assetIds}
         declaredAngle={launched.declaredAngle}
+        launchNow={launched.launchNow}
         allowedAngles={autoFields?.allowedAngles}
         onContinue={onSuccess}
       />
@@ -645,30 +648,49 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
                     : `${validationErrors.length} campos obrigatórios ainda precisam ser preenchidos.`}
                 </p>
               )}
-              <button
-                onClick={attemptSubmit}
-                disabled={submitting}
-                className={cn(
-                  'inline-flex items-center gap-2 px-8 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest transition-colors disabled:opacity-60',
-                  submitting
-                    ? 'bg-slate-400 text-white'
-                    : validationErrors.length > 0
-                      ? 'bg-red-50 text-red-500 border border-red-200 hover:bg-red-100'
-                      : 'bg-gold-premium text-navy-dark hover:bg-gold',
-                )}
-              >
-                {submitting ? (
-                  <>
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    Lançando...
-                  </>
-                ) : (
-                  <>
-                    <RocketLaunchIcon className="h-4 w-4" />
-                    Lançar Campanha
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-3">
+                {/* Salva a campanha PAUSADA: nada é veiculado até ser ativada pelo painel
+                    (botão "Ativar") ou no Gerenciador de Anúncios da Meta. */}
+                <button
+                  onClick={() => attemptSubmit(false)}
+                  disabled={submitting}
+                  className={cn(
+                    'inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest transition-colors disabled:opacity-60',
+                    submitting
+                      ? 'bg-slate-400 text-white'
+                      : validationErrors.length > 0
+                        ? 'bg-red-50 text-red-500 border border-red-200 hover:bg-red-100'
+                        : 'bg-white text-navy-dark border border-gold-premium hover:bg-gold-premium/10',
+                  )}
+                >
+                  Salvar (ativar depois)
+                </button>
+                {/* Lança já ATIVA: a Meta começa a veicular e gastar verba imediatamente. */}
+                <button
+                  onClick={() => attemptSubmit(true)}
+                  disabled={submitting}
+                  className={cn(
+                    'inline-flex items-center gap-2 px-8 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest transition-colors disabled:opacity-60',
+                    submitting
+                      ? 'bg-slate-400 text-white'
+                      : validationErrors.length > 0
+                        ? 'bg-red-50 text-red-500 border border-red-200 hover:bg-red-100'
+                        : 'bg-gold-premium text-navy-dark hover:bg-gold',
+                  )}
+                >
+                  {submitting ? (
+                    <>
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      Lançando...
+                    </>
+                  ) : (
+                    <>
+                      <RocketLaunchIcon className="h-4 w-4" />
+                      Lançar campanha
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -1997,8 +2019,8 @@ function StepReview({ form, selectedImages, autoFields, initiatives = [] }: any)
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <p className="text-sm text-amber-800">
-          A campanha será criada com status <span className="font-bold">PAUSADA</span>.
-          Ative manualmente após revisar no {networkLabel(form.networkCode)} Ads Manager.
+          <span className="font-bold">Salvar</span> deixa a campanha PAUSADA até você ativá-la.{' '}
+          <span className="font-bold">Lançar campanha</span> começa a veicular e gastar verba imediatamente no {networkLabel(form.networkCode)}.
         </p>
       </div>
     </div>
@@ -2038,11 +2060,13 @@ type AnglePollState =
 function LaunchSuccessScreen({
   assetIds,
   declaredAngle,
+  launchNow,
   allowedAngles,
   onContinue,
 }: {
   assetIds: string[];
   declaredAngle: string;
+  launchNow: boolean;
   allowedAngles?: { slug: string; label: string }[];
   onContinue: () => void;
 }) {
@@ -2123,7 +2147,11 @@ function LaunchSuccessScreen({
           </div>
           <h3 className="text-xl font-black text-gray-900">Campanha criada!</h3>
           <p className="text-sm text-gray-500 mt-1">
-            Lançada com status <span className="font-bold text-gray-700">PAUSADA</span> — revise e ative no gerenciador de anúncios quando estiver pronto.
+            {launchNow ? (
+              <>Lançada com status <span className="font-bold text-gray-700">ATIVA</span> — a veiculação começa agora.</>
+            ) : (
+              <>Salva com status <span className="font-bold text-gray-700">PAUSADA</span> — ative pelo painel ou no gerenciador de anúncios quando estiver pronto.</>
+            )}
           </p>
         </div>
 

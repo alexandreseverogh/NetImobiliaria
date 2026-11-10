@@ -429,6 +429,8 @@ function DashboardPage() {
       cpc: i.cpc ?? (i.clicks > 0 ? i.spend / i.clicks : 0),
       cpm: i.cpm ?? (i.impressions > 0 ? (i.spend / i.impressions) * 1000 : 0),
       conversions: i.conversions,
+      metaLinkClicks: i.metaLinkClicks ?? 0,
+      metaConversationsStarted: i.metaConversationsStarted ?? 0,
     })) || [];
 
   // CPL por dia vem de /dashboard/cpl (endpoint dedicado, cplTimelineService.ts) — antes era

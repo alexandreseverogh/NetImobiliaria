@@ -215,6 +215,32 @@ export class MetaAdsAdapter implements AdNetworkService {
    * (teto de 200 — além disso é caso raro o bastante pra não valer complicar com paginação
    * completa nesta 1ª versão; o usuário sempre pode filtrar/buscar as mais recentes).
    */
+  /** Conjuntos de anúncios reais de uma campanha, com o targeting de localização (geo_locations). */
+  async fetchCampaignAdSets(externalCampaignId: string): Promise<import('../types').ExternalAdSetSummary[]> {
+    const res = await axios.get(this.url(`${externalCampaignId}/adsets`), {
+      params: {
+        ...this.auth,
+        fields: 'id,name,daily_budget,start_time,end_time,optimization_goal,billing_event,targeting',
+        limit: 200,
+      },
+      timeout: 15000,
+    });
+    const rows = Array.isArray(res.data?.data) ? res.data.data : [];
+    return rows.map((r: any) => ({
+      externalId: String(r.id),
+      name: r.name || '(sem nome)',
+      dailyBudget: Number(r.daily_budget || 0),
+      startTime: r.start_time || null,
+      endTime: r.end_time || null,
+      optimizationGoal: r.optimization_goal || 'UNKNOWN',
+      billingEvent: r.billing_event || 'IMPRESSIONS',
+      ageMin: Number(r.targeting?.age_min ?? 18),
+      ageMax: Number(r.targeting?.age_max ?? 65),
+      genders: Array.isArray(r.targeting?.genders) ? r.targeting.genders : [],
+      geoLocations: r.targeting?.geo_locations ?? null,
+    }));
+  }
+
   async fetchAccountCampaigns(): Promise<import('../types').ExternalCampaignSummary[]> {
     const res = await axios.get(this.url(`act_${this.adAccountId}/campaigns`), {
       params: {
@@ -759,10 +785,11 @@ export class MetaAdsAdapter implements AdNetworkService {
     }
 
     // 2. Create campaign
+    const initialStatus = input.launchNow ? 'ACTIVE' : 'PAUSED';
     const campaignPayload: any = {
       name: input.name,
       objective: input.objective,
-      status: 'PAUSED',
+      status: initialStatus,
       special_ad_categories: input.specialAdCategory && input.specialAdCategory !== 'NONE'
         ? [input.specialAdCategory]
         : [],
@@ -799,7 +826,7 @@ export class MetaAdsAdapter implements AdNetworkService {
       optimization_goal: input.adSet.optimizationGoal,
       targeting,
       start_time:        new Date(input.adSet.startTime).toISOString(),
-      status:            'PAUSED',
+      status:            initialStatus,
       ...this.auth,
     };
 
@@ -897,7 +924,7 @@ export class MetaAdsAdapter implements AdNetworkService {
       name: ad.name,
       adset_id: externalAdSetId,
       creative: { creative_id: creativeId },
-      status: 'PAUSED',
+      status: initialStatus,
       ...this.auth,
     });
 
@@ -941,7 +968,7 @@ export class MetaAdsAdapter implements AdNetworkService {
     return null;
   }
 
-  async updateCampaignStatus(externalId: string, status: 'ACTIVE' | 'PAUSED'): Promise<void> {
+  async updateCampaignStatus(externalId: string, status: 'ACTIVE' | 'PAUSED' | 'ARCHIVED'): Promise<void> {
     await axios.post(this.url(externalId), { status, ...this.auth });
   }
 
@@ -956,9 +983,9 @@ export class MetaAdsAdapter implements AdNetworkService {
       // ROI + conversão (seção 1.6)
       'action_values', 'cost_per_action_type',
       'quality_ranking', 'engagement_rate_ranking', 'conversion_rate_ranking',
-      'link_clicks', 'landing_page_views',
+      // link_clicks / landing_page_views / visualização de 3s NÃO são campos válidos da Insights
+      // API (a Meta recusa com 400): vêm dentro de `actions`, como action_type.
       // FASE 5 — Video Metrics
-      'video_3_sec_watched_actions',
       'video_15_sec_watched_actions',
       'video_p25_watched_actions',
       'video_p50_watched_actions',
@@ -1008,8 +1035,12 @@ export class MetaAdsAdapter implements AdNetworkService {
         frequency:   parseFloat(row.frequency  || 0),
         conversions: parseInt(purchases),
         leads:       parseInt(leads),
+        // Sinais de WhatsApp reportados pela Meta (action_type dentro de `actions`)
+        metaLinkClicks:           parseInt(actions.find((a: any) => a.action_type === 'link_click')?.value || 0),
+        metaConversationsStarted: parseInt(actions.find((a: any) => a.action_type === 'onsite_conversion.messaging_conversation_started_7d')?.value || 0),
         // FASE 5 — Video Metrics
-        videoViews3s:     pickVideoAction(row.video_3_sec_watched_actions),
+        // Visualização de 3 segundos vem como action_type 'video_view' dentro de `actions`
+        videoViews3s:     parseInt(actions.find((a: any) => a.action_type === 'video_view')?.value || 0),
         videoViews15s:    pickVideoAction(row.video_15_sec_watched_actions),
         videoViews25Pct:  pickVideoAction(row.video_p25_watched_actions),
         videoViews50Pct:  pickVideoAction(row.video_p50_watched_actions),
@@ -1030,8 +1061,8 @@ export class MetaAdsAdapter implements AdNetworkService {
           quality_ranking:      row.quality_ranking,
           engagement_ranking:   row.engagement_rate_ranking,
           conversion_ranking:   row.conversion_rate_ranking,
-          link_clicks:          parseInt(row.link_clicks || 0),
-          landing_page_views:   parseInt(row.landing_page_views || 0),
+          link_clicks:          parseInt(actions.find((a: any) => a.action_type === 'link_click')?.value || 0),
+          landing_page_views:   parseInt(actions.find((a: any) => a.action_type === 'landing_page_view')?.value || 0),
           cost_per_lead:        leads > 0 ? parseFloat(row.spend || 0) / parseInt(leads) : null,
           roas:                 parseFloat(row.spend || 0) > 0
                                   ? parseFloat(purchaseValue) / parseFloat(row.spend || 1)

@@ -232,7 +232,18 @@ export async function GET(request: NextRequest) {
       {} as Record<string, { spend: number; leads: number; cpl: number | null }>,
     );
 
+    // Sinais de WhatsApp reportados pela própria Meta (no período). Separados dos leads internos
+    // de propósito: são a contagem da Meta, não a nossa atribuição. CPL da Meta = gasto / conversas.
+    const metaLinkClicks = (currentInsights as any[]).reduce((s, i) => s + (i.metaLinkClicks || 0), 0);
+    const metaConversationsStarted = (currentInsights as any[]).reduce((s, i) => s + (i.metaConversationsStarted || 0), 0);
+    const metaSignals = {
+      linkClicks: metaLinkClicks,
+      conversationsStarted: metaConversationsStarted,
+      cpl: metaConversationsStarted > 0 ? currentTotals.spend / metaConversationsStarted : null,
+    };
+
     return NextResponse.json({
+      metaSignals,
       currentPeriod: { insights: currentInsights, totals: currentTotals, leadCount: currentLeadCount },
       previousPeriod: { totals: prevTotals, leadCount: prevLeadCount },
       deltas,

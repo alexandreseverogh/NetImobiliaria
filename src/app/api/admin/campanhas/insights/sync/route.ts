@@ -24,7 +24,9 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: NextRequest) {
   try {
-    const denied = await requireApiPermission(request, 'campanhasmarketingdigital', 'EXECUTE');
+    // 'campanhasmarketingdigital' não é permissão real (só o Master passava). O sync é acionado
+    // pelo dashboard de campanhas, então usa o recurso dessa tela.
+    const denied = await requireApiPermission(request, 'dashboard-campanhas', 'EXECUTE');
     if (denied) return denied;
 
     const payload = getTokenPayload(request);
@@ -82,8 +84,10 @@ export async function POST(request: NextRequest) {
       let networkService: Awaited<ReturnType<typeof getNetworkServiceForTenant>>;
       try {
         networkService = await getNetworkServiceForTenant(tenantId, networkCode);
-      } catch {
-        bucket.errors.push('Credenciais não configuradas — configure em Configurações > Redes.');
+      } catch (credErr: any) {
+        // Mostra o motivo real (não só "não configuradas"): a resolução de credencial pode falhar
+        // por outro motivo, como um campo obrigatório ausente nas credenciais salvas.
+        bucket.errors.push(`Credenciais: ${credErr?.message || 'não configuradas'} — verifique em Configurações > Redes.`);
         continue;
       }
 
@@ -93,7 +97,10 @@ export async function POST(request: NextRequest) {
         bucket.campaigns += 1;
         totalSynced += count;
       } catch (err: any) {
-        bucket.errors.push(`${campaign.id.slice(0, 8)}: ${err.message}`);
+        // O axios devolve só "Request failed with status code 400". O motivo real da Meta
+        // (ex.: campo não suportado, ID inválido, token sem permissão) fica em response.data.
+        const metaMsg = err?.response?.data?.error?.message;
+        bucket.errors.push(`${campaign.id.slice(0, 8)}: ${metaMsg || err.message}`);
       }
     }
 

@@ -71,7 +71,12 @@ export async function GET(request: NextRequest) {
       SELECT
         a.id, a.original_name, a.storage_url, a.file_size, a.mime_type,
         a.campaign_id, a.ad_id, a.uploaded_at, a.ai_generated,
-        an.analysis_status,
+        -- Análise presa em 'running' há mais de 30 min = processo interrompido (ex.: servidor
+        -- reiniciou no meio). Exibe como erro, para o usuário poder reanalisar, em vez de
+        -- "Analisando..." para sempre. O limite é folgado porque itens aguardando a fila
+        -- Vision (uma análise por vez, com novas tentativas) também ficam em 'running'.
+        CASE WHEN an.analysis_status = 'running' AND an.analyzed_at < now() - interval '30 minutes'
+             THEN 'failed' ELSE an.analysis_status END AS analysis_status,
         an.hook_type, an.angle, an.emotional_tone, an.cta_style,
         an.has_people, an.has_property, an.has_text_overlay,
         an.is_ugc_style, an.is_corporate_style,

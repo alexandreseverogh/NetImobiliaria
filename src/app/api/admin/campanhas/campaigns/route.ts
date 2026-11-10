@@ -205,7 +205,10 @@ export async function POST(request: NextRequest) {
       declaredAngle,
       // Vínculo opcional a uma Iniciativa de Marketing (agrupa a campanha sob um objetivo/budget)
       initiativeId,
+      // true = lança já ATIVA (gasta verba); padrão false = PAUSADA para revisão e ativação posterior
+      launchNow = false,
     } = body;
+    const initialStatus = launchNow === true ? 'ACTIVE' : 'PAUSED';
 
     // Valida clientId (deve pertencer ao tenant)
     if (clientId) {
@@ -254,7 +257,7 @@ export async function POST(request: NextRequest) {
         name,
         objective,
         specialAdCategory,
-        status: 'PAUSED',
+        status: initialStatus,
         declaredAngle: resolvedDeclaredAngle,  // FASE 14
         initiativeId: validInitiativeId,               // vínculo opcional à iniciativa
         networkId: resolvedNetworkId,
@@ -324,7 +327,7 @@ export async function POST(request: NextRequest) {
       data: {
         adSetId: adSet.id,
         name: `${name} - Ad`,
-        status: 'PAUSED',
+        status: initialStatus,
         creativeType,
         images: images || [],
         body: adBody || '',
@@ -360,6 +363,7 @@ export async function POST(request: NextRequest) {
       );
 
       const result = await networkService.createCampaign({
+        launchNow: initialStatus === 'ACTIVE',
         name: campaign.name,
         objective: campaign.objective,
         specialAdCategory: campaign.specialAdCategory || undefined,
