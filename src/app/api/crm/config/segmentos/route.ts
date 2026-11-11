@@ -4,6 +4,7 @@ import { requireApiPermission } from '@/lib/auth/apiPermissions'
 import { getTokenFromRequest, verifyToken } from '@/lib/auth/jwt'
 import { resolveAtivoConfig, IDENT_RE } from '@/lib/crm/resolveAtivoConfig'
 import { EnrichmentService } from '@/lib/crm/enrichmentService'
+import { resolveSegment } from '@/lib/intelligence/segmentResolver'
 
 /**
  * CRM SEGMENT BUILDER API — config de como um lead é enriquecido/vinculado a um item real
@@ -77,7 +78,73 @@ export async function POST(request: NextRequest) {
       layout_json = {},
       form_schema_json = [],
       is_active = true,
+      form_only = false,
     } = data
+
+    // Validação do formulário de Perfil de Interesse (sempre, nos dois modos): nome vira chave
+    // em raw_json e label aparece na ficha — nome fora do padrão de identificador ou duplicado
+    // quebraria o salvamento/leitura do lead.
+    if (!Array.isArray(form_schema_json)) {
+      return NextResponse.json({ success: false, error: 'form_schema_json deve ser uma lista.' }, { status: 400 })
+    }
+    const nomesVistos = new Set<string>()
+    for (const f of form_schema_json) {
+      const nome = typeof f?.name === 'string' ? f.name.trim() : ''
+      const label = typeof f?.label === 'string' ? f.label.trim() : ''
+      if (!label) {
+        return NextResponse.json({ success: false, error: 'Todo campo do formulário precisa de um rótulo.' }, { status: 400 })
+      }
+      if (!IDENT_RE.test(nome)) {
+        return NextResponse.json({ success: false, error: `Nome de campo inválido ("${nome}") — use só letras, números e underscore, começando por letra.` }, { status: 400 })
+      }
+      if (nomesVistos.has(nome)) {
+        return NextResponse.json({ success: false, error: `Nome de campo duplicado: "${nome}".` }, { status: 400 })
+      }
+      nomesVistos.add(nome)
+      if (f.type !== 'text' && f.type !== 'number') {
+        return NextResponse.json({ success: false, error: `Tipo de campo inválido para "${label}" — use texto ou número.` }, { status: 400 })
+      }
+    }
+
+    if (form_only) {
+      // Só o Perfil de Interesse: nunca mexe no Vínculo Exato. Se o tenant já tem override,
+      // atualiza só a coluna do formulário. Se ainda não tem, cria o override copiando o
+      // Vínculo Exato do padrão do segmento — senão o INSERT com NULL esconderia o vínculo.
+      const existing = await pool.query('SELECT 1 FROM crm_ativo_config_tenant WHERE tenant_id = $1::uuid', [tenantId])
+      if (existing.rows[0]) {
+        await pool.query(
+          `UPDATE crm_ativo_config_tenant SET form_schema_json = $2, updated_at = NOW() WHERE tenant_id = $1::uuid`,
+          [tenantId, JSON.stringify(form_schema_json)]
+        )
+      } else {
+        const segment = await resolveSegment(tenantId)
+        const seg = segment
+          ? (await pool.query(
+              `SELECT target_table, target_fk_column, target_name_column, target_label, layout_json
+                 FROM crm_ativo_config_segmento WHERE segment_id = $1::uuid`,
+              [segment.id]
+            )).rows[0]
+          : null
+        await pool.query(
+          `INSERT INTO crm_ativo_config_tenant
+             (tenant_id, target_table, target_fk_column, target_name_column, target_label, layout_json, form_schema_json, is_active, updated_at)
+           VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, true, NOW())`,
+          [
+            tenantId,
+            seg?.target_table ?? null,
+            seg?.target_fk_column ?? null,
+            seg?.target_name_column ?? null,
+            seg?.target_label ?? null,
+            JSON.stringify(seg?.layout_json ?? {}),
+            JSON.stringify(form_schema_json),
+          ]
+        )
+      }
+      EnrichmentService.reEnrichAllLeads(tenantId).catch(err => {
+        console.error('❌ Falha no re-enriquecimento após salvar o formulário:', err)
+      })
+      return NextResponse.json({ success: true, message: 'Formulário salvo com sucesso.' })
+    }
 
     // Vínculo Exato é opcional — mas ou vem os 3 campos de identificação juntos (tabela real
     // digitalizada), ou nenhum deles (tenant só com Perfil de Interesse). Nunca aceita

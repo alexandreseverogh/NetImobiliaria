@@ -277,13 +277,13 @@ export async function POST(request: NextRequest) {
 
         // --- QUALIFICAÇÃO CONCIERGE IA ---
         let aiSummary = null;
-        let aiScore = 0;
+        let aiScore: number | null = null;
         let aiScoreFit: number | null = null;
         try {
           const { ConciergeService } = await import('@/lib/ai/conciergeService');
           const qualification = await ConciergeService.qualifyLead(row.mensagem || '', row.tenant_id, null, { source: 'site_prospect', imovel_id: imovelId });
           aiSummary = qualification.resumo_ia;
-          aiScore = Math.floor(qualification.score_prontidao * 10);
+          aiScore = qualification.score_prontidao !== null ? Math.floor(qualification.score_prontidao * 10) : null;
           aiScoreFit = qualification.score_fit !== null ? Math.floor(qualification.score_fit * 10) : null;
         } catch (aiErr) {
           console.warn('⚠️ [ProspectSync] IA falhou, seguindo com score 0:', aiErr);

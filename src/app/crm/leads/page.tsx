@@ -22,7 +22,7 @@ interface LeadStaging {
   /** Texto literal digitado/enviado pelo lead na captação — nunca reescrito pela IA (resumo_ia
    *  é a versão dela). null pra leads anteriores a esta coluna, ou sem nenhuma mensagem livre. */
   mensagem_original?: string | null;
-  score_prontidao: number;
+  score_prontidao: number | null;
   /** Encaixe no perfil ideal de cliente — dimensão separada de score_prontidao
    *  (intenção). null = ainda não avaliado (sem critério de fit cadastrado pro
    *  segmento/tenant), nunca um número inventado. */
@@ -38,6 +38,7 @@ interface LeadStaging {
   corretor_atribuido_id?: string | null;
   corretor_nome?: string | null;
   corretor_tem_foto?: boolean;
+  contato_avatar_url?: string | null;
   client_id?: string | null;
   valor_venda?: number | null;
   valor_venda_estimado?: number | null;
@@ -393,8 +394,8 @@ export default function LeadsStagingPage() {
                   </span>
                 </td>
                 <td className="px-3 py-4 text-center">
-                  <span className={`text-xs font-bold ${lead.score_prontidao > 80 ? 'text-green-500' : lead.score_prontidao > 50 ? 'text-blue-500' : t.textMuted}`}>
-                    {lead.score_prontidao}%
+                  <span className={`text-xs font-bold ${lead.score_prontidao == null ? t.textMuted : lead.score_prontidao > 80 ? 'text-green-500' : lead.score_prontidao > 50 ? 'text-blue-500' : t.textMuted}`}>
+                    {lead.score_prontidao != null ? `${lead.score_prontidao}%` : 'Não avaliado'}
                   </span>
                 </td>
                 <td className="px-3 py-4 text-center">
@@ -474,8 +475,12 @@ export default function LeadsStagingPage() {
                 <XMarkIcon className="h-6 w-6" />
               </button>
               <div className="flex items-center space-x-5">
-                <div className="h-14 w-14 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
-                  <UsersIcon className="h-8 w-8" />
+                <div className="h-14 w-14 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30 overflow-hidden">
+                  {selectedLead.contato_avatar_url ? (
+                    <img src={selectedLead.contato_avatar_url} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <UsersIcon className="h-8 w-8" />
+                  )}
                 </div>
                 <div>
                   <h3 className={`text-xl font-bold italic tracking-tight ${t.textPrimary}`}>{selectedLead.nome}</h3>
@@ -560,7 +565,7 @@ export default function LeadsStagingPage() {
                       {[
                         {
                           label: 'Intenção',
-                          val: `${selectedLead.score_prontidao}%`,
+                          val: selectedLead.score_prontidao != null ? `${selectedLead.score_prontidao}%` : 'Não avaliado',
                           bg: t.isDark ? 'bg-blue-500/10 border-blue-500/20' : 'bg-blue-50 border-blue-200',
                           fg: t.isDark ? 'text-blue-400' : 'text-blue-700',
                         },

@@ -152,12 +152,31 @@ export async function POST(request: NextRequest) {
       ORDER BY (email IS NOT NULL AND email = $1::text) DESC, created_at DESC
       LIMIT 1
     `
-    const { rows: existingRows } = await pool.query(existingLeadQuery, [strEmail, strTelefone, leadTenantId])
+    // CONCORRÊNCIA: dois eventos da mesma pessoa chegando juntos (ex.: duas mensagens de WhatsApp
+    // em milissegundos) faziam os dois não acharem lead e criarem dois cards. A busca e a gravação
+    // abaixo rodam numa transação com trava consultiva por telefone (últimos 10 dígitos) e e-mail:
+    // o segundo evento espera o primeiro confirmar e então encontra o lead já criado.
+    const isManual = data.utm_source === 'CRM Manual';
+    const phoneLockKey = strTelefone ? String(strTelefone).replace(/\D/g, '').slice(-10) : ''
+    const emailLockKey = strEmail ? String(strEmail).trim().toLowerCase() : ''
+    const lockKeys = [
+      phoneLockKey ? `lead:${leadTenantId}:tel:${phoneLockKey}` : '',
+      emailLockKey ? `lead:${leadTenantId}:mail:${emailLockKey}` : '',
+    ].filter(Boolean).sort()
+    const txClient = await pool.connect()
     let leadUuid: string
-    const matchMethod: string = existingRows[0]?.match_method || 'novo'
+    let existingRows: any[] = []
+    let matchMethod: string = 'novo'
+    try {
+    await txClient.query('BEGIN')
+    for (const key of lockKeys) {
+      await txClient.query('SELECT pg_advisory_xact_lock(hashtext($1))', [key])
+    }
+    const { rows: existingRowsTx } = await txClient.query(existingLeadQuery, [strEmail, strTelefone, leadTenantId])
+    existingRows = existingRowsTx
+    matchMethod = existingRows[0]?.match_method || 'novo'
 
     // Se o lead entra pelo CRM Manual, permite gerar MÚLTIPLOS CARDS para o mesmo cliente
-    const isManual = data.utm_source === 'CRM Manual';
     const shouldCreateNew = isManual || existingRows.length === 0;
 
     if (!shouldCreateNew) {
@@ -166,6 +185,8 @@ export async function POST(request: NextRequest) {
       const updateQuery = `
         UPDATE leads_staging
         SET
+          -- Vindo do WhatsApp, o nome de perfil só preenche quando o lead não tem nome real
+          -- (vazio ou placeholder "WhatsApp …"). Nomes da agenda ou de formulário são preservados.
           nome = COALESCE($1, nome),
           tag_sonho = COALESCE($2, tag_sonho),
           imovel_id = COALESCE($3, imovel_id),
@@ -184,7 +205,7 @@ export async function POST(request: NextRequest) {
         WHERE lead_uuid = $7
         RETURNING lead_uuid
       `
-      await pool.query(updateQuery, [
+      await txClient.query(updateQuery, [
         nome,
         tag_sonho,
         imovel_id,
@@ -203,7 +224,7 @@ export async function POST(request: NextRequest) {
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         RETURNING lead_uuid
       `
-      const { rows: insertRows } = await pool.query(insertQuery, [
+      const { rows: insertRows } = await txClient.query(insertQuery, [
         nome,
         strEmail,
         strTelefone,
@@ -223,10 +244,17 @@ export async function POST(request: NextRequest) {
       leadUuid = insertRows[0].lead_uuid
 
       // Criar entrada inicial no Kanban (Agnóstico à nomenclatura de colunas, mas específico do tenant)
-      await pool.query(
+      await txClient.query(
         'INSERT INTO leads_kanban (lead_uuid, coluna_id, tenant_id, client_id) VALUES ($1, (SELECT id FROM kanban_colunas WHERE ativa = true AND tenant_id = $2 ORDER BY ordem ASC LIMIT 1), $2, $3)',
         [leadUuid, leadTenantId, leadClientId]
       )
+    }
+    await txClient.query('COMMIT')
+    } catch (txErr) {
+      await txClient.query('ROLLBACK').catch(() => {})
+      throw txErr
+    } finally {
+      txClient.release()
     }
 
     // 2. ATRIBUIÇÃO DE MARKETING (Se houver UTMs)
@@ -266,7 +294,7 @@ export async function POST(request: NextRequest) {
       [
         qualification.tag_sonho,
         qualification.resumo_ia,
-        qualification.score_prontidao * 10,
+        qualification.score_prontidao !== null ? qualification.score_prontidao * 10 : null,
         qualification.score_fit !== null ? qualification.score_fit * 10 : null,
         leadUuid,
       ]
@@ -396,7 +424,7 @@ export async function POST(request: NextRequest) {
       // falta de dado é mostrado, nunca escondido — o ponto é dar visibilidade, não maquiar.
       qualification: {
         tag_sonho: qualification.tag_sonho,
-        score_prontidao: qualification.score_prontidao * 10,
+        score_prontidao: qualification.score_prontidao !== null ? qualification.score_prontidao * 10 : null,
         score_fit: qualification.score_fit !== null ? qualification.score_fit * 10 : null,
       }
     })
@@ -475,11 +503,30 @@ export async function GET(request: NextRequest) {
              COALESCE(at.atividades_count, 0)::int AS atividades_count,
              l.corretor_atribuido_id,
              u.nome AS corretor_nome,
-             (u.foto IS NOT NULL OR u.storage_type = 's3') AS corretor_tem_foto
+             (u.foto IS NOT NULL OR u.storage_type = 's3') AS corretor_tem_foto,
+             camp.name AS campanha_nome,
+             cav.avatar_url AS contato_avatar_url,
+             l.dono_user_id,
+             du.nome AS dono_nome,
+             (du.foto IS NOT NULL OR du.storage_type = 's3') AS dono_tem_foto
       FROM leads_staging l
       LEFT JOIN leads_kanban lk ON l.lead_uuid = lk.lead_uuid
       LEFT JOIN kanban_colunas k ON lk.coluna_id = k.id
       LEFT JOIN users u ON u.id = l.corretor_atribuido_id
+      LEFT JOIN users du ON du.id = l.dono_user_id
+      LEFT JOIN LATERAL (
+        SELECT c.name
+        FROM marketing_eventos me
+        JOIN campanhasmarketingdigital."Campaign" c ON c.id = me.campaign_id
+        WHERE me.lead_uuid = l.lead_uuid AND me.campaign_id IS NOT NULL
+        ORDER BY me.created_at DESC
+        LIMIT 1
+      ) camp ON true
+      LEFT JOIN LATERAL (
+        SELECT ct.avatar_url FROM mensageria.contacts ct
+        WHERE ct.lead_uuid = l.lead_uuid AND ct.avatar_url IS NOT NULL
+        LIMIT 1
+      ) cav ON true
       LEFT JOIN (
         SELECT lead_uuid, count(*) AS atividades_count
         FROM atividades_lead

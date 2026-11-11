@@ -36,6 +36,38 @@ export default function AtividadesConfigPage() {
 
   // Escopo: catálogo padrão da empresa (client_id NULL) ou de um cliente específico
   const [scope, setScope] = useState<'tenant' | 'client'>('tenant')
+  const [tipoMensagemId, setTipoMensagemId] = useState<number | null>(null)
+  const [savingTipoMensagem, setSavingTipoMensagem] = useState(false)
+
+  // Lê o tipo atual do tenant (parâmetro de mensagens trocadas).
+  useEffect(() => {
+    adminFetch('/api/crm/config/tenant')
+      .then(r => r.json())
+      .then(d => setTipoMensagemId(d?.config?.tipo_atividade_mensagem_id ?? null))
+      .catch(() => {})
+  }, [])
+
+  const salvarTipoMensagem = async (novoId: number | null) => {
+    setSavingTipoMensagem(true)
+    try {
+      const res = await adminFetch('/api/crm/config/tenant', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo_atividade_mensagem_id: novoId }),
+      })
+      const d = await res.json()
+      if (d.success) {
+        setTipoMensagemId(novoId)
+        setToast('✓ Tipo de mensagens atualizado.')
+      } else {
+        setError(d.error || 'Não foi possível salvar.')
+      }
+    } catch {
+      setError('Erro de conexão ao salvar.')
+    } finally {
+      setSavingTipoMensagem(false)
+    }
+  }
   const [clientSearch, setClientSearch] = useState('')
   const [clientResults, setClientResults] = useState<ClienteOpt[]>([])
   const [selectedClient, setSelectedClient] = useState<ClienteOpt | null>(null)
@@ -126,6 +158,27 @@ export default function AtividadesConfigPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
+      {/* Tipo que representa mensagens trocadas na linha do tempo do lead (Opção B: só aparência) */}
+      <div className={`p-5 rounded-2xl border ${t.isDark ? 'bg-white/[0.03] border-white/10' : 'bg-white border-gray-200'}`}>
+        <label className={`text-[10px] font-black uppercase tracking-widest block mb-2 ${t.textMuted}`}>
+          Tipo para mensagens trocadas (linha do tempo do lead)
+        </label>
+        <select
+          value={tipoMensagemId ?? ''}
+          onChange={e => salvarTipoMensagem(e.target.value ? parseInt(e.target.value, 10) : null)}
+          disabled={savingTipoMensagem}
+          className={`w-full md:w-96 px-4 py-2.5 rounded-xl border text-sm ${t.isDark ? 'bg-black/30 border-white/10 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'}`}
+        >
+          <option value="">Padrão (WhatsApp)</option>
+          {tipos.filter(tp => tp.client_id === null || tp.client_id === undefined).map(tp => (
+            <option key={tp.id} value={tp.id}>{tp.nome}</option>
+          ))}
+        </select>
+        <p className={`text-[11px] mt-2 ${t.textMuted}`}>
+          Define o nome, ícone e cor das mensagens no histórico. Não cria atividades.
+        </p>
+      </div>
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className={`text-2xl font-bold tracking-tight italic flex items-center ${t.textPrimary}`}>

@@ -325,7 +325,9 @@ export default function MensageriaPage() {
               >
                 <div className="flex items-start gap-3">
                   <div className="w-9 h-9 rounded-full bg-[#c5a028]/15 border border-[#c5a028]/20 flex items-center justify-center text-[11px] font-semibold text-[#d4af37] shrink-0">
-                    {initials(c.contact.name)}
+                    {c.contact.avatarUrl ? (
+                      <img src={c.contact.avatarUrl} alt="" loading="lazy" className="w-full h-full rounded-full object-cover" />
+                    ) : initials(c.contact.name)}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">

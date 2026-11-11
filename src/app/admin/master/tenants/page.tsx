@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useApi } from '@/hooks/useApi'
+import { adminFetch } from '@/lib/auth/adminFetch'
 import { PlusIcon, BuildingOfficeIcon, GlobeAltIcon, Cog6ToothIcon, UsersIcon, CheckCircleIcon, PhotoIcon, Squares2X2Icon, PencilSquareIcon, IdentificationIcon, EyeIcon, EyeSlashIcon, CalendarDaysIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 
 import Link from 'next/link'
@@ -109,6 +110,17 @@ export default function MasterTenantsPage() {
 
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingTenant, setEditingTenant] = useState<any>(null)
+  const [tipoAtividadeOptions, setTipoAtividadeOptions] = useState<{ id: number; nome: string }[]>([])
+
+  // Tipos de atividade do tenant em edição (escolha do tipo que representa mensagens trocadas).
+  useEffect(() => {
+    const tenantId = editingTenant?.id
+    if (!tenantId) { setTipoAtividadeOptions([]); return }
+    adminFetch(`/api/crm/atividades/tipos?tenant_id=${tenantId}`)
+      .then(r => r.json())
+      .then(d => setTipoAtividadeOptions((d.tipos || d.data || []).map((t: any) => ({ id: t.id, nome: t.nome }))))
+      .catch(() => setTipoAtividadeOptions([]))
+  }, [editingTenant?.id])
   const [activeTab, setActiveTab] = useState<'geral' | 'modulos' | 'google_calendar' | 'meta' | 'comunicacao_ia' | 'whatsapp'>('geral')
   const [wppStatus, setWppStatus]   = useState<{ connected: boolean; qrCode?: string | null; error?: string } | null>(null)
   const [wppLoading, setWppLoading] = useState(false)
@@ -1606,6 +1618,18 @@ export default function MasterTenantsPage() {
                         placeholder="5581999999999 (DDI+DDD+número, sem espaços)"
                         className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
                       <p className="text-[9px] text-gray-400 mt-1">Número que receberá as notificações do agente (SCALE, PAUSE, alertas). Tem prioridade sobre o WhatsAppConfig.</p>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Tipo de atividade para mensagens trocadas</label>
+                      <select value={editingTenant.tipo_atividade_mensagem_id ?? ''}
+                        onChange={e => setEditingTenant({ ...editingTenant, tipo_atividade_mensagem_id: e.target.value ? parseInt(e.target.value, 10) : null })}
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all">
+                        <option value="">Padrão (WhatsApp)</option>
+                        {tipoAtividadeOptions.map(t => (
+                          <option key={t.id} value={t.id}>{t.nome}</option>
+                        ))}
+                      </select>
+                      <p className="text-[9px] text-gray-400 mt-1">Define o nome, ícone e cor das mensagens na linha do tempo do lead. Não cria atividades.</p>
                     </div>
                     <div>
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Anthropic API Key (IA do Tenant)</label>

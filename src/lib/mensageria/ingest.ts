@@ -61,6 +61,7 @@ async function findOrCreateContact(
   input: IngestContactInput,
 ): Promise<{ id: string; isNew: boolean }> {
   const { name, phone, email, avatarUrl, attributes } = input
+  const attrsJson = JSON.stringify(attributes ?? {})
 
   if (!phone && !email) {
     throw new Error('ingestMessage: contato precisa de phone ou email para dedupe')
@@ -75,6 +76,7 @@ async function findOrCreateContact(
   )
 
   if (existing[0]) {
+    // Nome e foto são sempre os mais recentes do WhatsApp (o que a pessoa cadastrou).
     await pool.query(
       `UPDATE ${SCHEMA}.contacts
           SET name = COALESCE($1, name),
@@ -84,7 +86,7 @@ async function findOrCreateContact(
               attributes = attributes || $5::jsonb,
               updated_at = now()
         WHERE id = $6`,
-      [name ?? null, phone ?? null, email ?? null, avatarUrl ?? null, JSON.stringify(attributes ?? {}), existing[0].id],
+      [name ?? null, phone ?? null, email ?? null, avatarUrl ?? null, attrsJson, existing[0].id],
     )
     return { id: existing[0].id, isNew: false }
   }
@@ -93,7 +95,7 @@ async function findOrCreateContact(
     `INSERT INTO ${SCHEMA}.contacts (tenant_id, client_id, name, phone, email, avatar_url, attributes)
      VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb)
      RETURNING id`,
-    [tenantId, clientId ?? null, name ?? null, phone ?? null, email ?? null, avatarUrl ?? null, JSON.stringify(attributes ?? {})],
+    [tenantId, clientId ?? null, name ?? null, phone ?? null, email ?? null, avatarUrl ?? null, attrsJson],
   )
   return { id: rows[0].id, isNew: true }
 }
@@ -179,6 +181,17 @@ export async function ingestMessage(input: IngestMessageInput): Promise<IngestRe
   )
   const messageId = msgRows[0].id
 
+  // Linha do tempo do CRM: toda mensagem de um contato que já tem lead entra no histórico do lead
+  // (recebida ou enviada, qualquer que seja o remetente). Idempotente por origem.
+  await pool.query(
+    `INSERT INTO public.lead_timeline (tenant_id, lead_uuid, tipo_origem, origem_id, occurred_at)
+     SELECT $1, c.lead_uuid, 'mensageria_message', $2, now()
+       FROM ${SCHEMA}.contacts c
+      WHERE c.id = $3 AND c.lead_uuid IS NOT NULL
+     ON CONFLICT (tipo_origem, origem_id) DO NOTHING`,
+    [tenantId, messageId, contactId],
+  )
+
   // last_message_at sempre avança; first_response_at só é marcado na 1ª mensagem outbound de agent/bot
   await pool.query(
     `UPDATE ${SCHEMA}.conversations
@@ -207,7 +220,7 @@ export async function ingestMessage(input: IngestMessageInput): Promise<IngestRe
   publishMensageriaEvent(tenantId, {
     type: 'message.created',
     conversationId,
-    message: { id: messageId, direction, senderType, content: content ?? null, contentType, createdAt: new Date().toISOString() },
+    message: { id: messageId, direction, senderType, content: content ?? null, contentType, attachments, createdAt: new Date().toISOString() },
   })
 
   // Bot (M4.1/M4.2): só reage a mensagem inbound de contato — a resposta dele reentra em

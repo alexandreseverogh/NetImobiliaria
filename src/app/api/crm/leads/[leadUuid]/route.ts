@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
+import { fixarDonoSeVazio } from '@/lib/crm/leadDono'
 import { EnrichmentService } from '@/lib/crm/enrichmentService'
 
 /**
@@ -107,6 +108,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { leadUu
       `UPDATE leads_staging SET ${setParts.join(', ')} WHERE lead_uuid = $${updateParams.length}::uuid`,
       updateParams
     )
+    // Editar a ficha é ação humana: fixa o dono se ainda não houver (leadDono.ts).
+    await fixarDonoSeVazio(params.leadUuid, currentUser?.userId)
 
     // Reflete a edição nos badges já exibidos na ficha/card — mesma disciplina usada quando o
     // rótulo de um campo é renomeado pelo Master (docs/CHECKPOINT.md, 2026-08-26): nunca deixa

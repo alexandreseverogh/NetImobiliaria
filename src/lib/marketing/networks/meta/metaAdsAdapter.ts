@@ -234,8 +234,10 @@ export class MetaAdsAdapter implements AdNetworkService {
         if (a.media?.image?.src) out.push(a.media.image.src);
       }
       return Array.from(new Set(out));
-    } catch {
-      return [];
+    } catch (e: any) {
+      // Não engole o erro: quem chama precisa mostrar o motivo (permissão, identidade, etc.).
+      const metaMsg = e?.response?.data?.error?.message;
+      throw new Error(`imagem original da publicação indisponível: ${metaMsg || e?.message || 'erro desconhecido'}`);
     }
   }
 

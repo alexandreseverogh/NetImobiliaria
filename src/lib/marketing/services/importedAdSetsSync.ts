@@ -63,8 +63,9 @@ export async function syncCampaignAdSets(
   localCampaignId: string,
   externalCampaignId: string,
   service: AdNetworkService,
-): Promise<{ adSets: number; ads: number; supported: boolean }> {
-  if (!service.fetchCampaignAdSets) return { adSets: 0, ads: 0, supported: false };
+): Promise<{ adSets: number; ads: number; supported: boolean; warnings: string[] }> {
+  const warnings: string[] = [];
+  if (!service.fetchCampaignAdSets) return { adSets: 0, ads: 0, supported: false, warnings };
 
   const rows = await service.fetchCampaignAdSets(externalCampaignId);
   for (const r of rows) {
@@ -107,10 +108,10 @@ export async function syncCampaignAdSets(
       const parent = await prisma.adSet.findUnique({ where: { metaAdSetId: a.externalAdSetId }, select: { id: true } });
       if (!parent) continue;
 
-      // Só guarda quando ainda não há miniatura de 320px (criativo não muda depois de publicado).
+      // Sempre rebaixa a imagem: anúncios guardados antes com miniatura pequena são corrigidos aqui.
       const existing = await prisma.ad.findUnique({ where: { metaAdId: a.externalId }, select: { thumbnails: true, images: true } });
       let stored = { images: existing?.images ?? [], thumbnails: existing?.thumbnails ?? [] };
-      if (!existing?.thumbnails?.length) {
+      {
         // Preferência: original por hash; sem hash, a melhor URL disponível da própria Meta.
         let fullUrls: string[] = [];
         if ((a.imageHashes ?? []).length) {
@@ -118,8 +119,12 @@ export async function syncCampaignAdSets(
         }
         // Sem hash: tenta a imagem original da publicação; sem ela, usa a melhor URL da própria Meta.
         if (!fullUrls.some(u => !/p64x64|pd+xd+/.test(u)) && a.storyId && service.fetchPostImages) {
-          const fromPost = await service.fetchPostImages(a.storyId);
-          if (fromPost.length) fullUrls = fromPost;
+          try {
+            const fromPost = await service.fetchPostImages(a.storyId);
+            if (fromPost.length) fullUrls = fromPost;
+          } catch (e: any) {
+            warnings.push(`anúncio ${a.externalId}: ${e?.message}`);
+          }
         }
         if (fullUrls.length === 0) fullUrls = a.imageUrls ?? [];
         stored = await storeAdImages(campaign?.tenantId ?? '', a.externalId, fullUrls);
@@ -145,5 +150,5 @@ export async function syncCampaignAdSets(
       ads += 1;
     }
   }
-  return { adSets: rows.length, ads, supported: true };
+  return { adSets: rows.length, ads, supported: true, warnings };
 }

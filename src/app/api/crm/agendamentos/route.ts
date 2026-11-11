@@ -15,6 +15,7 @@ import {
 } from '@/lib/google/emailService'
 import { resolveSegment } from '@/lib/intelligence/segmentResolver'
 import { resolveAtivoConfig, IDENT_RE } from '@/lib/crm/resolveAtivoConfig'
+import { fixarDonoSeVazio } from '@/lib/crm/leadDono'
 
 const TZ = 'America/Recife'
 
@@ -209,6 +210,8 @@ export async function POST(request: NextRequest) {
       ]
     )
     const agendamento = insertRows[0]
+    // Agendar visita é ação humana: fixa o dono se ainda não houver (leadDono.ts).
+    await fixarDonoSeVazio(lead_uuid, userId)
 
     // 5b. Se o lead ainda não tinha e-mail cadastrado e o atendente informou um pra convidar,
     // aproveita pra fechar essa lacuna no cadastro — nunca sobrescreve um e-mail já existente

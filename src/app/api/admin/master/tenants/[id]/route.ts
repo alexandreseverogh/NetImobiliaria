@@ -74,7 +74,8 @@ export async function PATCH(
       primary_color, secondary_color,
       anthropic_api_key, slack_webhook_url, evolution_api_url, evolution_api_key, evolution_instance, agent_confidence_threshold,
       numero_whatsapp, crm_clientes, associa_segmento_negocio_cliente, marketing_digital,
-      isento_marketingdigital, isento_mensageria, isento_crm, public_domain
+      isento_marketingdigital, isento_mensageria, isento_crm, public_domain,
+      tipo_atividade_mensagem_id
     } = body;
 
     await client.query('BEGIN');
@@ -152,6 +153,7 @@ export async function PATCH(
         associa_segmento_negocio_cliente = COALESCE($32, associa_segmento_negocio_cliente),
         marketing_digital = COALESCE($33, marketing_digital),
         public_domain = CASE WHEN $34::boolean THEN $35 ELSE public_domain END,
+        tipo_atividade_mensagem_id = CASE WHEN $37::boolean THEN $38::integer ELSE tipo_atividade_mensagem_id END,
         updated_at = NOW()
       WHERE id = $36
       RETURNING *
@@ -183,7 +185,9 @@ export async function PATCH(
       marketing_digital !== undefined ? marketing_digital : null,
       public_domain !== undefined,
       public_domain ? normalizePublicDomain(public_domain) : null,
-      id
+      id,
+      tipo_atividade_mensagem_id !== undefined,
+      tipo_atividade_mensagem_id ? parseInt(tipo_atividade_mensagem_id, 10) : null,
     ];
 
     const result = await client.query(query, values);

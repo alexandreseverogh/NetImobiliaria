@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
+import { fixarDonoSeVazio } from '@/lib/crm/leadDono'
 import { uploadToS3, getS3Url } from '@/lib/storage/s3-client'
 import { randomUUID } from 'crypto'
 import { touchPendency } from '@/lib/crm/pendencia/pendencyState'
@@ -204,8 +205,18 @@ export async function POST(request: NextRequest) {
       lead.tenant_id, lead.client_id, sugeridoPorIa,
     ])
     const atividadeId = rows[0].id
+    // Primeira ação humana fixa o dono do lead (ver src/lib/crm/leadDono.ts).
+    if (!sugeridoPorIa) await fixarDonoSeVazio(leadUuid, currentUser.userId)
 
     if (anexos.length > 0) await insertAnexos(atividadeId, lead.tenant_id, anexos)
+
+    // Linha do tempo do lead: referência à atividade (detalhe fica em atividades_lead).
+    await pool.query(
+      `INSERT INTO lead_timeline (tenant_id, lead_uuid, tipo_origem, origem_id, occurred_at)
+       VALUES ($1, $2, 'atividade', $3, now())
+       ON CONFLICT (tipo_origem, origem_id) DO NOTHING`,
+      [lead.tenant_id, leadUuid, atividadeId],
+    ).catch((err) => console.error('[crm/atividades] falha ao gravar linha do tempo:', err))
 
     // G0 — registrar atividade muda de quem é a bola (ver docs/PLANO_PENDENCIA_ATENDIMENTO.md).
     // Qual direção depende de tipos_atividade.is_entrada, resolvido dentro do motor canônico.

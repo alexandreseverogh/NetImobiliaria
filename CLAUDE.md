@@ -1,6 +1,20 @@
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## ⚠️ Regra Obrigatória — Migrações entram no lote de deploy da VPS
+
+**Toda mudança de banco (migração SQL, seed, ALTER, coluna, tabela, permissão, feature) é
+registrada no lote de deploy `prisma/deploy-batch-vps-pendente.sql` no mesmo dia em que é
+criada.** A VPS só recebe o que estiver nesse lote: nada é aplicado automaticamente.
+
+- Adicionar o novo arquivo, na ordem de dependência, dentro do `BEGIN; ... COMMIT;` do lote.
+- Garantir idempotência (`IF NOT EXISTS`, `ON CONFLICT`, checagens) e rodar o lote 2x no banco
+  local com `ON_ERROR_STOP=1` antes de dar a tarefa por concluída.
+- Atualizar o aviso "DEPLOY VPS — banco pendente" no topo de `docs/CHECKPOINT.md`.
+- Nunca depender de "lembrar depois": se a mudança não está no lote, ela não existe para a VPS.
+
+---
+
 
 ## ⚠️ Regra Obrigatória — Checkpoint Progressivo
 

@@ -25,6 +25,7 @@ import { DadosEmpresaHelpButton } from '@/components/admin/dados-empresa/HelpMod
 import { DadosCadastraisSection } from '@/components/admin/dados-empresa/DadosCadastraisSection';
 import { WhatsAppCampanhasSection } from '@/components/admin/dados-empresa/WhatsAppCampanhasSection';
 import { WhatsAppConexaoSection } from '@/components/admin/dados-empresa/WhatsAppConexaoSection';
+import { FormularioLeadSection } from '@/components/admin/dados-empresa/FormularioLeadSection';
 
 /**
  * "Dados da Empresa" — self-service do próprio tenant admin pros campos tenant-wide que antes
@@ -534,6 +535,7 @@ export default function DadosEmpresaPage() {
         </div>
         <div className="space-y-6">
           <DadosCadastraisSection />
+          <FormularioLeadSection />
           <WhatsAppCampanhasSection />
           <WhatsAppConexaoSection />
           <TechSettingsSection />

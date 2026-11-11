@@ -12,6 +12,7 @@
  */
 import pool from '@/lib/database/connection'
 import { ingestMessage } from '@/lib/mensageria/ingest'
+import type { InboundMedia } from '@/lib/mensageria/inboundMedia'
 import { resolveWhatsAppInbox } from '@/lib/mensageria/inboxes'
 import { logInteraction, insertSubmission, linkSubmissionLead, resolveCtaRef } from '@/lib/cta/service'
 
@@ -24,7 +25,14 @@ export interface NormalizedWhatsAppInbound {
   ownerClientId: string | null
   phone: string
   pushName: string | null
+  /** 'agenda' quando o nome veio da agenda do celular; 'profile' (padrão) para o nome de perfil. */
+  /** Foto de perfil do WhatsApp já guardada no armazenamento (opcional). */
+  avatarUrl?: string | null
   text: string | null
+  /** Mídia já baixada e armazenada (imagem/áudio/vídeo/documento) ou reação; null = texto comum. */
+  media?: InboundMedia | null
+  /** Reação: registra só no histórico de contato existente, sem lead nem interação de campanha. */
+  skipCrm?: boolean
   /** ID da mensagem no provider de origem — usado pra dedupe/idempotência na Mensageria */
   externalMessageId: string | null
 }
@@ -77,21 +85,35 @@ export async function processInboundWhatsAppMessage(
   // 1. Ingestão na Mensageria — thread unificada. Falha aqui NUNCA deve derrubar a captação de
   // lead abaixo (best-effort, isolado em try/catch próprio).
   let mensageriaResult: { contactId: string; conversationId: string } | null = null
+  let newMessageId: string | null = null
   try {
     const inboxId = await resolveWhatsAppInbox(tenantId, mensageriaClientId)
     const r = await ingestMessage({
       tenantId,
       clientId: mensageriaClientId,
       inboxId,
-      contact: { name: pushName, phone },
+      contact: { name: pushName, phone, avatarUrl: input.avatarUrl ?? null },
       direction: 'inbound',
       senderType: 'contact',
-      content: text || null,
+      content: input.media ? input.media.content : (text || null),
+      contentType: input.media?.contentType ?? 'text',
+      attachments: input.media?.attachments ?? [],
       externalId: externalMessageId,
     })
     mensageriaResult = { contactId: r.contactId, conversationId: r.conversationId }
+    newMessageId = r.messageId
   } catch (err) {
     console.error('[inboundProcessor] falha na ingestão Mensageria (não bloqueante):', err)
+  }
+
+  // Reação com emoji: só registra no histórico do contato já existente. Não gera interação de
+  // campanha, submissão nem lead no CRM (lead só nasce de mensagem real de quem procurou a empresa).
+  if (input.skipCrm) {
+    return {
+      leadUuid: null,
+      mensageriaContactId: mensageriaResult?.contactId ?? null,
+      mensageriaConversationId: mensageriaResult?.conversationId ?? null,
+    }
   }
 
   // 2. Logar interação (SUBMIT — chegou uma mensagem real)
@@ -169,6 +191,26 @@ export async function processInboundWhatsAppMessage(
         await pool.query(
           `UPDATE mensageria.contacts SET lead_uuid = $1 WHERE id = $2 AND lead_uuid IS NULL`,
           [leadUuid, mensageriaResult.contactId],
+        ).catch(() => {})
+        // Ao vincular o contato ao lead, todas as mensagens anteriores dele entram no histórico.
+        await pool.query(
+          `INSERT INTO public.lead_timeline (tenant_id, lead_uuid, tipo_origem, origem_id, occurred_at)
+           SELECT m.tenant_id, $1, 'mensageria_message', m.id::text, m.created_at
+             FROM mensageria.messages m
+             JOIN mensageria.conversations cv ON cv.id = m.conversation_id
+            WHERE cv.contact_id = $2
+           ON CONFLICT (tipo_origem, origem_id) DO NOTHING`,
+          [leadUuid, mensageriaResult.contactId],
+        ).catch(() => {})
+      }
+      // Linha do tempo do lead: referência à mensagem (conteúdo fica na Mensageria). Só para
+      // mensagem NOVA (newMessageId não nulo) — idempotente pela UNIQUE (tipo_origem, origem_id).
+      if (leadUuid && newMessageId) {
+        await pool.query(
+          `INSERT INTO public.lead_timeline (tenant_id, lead_uuid, tipo_origem, origem_id, occurred_at)
+           VALUES ($1, $2, 'mensageria_message', $3, now())
+           ON CONFLICT (tipo_origem, origem_id) DO NOTHING`,
+          [tenantId, leadUuid, newMessageId],
         ).catch(() => {})
       }
     }

@@ -4,6 +4,7 @@ import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { getNetworkServiceForTenant } from '@/lib/marketing/networks/factory';
 import { syncCampaignInsights } from '@/lib/marketing/services/agentMonitor';
 import { syncAdInsights } from '@/lib/marketing/services/adInsightsSync';
+import { syncCampaignAdSets } from '@/lib/marketing/services/importedAdSetsSync';
 import { getProvisionedNetworkCodes } from '@/lib/marketing/services/networkProvisioning';
 import { requireApiPermission } from '@/lib/auth/apiPermissions';
 import type { NetworkCode } from '@/lib/marketing/networks/types';
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
           { AND: [{ networkId: { not: null } }, { externalId: { not: null } }] },
         ],
       },
-      select: { id: true, tenantId: true, clientId: true, metaCampaignId: true, externalId: true, networkId: true },
+      select: { id: true, tenantId: true, clientId: true, metaCampaignId: true, externalId: true, networkId: true, importedReadOnly: true },
     });
 
     if (campaigns.length === 0) {
@@ -67,6 +68,7 @@ export async function POST(request: NextRequest) {
     const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
     const byNetwork: Record<string, { synced: number; campaigns: number; errors: string[] }> = {};
+    const adMetrics: Record<string, any> = {};
     let totalSynced = 0;
     const skippedNotProvisioned = new Set<string>();
 
@@ -92,12 +94,33 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
+      // Campanhas importadas: espelha também conjuntos, localização e anúncios (com miniaturas).
+      // Antes, isso só acontecia no botão de localização, o que deixava a aba Criativos vazia.
+      if (networkCode === 'meta' && campaign.importedReadOnly) {
+        try {
+          const mirror = await syncCampaignAdSets(campaign.id, externalId, networkService);
+          for (const w of mirror.warnings) bucket.errors.push(`${campaign.id.slice(0, 8)} ${w}`);
+        } catch (structErr: any) {
+          console.warn('[sync] espelho de conjuntos/anúncios falhou:', structErr?.message);
+          bucket.errors.push(`${campaign.id.slice(0, 8)}: espelho de anúncios falhou — ${structErr?.message}`);
+        }
+      }
+
       try {
         const count = await syncCampaignInsights(networkService, campaign, externalId, since, until);
         // Feedback por anúncio (rankings, retenção, conversas). Falha aqui não invalida a campanha.
         if (networkCode === 'meta') {
-          try { await syncAdInsights(networkService, campaign.id, tenantId, since, until); }
-          catch (adErr: any) { console.warn('[sync] métricas por anúncio falharam:', adErr?.message); }
+          try {
+            const ad = await syncAdInsights(networkService, campaign.id, tenantId, since, until);
+            adMetrics[campaign.id] = ad;
+            if (ad.adsFound > 0 && ad.written === 0) {
+              bucket.errors.push(`${campaign.id.slice(0, 8)}: ${ad.adsFound} anúncio(s) encontrado(s), mas a Meta não devolveu métricas por anúncio (consultados: ${ad.adsQueried}, dias recebidos: ${ad.daysReceived}).`);
+            }
+            for (const e of ad.errors) bucket.errors.push(`${campaign.id.slice(0, 8)} ${e}`);
+          } catch (adErr: any) {
+            console.warn('[sync] métricas por anúncio falharam:', adErr?.message);
+            bucket.errors.push(`${campaign.id.slice(0, 8)}: métricas por anúncio falharam — ${adErr?.message}`);
+          }
         }
         bucket.synced += count;
         bucket.campaigns += 1;
@@ -115,6 +138,7 @@ export async function POST(request: NextRequest) {
       campaigns: campaigns.length,
       byNetwork,
       skippedNotProvisioned: Array.from(skippedNotProvisioned),
+      adMetrics,
     });
   } catch (error: any) {
     console.error('POST /insights/sync error:', error);

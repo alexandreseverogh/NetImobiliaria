@@ -1,5 +1,14 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **📌 PENDÊNCIA — botão "Config. do Ativo" (a tratar depois):** o botão "Config. do Ativo" em `/admin/master/segments` tem nome inadequado e o modal que ele abre mistura dois conceitos distintos — o "ativo" (item de inventário vinculado ao lead, ex.: imóvel) e o "Perfil de Interesse" (formulário de perguntas do lead). Reavaliar o nome do botão e separar os dois conceitos na tela do Master. Contexto: o formulário do tenant já foi para "Dados da Empresa" (`FormularioLeadSection`); o Vínculo Exato (tabela/coluna do ativo) continua só no modal do Master. Ainda não iniciado.
+
+> **📌 PENDÊNCIA — IA na VPS (testar depois dos testes locais):** a qualificação de leads por IA depende da configuração global em `/admin/master/ia-plataforma`. Em 2026-11-13 o Gemini (free tier, `gemini-flash-latest`) retornou 429 — cota diária de 20 requisições esgotada. Decidido migrar para Groq e testar **localmente** primeiro. Pendente: (1) confirmar que o Groq funciona em dev (Testar Conexão + lead real avaliado, sem "Não avaliado" indevido); (2) repetir o mesmo teste na VPS (`prod_app`/`staging_app`) — chave de LLM, saída de rede para a API do provedor e cota/custo de produção; (3) decidir cobrança/plano do provedor escolhido para uso real. Até isso ser testado na VPS, a IA não deve ser considerada validada em produção.
+
+> **⚠️ DEPLOY VPS — banco pendente:** rodar `prisma/deploy-batch-vps-pendente.sql` em prod_db e staging_db ANTES do código (idempotente, testado 2x). Cobre tudo desde 2026-11-06 (inclui `leads_staging.dono_user_id`, 2026-11-13). Confirmar pré-requisito: migração 2026-11-05 (metric-catalog cascade) já na VPS.
+>
+> **Atualizado em:** 2026-11-12 — Ficha do lead no CRM: histórico unificado (mensagens em balão, atividades editáveis/excluíveis com tipo/ícone/cor, visitas com ícone de calendário); foto do contato no card do Kanban; seção "Informações do Lead" com campos realçados.
+
+
 > **Atualizado em:** 2026-11-06 — **Fase 0 do plano `docs/PLANO_REGRAS_CONFIGURAVEIS.md` CONCLUÍDA (branch `feature/testes-integracao-transbordo`).**
 > Fechamento: `parametros_imoveis` agora existe para todo tenant (migração `prisma/migration-2026-11-06-parametros-imoveis-seed-all-tenants.sql`, 10 linhas criadas com os defaults da tabela, sem mudança de roteamento); criação de tenant grava a linha na mesma transação; `DistributionEngine` recusa decidir quando a linha falta (erro explícito, sem valores de reserva). Testes: 31 unitários + 16 de integração contra Postgres (`RUN_DB_INTEGRATION=1`), todos com ROLLBACK; `tsc --noEmit` limpo.
 > **Pendente, achado nesta fase e fora do escopo dela:** rotas públicas leem `parametros_imoveis LIMIT 1` sem tenant (`/api/public/corretor/parametros` devolve chave PIX/valor de um tenant qualquer; `/api/public/corretor/plano` idem). Exige decidir o tenant de contexto dessas rotas antes de corrigir. Migração de seed pendente de aplicação na VPS (batch).

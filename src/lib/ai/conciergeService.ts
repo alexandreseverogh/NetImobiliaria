@@ -7,7 +7,8 @@ import { getLlmClient } from '@/lib/marketing/services/llmClient';
 export interface QualificationResult {
   tag_sonho: string;
   resumo_ia: string;
-  score_prontidao: number;
+  /** null = não avaliado (sem mensagem, IA não configurada, ou IA falhou sem regra de palavra-chave). */
+  score_prontidao: number | null;
   /** Quão bem o lead se encaixa no perfil ideal do negócio (docs/PLANO_AGENTES_ACELERACAO_CRM.md
    *  §3.1) — dimensão SEPARADA de score_prontidao (intenção). null = nunca avaliado (fallback
    *  por palavra-chave não tem como julgar fit; nunca inventamos um número aqui). */
@@ -26,10 +27,13 @@ interface FitCriterion {
   peso: number;
 }
 
+/** Rótulo mostrado quando o sistema não conseguiu avaliar o lead (nunca um número inventado). */
+export const TAG_NAO_AVALIADO = 'Não avaliado';
+
 const EMPTY_MESSAGE_RESULT: QualificationResult = {
-  tag_sonho: 'A Definir',
-  resumo_ia: 'Lead sem mensagem de intenção.',
-  score_prontidao: 5,
+  tag_sonho: TAG_NAO_AVALIADO,
+  resumo_ia: 'Lead sem mensagem de intenção — não há o que avaliar ainda.',
+  score_prontidao: null,
   score_fit: null,
 };
 
@@ -41,16 +45,17 @@ const EMPTY_MESSAGE_RESULT: QualificationResult = {
  * de verdade que só coincidia em ser genérica).
  */
 const NOT_CONFIGURED_RESULT: QualificationResult = {
-  tag_sonho: 'A Definir',
+  tag_sonho: TAG_NAO_AVALIADO,
   resumo_ia: 'Qualificação por IA ainda não configurada para este segmento — aguardando curadoria da equipe da plataforma.',
-  score_prontidao: 5,
+  score_prontidao: null,
   score_fit: null,
 };
 
+/** Sem regra de palavra-chave correspondente e sem IA: não há base para dar nota. */
 const DEFAULT_KEYWORD_MATCH_RESULT: QualificationResult = {
-  tag_sonho: 'Interesse Geral',
-  resumo_ia: 'Lead captado com interesse básico. Aguardando triagem humana.',
-  score_prontidao: 5,
+  tag_sonho: TAG_NAO_AVALIADO,
+  resumo_ia: 'Não foi possível avaliar automaticamente este lead. Aguardando análise humana.',
+  score_prontidao: null,
   score_fit: null,
 };
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
+import { fixarDonoSeVazio } from '@/lib/crm/leadDono'
 import { refreshNextBestAction } from '@/lib/crm/agents/nextBestActionService'
 import { touchPendency } from '@/lib/crm/pendencia/pendencyState'
 
@@ -156,6 +157,8 @@ export async function POST(request: NextRequest) {
       `UPDATE leads_staging SET ${setParts.join(', ')} WHERE lead_uuid = $${updateParams.length}`,
       updateParams
     )
+    // Mover o lead no Kanban é uma ação humana: fixa o dono se ainda não houver (leadDono.ts).
+    await fixarDonoSeVazio(lead_uuid, currentUser?.userId)
 
     console.log(`[KanbanMove] Lead ${lead_uuid} movido para coluna ${colNome} (id: ${coluna_id})`)
 

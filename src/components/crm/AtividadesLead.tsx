@@ -60,6 +60,14 @@ interface PendingFile {
 
 interface Props {
   leadUuid: string
+  /** Quando true, mostra só o cabeçalho e o formulário de nova atividade (a lista fica no Histórico). */
+  hideList?: boolean
+  /** Ação pedida pelo Histórico. `nonce` muda a cada clique para disparar mesmo se repetida. */
+  actionRequest?: { id: string; action: 'edit' | 'delete'; nonce: number } | null
+  /** Avisa o pai após excluir (para o Histórico recarregar). */
+  onChanged?: () => void
+  /** Muda a cada clique em "Nova atividade" na barra do Histórico (abre o formulário). */
+  openNonce?: number
   clientId?: string | null
   /** Preenche o formulário de Nova Atividade com um texto vindo de fora (ex.: "Registrar como
    *  Atividade" no card "Sugestão da IA" — F3, docs/PLANO_AGENTES_ACELERACAO_CRM.md §5).
@@ -164,7 +172,7 @@ function AttachmentEntry({
   )
 }
 
-export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
+export default function AtividadesLead({ leadUuid, clientId, prefill, hideList = false, actionRequest, onChanged, openNonce }: Props) {
   const t = useTheme()
   const [atividades, setAtividades] = useState<Atividade[]>([])
   const [tipos, setTipos] = useState<TipoAtividade[]>([])
@@ -179,6 +187,7 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
   const [formDescricao, setFormDescricao] = useState('')
   const [formSugeridoPorIa, setFormSugeridoPorIa] = useState(false)
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([])
+  const formRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pendingFilesRef = useRef<PendingFile[]>([])
   pendingFilesRef.current = pendingFiles
@@ -186,6 +195,22 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
   useEffect(() => {
     if (leadUuid) loadAll()
   }, [leadUuid])
+
+  // Pedido de "Nova atividade" vindo da barra de ações do Histórico: abre um formulário limpo.
+  useEffect(() => {
+    if (!openNonce) return
+    resetForm()
+    setShowForm(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openNonce])
+
+  // Formulário aberto pelo Histórico (nova ou editar) fica no fim da ficha: leva a tela até ele.
+  useEffect(() => {
+    if (!openNonce && !actionRequest?.nonce) return
+    const id = setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openNonce, actionRequest?.nonce])
 
   // Revoga qualquer blob: local que ainda não foi limpo se o componente desmontar com o
   // formulário aberto (troca de lead com a ficha aberta, por exemplo) — evita vazamento de
@@ -318,6 +343,7 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
       }
       resetForm()
       loadAll()
+      onChanged?.()
     } catch (e: any) {
       setError(e.message || 'Erro ao salvar atividade.')
     } finally { setSaving(false) }
@@ -327,9 +353,24 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
     if (!confirm('Excluir esta atividade?')) return
     try {
       const res = await adminFetch(`/api/crm/atividades?id=${id}`, { method: 'DELETE' })
-      if (res.ok) setAtividades(prev => prev.filter(a => a.id !== id))
+      if (res.ok) {
+        setAtividades(prev => prev.filter(a => a.id !== id))
+        onChanged?.()
+      }
     } catch (e) { /* silent */ }
   }
+
+  // Ações pedidas pelo Histórico (cartão de atividade): editar abre o formulário; excluir confirma.
+  useEffect(() => {
+    if (!actionRequest) return
+    if (actionRequest.action === 'edit') {
+      const a = atividades.find(x => x.id === actionRequest.id)
+      if (a) startEdit(a)
+    } else if (actionRequest.action === 'delete') {
+      handleDelete(actionRequest.id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actionRequest?.nonce])
 
   if (loading) return (
     <div className={`text-center py-4 text-xs italic ${t.textMuted} animate-pulse`}>
@@ -337,8 +378,12 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
     </div>
   )
 
+  // Modo Histórico: sem lista nem cabeçalho; só aparece quando o formulário está aberto.
+  if (hideList && !showForm) return null
+
   return (
     <div className="space-y-3">
+      {!hideList && (
       <div className="flex items-center justify-between">
         <div className={`flex items-center space-x-2 text-xs font-black uppercase tracking-widest ${t.textPrimary}`}>
           <ListBulletIcon className="h-4 w-4 text-blue-500" />
@@ -355,9 +400,10 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
           </button>
         )}
       </div>
+      )}
 
       {showForm && (
-        <div className={`p-4 rounded-2xl border ${t.borderSub} ${t.isDark ? 'bg-white/[0.02]' : 'bg-gray-50'} space-y-3`}>
+        <div ref={formRef} className={`p-4 rounded-2xl border ${t.borderSub} ${t.isDark ? 'bg-white/[0.02]' : 'bg-gray-50'} space-y-3`}>
           <select
             value={formTipoId}
             onChange={e => setFormTipoId(e.target.value)}
@@ -413,7 +459,7 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
         </div>
       )}
 
-      {atividades.length === 0 && !showForm ? (
+      {hideList ? null : atividades.length === 0 && !showForm ? (
         <div className={`text-center py-6 rounded-2xl border border-dashed ${t.borderSub} ${t.isDark ? 'bg-white/[0.02]' : 'bg-gray-50'}`}>
           <ListBulletIcon className={`h-8 w-8 mx-auto mb-2 ${t.textMuted}`} />
           <p className={`text-xs font-medium ${t.textMuted}`}>Nenhuma atividade registrada ainda</p>

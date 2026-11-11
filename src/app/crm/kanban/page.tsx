@@ -31,8 +31,8 @@ import EnrichedLeadData from '@/components/crm/EnrichedLeadData'
 import NovoLeadModal from '@/components/crm/NovoLeadModal'
 import ClientSelector, { useClientSelector, type ClientFilterValue } from '@/components/crm/ClientSelector'
 import AgendarVisitaModal from '@/components/crm/AgendarVisitaModal'
-import AgendamentosLead from '@/components/crm/AgendamentosLead'
 import AtividadesLead from '@/components/crm/AtividadesLead'
+import LeadTimeline from '@/components/crm/LeadTimeline'
 import NextBestActionCard from '@/components/crm/NextBestActionCard'
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme } from '@/hooks/useTheme'
@@ -43,7 +43,7 @@ interface Lead {
   /** Texto literal digitado/enviado pelo lead na captação — nunca reescrito pela IA (resumo_ia
    *  é a versão dela). null pra leads anteriores a esta coluna, ou sem nenhuma mensagem livre. */
   mensagem_original?: string | null;
-  score_prontidao: number;
+  score_prontidao: number | null;
   /** Encaixe no perfil ideal de cliente (docs/PLANO_AGENTES_ACELERACAO_CRM.md §3.1) —
    *  dimensão separada de score_prontidao (intenção). null = ainda não avaliado. */
   score_fit?: number | null;
@@ -61,9 +61,29 @@ interface Lead {
   valor_venda_estimado?: number | null;
   corretor_atribuido_id?: string | null;
   corretor_nome?: string | null;
+  /** Dono do lead: primeiro usuário que atuou nele (NULL = ainda não atendido). */
+  dono_user_id?: string | null;
+  dono_nome?: string | null;
+  dono_tem_foto?: boolean;
+  campanha_nome?: string | null;
+  contato_avatar_url?: string | null;
   corretor_tem_foto?: boolean;
   deleted_at?: string | null;
 }
+/**
+ * Máscara do telefone no card: (99) 99999-9999. Os leads vindos do WhatsApp chegam com o DDI 55
+ * na frente (ex.: 5581998765432) — o DDI é suprimido só na exibição, o valor salvo não muda.
+ * Valor que não se encaixa no padrão brasileiro volta cru, sem perder informação.
+ */
+function formatTelefoneCard(raw?: string | null): string {
+  if (!raw) return ''
+  let d = raw.replace(/\D/g, '')
+  if (d.startsWith('55') && (d.length === 12 || d.length === 13)) d = d.slice(2)
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return raw
+}
+
 interface Coluna { id: number; nome: string; titulo_exibicao: string; cor: string; icone: string; is_ganho?: boolean; is_perda?: boolean; requer_valor_estimado?: boolean; }
 
 const formatPhone = (phone?: string) => {
@@ -152,6 +172,10 @@ export default function KanbanPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [isAgendarOpen, setIsAgendarOpen] = useState(false)
   const [agendamentosVersion, setAgendamentosVersion] = useState(0)
+  // Editar/excluir atividade pedido pelo cartão do Histórico; o AtividadesLead executa.
+  const [atividadeAction, setAtividadeAction] = useState<{ id: string; action: 'edit' | 'delete'; nonce: number } | null>(null)
+  // Abre o formulário de nova atividade pela barra do Histórico.
+  const [novaAtividadeNonce, setNovaAtividadeNonce] = useState(0)
   const [isCalendarioViewOpen, setIsCalendarioViewOpen] = useState(false)
   const [tenantConfig, setTenantConfig] = useState<any>(null)
   // F3 — "Registrar como Atividade" no card "Sugestão da IA" pré-preenche o form de
@@ -969,42 +993,17 @@ export default function KanbanPage() {
 
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center space-x-3.5">
+                        {/* Potencial cliente (contato) — informação principal do card, no topo. */}
                         <div
-                          className="flex flex-col items-center gap-1 shrink-0"
-                          title={lead.corretor_nome ? `Responsável: ${lead.corretor_nome}` : 'Sem responsável atribuído'}
+                          className={`h-11 w-11 rounded-xl overflow-hidden flex items-center justify-center shrink-0 text-[11px] font-black ${isDark ? 'bg-white/5 text-slate-300' : 'bg-slate-100 text-slate-600'}`}
                         >
-                          <div
-                            className={`h-9 w-9 rounded-lg overflow-hidden flex items-center justify-center shrink-0 ${isDark ? 'bg-white/5' : 'bg-slate-50 border border-slate-100'} group-hover:bg-gold-premium/10 transition-colors`}
-                          >
-                            {lead.corretor_atribuido_id && lead.corretor_tem_foto ? (
-                              <img
-                                src={`/api/admin/usuarios/${lead.corretor_atribuido_id}/foto`}
-                                alt={lead.corretor_nome || 'Responsável'}
-                                className="h-9 w-9 object-cover"
-                              />
-                            ) : lead.corretor_nome ? (
-                              <div className="h-9 w-9 rounded-lg bg-blue-600 flex items-center justify-center text-[10px] font-black text-white">
-                                {getInitials(lead.corretor_nome)}
-                              </div>
-                            ) : (
-                              <UserCircleIcon className={`h-6 w-6 ${t.isDark ? t.textMuted : 'text-slate-400'} group-hover:text-blue-500 transition-colors`} />
-                            )}
-                          </div>
-                          {/* Nome do dono do lead — antes só existia no hover (title), agora
-                              sempre visível como legenda curta abaixo do avatar. */}
-                          {lead.corretor_nome && (
-                            // dsMuted, não dsFaint — é texto informativo real (nome do
-                            // responsável), sentado direto sobre o tingimento do card; dsFaint é
-                            // claro demais pra WCAG AA quando usado como texto (era apropriado só
-                            // pra ícone/decoração, onde o requisito de contraste é mais frouxo).
-                            <span className={`text-[9px] font-bold leading-none text-center max-w-[52px] truncate ${dsMuted}`}>
-                              {lead.corretor_nome.split(' ')[0]}
-                            </span>
-                          )}
+                          {lead.contato_avatar_url ? (
+                            <img src={lead.contato_avatar_url} alt={lead.nome || 'Contato'} className="h-11 w-11 object-cover" />
+                          ) : getInitials(lead.nome)}
                         </div>
                         <div>
                           <div className={`text-sm font-black leading-tight tracking-tight ${dsText}`}>{lead.nome || 'Lead s/ Nome'}</div>
-                          <div className={`text-[11px] font-bold mt-0.5 ${dsMuted}`}>{lead.telefone || lead.email || 'Sem contato'}</div>
+                          <div className={`text-[11px] font-bold mt-0.5 ${dsMuted}`}>{formatTelefoneCard(lead.telefone) || lead.email || 'Sem contato'}</div>
                         </div>
                       </div>
                       {/* Score vira acento âmbar só quando ≥70% (lead "quente") — hierarquia com
@@ -1020,7 +1019,7 @@ export default function KanbanPage() {
                           ? 'text-navy-dark bg-gold-premium border-gold'
                           : dsMuted + ' ' + dsDivider + ' bg-transparent'
                       }`}>
-                        <div>{lead.score_prontidao || 0}% Match</div>
+                        <div>{lead.score_prontidao != null ? `${lead.score_prontidao}% Match` : 'Não avaliado'}</div>
                         {lead.score_fit != null && <div>{lead.score_fit}% Aderência</div>}
                       </div>
                     </div>
@@ -1060,6 +1059,11 @@ export default function KanbanPage() {
                           <span>Interesse Regional</span>
                         </div>
                       )}
+                      {lead.campanha_nome && (
+                        <div className={`flex items-center text-[11px] font-bold mt-2 ${dsMuted}`} title={`Origem: ${lead.campanha_nome}`}>
+                          <span className="truncate">📣 {lead.campanha_nome}</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Rodapé com faixa própria, discreta, na cor da coluna — mistura mais forte
@@ -1072,15 +1076,25 @@ export default function KanbanPage() {
                       style={{ backgroundColor: footerTint, borderTopColor: `${col.cor}30` }}
                     >
                       <div className="flex items-center space-x-2">
-                        <div className={`h-7 w-7 rounded-lg flex items-center justify-center text-[10px] font-black ${isDark ? 'bg-white/5 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
-                          {getInitials(lead.nome)}
-                        </div>
+                        {/* Dono do lead (quem atua nele). Leads de campanha nascem sem dono. */}
+                        {lead.dono_user_id && lead.dono_nome ? (
+                          <div className="flex items-center gap-1.5 min-w-0" title={`Dono: ${lead.dono_nome}`}>
+                            <div className={`h-7 w-7 rounded-lg overflow-hidden flex items-center justify-center shrink-0 text-[10px] font-black ${lead.dono_tem_foto ? '' : 'bg-blue-600 text-white'}`}>
+                              {lead.dono_tem_foto ? (
+                                <img src={`/api/admin/usuarios/${lead.dono_user_id}/foto`} alt={lead.dono_nome} className="h-7 w-7 object-cover" />
+                              ) : getInitials(lead.dono_nome)}
+                            </div>
+                            <span className={`text-[10px] font-bold truncate max-w-[70px] ${dsMuted}`}>{lead.dono_nome.split(' ')[0]}</span>
+                          </div>
+                        ) : (
+                          <span className={`text-[10px] font-bold italic ${dsMuted}`}>Ainda não atendido</span>
+                        )}
                         {lead.created_at && (
                           // dsMuted (mesma razão da legenda do responsável, acima) — texto direto
                           // sobre a faixa de rodapé, que agora tem tingimento mais forte que o
                           // corpo do card.
                           <span className={`text-[10px] font-bold tracking-widest ${dsMuted}`}>
-                            {new Date(lead.created_at).toLocaleDateString('pt-BR')}
+                            {new Date(lead.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
                           </span>
                         )}
                         {!!lead.atividades_count && (
@@ -1157,8 +1171,12 @@ export default function KanbanPage() {
                 <XMarkIcon className="h-6 w-6" />
               </button>
               <div className="flex items-center space-x-5">
-                <div className="h-14 w-14 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
-                  <UsersIcon className="h-8 w-8" />
+                <div className="h-14 w-14 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30 overflow-hidden">
+                  {selectedLead.contato_avatar_url ? (
+                    <img src={selectedLead.contato_avatar_url} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <UsersIcon className="h-8 w-8" />
+                  )}
                 </div>
                 <div>
                   <h3 className={`text-xl font-bold italic tracking-tight ${t.textPrimary}`}>{selectedLead.nome}</h3>
@@ -1200,7 +1218,7 @@ export default function KanbanPage() {
                     virando somente-leitura em etapa terminal, onde estimar não faz mais
                     sentido). Um único botão salva as 3 categorias juntas, só quando há
                     alteração real pendente (fichaInfoDirty). */}
-                <div className={`p-5 ${t.cardBg} rounded-3xl border-emerald-500/20 border relative h-full`}>
+                <div className={`p-5 ${t.cardBg} rounded-3xl border-emerald-500/20 border relative`}>
                   <div className="absolute -top-3 left-6 flex items-center space-x-2 bg-emerald-600 text-[9px] font-bold text-white px-3 py-0.5 rounded-full uppercase shadow-lg shadow-emerald-500/20">
                     <CheckBadgeIcon className="h-3 w-3" /><span>Informações do Lead</span>
                   </div>
@@ -1214,7 +1232,7 @@ export default function KanbanPage() {
                               type={field.type === 'number' ? 'number' : 'text'}
                               value={fichaRawJsonEdits[field.name] ?? ''}
                               onChange={e => setFichaRawJsonEdits(prev => ({ ...prev, [field.name]: e.target.value }))}
-                              className={`w-full rounded-xl py-2 px-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/30 ${t.isDark ? t.inputBg : 'bg-white text-slate-700 border border-slate-200'}`}
+                              className={`w-full rounded-xl py-2 px-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/30 ${t.isDark ? t.inputBg : 'bg-emerald-50/60 text-slate-800 border border-emerald-200'}`}
                             />
                           </div>
                         ))}
@@ -1225,70 +1243,11 @@ export default function KanbanPage() {
                       <p className={`text-xs italic ${t.textMuted}`}>Nenhum campo de Perfil de Interesse configurado para este segmento.</p>
                     )}
 
-                    <div className="space-y-1">
-                      <label className={`block text-[9px] font-black uppercase tracking-widest ml-1 flex items-center gap-1.5 ${t.textMuted}`}>
-                        <ChatBubbleLeftRightIcon className="h-3.5 w-3.5" />Mensagem do Lead
-                      </label>
-                      <textarea
-                        value={fichaMensagemEdit}
-                        onChange={e => setFichaMensagemEdit(e.target.value)}
-                        rows={3}
-                        placeholder="Nenhuma mensagem registrada."
-                        className={`w-full rounded-xl py-2 px-3 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-emerald-500/30 resize-y max-h-48 ${t.isDark ? t.inputBg : 'bg-white text-slate-700 border border-slate-200'}`}
-                      />
-                    </div>
-
-                    {/* Valor Estimado — migrado de "Análise por IA" (docs/CHECKPOINT.md, 2026-08-27) */}
-                    {(() => {
-                      const currentCol = colunas.find(c => c.nome === selectedLead.coluna_nome)
-                      const isTerminal = !!(currentCol?.is_ganho || currentCol?.is_perda)
-                      return (
-                        <div className={`p-3 rounded-xl border ${t.isDark ? 'bg-amber-500/5 border-amber-500/20' : 'bg-amber-50 border-amber-200'}`}>
-                          <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>Valor Estimado</p>
-                          {isTerminal ? (
-                            <span className={`text-lg font-bold ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>
-                              {selectedLead.valor_venda_estimado != null ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedLead.valor_venda_estimado) : '—'}
-                            </span>
-                          ) : (
-                            <div className="relative">
-                              <span className={`absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>R$</span>
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                value={fichaValorEstimadoInput}
-                                onChange={e => {
-                                  const digits = e.target.value.replace(/\D/g, '')
-                                  if (!digits) { setFichaValorEstimadoInput(''); return }
-                                  const num = parseInt(digits, 10) / 100
-                                  setFichaValorEstimadoInput(num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
-                                }}
-                                placeholder="0,00"
-                                className={`w-full rounded-lg py-1.5 pl-8 pr-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500/30 ${t.isDark ? 'bg-black/20 text-amber-300' : 'bg-white text-amber-700 border border-amber-200'}`}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })()}
-
-                    {/* Botão único — cobre raw_json, mensagem e Valor Estimado juntos, só
-                        aparece com alteração real pendente (fichaInfoDirty). */}
-                    {fichaInfoDirty.any && (
-                      <button
-                        type="button"
-                        onClick={saveFichaInfoLeadCombined}
-                        disabled={savingInfoLead || savingValorEstimado}
-                        className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all animate-in fade-in zoom-in-95 duration-150 ${(savingInfoLead || savingValorEstimado) ? 'opacity-50' : ''} bg-emerald-600 hover:bg-emerald-500 text-white`}
-                      >
-                        <CheckBadgeIcon className="h-4 w-4" />
-                        {(savingInfoLead || savingValorEstimado) ? 'Salvando...' : 'Salvar Alterações'}
-                      </button>
-                    )}
                   </div>
                 </div>
 
                 {/* Coluna 2: Análise IA */}
-                <div className={`p-5 ${t.cardBg} rounded-3xl border border-blue-500/20 relative h-full flex flex-col`}>
+                <div className={`p-5 ${t.cardBg} rounded-3xl border border-blue-500/20 relative self-start`}>
                   <div className="absolute -top-3 left-6 flex items-center space-x-2 bg-blue-600 text-[9px] font-bold text-white px-3 py-0.5 rounded-full uppercase shadow-lg shadow-blue-500/20">
                     <SparklesIcon className="h-3 w-3" /><span>Análise por IA</span>
                   </div>
@@ -1320,7 +1279,7 @@ export default function KanbanPage() {
                       {[
                         {
                           label: 'Intenção',
-                          val: `${selectedLead.score_prontidao}%`,
+                          val: selectedLead.score_prontidao != null ? `${selectedLead.score_prontidao}%` : 'Não avaliado',
                           bg: t.isDark ? 'bg-blue-500/10 border-blue-500/20' : 'bg-blue-50 border-blue-200',
                           fg: t.isDark ? 'text-blue-400' : 'text-blue-700',
                         },
@@ -1351,29 +1310,106 @@ export default function KanbanPage() {
                 </div>
               </div>
 
+              {/* Terceiro container, largura total: Mensagem que originou o lead + Valor Estimado
+                  lado a lado. Saiu da coluna "Informações do Lead" para equilibrar a altura com
+                  "Análise por IA". O botão de salvar (raw_json + mensagem + valor) fica aqui. */}
+              <div className={`p-5 ${t.cardBg} rounded-3xl border-emerald-500/20 border relative`}>
+                <div className="absolute -top-3 left-6 flex items-center space-x-2 bg-emerald-600 text-[9px] font-bold text-white px-3 py-0.5 rounded-full uppercase shadow-lg shadow-emerald-500/20">
+                  <ChatBubbleLeftRightIcon className="h-3 w-3" /><span>Mensagem e Valor Estimado</span>
+                </div>
+                <div className="mt-4 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="md:col-span-2 flex flex-col space-y-1">
+                      <label className={`block text-[9px] font-black uppercase tracking-widest ml-1 flex items-center gap-1.5 ${t.textMuted}`}>
+                        <ChatBubbleLeftRightIcon className="h-3.5 w-3.5" />Mensagem que originou o lead (WhatsApp)
+                      </label>
+                      <textarea
+                        value={fichaMensagemEdit}
+                        onChange={e => setFichaMensagemEdit(e.target.value)}
+                        rows={3}
+                        placeholder="Nenhuma mensagem registrada."
+                        className={`w-full rounded-xl py-2 px-3 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-emerald-500/30 resize-y max-h-48 ${t.isDark ? t.inputBg : 'bg-emerald-50/60 text-slate-800 border border-emerald-200'}`}
+                      />
+                    </div>
+
+                    {/* Valor Estimado — editável enquanto a etapa não é terminal */}
+                    {(() => {
+                      const currentCol = colunas.find(c => c.nome === selectedLead.coluna_nome)
+                      const isTerminal = !!(currentCol?.is_ganho || currentCol?.is_perda)
+                      return (
+                        <div className="flex flex-col space-y-1">
+                          <label className={`block text-[9px] font-black uppercase tracking-widest ml-1 ${t.textMuted}`}>Valor Estimado</label>
+                          <div className={`flex-1 flex items-center p-3 rounded-xl border ${t.isDark ? 'bg-amber-500/5 border-amber-500/20' : 'bg-amber-50 border-amber-200'}`}>
+                          {isTerminal ? (
+                            <span className={`text-lg font-bold ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                              {selectedLead.valor_venda_estimado != null ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedLead.valor_venda_estimado) : '—'}
+                            </span>
+                          ) : (
+                            <div className="relative w-full">
+                              <span className={`absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>R$</span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={fichaValorEstimadoInput}
+                                onChange={e => {
+                                  const digits = e.target.value.replace(/\D/g, '')
+                                  if (!digits) { setFichaValorEstimadoInput(''); return }
+                                  const num = parseInt(digits, 10) / 100
+                                  setFichaValorEstimadoInput(num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+                                }}
+                                placeholder="0,00"
+                                className={`w-full rounded-lg py-1.5 pl-8 pr-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500/30 ${t.isDark ? 'bg-black/20 text-amber-300' : 'bg-white text-amber-700 border border-amber-200'}`}
+                              />
+                            </div>
+                          )}
+                          </div>
+                        </div>
+                      )
+                    })()}
+                  </div>
+
+                  {/* Botão único — raw_json, mensagem e Valor Estimado juntos. Sempre visível;
+                      habilitado só quando há alteração real pendente (fichaInfoDirty). */}
+                  <button
+                    type="button"
+                    onClick={saveFichaInfoLeadCombined}
+                    disabled={!fichaInfoDirty.any || savingInfoLead || savingValorEstimado}
+                    className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${(!fichaInfoDirty.any || savingInfoLead || savingValorEstimado) ? 'opacity-40 cursor-not-allowed' : ''} bg-emerald-600 hover:bg-emerald-500 text-white`}
+                  >
+                    <CheckBadgeIcon className="h-4 w-4" />
+                    {(savingInfoLead || savingValorEstimado) ? 'Salvando...' : 'Salvar Alterações'}
+                  </button>
+                </div>
+              </div>
+
               {/* Sugestão da IA — F3 next_best_action, informativo, nunca bloqueante */}
               <NextBestActionCard
                 leadUuid={selectedLead.lead_uuid}
                 onUseAsActivity={handleUseSuggestionAsActivity}
               />
 
-              {/* Histórico de Visitas Compacto */}
+              {/* Histórico unificado: mensagens (balões), atividades e visitas em ordem cronológica */}
               <div className={`p-5 ${t.cardBg} rounded-3xl border border-indigo-500/10`}>
-                <AgendamentosLead
+                <LeadTimeline
                   leadUuid={selectedLead.lead_uuid}
-                  onAgendar={tenantConfig?.calendario ? () => setIsAgendarOpen(true) : undefined}
+                  isDark={t.isDark}
                   refreshKey={agendamentosVersion}
+                  onAgendar={tenantConfig?.calendario ? () => setIsAgendarOpen(true) : undefined}
+                  onAtividadeAction={(id, action) => setAtividadeAction({ id, action, nonce: Date.now() })}
+                  onNovaAtividade={() => setNovaAtividadeNonce(Date.now())}
                 />
               </div>
 
-              {/* Atividades do Ciclo de Vendas/Perda */}
-              <div className={`p-5 ${t.cardBg} rounded-3xl border border-indigo-500/10`}>
-                <AtividadesLead
-                  leadUuid={selectedLead.lead_uuid}
-                  clientId={selectedLead.client_id}
-                  prefill={activityPrefill}
-                />
-              </div>
+              {/* Formulário de nova atividade: aberto pela barra do Histórico, sem container extra */}
+              <AtividadesLead
+                leadUuid={selectedLead.lead_uuid}
+                clientId={selectedLead.client_id}
+                prefill={activityPrefill}
+                hideList
+                actionRequest={atividadeAction}
+                onChanged={() => setAgendamentosVersion(v => v + 1)}
+                openNonce={novaAtividadeNonce}
+              />
             </div>
 
             <div className={`p-6 border-t ${t.borderSub} ${t.isDark ? 'bg-black/20' : 'bg-gray-50'} flex flex-wrap items-center justify-between gap-3`}>

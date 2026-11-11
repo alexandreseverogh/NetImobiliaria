@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-// last-restart: 2026-11-12-post-images
+// last-restart: 2026-11-12-image-rework
 // (nuvem de 21 segmentos), força restart completo pra pegar o código novo.
 // Configurações baseadas no ambiente (sem TypeScript)
 const isDevelopment = process.env.NODE_ENV === 'development'

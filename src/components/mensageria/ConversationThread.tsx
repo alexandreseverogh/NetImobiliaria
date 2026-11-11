@@ -1,5 +1,6 @@
 'use client'
 
+import ImageLightbox from '@/components/common/ImageLightbox'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   PaperAirplaneIcon, CheckCircleIcon, ClockIcon, PhoneIcon, LockClosedIcon, PlusIcon, MegaphoneIcon,
@@ -142,15 +143,29 @@ function MessageBubble({ message }: { message: Message }) {
       </div>
     )
   }
-  const imageUrl = message.contentType === 'image' ? message.attachments?.[0]?.url : null
+  const att = message.attachments?.[0] as { url?: string; mimetype?: string; name?: string } | undefined
+  const imageUrl = message.contentType === 'image' ? att?.url : null
+  const mediaUrl = att?.url || null
+  const isVideo = !!att?.mimetype?.startsWith('video/')
   return (
     <div className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}>
       <div className={`max-w-[70%] rounded-xl px-3.5 py-2 ${isOutbound ? 'bg-[#c5a028]/15 text-white' : 'bg-[#112240] text-slate-200'}`}>
         {message.senderType === 'bot' && <p className="text-[10px] text-[#d4af37] font-semibold mb-0.5">🤖 Bot</p>}
         {imageUrl ? (
-          <img src={imageUrl} loading="lazy" className="rounded-lg max-w-full max-h-64 object-cover" alt="Foto do imóvel" />
+          <ImageLightbox src={imageUrl} alt={message.content || 'Imagem'} className="rounded-lg max-w-full max-h-64 object-cover" />
+        ) : message.contentType === 'audio' && mediaUrl ? (
+          <audio controls preload="none" src={mediaUrl} className="max-w-full" />
+        ) : message.contentType === 'file' && mediaUrl && isVideo ? (
+          <video controls preload="metadata" src={mediaUrl} className="rounded-lg max-w-full max-h-64" />
+        ) : message.contentType === 'file' && mediaUrl ? (
+          <a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="text-sm underline text-[#d4af37]">
+            📎 {att?.name || 'Abrir documento'}
+          </a>
         ) : (
           <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+        )}
+        {mediaUrl && message.content && (
+          <p className="text-sm whitespace-pre-wrap leading-relaxed mt-1">{message.content}</p>
         )}
         <div className="flex items-center justify-end gap-1 mt-1">
           <span className="text-[10px] text-slate-500" title={formatFullDate(message.createdAt)}>{timeAgo(message.createdAt)}</span>
@@ -288,7 +303,9 @@ export default function ConversationThread({ conversationId, onUpdated }: { conv
       <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-[#c5a028]/15 border border-[#c5a028]/20 flex items-center justify-center text-[11px] font-semibold text-[#d4af37]">
-            {initials(detail.contact.name)}
+            {detail.contact.avatarUrl ? (
+              <img src={detail.contact.avatarUrl} alt="" className="w-full h-full rounded-full object-cover" />
+            ) : initials(detail.contact.name)}
           </div>
           <div>
             <p className="text-sm font-semibold text-white">{detail.contact.name || detail.contact.phone}</p>

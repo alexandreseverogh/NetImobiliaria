@@ -36,7 +36,7 @@ interface FormSchemaField {
 
 interface QualificationResult {
   tag_sonho: string
-  score_prontidao: number
+  score_prontidao: number | null
   score_fit: number | null
 }
 
@@ -512,7 +512,7 @@ export default function NovoLeadModal({ isOpen, onClose, onSuccess, clientId, cl
                            <div className="grid grid-cols-2 gap-3">
                               <div className="bg-black/20 rounded-xl p-3">
                                  <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Intenção</p>
-                                 <p className="text-xl font-black text-blue-300">{qualificationResult.score_prontidao}%</p>
+                                 <p className="text-xl font-black text-blue-300">{qualificationResult.score_prontidao != null ? `${qualificationResult.score_prontidao}%` : 'Não avaliado'}</p>
                               </div>
                               <div className="bg-black/20 rounded-xl p-3">
                                  <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Aderência</p>
