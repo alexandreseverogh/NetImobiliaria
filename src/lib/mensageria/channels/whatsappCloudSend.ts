@@ -125,19 +125,23 @@ export async function sendWhatsAppCloudMessage(
   })
 }
 
+export type CloudMediaKind = 'image' | 'video' | 'document' | 'audio'
+
+/** Mídia por link público. Áudio não aceita legenda; documento aceita nome de arquivo. */
 export async function sendWhatsAppCloudMedia(
   config: WhatsAppCloudInboxConfig,
   toPhone: string,
   mediaUrl: string,
   caption?: string,
   conversationId?: string | null,
+  opts?: { kind?: CloudMediaKind; fileName?: string },
 ): Promise<{ ok: boolean; externalId?: string; error?: string }> {
   const blocked = await windowError(conversationId)
   if (blocked) return { ok: false, error: blocked }
-  return postMessage(config, {
-    messaging_product: 'whatsapp',
-    to: normalizePhone(toPhone),
-    type: 'image',
-    image: { link: mediaUrl, caption: caption || undefined },
-  })
+  const kind: CloudMediaKind = opts?.kind ?? 'image'
+  const body: Record<string, unknown> = { messaging_product: 'whatsapp', to: normalizePhone(toPhone), type: kind }
+  if (kind === 'audio') body.audio = { link: mediaUrl }
+  else if (kind === 'document') body.document = { link: mediaUrl, caption: caption || undefined, filename: opts?.fileName || undefined }
+  else body[kind] = { link: mediaUrl, caption: caption || undefined }
+  return postMessage(config, body)
 }

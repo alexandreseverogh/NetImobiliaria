@@ -9,6 +9,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
 import { adminFetch } from '@/lib/auth/adminFetch'
+import EmojiTextarea from '@/components/mensageria/EmojiTextarea'
 import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelector'
 import { PromptOverrideCard } from '@/components/crm/PromptOverrideCard'
 import { LlmCascadeSection } from '@/components/crm/LlmCascadeSection'
@@ -38,7 +39,10 @@ interface Inbox {
 }
 interface TenantUser { id: string; nome: string }
 interface TeamMember { userId: string; name: string; role: string }
-interface Team { id: string; name: string; autoAssign: boolean; members: TeamMember[]; clientId: string | null; clientName: string | null }
+interface Team {
+  id: string; name: string; autoAssign: boolean; members: TeamMember[]; clientId: string | null; clientName: string | null
+  inboxCount: number; inboxNames: string[]; openCount: number; pendingCount: number; conversationCount: number
+}
 interface Label { id: string; name: string; color: string; clientId: string | null; clientName: string | null }
 interface CannedResponse { id: string; shortcut: string; content: string; clientId: string | null; clientName: string | null }
 interface SlaPolicy {
@@ -49,6 +53,20 @@ interface SlaPolicy {
 
 export default function MensageriaConfigPage() {
   const [tab, setTab] = useState<Tab>('inboxes')
+  // Aba Bot: fica bloqueada para o administrador da empresa enquanto o Master não liberar.
+  // O Master (is_system_role) sempre vê a aba.
+  const [botLocked, setBotLocked] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/admin/mensageria/bot-flows')
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => {
+        if (cancelled || !data) return
+        setBotLocked(!data.botAtivacaoLiberada && !data.isMaster)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-[#020c1b] px-6 py-6">
@@ -57,7 +75,7 @@ export default function MensageriaConfigPage() {
         <p className="text-sm text-slate-400 mb-6">Canais, times, etiquetas, respostas rápidas e políticas de SLA.</p>
 
         <div className="flex items-center gap-1 border-b border-white/5 mb-6 overflow-x-auto">
-          {TABS.map((t) => (
+          {TABS.filter((t) => !(t.id === 'bot' && botLocked)).map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
@@ -75,7 +93,15 @@ export default function MensageriaConfigPage() {
         {tab === 'labels' && <LabelsTab />}
         {tab === 'canned' && <CannedTab />}
         {tab === 'sla' && <SlaTab />}
-        {tab === 'bot' && <BotTab />}
+        {tab === 'bot' && botLocked && (
+          <div className="rounded-2xl border border-white/8 bg-[#0d1b2e] p-10 text-center">
+            <p className="text-sm font-semibold text-white">Bot de atendimento indisponível</p>
+            <p className="text-xs text-slate-400 mt-2">
+              A configuração do bot ainda não foi liberada para esta empresa. Solicite à equipe da plataforma.
+            </p>
+          </div>
+        )}
+        {tab === 'bot' && !botLocked && <BotTab />}
         {tab === 'knowledge' && <KnowledgeTab />}
       </div>
     </div>
@@ -129,9 +155,11 @@ function normalizeText(s: string): string {
 function useAllClients(): ClienteOption[] {
   const [clients, setClients] = useState<ClienteOption[]>([])
   useEffect(() => {
-    adminFetch('/api/admin/campanhas/clients?limit=200')
+    // Endpoint próprio da Mensageria: lista todos os clientes do tenant, sem depender do tipo
+    // (conta_gerenciada só existe com Campanhas contratada).
+    adminFetch('/api/admin/mensageria/clientes-list')
       .then((r) => r.json())
-      .then((data) => setClients((Array.isArray(data) ? data : []).map((c: any) => ({ id: c.id, nome: c.name }))))
+      .then((data) => setClients((data.clientes || []).map((c: any) => ({ id: c.id, nome: c.nome }))))
       .catch(() => {})
   }, [])
   return clients
@@ -366,6 +394,10 @@ function InboxesTab() {
           ))}
         </div>
       )}
+      <p className="text-xs text-slate-500 mt-3">
+        O time vinculado a uma inbox define a atribuição automática das novas conversas dela e quais atendentes
+        veem essas conversas (líderes veem o time inteiro). Sem time, a conversa fica na fila de não atribuídas.
+      </p>
       {teams.length === 0 && (
         <p className="text-xs text-amber-400/70 mt-3">Nenhum time cadastrado ainda — crie um na aba &quot;Times&quot; para poder vincular.</p>
       )}
@@ -385,7 +417,9 @@ function TeamsTab() {
   const [newName, setNewName] = useState('')
   const [newClientId, setNewClientId] = useState<string | null>(null)
   const [newClientName, setNewClientName] = useState<string | null>(null)
+  const [newAutoAssign, setNewAutoAssign] = useState(true)
   const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState('')
   const [addingMemberTeam, setAddingMemberTeam] = useState<string | null>(null)
   const [selectedUser, setSelectedUser] = useState('')
   const [selectedRole, setSelectedRole] = useState<'agent' | 'lead'>('agent')
@@ -407,15 +441,30 @@ function TeamsTab() {
 
   useEffect(() => { load() }, [])
 
+  async function toggleAutoAssign(teamId: string, current: boolean) {
+    await adminFetch(`/api/admin/mensageria/teams?id=${teamId}`, {
+      method: 'PATCH', body: JSON.stringify({ autoAssign: !current }),
+    })
+    await load()
+  }
+
   async function createTeam() {
     if (!newName.trim()) return
     setCreating(true)
+    setCreateError('')
     try {
-      await adminFetch('/api/admin/mensageria/teams', {
-        method: 'POST', body: JSON.stringify({ name: newName.trim(), clientId: newClientId }),
+      const res = await adminFetch('/api/admin/mensageria/teams', {
+        method: 'POST', body: JSON.stringify({ name: newName.trim(), clientId: newClientId, autoAssign: newAutoAssign }),
       })
-      setNewName(''); setNewClientId(null); setNewClientName(null)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setCreateError(data.error || 'Não foi possível criar o time.')
+        return
+      }
+      setNewName(''); setNewClientId(null); setNewClientName(null); setNewAutoAssign(true)
       await load()
+    } catch {
+      setCreateError('Falha de conexão ao criar o time. Tente novamente.')
     } finally {
       setCreating(false)
     }
@@ -458,7 +507,8 @@ function TeamsTab() {
     <div className="space-y-4">
       <Card>
         <p className="text-xs text-slate-500 mb-3">
-          Times permitem agrupar atendentes e (futuramente) roteamento por auto-atribuição. Deixe o
+          Um time define a <span className="text-slate-300">atribuição automática</span> das conversas da inbox
+          vinculada (vai para o atendente com menos conversas abertas) e quem vê essas conversas. Deixe o
           campo &quot;cliente&quot; vazio para um time que pode atender qualquer cliente; escolha um
           específico para um time dedicado só a ele (só pode ser vinculado a inboxes desse mesmo cliente).
         </p>
@@ -467,6 +517,17 @@ function TeamsTab() {
             <TextInput value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Nome do time (ex: Vendas — Zona Sul)" className="flex-1" />
           </div>
           <ClientPicker clientId={newClientId} clientName={newClientName} allClients={allClients} onChange={(id, name) => { setNewClientId(id); setNewClientName(name) }} />
+          <label className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-[#0a192f] border border-white/8 cursor-pointer">
+            <span className="text-xs text-slate-300">
+              Auto-atribuição
+              <span className="block text-[11px] text-slate-500">Novas conversas das inboxes deste time vão para o atendente com menos conversas abertas.</span>
+            </span>
+            <input
+              type="checkbox" checked={newAutoAssign} onChange={(e) => setNewAutoAssign(e.target.checked)}
+              className="w-4 h-4 accent-[#c5a028]"
+            />
+          </label>
+          {createError && <p className="text-xs text-rose-400">{createError}</p>}
           <div className="flex justify-end">
             <PrimaryButton onClick={createTeam} disabled={creating || !newName.trim()}><PlusIcon className="w-4 h-4" /> Criar time</PrimaryButton>
           </div>
@@ -482,9 +543,44 @@ function TeamsTab() {
               <div>
                 <p className="text-sm font-semibold text-white">{team.name}</p>
                 <p className="text-xs text-slate-500">
-                  {team.autoAssign ? 'Auto-atribuição ativa' : 'Atribuição manual'}
-                  {' · '}{team.clientName ? <span className="text-[#d4af37]">Cliente: {team.clientName}</span> : 'Qualquer cliente'}
+                  <button
+                    onClick={() => toggleAutoAssign(team.id, team.autoAssign)}
+                    title="Clique para alterar a auto-atribuição deste time"
+                    className="underline decoration-dotted underline-offset-2 hover:text-slate-300"
+                  >
+                    {team.autoAssign ? 'Auto-atribuição ativa' : 'Atribuição manual'}
+                  </button>
+                  {' · '}{team.clientName ? <span className="text-[#d4af37]">Atende: {team.clientName}</span> : 'Atende: qualquer cliente'}
+                  {' · '}{team.openCount} {team.openCount === 1 ? 'conversa aberta' : 'conversas abertas'}
+                  {' · '}{team.pendingCount} {team.pendingCount === 1 ? 'pendente' : 'pendentes'}
                 </p>
+                {team.inboxCount > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                    <span className="text-[11px] text-slate-500">Inbox:</span>
+                    {team.inboxNames.slice(0, 2).map((name) => (
+                      <span
+                        key={name}
+                        title={`Inbox: ${name}`}
+                        className="text-[11px] px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-slate-300 truncate max-w-[160px]"
+                      >
+                        {name}
+                      </span>
+                    ))}
+                    {team.inboxNames.length > 2 && (
+                      <span
+                        className="text-[11px] px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-slate-400"
+                        title={team.inboxNames.slice(2).join(', ')}
+                      >
+                        +{team.inboxNames.length - 2}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {team.inboxCount === 0 && (
+                  <p className="text-xs text-amber-400/80 mt-1">
+                    Este time não atende nenhuma inbox — não recebe atribuição automática. Vincule-o na aba &quot;Inboxes&quot;.
+                  </p>
+                )}
               </div>
               <button onClick={() => deleteTeam(team.id)} className="text-slate-500 hover:text-rose-400 transition-colors">
                 <TrashIcon className="w-4 h-4" />
@@ -573,6 +669,7 @@ function LabelsTab() {
   const [newClientId, setNewClientId] = useState<string | null>(null)
   const [newClientName, setNewClientName] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState('')
   const allClients = useAllClients()
 
   async function load() {
@@ -590,18 +687,42 @@ function LabelsTab() {
   async function create() {
     if (!name.trim()) return
     setCreating(true)
+    setCreateError('')
     try {
-      await adminFetch('/api/admin/mensageria/labels', {
+      const res = await adminFetch('/api/admin/mensageria/labels', {
         method: 'POST', body: JSON.stringify({ name: name.trim(), color, clientId: newClientId }),
       })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setCreateError(data.error || 'Não foi possível criar a etiqueta.')
+        return
+      }
       setName(''); setNewClientId(null); setNewClientName(null)
       await load()
+    } catch {
+      setCreateError('Falha de conexão ao criar a etiqueta. Tente novamente.')
     } finally {
       setCreating(false)
     }
   }
 
+  async function changeColor(id: string, color: string) {
+    await adminFetch(`/api/admin/mensageria/labels?id=${id}`, {
+      method: 'PATCH', body: JSON.stringify({ color }),
+    })
+    await load()
+  }
+
   async function remove(id: string) {
+    // Antes de excluir, avisa quantas conversas perdem a etiqueta. A exclusão remove a marcação
+    // dessas conversas, mas não apaga nenhuma conversa.
+    const usageRes = await adminFetch(`/api/admin/mensageria/labels/usage?id=${id}`)
+    const usage = await usageRes.json().catch(() => ({ conversations: 0 }))
+    const count = usage.conversations ?? 0
+    const message = count > 0
+      ? `Esta etiqueta está aplicada em ${count} conversa(s). Ao excluir, elas perdem a marcação (as conversas não são apagadas). Continuar?`
+      : 'Excluir esta etiqueta?'
+    if (!window.confirm(message)) return
     await adminFetch(`/api/admin/mensageria/labels?id=${id}`, { method: 'DELETE' })
     await load()
   }
@@ -625,6 +746,11 @@ function LabelsTab() {
             <span key={l.id} className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-lg text-xs font-medium"
               style={{ background: `${l.color}18`, color: l.color, border: `1px solid ${l.color}40` }}>
               {l.name}
+              <input
+                type="color" value={l.color} title="Alterar cor"
+                onChange={(e) => changeColor(l.id, e.target.value)}
+                className="w-4 h-4 p-0 border-0 bg-transparent cursor-pointer"
+              />
               <button onClick={() => remove(l.id)} className="opacity-60 hover:opacity-100">
                 <TrashIcon className="w-3 h-3" />
               </button>
@@ -658,6 +784,7 @@ function LabelsTab() {
               />
             ))}
           </div>
+          {createError && <p className="text-xs text-rose-400">{createError}</p>}
           <PrimaryButton onClick={create} disabled={creating || !name.trim()}><PlusIcon className="w-4 h-4" /> Criar</PrimaryButton>
         </div>
       </Card>
@@ -687,6 +814,12 @@ function CannedTab() {
   const [loading, setLoading] = useState(true)
   const [shortcut, setShortcut] = useState('')
   const [content, setContent] = useState('')
+  const [createError, setCreateError] = useState('')
+  // Edição inline: id do item em edição e rascunho do atalho/texto.
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editShortcut, setEditShortcut] = useState('')
+  const [editContent, setEditContent] = useState('')
+  const [editError, setEditError] = useState('')
   const [newClientId, setNewClientId] = useState<string | null>(null)
   const [newClientName, setNewClientName] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
@@ -707,18 +840,48 @@ function CannedTab() {
   async function create() {
     if (!shortcut.trim() || !content.trim()) return
     setCreating(true)
+    setCreateError('')
     try {
-      await adminFetch('/api/admin/mensageria/canned-responses', {
+      const res = await adminFetch('/api/admin/mensageria/canned-responses', {
         method: 'POST', body: JSON.stringify({ shortcut: shortcut.trim(), content: content.trim(), clientId: newClientId }),
       })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setCreateError(data.error || 'Não foi possível criar a resposta.')
+        return
+      }
       setShortcut(''); setContent(''); setNewClientId(null); setNewClientName(null)
       await load()
+    } catch {
+      setCreateError('Falha de conexão ao criar a resposta. Tente novamente.')
     } finally {
       setCreating(false)
     }
   }
 
+  function startEdit(c: CannedResponse) {
+    setEditingId(c.id)
+    setEditShortcut(c.shortcut)
+    setEditContent(c.content)
+    setEditError('')
+  }
+
+  async function saveEdit(id: string) {
+    setEditError('')
+    const res = await adminFetch(`/api/admin/mensageria/canned-responses?id=${id}`, {
+      method: 'PATCH', body: JSON.stringify({ shortcut: editShortcut, content: editContent }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      setEditError(data.error || 'Não foi possível salvar a alteração.')
+      return
+    }
+    setEditingId(null)
+    await load()
+  }
+
   async function remove(id: string) {
+    if (!window.confirm('Excluir esta resposta rápida? As mensagens já enviadas com ela não são alteradas.')) return
     await adminFetch(`/api/admin/mensageria/canned-responses?id=${id}`, { method: 'DELETE' })
     await load()
   }
@@ -735,13 +898,13 @@ function CannedTab() {
         </p>
         <div className="space-y-2">
           <TextInput value={shortcut} onChange={(e) => setShortcut(e.target.value)} placeholder="/atalho (ex: /venda)" />
-          <textarea
-            value={content} onChange={(e) => setContent(e.target.value)}
+          <EmojiTextarea
+            value={content} onChange={setContent}
             placeholder="Texto completo da resposta..."
             rows={3}
-            className="w-full px-3 py-2 rounded-lg bg-[#112240] border border-white/8 text-sm text-slate-200 outline-none focus:border-[#c5a028] resize-none transition-colors"
           />
           <ClientPicker clientId={newClientId} clientName={newClientName} allClients={allClients} onChange={(id, n) => { setNewClientId(id); setNewClientName(n) }} />
+          {createError && <p className="text-xs text-rose-400">{createError}</p>}
           <div className="flex justify-end">
             <PrimaryButton onClick={create} disabled={creating || !shortcut.trim() || !content.trim()}><PlusIcon className="w-4 h-4" /> Criar</PrimaryButton>
           </div>
@@ -755,16 +918,37 @@ function CannedTab() {
           <div className="space-y-2">
             {items.map((c) => (
               <div key={c.id} className="flex items-start justify-between gap-3 px-3.5 py-2.5 rounded-lg bg-[#112240] border border-white/8">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-[#d4af37]">
-                    {c.shortcut}
-                    {c.clientName && <span className="ml-2 font-normal text-slate-500">· Cliente: {c.clientName}</span>}
-                  </p>
-                  <p className="text-sm text-slate-300 mt-0.5">{c.content}</p>
-                </div>
-                <button onClick={() => remove(c.id)} className="text-slate-500 hover:text-rose-400 transition-colors shrink-0">
-                  <TrashIcon className="w-4 h-4" />
-                </button>
+                {editingId === c.id ? (
+                  <div className="flex-1 space-y-2">
+                    <TextInput value={editShortcut} onChange={(e) => setEditShortcut(e.target.value)} placeholder="/atalho" />
+                    <EmojiTextarea
+                      value={editContent} onChange={setEditContent} rows={3}
+                    />
+                    {editError && <p className="text-xs text-rose-400">{editError}</p>}
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => setEditingId(null)} className="h-8 px-3 rounded-lg text-xs text-slate-400 hover:text-white">Cancelar</button>
+                      <PrimaryButton onClick={() => saveEdit(c.id)} disabled={!editShortcut.trim() || !editContent.trim()}>Salvar</PrimaryButton>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-[#d4af37]">
+                        {c.shortcut}
+                        {c.clientName && <span className="ml-2 font-normal text-slate-500">· Cliente: {c.clientName}</span>}
+                      </p>
+                      <p className="text-sm text-slate-300 mt-0.5 whitespace-pre-line">{c.content}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button onClick={() => startEdit(c)} title="Editar" className="text-slate-500 hover:text-[#d4af37] transition-colors">
+                        <PencilIcon className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => remove(c.id)} className="text-slate-500 hover:text-rose-400 transition-colors">
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -977,6 +1161,8 @@ function BotTab() {
   const [maxTurns, setMaxTurns] = useState('6')
   const [useSegmentDefault, setUseSegmentDefault] = useState(true)
   const [segmentMaxTurnsDefault, setSegmentMaxTurnsDefault] = useState(6)
+  // Liberação do Master: sem ela, a empresa não consegue ligar o bot (só o Master libera).
+  const [botAtivacaoLiberada, setBotAtivacaoLiberada] = useState(false)
 
   const [inboxes, setInboxes] = useState<Inbox[]>([])
   const [testInboxId, setTestInboxId] = useState('')
@@ -986,6 +1172,7 @@ function BotTab() {
   const [testMessages, setTestMessages] = useState<TestMessage[]>([])
   const [handledByBot, setHandledByBot] = useState<boolean | null>(null)
   const [botSessionActive, setBotSessionActive] = useState<boolean | null>(null)
+  const [botConfigured, setBotConfigured] = useState<boolean | null>(null)
   const [testError, setTestError] = useState('')
   const testScrollRef = useRef<HTMLDivElement>(null)
 
@@ -1009,6 +1196,7 @@ function BotTab() {
       setIsActive(flowData?.isActive ?? false)
       setKeywordsText(flowData?.handoffKeywords?.length ? flowData.handoffKeywords.join(', ') : keywordsText)
       setSegmentMaxTurnsDefault(flowJson.segmentMaxTurnsDefault ?? 6)
+      setBotAtivacaoLiberada(!!flowJson.botAtivacaoLiberada)
       // maxTurns nulo/ausente = tenant nunca sobrepôs — segue o padrão do segmento (editável
       // pelo Master), com opção de personalizar.
       setUseSegmentDefault(flowData?.maxTurns == null)
@@ -1032,6 +1220,7 @@ function BotTab() {
     setTestMessages(data.messages || [])
     setHandledByBot(data.handledByBot)
     setBotSessionActive(data.botSessionActive)
+    setBotConfigured(data.botConfigured ?? null)
   }
 
   useEffect(() => { if (testInboxId) loadTestConversation(testInboxId) }, [testInboxId])
@@ -1078,6 +1267,7 @@ function BotTab() {
       setTestMessages(data.messages || [])
       setHandledByBot(data.handledByBot)
       setBotSessionActive(data.botSessionActive)
+      setBotConfigured(data.botConfigured ?? null)
     } catch {
       setTestError('Falha ao testar o bot.')
       setTestMessage(sent)
@@ -1112,10 +1302,17 @@ function BotTab() {
               Responde automaticamente em conversas ainda não atribuídas a um atendente (não atua no canal Manual).
               Cada resposta aparece na Caixa de Entrada normalmente, com o selo 🤖 Bot.
             </p>
+            {!botAtivacaoLiberada && (
+              <p className="text-xs text-amber-400 mt-1">
+                A ativação do bot ainda não foi liberada para esta empresa. Solicite à equipe da plataforma.
+              </p>
+            )}
           </div>
           <button
             onClick={() => setIsActive((v) => !v)}
-            className={`shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors ${
+            disabled={!isActive && !botAtivacaoLiberada}
+            title={!isActive && !botAtivacaoLiberada ? 'Ativação do bot ainda não liberada pela equipe da plataforma' : undefined}
+            className={`shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
               isActive ? 'bg-emerald-500/12 text-emerald-400' : 'bg-white/5 text-slate-400'
             }`}
           >
@@ -1226,6 +1423,15 @@ function BotTab() {
           {inboxes.length === 0 && <option value="">Nenhuma inbox elegível</option>}
           {inboxes.map((ib) => <option key={ib.id} value={ib.id}>{CHANNEL_LABELS[ib.channelType] || ib.name}</option>)}
         </select>
+
+        {botConfigured === false && (
+          <div className="mb-3 rounded-lg bg-amber-500/8 border border-amber-500/20 px-3 py-2">
+            <p className="text-xs text-amber-400">
+              ⚠ O bot não está ativo para este tenant — a mensagem foi registrada, mas nenhuma resposta
+              será gerada. Use o botão "Ativar bot" acima e tente de novo.
+            </p>
+          </div>
+        )}
 
         {botSessionActive === false && (
           <div className="mb-3 rounded-lg bg-amber-500/8 border border-amber-500/20 px-3 py-2">

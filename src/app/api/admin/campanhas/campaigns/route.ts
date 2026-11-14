@@ -5,6 +5,7 @@ import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { getNetworkServiceForTenant } from '@/lib/marketing/networks/factory';
 import type { NetworkCode } from '@/lib/marketing/networks/types';
 import { normalizeAngleForScope } from '@/lib/marketing/services/angleResolver';
+import { hasCrmModule } from '@/lib/marketing/services/revenueAttributionService';
 import { getLeadEvents, leadsByCampaign } from '@/lib/marketing/services/leadEvents';
 import { startOfDayBR, endOfDayBR } from '@/lib/marketing/brazilTime';
 import { resolveCampaignNetworkCodes } from '@/lib/marketing/networkFilterUtils';
@@ -203,6 +204,8 @@ export async function POST(request: NextRequest) {
       assetIds,
       // FASE 14: ângulo de comunicação declarado (opcional; vazio = deixa o Vision inferir)
       declaredAngle,
+      // Tema do ciclo de vendas — obrigatório só quando o tenant tem o módulo de CRM
+      temaId,
       // Vínculo opcional a uma Iniciativa de Marketing (agrupa a campanha sob um objetivo/budget)
       initiativeId,
       // true = lança já ATIVA (gasta verba); padrão false = PAUSADA para revisão e ativação posterior
@@ -249,6 +252,25 @@ export async function POST(request: NextRequest) {
     // ângulos próprios cadastrados — transição transparente, nunca hardcode silencioso.
     const resolvedDeclaredAngle = await normalizeAngleForScope(declaredAngle, payload.tenantId, clientId || null);
 
+    // Tema do ciclo de vendas — só existe com o módulo de CRM contratado. Com CRM, é obrigatório
+    // e precisa ser um tema ativo do próprio tenant; sem CRM, qualquer valor enviado é descartado.
+    const crmContracted = await hasCrmModule(payload.tenantId);
+    let resolvedTemaId: number | null = null;
+    if (crmContracted) {
+      const temaNum = temaId != null && temaId !== '' ? Number(temaId) : NaN;
+      if (!Number.isInteger(temaNum)) {
+        return NextResponse.json({ error: 'Selecione o tema do ciclo de vendas da campanha.' }, { status: 400 });
+      }
+      const temaCheck = await pool.query(
+        'SELECT id FROM public.temas WHERE id = $1 AND tenant_id = $2 AND ativo = true',
+        [temaNum, payload.tenantId],
+      );
+      if (temaCheck.rows.length === 0) {
+        return NextResponse.json({ error: 'Tema não encontrado ou não pertence ao tenant' }, { status: 400 });
+      }
+      resolvedTemaId = temaNum;
+    }
+
     // 1. Criar campanha
     const campaign = await prisma.campaign.create({
       data: {
@@ -260,6 +282,7 @@ export async function POST(request: NextRequest) {
         status: initialStatus,
         declaredAngle: resolvedDeclaredAngle,  // FASE 14
         initiativeId: validInitiativeId,               // vínculo opcional à iniciativa
+        temaId: resolvedTemaId,
         networkId: resolvedNetworkId,
       },
     });

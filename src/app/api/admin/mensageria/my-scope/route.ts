@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTokenPayload } from '@/lib/auth/jwt-node'
+import pool from '@/lib/database/connection'
 import { resolveMensageriaScope, isTenantAdminFromPayload } from '@/lib/mensageria/visibilityScope'
 
 export const dynamic = 'force-dynamic'
@@ -15,5 +16,15 @@ export async function GET(request: NextRequest) {
   if (!payload?.tenantId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
   const scope = await resolveMensageriaScope(payload.tenantId, payload.userId, isTenantAdminFromPayload(payload))
-  return NextResponse.json({ level: scope.level })
+  // visibleTeamCount: quantos times este usuário enxerga. Admin enxerga todos os do tenant;
+  // líder/atendente, só os que integra. Usado para mostrar o nome do time no card apenas
+  // quando há mais de um time — com um time só, o rótulo seria redundante.
+  let visibleTeamCount: number
+  if (scope.level === 'full') {
+    const { rows } = await pool.query(`SELECT COUNT(*)::int AS n FROM mensageria.teams WHERE tenant_id = $1`, [payload.tenantId])
+    visibleTeamCount = rows[0]?.n ?? 0
+  } else {
+    visibleTeamCount = scope.teamIds.length
+  }
+  return NextResponse.json({ level: scope.level, visibleTeamCount })
 }

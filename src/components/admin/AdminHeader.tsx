@@ -84,7 +84,7 @@ export default function AdminHeader({ user, onLogout, onMenuClick, title = 'Áre
   }
 
   return (
-    <header className={`${headerBg} border-b sticky top-0 z-30 transition-colors`}>
+    <header className={`${headerBg} border-b sticky top-0 z-40 transition-colors`}>
       {/* 🎨 Banner de Identidade Visual (Top Line) */}
       <div 
         className="h-1 w-full" 

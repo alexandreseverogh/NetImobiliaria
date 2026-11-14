@@ -24,6 +24,17 @@ async function findTestConversation(tenantId: string, inboxId: string) {
   return rows[0] ?? null
 }
 
+/** O tenant tem fluxo de bot ativo (tenant-wide, mesmo critério do gate de maybeRunBot)? */
+async function isBotConfigured(tenantId: string): Promise<boolean> {
+  const { rows } = await pool.query(
+    `SELECT 1 FROM mensageria.bot_flows
+      WHERE tenant_id = $1 AND is_active = true AND client_id IS NULL
+      LIMIT 1`,
+    [tenantId],
+  )
+  return rows.length > 0
+}
+
 async function loadMessages(conversationId: string) {
   const { rows } = await pool.query(
     `SELECT id, direction, sender_type, content, content_type, attachments, created_at
@@ -46,13 +57,15 @@ export async function GET(request: NextRequest) {
   const inboxId = new URL(request.url).searchParams.get('inboxId')
   if (!inboxId) return NextResponse.json({ error: 'inboxId é obrigatório' }, { status: 400 })
 
+  const botConfigured = await isBotConfigured(payload.tenantId)
   const conv = await findTestConversation(payload.tenantId, inboxId)
-  if (!conv) return NextResponse.json({ conversationId: null, handledByBot: null, botSessionActive: null, messages: [] })
+  if (!conv) return NextResponse.json({ conversationId: null, handledByBot: null, botSessionActive: null, botConfigured, messages: [] })
 
   return NextResponse.json({
     conversationId: conv.id,
     handledByBot: conv.handled_by_bot,
     botSessionActive: conv.bot_session_active,
+    botConfigured,
     messages: await loadMessages(conv.id),
   })
 }
@@ -98,6 +111,7 @@ export async function POST(request: NextRequest) {
     conversationId: result.conversationId,
     handledByBot: conv?.handled_by_bot ?? null,
     botSessionActive: conv?.bot_session_active ?? null,
+    botConfigured: await isBotConfigured(payload.tenantId),
     messages: await loadMessages(result.conversationId),
   })
 }

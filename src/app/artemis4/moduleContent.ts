@@ -119,6 +119,11 @@ export const MODULE_CONTENT: Record<string, ModuleCardContent> = {
           description:
             'Quando a mensagem chega a partir de um anúncio, ela já aparece identificada com a campanha exata que trouxe aquele cliente — conectando o que a equipe de atendimento vê com o que a equipe de marketing investiu.',
         },
+        {
+          title: 'Vários Atendentes, Um Único Número da Empresa',
+          description:
+            'Toda a equipe atende pelo mesmo número corporativo de WhatsApp, a partir de uma central única. Cada conversa é distribuída automaticamente ao atendente com menos trabalho em aberto, e nenhum contato se perde no meio do caminho: o cliente sempre fala com a empresa, nunca com uma pessoa específica que pode estar ocupada ou de férias.',
+        },
       ],
       trustLine:
         'O assistente de inteligência artificial responde o que sabe com confiança e nunca inventa informação que não tem — quando a dúvida foge do que ele conhece, passa a conversa pra um humano em vez de arriscar uma resposta errada.',

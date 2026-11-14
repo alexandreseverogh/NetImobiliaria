@@ -6,7 +6,7 @@
  * sendEvolutionMessage/sendEvolutionMedia nos 3 call sites reais (botAdapter.ts,
  * conversations/[id]/messages/route.ts, reactivationExecutor.ts).
  */
-import { sendEvolutionMessage, sendEvolutionMedia } from './evolutionSend'
+import { sendEvolutionMessage, sendEvolutionMedia, sendEvolutionAudio } from './evolutionSend'
 import { sendWhatsAppCloudMessage, sendWhatsAppCloudMedia } from './whatsappCloudSend'
 
 export type WhatsAppSendConfig = Record<string, unknown>
@@ -35,7 +35,24 @@ export async function sendWhatsAppMedia(
   mediaUrl: string,
   caption?: string,
   conversationId?: string | null,
+  opts?: { kind?: 'image' | 'video' | 'document'; fileName?: string; mimetype?: string },
 ): Promise<WhatsAppSendResult> {
-  if (provider === 'whatsapp_cloud') return sendWhatsAppCloudMedia(config, toPhone, mediaUrl, caption, conversationId)
-  return sendEvolutionMedia(config as any, toPhone, mediaUrl, caption)
+  if (provider === 'whatsapp_cloud') {
+    return sendWhatsAppCloudMedia(config, toPhone, mediaUrl, caption, conversationId, { kind: opts?.kind, fileName: opts?.fileName })
+  }
+  return sendEvolutionMedia(config as any, toPhone, mediaUrl, caption, opts)
+}
+
+/** Áudio como nota de voz (PTT). Evolution: sendWhatsAppAudio. Cloud: tipo audio por link. */
+export async function sendWhatsAppAudio(
+  provider: string | null | undefined,
+  config: WhatsAppSendConfig,
+  toPhone: string,
+  audioUrl: string,
+  conversationId?: string | null,
+): Promise<WhatsAppSendResult> {
+  if (provider === 'whatsapp_cloud') {
+    return sendWhatsAppCloudMedia(config, toPhone, audioUrl, undefined, conversationId, { kind: 'audio' })
+  }
+  return sendEvolutionAudio(config as any, toPhone, audioUrl)
 }

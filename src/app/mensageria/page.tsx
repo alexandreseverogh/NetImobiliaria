@@ -16,6 +16,8 @@ interface ConversationSummary {
   id: string
   status: string
   priority: string | null
+  teamName?: string | null
+  labels?: { id: string; name: string; color: string }[]
   unreadCount: number
   lastMessageAt: string | null
   lastMessagePreview: string | null
@@ -87,8 +89,24 @@ export default function MensageriaPage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [totalCount, setTotalCount] = useState(0)
-  const [dateFrom, setDateFrom] = useState('') // ISO yyyy-mm-dd — filtro de período (item 2)
-  const [dateTo, setDateTo] = useState('')
+  // Período padrão = hoje (data local, yyyy-mm-dd), para a caixa abrir já filtrada no dia atual.
+  const todayIso = (() => {
+    const d = new Date()
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  })()
+  const [dateFrom, setDateFrom] = useState(todayIso) // ISO yyyy-mm-dd — filtro de período
+  // Filtro por etiquetas (multi-select, regra OU). Lista de etiquetas disponíveis no tenant.
+  const [selectedLabelIds, setSelectedLabelIds] = useState<string[]>([])
+  const [availableLabels, setAvailableLabels] = useState<{ id: string; name: string; color: string }[]>([])
+  const [labelMenuOpen, setLabelMenuOpen] = useState(false)
+  useEffect(() => {
+    adminFetch('/api/admin/mensageria/labels')
+      .then((r) => r.json())
+      .then((d) => setAvailableLabels(d.labels || []))
+      .catch(() => {})
+  }, [])
+  const [dateTo, setDateTo] = useState(todayIso)
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   // Nova conversa manual (input manual — canal 'manual', ver M2)
@@ -113,6 +131,7 @@ export default function MensageriaPage() {
     if (assigneeParam) qs.set('assigneeId', assigneeParam)
     if (dateFrom) qs.set('dateFrom', dateFrom)
     if (dateTo) qs.set('dateTo', dateTo)
+    if (selectedLabelIds.length > 0) qs.set('labelId', selectedLabelIds.join(','))
     if (cursor) qs.set('cursor', cursor)
     return qs
   }
@@ -150,7 +169,23 @@ export default function MensageriaPage() {
     if (el.scrollHeight - el.scrollTop - el.clientHeight < 150) loadMoreConversations()
   }
 
-  useEffect(() => { loadConversations() }, [folder, dateFrom, dateTo])
+  // Qualquer filtro (pasta, período, etiquetas) limpa a conversa aberta: a área central volta ao
+  // estado vazio e reflete apenas o resultado do filtro na lista à esquerda.
+  useEffect(() => {
+    setSelectedId(null)
+    loadConversations()
+  }, [folder, dateFrom, dateTo, selectedLabelIds])
+
+  // Nome do time no card só quando quem vê tem mais de um time visível (admin/líder multi-time).
+  // Com um time só, o rótulo seria redundante em todos os cards.
+  const [visibleTeamCount, setVisibleTeamCount] = useState(0)
+  useEffect(() => {
+    adminFetch('/api/admin/mensageria/my-scope')
+      .then((r) => r.json())
+      .then((d) => setVisibleTeamCount(d.visibleTeamCount ?? 0))
+      .catch(() => {})
+  }, [])
+  const showTeamOnCard = visibleTeamCount > 1
 
   // Tempo real — SSE (EventSource não aceita headers custom; a rota autentica via cookie).
   // A thread (ConversationThread) tem sua própria assinatura para as mensagens da conversa
@@ -274,6 +309,46 @@ export default function MensageriaPage() {
           <FolderButton icon={<UsersIcon className="w-4 h-4" />} label="Não atribuídas" active={folder === 'unassigned'} onClick={() => setFolder('unassigned')} />
         </nav>
 
+        {/* Filtro por etiquetas — multi-select com checkbox, regra OU */}
+        <div className="px-4 mt-5 pt-4 border-t border-white/5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Etiquetas</p>
+            {selectedLabelIds.length > 0 && (
+              <button onClick={() => setSelectedLabelIds([])} className="text-[10px] text-[#d4af37] hover:underline">Limpar</button>
+            )}
+          </div>
+          <div className="relative">
+            <button
+              onClick={() => setLabelMenuOpen((v) => !v)}
+              className="w-full h-9 px-3 rounded-lg bg-[#0a192f] border border-white/10 text-left text-xs text-slate-300 flex items-center justify-between"
+            >
+              <span>{selectedLabelIds.length === 0 ? 'Todas as etiquetas' : `${selectedLabelIds.length} selecionada(s)`}</span>
+              <span className="text-slate-500">▾</span>
+            </button>
+            {labelMenuOpen && (
+              <div className="absolute z-20 mt-1 w-full max-h-64 overflow-y-auto rounded-lg bg-[#112240] border border-white/10 shadow-lg p-1">
+                {availableLabels.length === 0 && (
+                  <p className="px-2 py-2 text-xs text-slate-500">Nenhuma etiqueta cadastrada.</p>
+                )}
+                {availableLabels.map((l) => {
+                  const checked = selectedLabelIds.includes(l.id)
+                  return (
+                    <label key={l.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-slate-200 hover:bg-white/5 cursor-pointer">
+                      <input
+                        type="checkbox" checked={checked}
+                        onChange={() => setSelectedLabelIds((prev) => checked ? prev.filter((x) => x !== l.id) : [...prev, l.id])}
+                        className="accent-[#c5a028]"
+                      />
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: l.color }} />
+                      <span className="truncate">{l.name}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Filtro de período — item 2 (data absoluta)/3 (filtro) da conversa de volumetria */}
         <div className="px-4 mt-5 pt-4 border-t border-white/5">
           <div className="flex items-center justify-between mb-2">
@@ -337,6 +412,21 @@ export default function MensageriaPage() {
                     <p className="text-xs text-slate-400 truncate mt-0.5">{c.lastMessagePreview || '—'}</p>
                     <div className="flex items-center gap-1.5 mt-1.5">
                       <ChannelChip channelType={c.channelType} />
+                      {(c.labels ?? []).map((l) => (
+                        <span
+                          key={l.id}
+                          className="text-[10px] px-1.5 py-0.5 rounded-md truncate max-w-[90px]"
+                          style={{ background: `${l.color}18`, color: l.color, border: `1px solid ${l.color}40` }}
+                          title={`Etiqueta: ${l.name}`}
+                        >
+                          {l.name}
+                        </span>
+                      ))}
+                      {showTeamOnCard && c.teamName && (
+                        <span className="text-[10px] text-slate-400 truncate max-w-[110px]" title={`Time ${c.teamName}`}>
+                          · {c.teamName}
+                        </span>
+                      )}
                       {c.unreadCount > 0 && (
                         <span className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#c5a028] text-[10px] font-bold text-[#020c1b]">
                           {c.unreadCount}

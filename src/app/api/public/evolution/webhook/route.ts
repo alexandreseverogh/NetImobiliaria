@@ -5,6 +5,7 @@ import { ingestMessage } from '@/lib/mensageria/ingest'
 import { resolveWhatsAppInbox } from '@/lib/mensageria/inboxes'
 import { buildInboundMedia, type InboundMedia } from '@/lib/mensageria/inboundMedia'
 import { uploadToS3 } from '@/lib/storage/s3-client'
+import { getWhatsappPolicy } from '@/lib/crm/whatsappPolicy'
 import axios from 'axios'
 
 export const dynamic = 'force-dynamic'
@@ -245,6 +246,8 @@ export async function POST(request: NextRequest) {
     // Mensagem enviada pelo próprio tenant (celular conectado): registra só como outbound na
     // conversa do destinatário. NÃO cria lead nem atribuição — lead nasce só de contato externo.
     if (entry?.key?.fromMe === true) {
+      // Respeita a política do tenant (GERA_MENSAGENS_WHATSAPP + módulos): sem ela, não grava nada.
+      if (!(await getWhatsappPolicy(tenant.id)).gerarMensagens) continue
       const outPhone = resolveRealPhone(entry?.key)
       const outText: string =
         entry?.message?.conversation ||

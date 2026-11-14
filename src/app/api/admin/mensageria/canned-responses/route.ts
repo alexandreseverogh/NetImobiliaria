@@ -49,14 +49,63 @@ export async function POST(request: NextRequest) {
     if (own.length === 0) return NextResponse.json({ error: 'Cliente não encontrado neste tenant' }, { status: 400 })
   }
 
-  const { rows } = await pool.query(
-    `INSERT INTO mensageria.canned_responses (tenant_id, client_id, shortcut, content) VALUES ($1, $2, $3, $4)
-     ON CONFLICT (tenant_id, (COALESCE(client_id, '00000000-0000-0000-0000-000000000000'::uuid)), shortcut)
-     DO UPDATE SET content = EXCLUDED.content
-     RETURNING id, shortcut, content`,
-    [payload.tenantId, clientId, shortcut, content],
-  )
-  return NextResponse.json({ cannedResponse: { ...rows[0], clientId, clientName: null } })
+  // Atalho já existente no mesmo escopo é recusado (409), e não sobrescreve o texto em silêncio.
+  // Para alterar um atalho existente, use PATCH.
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO mensageria.canned_responses (tenant_id, client_id, shortcut, content) VALUES ($1, $2, $3, $4)
+       RETURNING id, shortcut, content`,
+      [payload.tenantId, clientId, shortcut, content],
+    )
+    return NextResponse.json({ cannedResponse: { ...rows[0], clientId, clientName: null } })
+  } catch (err: any) {
+    if (err?.code === '23505') {
+      return NextResponse.json({ error: `Já existe a resposta "${shortcut}" neste escopo.` }, { status: 409 })
+    }
+    throw err
+  }
+}
+
+/** PATCH /api/admin/mensageria/canned-responses?id=... — altera atalho e/ou texto. Body: { shortcut?, content? } */
+export async function PATCH(request: NextRequest) {
+  const payload = getTokenPayload(request)
+  if (!payload?.tenantId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+
+  const id = new URL(request.url).searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'id é obrigatório' }, { status: 400 })
+
+  const body = await request.json().catch(() => ({}))
+  const sets: string[] = []
+  const args: any[] = []
+  if (body.shortcut !== undefined) {
+    let shortcut: string = String(body.shortcut).trim().toLowerCase()
+    if (!shortcut) return NextResponse.json({ error: 'shortcut não pode ser vazio' }, { status: 400 })
+    if (!shortcut.startsWith('/')) shortcut = `/${shortcut}`
+    args.push(shortcut); sets.push(`shortcut = $${args.length}`)
+  }
+  if (body.content !== undefined) {
+    const content: string = String(body.content).trim()
+    if (!content) return NextResponse.json({ error: 'content não pode ser vazio' }, { status: 400 })
+    args.push(content); sets.push(`content = $${args.length}`)
+  }
+  if (sets.length === 0) return NextResponse.json({ error: 'Nada para alterar' }, { status: 400 })
+
+  args.push(id, payload.tenantId)
+  try {
+    const { rows } = await pool.query(
+      `UPDATE mensageria.canned_responses SET ${sets.join(', ')}
+        WHERE id = $${args.length - 1} AND tenant_id = $${args.length}
+        RETURNING id, shortcut, content`,
+      args,
+    )
+    if (rows.length === 0) return NextResponse.json({ error: 'Resposta não encontrada' }, { status: 404 })
+    return NextResponse.json({ cannedResponse: rows[0] })
+  } catch (err: any) {
+    if (err?.code === '23505') {
+      return NextResponse.json({ error: 'Já existe outra resposta com esse atalho neste escopo.' }, { status: 409 })
+    }
+    throw err
+  }
 }
 
 /** DELETE /api/admin/mensageria/canned-responses?id=... */

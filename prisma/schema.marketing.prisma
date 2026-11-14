@@ -110,6 +110,8 @@ model Campaign {
   funnelStage         String    @default("TOF") @map("funnel_stage") @db.VarChar(20)
   // FASE 14 — ângulo de comunicação declarado no lançamento (opcional; taxonomia compartilhada)
   declaredAngle       String?   @map("declared_angle") @db.VarChar(50)
+  // Tema do ciclo de vendas (CRM) — só preenchido quando o tenant contratou o módulo de CRM
+  temaId              Int?      @map("tema_id")
   // Multi-rede (Meta/Google/LinkedIn/TikTok) — FK para public.ad_networks; ambas as colunas já
   // existiam no banco sem estar mapeadas aqui (schema drift). network_metadata continua via
   // raw SQL (pool.query), sem necessidade de mexer agora.

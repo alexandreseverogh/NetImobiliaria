@@ -144,6 +144,8 @@ export default function MasterTenantsPage() {
   const [newTab, setNewTab] = useState<'geral' | 'modulos' | 'google_calendar' | 'comunicacao_ia'>('geral')
   const [availableModules, setAvailableModules] = useState<any[]>([])
   const [tenantModules, setTenantModules] = useState<string[]>([]) // Array de IDs de módulos ativos
+  // GERA fica obrigatoriamente ligado enquanto a Mensageria estiver marcada na modularização.
+  const geraLockedByMensageria = tenantModules.some(id => availableModules.some((m: any) => m.id === id && m.slug === 'mensageria'))
   const [showModulesModal, setShowModulesModal] = useState(false)
   const [tenantModulesLoaded, setTenantModulesLoaded] = useState(false)
   const [isModulesModified, setIsModulesModified] = useState(false)
@@ -336,7 +338,8 @@ export default function MasterTenantsPage() {
       const res = await get(`/api/admin/master/tenants/${tenantId}/modules`)
       if (res.ok) {
         const data = await res.json()
-        const activeIds = data.modules.filter((m: any) => m.is_enabled).map((m: any) => m.id)
+        // A API devolve `assigned` (linha existe em tenant_modules), não `is_enabled`.
+        const activeIds = data.modules.filter((m: any) => m.assigned).map((m: any) => m.id)
         setTenantModules(activeIds)
         setTenantModulesLoaded(true)
       }
@@ -354,25 +357,39 @@ export default function MasterTenantsPage() {
     }
     try {
       const { id, ...data } = editingTenant
-      
-      // 1. Atualizar dados básicos
-      const response = await patch(`/api/admin/master/tenants/${id}`, data)
 
-      // 2. Atualizar módulos atribuídos APENAS se o usuário explicitamente alterou a aba de módulos
-      let modulesResponse = { ok: true, json: async () => ({}) } as any
+      // 1. Módulos primeiro, quando alterados: a validação do GERA precisa enxergar o
+      // CRM/Mensageria recém-marcados. O servidor também desliga o GERA se ficar sem os dois.
       if (tenantModulesLoaded && isModulesModified) {
-        modulesResponse = await post(`/api/admin/master/tenants/${id}/modules`, {
+        const modulesResponse = await post(`/api/admin/master/tenants/${id}/modules`, {
           moduleIds: tenantModules
         })
+        if (!modulesResponse.ok) {
+          const errData = await modulesResponse.json().catch(() => ({}))
+          alert(errData.error || 'Erro ao sincronizar módulos')
+          return
+        }
+        const selectedSlugs = availableModules
+          .filter((m: any) => tenantModules.includes(m.id))
+          .map((m: any) => m.slug)
+        if (!selectedSlugs.includes('crm') && !selectedSlugs.includes('mensageria')) {
+          (data as any).gera_mensagens_whatsapp = false
+        }
+        // Com Mensageria contratada, o GERA é obrigatoriamente ligado.
+        if (selectedSlugs.includes('mensageria')) {
+          (data as any).gera_mensagens_whatsapp = true
+        }
       }
 
-      if (response.ok && modulesResponse.ok) {
+      // 2. Dados básicos do tenant
+      const response = await patch(`/api/admin/master/tenants/${id}`, data)
+
+      if (response.ok) {
         setShowEditModal(false)
         fetchData()
         alert('Configurações Master atualizadas com sucesso!')
-
       } else {
-        const errData = !response.ok ? await response.json().catch(() => ({})) : await modulesResponse.json().catch(() => ({}));
+        const errData = await response.json().catch(() => ({}))
         alert(errData.error || 'Erro ao sincronizar configurações');
       }
     } catch (error) {
@@ -1151,6 +1168,40 @@ export default function MasterTenantsPage() {
                              </div>
                              <div className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${editingTenant?.crm_clientes ? 'bg-emerald-600' : 'bg-gray-300'}`}>
                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform ${editingTenant?.crm_clientes ? 'translate-x-6' : 'translate-x-1'}`} />
+                             </div>
+                           </div>
+                           <div
+                             className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 mt-3 cursor-pointer"
+                             onClick={() => setEditingTenant({ ...editingTenant, bot_ativacao_liberada: !editingTenant?.bot_ativacao_liberada })}
+                           >
+                             <div className="pr-4">
+                               <p className="text-[9px] font-black text-gray-700 uppercase">BOT DA MENSAGERIA — ATIVAÇÃO LIBERADA</p>
+                               <p className="text-[8px] text-gray-400 font-bold mt-0.5 leading-relaxed">
+                                 Quando ativo, o Administrador da empresa pode ligar o bot da Mensageria. Quando desligado, o bot não pode ser ativado pela empresa (se estiver ligado, é desligado ao salvar). Editável só pelo Master. Desligado por padrão.
+                               </p>
+                             </div>
+                             <div className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${editingTenant?.bot_ativacao_liberada ? 'bg-emerald-600' : 'bg-gray-300'}`}>
+                               <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform ${editingTenant?.bot_ativacao_liberada ? 'translate-x-6' : 'translate-x-1'}`} />
+                             </div>
+                           </div>
+                           <div
+                             className={`flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 mt-3 ${geraLockedByMensageria ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
+                             onClick={() => { if (!geraLockedByMensageria) setEditingTenant({ ...editingTenant, gera_mensagens_whatsapp: !editingTenant?.gera_mensagens_whatsapp }) }}
+                           >
+                             <div className="pr-4">
+                               <p className="text-[9px] font-black text-gray-700 uppercase">GERA_MENSAGENS_WHATSAPP</p>
+                               <p className="text-[8px] text-gray-400 font-bold mt-0.5 leading-relaxed">
+                                 Quando ativo, as mensagens de WhatsApp são guardadas no modelo da Mensageria.
+                                 Exige CRM e/ou Mensageria contratados. Desativado por padrão.
+                               </p>
+                               {geraLockedByMensageria && (
+                                 <p className="text-[8px] text-amber-600 font-black mt-1 uppercase">
+                                   Obrigatoriamente ligado: a Mensageria está contratada. Para desligar, desmarque a Mensageria em Modularização.
+                                 </p>
+                               )}
+                             </div>
+                             <div className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${editingTenant?.gera_mensagens_whatsapp || geraLockedByMensageria ? 'bg-emerald-600' : 'bg-gray-300'}`}>
+                               <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform ${editingTenant?.gera_mensagens_whatsapp || geraLockedByMensageria ? 'translate-x-6' : 'translate-x-1'}`} />
                              </div>
                            </div>
                         </div>

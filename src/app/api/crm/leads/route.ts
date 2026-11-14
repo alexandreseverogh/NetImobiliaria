@@ -5,6 +5,7 @@ import { verifyTokenNode } from '@/lib/auth/jwt-node'
 import { resolveTimeframeRange } from '@/lib/crm/resolveTimeframeRange'
 import { resolveSegment } from '@/lib/intelligence/segmentResolver'
 import { refreshNextBestAction } from '@/lib/crm/agents/nextBestActionService'
+import { hasCrmModule } from '@/lib/marketing/services/revenueAttributionService'
 
 const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/
 
@@ -157,6 +158,28 @@ export async function POST(request: NextRequest) {
     // abaixo rodam numa transação com trava consultiva por telefone (últimos 10 dígitos) e e-mail:
     // o segundo evento espera o primeiro confirmar e então encontra o lead já criado.
     const isManual = data.utm_source === 'CRM Manual';
+
+    // Tema do ciclo de vendas (opcional). Só aceita um tema ativo do próprio tenant — um id de
+    // outro tenant ou inexistente vira null, nunca grava vínculo cruzado.
+    let temaId: number | null = null
+    if (data.tema_id != null && data.tema_id !== '') {
+      const { rows: temaRows } = await pool.query(
+        'SELECT id FROM public.temas WHERE id = $1 AND tenant_id = $2 AND ativo = true',
+        [data.tema_id, leadTenantId]
+      )
+      temaId = temaRows[0]?.id ?? null
+    }
+    // Herança por campanha (só com o módulo de CRM contratado): sem tema explícito no payload,
+    // o lead assume o tema definido na campanha que o captou.
+    if (temaId === null && campaignId && await hasCrmModule(leadTenantId)) {
+      const { rows: campRows } = await pool.query(
+        `SELECT c.tema_id FROM campanhasmarketingdigital."Campaign" c
+          JOIN public.temas t ON t.id = c.tema_id AND t.ativo = true
+         WHERE c.id = $1 AND c.tenant_id = $2`,
+        [campaignId, leadTenantId]
+      )
+      temaId = campRows[0]?.tema_id ?? null
+    }
     const phoneLockKey = strTelefone ? String(strTelefone).replace(/\D/g, '').slice(-10) : ''
     const emailLockKey = strEmail ? String(strEmail).trim().toLowerCase() : ''
     const lockKeys = [
@@ -201,6 +224,8 @@ export async function POST(request: NextRequest) {
           -- novo contato (o valor vai variando conforme o negócio anda); só substitui quando um
           -- novo valor de fato vem no payload, nunca apaga um já existente com null.
           valor_venda_estimado = COALESCE($10, valor_venda_estimado),
+          -- Tema: só preenche quando ainda não existe (ou quando um novo tema válido é enviado).
+          tema_id = COALESCE($11, tema_id),
           updated_at = NOW()
         WHERE lead_uuid = $7
         RETURNING lead_uuid
@@ -215,13 +240,14 @@ export async function POST(request: NextRequest) {
         leadUuid,
         matchMethod,
         data.mensagem || null,
-        data.valor_venda_estimado ?? null
+        data.valor_venda_estimado ?? null,
+        temaId
       ])
     } else {
       // Lead NOVO -> INSERT
       const insertQuery = `
-        INSERT INTO leads_staging (nome, email, telefone, tag_sonho, raw_json, imovel_id, estado_fk, cidade_fk, utm_campaign, valor_venda, tenant_id, client_id, match_method, mensagem_original, valor_venda_estimado)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        INSERT INTO leads_staging (nome, email, telefone, tag_sonho, raw_json, imovel_id, estado_fk, cidade_fk, utm_campaign, valor_venda, tenant_id, client_id, match_method, mensagem_original, valor_venda_estimado, tema_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         RETURNING lead_uuid
       `
       const { rows: insertRows } = await txClient.query(insertQuery, [
@@ -239,7 +265,8 @@ export async function POST(request: NextRequest) {
         leadClientId,
         isManual ? 'manual' : 'novo',
         data.mensagem || null,
-        data.valor_venda_estimado ?? null
+        data.valor_venda_estimado ?? null,
+        temaId
       ])
       leadUuid = insertRows[0].lead_uuid
 
@@ -484,6 +511,12 @@ export async function GET(request: NextRequest) {
       params.push(clientIdParam)
       conditions.push(`l.client_id = $${params.length}::uuid`)
     }
+    // Filtro por tema do ciclo de vendas. Ausente ou 'todos' = sem filtro.
+    const temaParam = searchParams.get('temaId')
+    if (temaParam && temaParam !== 'todos') {
+      params.push(temaParam)
+      conditions.push(`l.tema_id = $${params.length}::int`)
+    }
     if (timeframeParam) {
       const { from, to } = resolveTimeframeRange(timeframeParam, searchParams.get('startDate'), searchParams.get('endDate'))
       params.push(from)
@@ -507,6 +540,7 @@ export async function GET(request: NextRequest) {
              camp.name AS campanha_nome,
              cav.avatar_url AS contato_avatar_url,
              l.dono_user_id,
+             l.tema_id, t.nome AS tema_nome,
              du.nome AS dono_nome,
              (du.foto IS NOT NULL OR du.storage_type = 's3') AS dono_tem_foto
       FROM leads_staging l
@@ -514,6 +548,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN kanban_colunas k ON lk.coluna_id = k.id
       LEFT JOIN users u ON u.id = l.corretor_atribuido_id
       LEFT JOIN users du ON du.id = l.dono_user_id
+      LEFT JOIN public.temas t ON t.id = l.tema_id
       LEFT JOIN LATERAL (
         SELECT c.name
         FROM marketing_eventos me

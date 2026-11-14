@@ -1,4 +1,5 @@
 import pool from '@/lib/database/connection'
+import { getWhatsappPolicy } from '@/lib/crm/whatsappPolicy'
 
 /**
  * Linha do tempo de relacionamento do lead (tabela public.lead_timeline).
@@ -58,7 +59,8 @@ export async function hasMensageriaModule(tenantId: string): Promise<boolean> {
  * mais antigo. Mensagens só entram se o módulo Mensageria estiver contratado.
  */
 export async function getLeadTimeline(tenantId: string, leadUuid: string): Promise<TimelineItem[]> {
-  const withMessages = await hasMensageriaModule(tenantId)
+  // Histórico de WhatsApp no lead depende do parâmetro do tenant (gera_mensagens_whatsapp), não do módulo.
+  const withMessages = (await getWhatsappPolicy(tenantId)).gerarHistorico
   const mensagemTipo = withMessages ? await getMensagemTipo(tenantId) : null
 
   const { rows: refs } = await pool.query(

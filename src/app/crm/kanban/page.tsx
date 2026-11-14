@@ -34,6 +34,9 @@ import AgendarVisitaModal from '@/components/crm/AgendarVisitaModal'
 import AtividadesLead from '@/components/crm/AtividadesLead'
 import LeadTimeline from '@/components/crm/LeadTimeline'
 import NextBestActionCard from '@/components/crm/NextBestActionCard'
+import TemaMultiSelect from '@/components/crm/TemaMultiSelect'
+import LeadFichaModal from '@/components/crm/LeadFichaModal'
+import { useLeadFicha } from '@/components/crm/useLeadFicha'
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme } from '@/hooks/useTheme'
 
@@ -65,6 +68,9 @@ interface Lead {
   dono_user_id?: string | null;
   dono_nome?: string | null;
   dono_tem_foto?: boolean;
+  /** Tema do ciclo de vendas (null = lead sem tema). */
+  tema_id?: number | null;
+  tema_nome?: string | null;
   campanha_nome?: string | null;
   contato_avatar_url?: string | null;
   corretor_tem_foto?: boolean;
@@ -153,6 +159,13 @@ export default function KanbanPage() {
   const [colunas, setColunas] = useState<Coluna[]>([])
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
+  // Ficha do lead — estado e ações compartilhados com a página de Leads (useLeadFicha).
+  const ficha = useLeadFicha<Lead>({
+    colunas,
+    onPatchLead: (uuid, patch) => setLeads(prev => prev.map(l => l.lead_uuid === uuid ? { ...l, ...patch } : l)),
+    onReload: () => { fetchData() },
+  })
+  const { tenantConfig } = ficha
   // Escopo Minha Empresa / Cliente (pedido do usuário, 2026-08-31) — null = ainda não escolhido,
   // gate obrigatório antes de mostrar qualquer lead (diferente do padrão de Campanhas, que já
   // defaulta pra 'own' e mostra resultado na hora — aqui a escolha é deliberadamente mandatória
@@ -166,60 +179,29 @@ export default function KanbanPage() {
   // trocar) pode disparar 2+ chamadas de fetchData quase simultâneas, sem garantia de qual
   // resposta HTTP chega primeiro. Só a resposta da chamada MAIS RECENTE pode atualizar o state.
   const fetchRequestIdRef = useRef(0)
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
-  const [movingLead, setMovingLead] = useState(false)
   const [isNovoLeadOpen, setIsNovoLeadOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [isAgendarOpen, setIsAgendarOpen] = useState(false)
-  const [agendamentosVersion, setAgendamentosVersion] = useState(0)
-  // Editar/excluir atividade pedido pelo cartão do Histórico; o AtividadesLead executa.
-  const [atividadeAction, setAtividadeAction] = useState<{ id: string; action: 'edit' | 'delete'; nonce: number } | null>(null)
-  // Abre o formulário de nova atividade pela barra do Histórico.
-  const [novaAtividadeNonce, setNovaAtividadeNonce] = useState(0)
   const [isCalendarioViewOpen, setIsCalendarioViewOpen] = useState(false)
-  const [tenantConfig, setTenantConfig] = useState<any>(null)
-  // F3 — "Registrar como Atividade" no card "Sugestão da IA" pré-preenche o form de
-  // Nova Atividade (AtividadesLead.tsx); nonce garante reabrir o form mesmo se o
-  // atendente clicar 2x seguidas na mesma sugestão.
-  const [activityPrefill, setActivityPrefill] = useState<{ text: string; nonce: number } | undefined>(undefined)
-  const handleUseSuggestionAsActivity = (text: string) => setActivityPrefill({ text, nonce: Date.now() })
-  // Achado real (roteiro de testes, 2026-08-09): mover um lead pra uma etapa de Ganho nunca
-  // teve como registrar quanto valeu o negócio — nenhuma UI escrevia valor_venda depois da
-  // criação do lead. Intercepta o move quando a coluna destino é is_ganho e pede o valor antes
-  // de confirmar; qualquer outra coluna (inclusive is_perda) move direto, sem prompt.
-  const [pendingGanhoMove, setPendingGanhoMove] = useState<{ lead: Lead; targetCol: Coluna; revert?: string } | null>(null)
-  const [valorVendaInput, setValorVendaInput] = useState('')
-  // Valor Estimado (revisado em 2026-08-27, docs/CHECKPOINT.md) — não é mais um modal que
-  // intercepta o move (nem gatilhado pelo drag-and-drop do card, nem por config de coluna):
-  // vira um campo editável DENTRO da ficha do lead. Sincronizado sempre que a ficha abre pra
-  // um lead diferente (useEffect abaixo); "Avançar/Recuar Etapa" (ambos dentro da ficha)
-  // carregam o valor atual desse input junto do move — sem popup nenhum. Um botão de salvar
-  // dedicado permite atualizar sem precisar mudar de etapa.
-  const [fichaValorEstimadoInput, setFichaValorEstimadoInput] = useState('')
-  const [savingValorEstimado, setSavingValorEstimado] = useState(false)
-  // Informações do Lead (revisado em 2026-08-27, docs/CHECKPOINT.md) — todo campo que o
-  // próprio lead "trouxe" na criação (Perfil de Interesse dinâmico + Demanda do Cliente) vira
-  // editável na ficha, em qualquer etapa do Kanban — não só o Valor Estimado. Mesma disciplina
-  // de sincronização: só reseta quando abre um lead DIFERENTE (useEffect abaixo), nunca some o
-  // que o atendente está digitando por causa de outro campo de selectedLead mudando.
-  const [fichaRawJsonEdits, setFichaRawJsonEdits] = useState<Record<string, string>>({})
-  const [fichaMensagemEdit, setFichaMensagemEdit] = useState('')
-  const [savingInfoLead, setSavingInfoLead] = useState(false)
   // Exclusão de lead (docs/CHECKPOINT.md, 2026-08-14) — filtro "Mostrar leads excluídos" e
   // estado de exclusão/restauração em andamento (desabilita os botões enquanto processa).
   const [showDeleted, setShowDeleted] = useState(false)
-  const [deletingLead, setDeletingLead] = useState(false)
   // Filtros de dono do lead + período de criação (pedido do usuário, 2026-08-16) — client-side,
   // mesmo padrão do searchTerm: filtram o board sobre os leads já carregados, sem round-trip
   // novo. '__none__' é o sentinela pra "sem dono atribuído".
   const [filterOwnerId, setFilterOwnerId] = useState('')
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
-  // Schema do Perfil de Interesse (mesmo formSchema que o NovoLeadModal usa pra montar o
-  // formulário) — usado só pra achar, de forma agnóstica de segmento, qual campo é o de
-  // valor declarado pelo lead (o único/primeiro type:"currency" do schema), pra mostrar como
-  // referência no modal de "Negócio Fechado" abaixo. Nunca lido por nome fixo.
-  const [ativoFormSchema, setAtivoFormSchema] = useState<{ name: string; type: string; label: string }[]>([])
+  // Filtro por Tema do ciclo de vendas — lista suspensa com checkboxes, default "Todos".
+  // Guarda os temas DESMARCADOS; vazio = todos marcados = sem filtro.
+  const [temas, setTemas] = useState<{ id: number; nome: string }[]>([])
+  const [temaExcluidos, setTemaExcluidos] = useState<string[]>([])
+
+  useEffect(() => {
+    adminFetch('/api/crm/temas')
+      .then(r => r.json())
+      .then(d => { if (d.success) setTemas(d.temas) })
+      .catch(() => setTemas([]))
+  }, [])
 
   const getInitials = (name: string) => {
     if (!name) return 'LD'
@@ -244,13 +226,10 @@ export default function KanbanPage() {
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
 
   useEffect(() => {
-    fetchTenantConfig()
-    fetchAtivoFormSchema()
-
-    // Se detectar sucesso no Google Auth, limpa URL e refaz fetch
+    // Se detectar sucesso no Google Auth, limpa URL e refaz fetch da config do tenant
     if (searchParams?.get('google_auth') === 'success') {
       console.log('🔄 [CRM] Google Auth detectado com sucesso. Atualizando configurações...')
-      fetchTenantConfig()
+      ficha.refreshTenantConfig()
       const newUrl = window.location.pathname
       window.history.replaceState({}, '', newUrl)
     }
@@ -274,59 +253,6 @@ export default function KanbanPage() {
     }
   }, [tenantConfig, scopeClientId])
 
-  // Sincroniza o campo editável de Valor Estimado da ficha só quando um lead DIFERENTE é
-  // aberto (chaveado por lead_uuid, não pelo objeto inteiro) — nunca sobrescreve o que o
-  // atendente está digitando só porque outro campo de selectedLead mudou (ex.: depois de
-  // saveFichaValorEstimado atualizar o próprio valor_venda_estimado em memória).
-  useEffect(() => {
-    if (selectedLead) {
-      setFichaValorEstimadoInput(
-        selectedLead.valor_venda_estimado != null
-          ? Number(selectedLead.valor_venda_estimado).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-          : ''
-      )
-      // raw_json: string livre por campo (sempre texto no input, independente do type do
-      // schema — a coerção pro tipo real, se algum dia precisar, é problema do backend/
-      // enrichment, não da ficha). Campo do schema sem valor ainda no raw_json começa vazio.
-      const rawJsonNow: Record<string, string> = {}
-      for (const field of ativoFormSchema) {
-        const v = selectedLead.raw_json?.[field.name]
-        rawJsonNow[field.name] = v != null ? String(v) : ''
-      }
-      setFichaRawJsonEdits(rawJsonNow)
-      setFichaMensagemEdit(selectedLead.mensagem_original || '')
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLead?.lead_uuid])
-
-  const fetchTenantConfig = async () => {
-    try {
-      const token = localStorage.getItem('admin-auth-token')
-      const res = await fetch(`/api/crm/config/tenant?tenantId=${tenantId}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      })
-      const data = await res.json()
-      console.log('📡 [CRM] Configuração do Tenant recebida:', { data, tenantId })
-      // `tenantConfig !== null` é o sinal de "já sabemos se o gate de crm_clientes se aplica"
-      // (ver useEffect logo acima) — nunca deixa preso em null por resposta sem sucesso, senão
-      // a página trava no skeleton de carregamento pra sempre.
-      setTenantConfig(data.success ? data.config : {})
-    } catch (err) {
-      console.error('❌ [CRM] Erro ao carregar config do tenant:', err)
-      setTenantConfig({})
-    }
-  }
-
-  const fetchAtivoFormSchema = async () => {
-    try {
-      const res = await adminFetch('/api/crm/ativo/config')
-      const data = await res.json()
-      if (data.success) setAtivoFormSchema(data.formSchema || [])
-    } catch (err) {
-      console.error('❌ [CRM] Erro ao carregar schema do Perfil de Interesse:', err)
-    }
-  }
-
   const fetchData = async () => {
     const requestId = ++fetchRequestIdRef.current
     setLoading(true)
@@ -349,177 +275,11 @@ export default function KanbanPage() {
     }
   }
 
-  const getNextColumn = (currentColName: string) => {
-    const idx = colunas.findIndex(c => c.nome === currentColName)
-    return idx >= 0 && idx < colunas.length - 1 ? colunas[idx + 1] : null
-  }
-  const getPrevColumn = (currentColName: string) => {
-    const idx = colunas.findIndex(c => c.nome === currentColName)
-    return idx > 0 ? colunas[idx - 1] : null
-  }
-
-  // Move de verdade — sempre passa por aqui, seja pelo botão de avançar/voltar ou pelo
-  // drag-and-drop. valorVenda só é enviado quando a coluna é is_ganho e o atendente já
-  // confirmou o modal (requestMove/confirmGanhoMove abaixo).
-  const executeMove = async (lead: Lead, targetCol: Coluna, valorVenda?: number, valorEstimado?: number) => {
-    setMovingLead(true)
-    const oldColumnName = lead.coluna_nome
-    setLeads(prev => prev.map(l => l.lead_uuid === lead.lead_uuid ? { ...l, coluna_nome: targetCol.nome, ...(valorVenda !== undefined ? { valor_venda: valorVenda } : {}), ...(valorEstimado !== undefined ? { valor_venda_estimado: valorEstimado } : {}) } : l))
-    setSelectedLead(prev => prev && prev.lead_uuid === lead.lead_uuid ? { ...prev, coluna_nome: targetCol.nome, ...(valorVenda !== undefined ? { valor_venda: valorVenda } : {}), ...(valorEstimado !== undefined ? { valor_venda_estimado: valorEstimado } : {}) } : prev)
-    try {
-      const res = await adminFetch('/api/crm/kanban/move', {
-        method: 'POST',
-        body: JSON.stringify({
-          lead_uuid: lead.lead_uuid,
-          coluna_id: targetCol.id,
-          ...(valorVenda !== undefined ? { valor_venda: valorVenda } : {}),
-          ...(valorEstimado !== undefined ? { valor_venda_estimado: valorEstimado } : {}),
-        })
-      })
-      const data = await res.json()
-      if (!data.success) {
-        setLeads(prev => prev.map(l => l.lead_uuid === lead.lead_uuid ? { ...l, coluna_nome: oldColumnName } : l))
-        setSelectedLead(prev => prev && prev.lead_uuid === lead.lead_uuid ? { ...prev, coluna_nome: oldColumnName } : prev)
-      }
-    } catch {
-      setLeads(prev => prev.map(l => l.lead_uuid === lead.lead_uuid ? { ...l, coluna_nome: oldColumnName } : l))
-      setSelectedLead(prev => prev && prev.lead_uuid === lead.lead_uuid ? { ...prev, coluna_nome: oldColumnName } : prev)
-    } finally { setMovingLead(false) }
-  }
-
-  // Ponto único de decisão (revisado em 2026-08-27 — docs/CHECKPOINT.md): coluna de Ganho pede
-  // o valor REAL da venda (único caso que ainda intercepta com modal — é um evento de negócio
-  // que sempre precisa ser confirmado). Coluna de Perda move direto, sem nenhum valor.
-  // Qualquer OUTRA etapa move direto também — o Valor Estimado NÃO é mais um popup atrelado ao
-  // move (nem pelo drag-and-drop do card no board, nem por config de coluna): é um campo
-  // editável na própria ficha do lead (ver fichaValorEstimadoInput/saveFichaValorEstimado
-  // abaixo). `valorEstimadoOverride` só chega aqui quando o move partiu de dentro da ficha
-  // (Avançar/Recuar Etapa) — carrega o que já está no campo, sem popup nenhum; o
-  // drag-and-drop no board (handleDrop) nunca passa esse argumento.
-  const requestMove = (lead: Lead, targetCol: Coluna, valorEstimadoOverride?: number) => {
-    if (targetCol.is_ganho) {
-      setValorVendaInput('')
-      setPendingGanhoMove({ lead, targetCol })
-      return
-    }
-    if (targetCol.is_perda) {
-      executeMove(lead, targetCol)
-      return
-    }
-    executeMove(lead, targetCol, undefined, valorEstimadoOverride)
-  }
-
-  const confirmGanhoMove = () => {
-    if (!pendingGanhoMove) return
-    const digits = valorVendaInput.replace(/\D/g, '')
-    const valor = digits ? parseInt(digits, 10) / 100 : 0
-    executeMove(pendingGanhoMove.lead, pendingGanhoMove.targetCol, valor)
-    setPendingGanhoMove(null)
-  }
-
-  // Salva o Valor Estimado sem precisar mudar de etapa — reusa o endpoint de move mandando a
-  // MESMA coluna que o lead já está (a API já trata isso: status vira o mesmo, só
-  // valor_venda_estimado muda). Não usa `movingLead` (evita os botões "Avançar/Recuar Etapa"
-  // mostrarem "Movendo..." por uma ação que não muda etapa nenhuma).
-  const saveFichaValorEstimado = async () => {
-    if (!selectedLead) return
-    const digits = fichaValorEstimadoInput.replace(/\D/g, '')
-    if (!digits) return // nada digitado, nada a salvar
-    const valor = parseInt(digits, 10) / 100
-    const currentCol = colunas.find(c => c.nome === selectedLead.coluna_nome)
-    if (!currentCol) return
-    setSavingValorEstimado(true)
-    try {
-      const res = await adminFetch('/api/crm/kanban/move', {
-        method: 'POST',
-        body: JSON.stringify({ lead_uuid: selectedLead.lead_uuid, coluna_id: currentCol.id, valor_venda_estimado: valor })
-      })
-      const data = await res.json()
-      if (data.success) {
-        setLeads(prev => prev.map(l => l.lead_uuid === selectedLead.lead_uuid ? { ...l, valor_venda_estimado: valor } : l))
-        setSelectedLead(prev => prev && prev.lead_uuid === selectedLead.lead_uuid ? { ...prev, valor_venda_estimado: valor } : prev)
-      }
-    } finally {
-      setSavingValorEstimado(false)
-    }
-  }
-
-  // Salva o Perfil de Interesse (raw_json) + Demanda do Cliente (mensagem_original) editados na
-  // ficha — endpoint dedicado (nunca o de move, que é só sobre etapa/valor). Sempre manda o
-  // raw_json INTEIRO (replace, não merge — mesmo padrão já usado em outras telas de
-  // replace-all deste projeto), então o servidor sempre reflete exatamente o que está nos
-  // campos agora. A resposta já vem com enriquecimento_cache regenerado — atualiza o card/
-  // ficha na hora, sem precisar de um refetch completo do board.
-  const saveFichaInfoLead = async () => {
-    if (!selectedLead) return
-    setSavingInfoLead(true)
-    try {
-      const res = await adminFetch(`/api/crm/leads/${selectedLead.lead_uuid}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          action: 'update_fields',
-          raw_json: fichaRawJsonEdits,
-          mensagem_original: fichaMensagemEdit,
-        })
-      })
-      const data = await res.json()
-      if (data.success) {
-        const patch = { raw_json: data.raw_json, mensagem_original: data.mensagem_original, enriquecimento_cache: data.enriquecimento_cache }
-        setLeads(prev => prev.map(l => l.lead_uuid === selectedLead.lead_uuid ? { ...l, ...patch } : l))
-        setSelectedLead(prev => prev && prev.lead_uuid === selectedLead.lead_uuid ? { ...prev, ...patch } : prev)
-      }
-    } finally {
-      setSavingInfoLead(false)
-    }
-  }
-
-  // Único lugar que decide "tem algo pendente pra salvar" no container "Informações do Lead"
-  // — usado tanto pra mostrar/esconder o botão único de salvar quanto pelo próprio save
-  // combinado abaixo, pra nunca os dois discordarem sobre o que precisa ser persistido.
-  const fichaInfoDirty = useMemo(() => {
-    if (!selectedLead) return { rawJsonDirty: false, mensagemDirty: false, valorDirty: false, any: false }
-    const currentCol = colunas.find(c => c.nome === selectedLead.coluna_nome)
-    const isTerminal = !!(currentCol?.is_ganho || currentCol?.is_perda)
-    const valorSavedFormatted = selectedLead.valor_venda_estimado != null
-      ? Number(selectedLead.valor_venda_estimado).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      : ''
-    const valorDirty = !isTerminal && fichaValorEstimadoInput !== valorSavedFormatted
-    const rawJsonDirty = ativoFormSchema.some(f => {
-      const saved = selectedLead.raw_json?.[f.name] != null ? String(selectedLead.raw_json[f.name]) : ''
-      return (fichaRawJsonEdits[f.name] ?? '') !== saved
-    })
-    const mensagemDirty = fichaMensagemEdit !== (selectedLead.mensagem_original || '')
-    return { rawJsonDirty, mensagemDirty, valorDirty, any: rawJsonDirty || mensagemDirty || valorDirty }
-  }, [selectedLead, colunas, fichaValorEstimadoInput, fichaRawJsonEdits, fichaMensagemEdit, ativoFormSchema])
-
-  // Botão único do container "Informações do Lead" — dispara só as chamadas realmente
-  // necessárias (raw_json/mensagem vão pro endpoint dedicado; Valor Estimado continua no
-  // endpoint de move, que já sabe tratar "mesma coluna" como update sem trocar etapa).
-  const saveFichaInfoLeadCombined = async () => {
-    const calls: Promise<void>[] = []
-    if (fichaInfoDirty.rawJsonDirty || fichaInfoDirty.mensagemDirty) calls.push(saveFichaInfoLead())
-    if (fichaInfoDirty.valorDirty) calls.push(saveFichaValorEstimado())
-    await Promise.all(calls)
-  }
-
-  const moveLead = (lead: Lead, direction: 'forward' | 'backward' = 'forward') => {
-    const targetCol = direction === 'forward' ? getNextColumn(lead.coluna_nome) : getPrevColumn(lead.coluna_nome)
-    if (!targetCol) return
-    const digits = fichaValorEstimadoInput.replace(/\D/g, '')
-    const valorEstimadoOverride = digits ? parseInt(digits, 10) / 100 : undefined
-    requestMove(lead, targetCol, valorEstimadoOverride)
-  }
-
   // O campo de valor que o PRÓPRIO lead declarou no Perfil de Interesse (ex.: "Faixa de
   // Valor" em Venda de Carros, "Valor" em Imobiliário) — sempre o 1º campo type:"currency"
   // do schema resolvido pro tenant/segmento, nunca um nome fixo. Mostrado como referência,
   // desabilitado, no modal de "Negócio Fechado" — o atendente vê o que o lead pediu antes de
   // informar o valor real fechado.
-  const referenceValueField = useMemo(
-    () => ativoFormSchema.find(f => f.type === 'currency'),
-    [ativoFormSchema]
-  )
-
   // Dono do lead — lista derivada dos leads já carregados (mesma fonte de verdade do avatar/
   // legenda do card), não uma chamada nova a /api/admin/usuarios: só faz sentido oferecer no
   // filtro quem de fato tem lead atribuído neste board.
@@ -536,10 +296,11 @@ export default function KanbanPage() {
     }
   }, [leads])
 
-  const hasActiveFilters = !!(searchTerm || filterOwnerId || filterDateFrom || filterDateTo)
+  const hasActiveFilters = !!(searchTerm || filterOwnerId || filterDateFrom || filterDateTo || temaExcluidos.length > 0)
   const clearFilters = () => {
     setSearchTerm('')
     setFilterOwnerId('')
+    setTemaExcluidos([])
     setFilterDateFrom('')
     setFilterDateTo('')
   }
@@ -569,6 +330,7 @@ export default function KanbanPage() {
         return false
       }
     }
+    if (temaExcluidos.length > 0 && temaExcluidos.includes(String(l.tema_id ?? ''))) return false
     if (filterDateFrom || filterDateTo) {
       const leadDate = localDateIso(l.created_at)
       if (!leadDate) return false
@@ -596,10 +358,9 @@ export default function KanbanPage() {
   // a contagem do header já usa — filterLeads).
   const columnValueSum = (col: Coluna) => filterLeads(col).reduce((sum, l) => sum + leadEffectiveValue(l), 0)
 
-  // KPIs de "Total do ano/mês até hoje" — pedido do usuário (2026-10-12): são um resumo fixo
-  // de negócio, não um 3º filtro manipulável; por isso ignoram searchTerm/filterOwnerId/
-  // filterDateFrom/filterDateTo de propósito e olham todo o board (exceto leads excluídos,
-  // mesmo critério padrão do resto da tela sem "Mostrar excluídos" ativo).
+  // KPIs de "Total do ano/mês até hoje" — ignoram busca, dono e período de propósito (resumo
+  // fixo de negócio), mas OBEDECEM ao filtro de temas (pedido do usuário). Leads excluídos
+  // ficam de fora, como no resto da tela.
   const yearMonthTotals = useMemo(() => {
     const now = new Date()
     const startOfYear = `${now.getFullYear()}-01-01`
@@ -607,6 +368,7 @@ export default function KanbanPage() {
     let leadsYTD = 0, leadsMTD = 0, valueYTD = 0, valueMTD = 0
     for (const l of leads) {
       if (l.deleted_at) continue
+      if (temaExcluidos.length > 0 && temaExcluidos.includes(String(l.tema_id ?? ''))) continue
       const d = localDateIso(l.created_at)
       if (!d) continue
       const value = leadEffectiveValue(l)
@@ -615,51 +377,8 @@ export default function KanbanPage() {
     }
     return { leadsYTD, leadsMTD, valueYTD, valueMTD }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leads])
+  }, [leads, temaExcluidos])
 
-  // Exclusão de lead (docs/CHECKPOINT.md, 2026-08-14) — regra decidida pelo usuário: sem
-  // atividade registrada, o servidor exclui de vez; com atividade, exclui de forma reversível
-  // (lixeira) e devolve mode:'soft'|'hard' pra sabermos qual mensagem mostrar.
-  const handleDeleteLead = async (lead: Lead) => {
-    if (!confirm(
-      'Excluir este lead?\n\n' +
-      'Leads SEM nenhuma atividade registrada são removidos permanentemente.\n' +
-      'Leads COM atividades vão pra lixeira e podem ser restaurados depois.'
-    )) return
-    setDeletingLead(true)
-    try {
-      const res = await adminFetch(`/api/crm/leads/${lead.lead_uuid}`, { method: 'DELETE' })
-      const data = await res.json()
-      if (data.success) {
-        alert(data.message)
-        setSelectedLead(null)
-        fetchData()
-      } else {
-        alert(data.error || 'Erro ao excluir lead.')
-      }
-    } finally {
-      setDeletingLead(false)
-    }
-  }
-
-  const handleRestoreLead = async (lead: Lead) => {
-    setDeletingLead(true)
-    try {
-      const res = await adminFetch(`/api/crm/leads/${lead.lead_uuid}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ action: 'restore' }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setSelectedLead(null)
-        fetchData()
-      } else {
-        alert(data.error || 'Erro ao restaurar lead.')
-      }
-    } finally {
-      setDeletingLead(false)
-    }
-  }
 
   const handleDragStart = (e: React.DragEvent, lead: Lead) => {
     e.dataTransfer.setData('lead_uuid', lead.lead_uuid)
@@ -686,7 +405,7 @@ export default function KanbanPage() {
     // `DragEvent`+`DataTransfer` sintético (sem uma sessão nativa de verdade) nunca reproduzia
     // o travamento — só um arrasto físico de mouse é afetado, por isso passou despercebido em
     // testes automatizados anteriores.
-    setTimeout(() => requestMove(lead, targetCol), 0)
+    setTimeout(() => ficha.requestMove(lead, targetCol), 0)
   }
 
   // Enquanto a config do tenant ainda não carregou, não dá pra saber se o gate de escopo se
@@ -836,9 +555,10 @@ export default function KanbanPage() {
       </div>
 
       {/* Filtros de Dono do Lead + Período de Criação (pedido do usuário, 2026-08-16) */}
-      <div className={`flex flex-wrap items-center gap-3 ${dsPanel} p-4 rounded-[2rem]`}>
+      <div className={`relative z-30 flex flex-wrap items-center gap-3 ${dsPanel} p-4 rounded-[2rem]`}>
         <div className="flex items-center gap-2">
           <UserCircleIcon className={`h-5 w-5 ${dsFaint}`} />
+          <TemaMultiSelect temas={temas} excluded={temaExcluidos} onChange={setTemaExcluidos} isDark={isDark} />
           <select
             value={filterOwnerId}
             onChange={e => setFilterOwnerId(e.target.value)}
@@ -980,7 +700,7 @@ export default function KanbanPage() {
                    onDragOver={handleDragOver}
                    onDrop={(e) => handleDrop(e, col)}>
                 {filterLeads(col).map(lead => (
-                  <div key={lead.lead_uuid} onClick={() => setSelectedLead(lead)}
+                  <div key={lead.lead_uuid} onClick={() => ficha.openLead(lead)}
                     draggable={!lead.deleted_at}
                     onDragStart={(e) => handleDragStart(e, lead)}
                     style={{ backgroundColor: cardTint }}
@@ -1110,8 +830,8 @@ export default function KanbanPage() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedLead(lead);
-                              setIsAgendarOpen(true);
+                              ficha.openLead(lead);
+                              ficha.setIsAgendarOpen(true);
                             }}
                             className={`p-1.5 rounded-lg border transition-colors z-10 ${dsMuted} ${dsDivider} hover:text-gold-premium hover:border-gold-premium/40`}
                             title="Agendar Visita"
@@ -1162,307 +882,7 @@ export default function KanbanPage() {
       )}
 
       {/* Modal Ficha */}
-      {selectedLead && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
-          <div className={`${t.modalBg} w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 border ${t.borderSub}`}>
-            <div className={`relative p-6 border-b ${t.borderSub} bg-gradient-to-br from-blue-600/10 to-indigo-600/5`}>
-              <button onClick={() => setSelectedLead(null)}
-                className={`absolute right-6 top-1/2 -translate-y-1/2 p-2 ${t.textMuted} ${t.hoverBg} rounded-full transition-all`}>
-                <XMarkIcon className="h-6 w-6" />
-              </button>
-              <div className="flex items-center space-x-5">
-                <div className="h-14 w-14 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30 overflow-hidden">
-                  {selectedLead.contato_avatar_url ? (
-                    <img src={selectedLead.contato_avatar_url} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <UsersIcon className="h-8 w-8" />
-                  )}
-                </div>
-                <div>
-                  <h3 className={`text-xl font-bold italic tracking-tight ${t.textPrimary}`}>{selectedLead.nome}</h3>
-                  <div className={`flex items-center text-xs space-x-3 mt-1 ${t.textMuted}`}>
-                    <span className="font-medium bg-blue-500/10 text-blue-500 px-2 py-0.5 rounded-md">{formatPhone(selectedLead.telefone)}</span>
-                    <span className="opacity-30">•</span>
-                    <span className="opacity-80">{selectedLead.email}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6 space-y-6 overflow-y-auto max-h-[75vh]">
-              {/* Pipeline/Progresso Compacta */}
-              <div className="flex items-center space-x-2 overflow-x-auto pb-4 no-scrollbar border-b border-dashed border-white/5">
-                {colunas.map((col, idx) => {
-                  const isActive = selectedLead.coluna_nome === col.nome
-                  const isPast = colunas.findIndex(c => c.nome === selectedLead.coluna_nome) > idx
-                  return (
-                    <div key={col.id} className="flex items-center flex-shrink-0">
-                      <div className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all ${
-                        isActive ? 'text-white border-blue-500/40 bg-blue-600/40' :
-                        isPast ? 'text-emerald-500 border-emerald-500/20 bg-emerald-500/10' :
-                        `${t.textMuted} ${t.borderSub} ${t.isDark ? 'bg-white/[0.02]' : 'bg-gray-100'}`
-                      }`}>{col.titulo_exibicao}</div>
-                      {idx < colunas.length - 1 && <div className={`w-3 h-px mx-1 ${isPast ? 'bg-emerald-500/40' : t.isDark ? 'bg-white/10' : 'bg-gray-200'}`} />}
-                    </div>
-                  )
-                })}
-              </div>
-
-              {/* Grid 2 colunas para dados principais */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                {/* Coluna 1: Informações do Lead (era "Dashboard de Interesse" — renomeado e
-                    tornado editável em 2026-08-27, docs/CHECKPOINT.md: TODO campo que o lead
-                    trouxe na criação (Perfil de Interesse dinâmico via raw_json + a Demanda do
-                    Cliente/mensagem_original) passa a ser editável em qualquer etapa do Kanban,
-                    junto com o Valor Estimado (migrado de "Análise por IA" — esse continua
-                    virando somente-leitura em etapa terminal, onde estimar não faz mais
-                    sentido). Um único botão salva as 3 categorias juntas, só quando há
-                    alteração real pendente (fichaInfoDirty). */}
-                <div className={`p-5 ${t.cardBg} rounded-3xl border-emerald-500/20 border relative`}>
-                  <div className="absolute -top-3 left-6 flex items-center space-x-2 bg-emerald-600 text-[9px] font-bold text-white px-3 py-0.5 rounded-full uppercase shadow-lg shadow-emerald-500/20">
-                    <CheckBadgeIcon className="h-3 w-3" /><span>Informações do Lead</span>
-                  </div>
-                  <div className="mt-4 space-y-4">
-                    {ativoFormSchema.filter(f => f.type !== 'currency').length > 0 && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {ativoFormSchema.filter(f => f.type !== 'currency').map((field) => (
-                          <div key={field.name} className={`space-y-1 ${field.type === 'text' ? 'md:col-span-2' : ''}`}>
-                            <label className={`block text-[9px] font-black uppercase tracking-widest ml-1 ${t.textMuted}`}>{field.label}</label>
-                            <input
-                              type={field.type === 'number' ? 'number' : 'text'}
-                              value={fichaRawJsonEdits[field.name] ?? ''}
-                              onChange={e => setFichaRawJsonEdits(prev => ({ ...prev, [field.name]: e.target.value }))}
-                              className={`w-full rounded-xl py-2 px-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/30 ${t.isDark ? t.inputBg : 'bg-emerald-50/60 text-slate-800 border border-emerald-200'}`}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {!selectedLead.enriquecimento_cache && ativoFormSchema.length === 0 && (
-                      <p className={`text-xs italic ${t.textMuted}`}>Nenhum campo de Perfil de Interesse configurado para este segmento.</p>
-                    )}
-
-                  </div>
-                </div>
-
-                {/* Coluna 2: Análise IA */}
-                <div className={`p-5 ${t.cardBg} rounded-3xl border border-blue-500/20 relative self-start`}>
-                  <div className="absolute -top-3 left-6 flex items-center space-x-2 bg-blue-600 text-[9px] font-bold text-white px-3 py-0.5 rounded-full uppercase shadow-lg shadow-blue-500/20">
-                    <SparklesIcon className="h-3 w-3" /><span>Análise por IA</span>
-                  </div>
-                  
-                  <div className="mt-4 flex-1">
-                    <div className={`flex items-center justify-between border-b pb-3 mb-4 ${t.borderSub}`}>
-                      <div className="flex items-center space-x-2">
-                        <ChatBubbleBottomCenterTextIcon className="h-4 w-4 text-blue-500" />
-                        <span className={`text-xs font-bold uppercase tracking-tighter ${t.textPrimary}`}>Perfil Emocional</span>
-                      </div>
-                      <span className="bg-blue-500/10 text-blue-400 px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase border border-blue-500/20">
-                        {selectedLead.tag_sonho}
-                      </span>
-                    </div>
-                    
-                    <div className={`text-xs leading-relaxed italic ${t.textMuted} bg-blue-500/5 p-4 rounded-2xl border border-blue-500/10`}>
-                      "{selectedLead.resumo_ia || 'A IA ainda não processou uma análise profunda deste lead.'}"
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3 mt-4">
-                      {/* Intenção (score_prontidao) e Aderência (score_fit) — 2 dimensões
-                          SEPARADAS, nunca combinadas num 3º número sintético (docs/
-                          PLANO_AGENTES_ACELERACAO_CRM.md §3.1). Cor de fundo distinta por
-                          tile — azul pra Intenção (eco do card "Análise por IA" que as
-                          envolve), violeta pra Aderência (mesma cor já usada em todo o resto
-                          da plataforma pra esse conceito — SegmentFitCriteriaModal.tsx) —
-                          opacidade baixa, mesmo padrão restrito já usado nos tiles de Valor
-                          Fechado/Potencial logo abaixo, pra nunca roubar atenção da UI. */}
-                      {[
-                        {
-                          label: 'Intenção',
-                          val: selectedLead.score_prontidao != null ? `${selectedLead.score_prontidao}%` : 'Não avaliado',
-                          bg: t.isDark ? 'bg-blue-500/10 border-blue-500/20' : 'bg-blue-50 border-blue-200',
-                          fg: t.isDark ? 'text-blue-400' : 'text-blue-700',
-                        },
-                        {
-                          label: 'Aderência',
-                          val: selectedLead.score_fit != null ? `${selectedLead.score_fit}%` : '—',
-                          bg: t.isDark ? 'bg-violet-500/10 border-violet-500/20' : 'bg-violet-50 border-violet-200',
-                          fg: t.isDark ? 'text-violet-400' : 'text-violet-700',
-                        },
-                      ].map(({ label, val, bg, fg }) => (
-                        <div key={label} className={`p-3 rounded-xl border ${bg}`}>
-                          <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${fg}`}>{label}</p>
-                          <span className={`text-lg font-bold ${fg}`}>{val}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Valor Fechado (REAL, só existe no negócio ganho) — o Valor Estimado saiu
-                        daqui em 2026-08-27 (docs/CHECKPOINT.md), migrado pra "Informações do
-                        Lead" junto com os demais campos editáveis. */}
-                    {selectedLead.valor_venda != null && (
-                      <div className="mt-3 p-3 rounded-xl border bg-emerald-500/5 border-emerald-500/20">
-                        <p className="text-[9px] font-bold uppercase tracking-widest mb-1 text-emerald-500">Valor Fechado (real)</p>
-                        <span className="text-lg font-bold text-emerald-500">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedLead.valor_venda)}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Terceiro container, largura total: Mensagem que originou o lead + Valor Estimado
-                  lado a lado. Saiu da coluna "Informações do Lead" para equilibrar a altura com
-                  "Análise por IA". O botão de salvar (raw_json + mensagem + valor) fica aqui. */}
-              <div className={`p-5 ${t.cardBg} rounded-3xl border-emerald-500/20 border relative`}>
-                <div className="absolute -top-3 left-6 flex items-center space-x-2 bg-emerald-600 text-[9px] font-bold text-white px-3 py-0.5 rounded-full uppercase shadow-lg shadow-emerald-500/20">
-                  <ChatBubbleLeftRightIcon className="h-3 w-3" /><span>Mensagem e Valor Estimado</span>
-                </div>
-                <div className="mt-4 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="md:col-span-2 flex flex-col space-y-1">
-                      <label className={`block text-[9px] font-black uppercase tracking-widest ml-1 flex items-center gap-1.5 ${t.textMuted}`}>
-                        <ChatBubbleLeftRightIcon className="h-3.5 w-3.5" />Mensagem que originou o lead (WhatsApp)
-                      </label>
-                      <textarea
-                        value={fichaMensagemEdit}
-                        onChange={e => setFichaMensagemEdit(e.target.value)}
-                        rows={3}
-                        placeholder="Nenhuma mensagem registrada."
-                        className={`w-full rounded-xl py-2 px-3 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-emerald-500/30 resize-y max-h-48 ${t.isDark ? t.inputBg : 'bg-emerald-50/60 text-slate-800 border border-emerald-200'}`}
-                      />
-                    </div>
-
-                    {/* Valor Estimado — editável enquanto a etapa não é terminal */}
-                    {(() => {
-                      const currentCol = colunas.find(c => c.nome === selectedLead.coluna_nome)
-                      const isTerminal = !!(currentCol?.is_ganho || currentCol?.is_perda)
-                      return (
-                        <div className="flex flex-col space-y-1">
-                          <label className={`block text-[9px] font-black uppercase tracking-widest ml-1 ${t.textMuted}`}>Valor Estimado</label>
-                          <div className={`flex-1 flex items-center p-3 rounded-xl border ${t.isDark ? 'bg-amber-500/5 border-amber-500/20' : 'bg-amber-50 border-amber-200'}`}>
-                          {isTerminal ? (
-                            <span className={`text-lg font-bold ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>
-                              {selectedLead.valor_venda_estimado != null ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedLead.valor_venda_estimado) : '—'}
-                            </span>
-                          ) : (
-                            <div className="relative w-full">
-                              <span className={`absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>R$</span>
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                value={fichaValorEstimadoInput}
-                                onChange={e => {
-                                  const digits = e.target.value.replace(/\D/g, '')
-                                  if (!digits) { setFichaValorEstimadoInput(''); return }
-                                  const num = parseInt(digits, 10) / 100
-                                  setFichaValorEstimadoInput(num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
-                                }}
-                                placeholder="0,00"
-                                className={`w-full rounded-lg py-1.5 pl-8 pr-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500/30 ${t.isDark ? 'bg-black/20 text-amber-300' : 'bg-white text-amber-700 border border-amber-200'}`}
-                              />
-                            </div>
-                          )}
-                          </div>
-                        </div>
-                      )
-                    })()}
-                  </div>
-
-                  {/* Botão único — raw_json, mensagem e Valor Estimado juntos. Sempre visível;
-                      habilitado só quando há alteração real pendente (fichaInfoDirty). */}
-                  <button
-                    type="button"
-                    onClick={saveFichaInfoLeadCombined}
-                    disabled={!fichaInfoDirty.any || savingInfoLead || savingValorEstimado}
-                    className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${(!fichaInfoDirty.any || savingInfoLead || savingValorEstimado) ? 'opacity-40 cursor-not-allowed' : ''} bg-emerald-600 hover:bg-emerald-500 text-white`}
-                  >
-                    <CheckBadgeIcon className="h-4 w-4" />
-                    {(savingInfoLead || savingValorEstimado) ? 'Salvando...' : 'Salvar Alterações'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Sugestão da IA — F3 next_best_action, informativo, nunca bloqueante */}
-              <NextBestActionCard
-                leadUuid={selectedLead.lead_uuid}
-                onUseAsActivity={handleUseSuggestionAsActivity}
-              />
-
-              {/* Histórico unificado: mensagens (balões), atividades e visitas em ordem cronológica */}
-              <div className={`p-5 ${t.cardBg} rounded-3xl border border-indigo-500/10`}>
-                <LeadTimeline
-                  leadUuid={selectedLead.lead_uuid}
-                  isDark={t.isDark}
-                  refreshKey={agendamentosVersion}
-                  onAgendar={tenantConfig?.calendario ? () => setIsAgendarOpen(true) : undefined}
-                  onAtividadeAction={(id, action) => setAtividadeAction({ id, action, nonce: Date.now() })}
-                  onNovaAtividade={() => setNovaAtividadeNonce(Date.now())}
-                />
-              </div>
-
-              {/* Formulário de nova atividade: aberto pela barra do Histórico, sem container extra */}
-              <AtividadesLead
-                leadUuid={selectedLead.lead_uuid}
-                clientId={selectedLead.client_id}
-                prefill={activityPrefill}
-                hideList
-                actionRequest={atividadeAction}
-                onChanged={() => setAgendamentosVersion(v => v + 1)}
-                openNonce={novaAtividadeNonce}
-              />
-            </div>
-
-            <div className={`p-6 border-t ${t.borderSub} ${t.isDark ? 'bg-black/20' : 'bg-gray-50'} flex flex-wrap items-center justify-between gap-3`}>
-              {/* Exclusão/restauração (docs/CHECKPOINT.md, 2026-08-14) — só na Ficha, nunca no
-                  card do Kanban, pra evitar exclusão acidental por clique rápido demais. */}
-              {selectedLead.deleted_at ? (
-                <button onClick={() => handleRestoreLead(selectedLead)} disabled={deletingLead}
-                  className="flex items-center px-5 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all uppercase active:scale-95">
-                  <ArrowUturnLeftIcon className="h-4 w-4 mr-2" />
-                  {deletingLead ? 'Restaurando...' : 'Restaurar Lead'}
-                </button>
-              ) : (
-                <button onClick={() => handleDeleteLead(selectedLead)} disabled={deletingLead}
-                  className="flex items-center px-5 py-3 text-red-500 hover:bg-red-500/10 disabled:opacity-50 text-xs font-bold rounded-xl transition-all uppercase active:scale-95 border border-red-500/20">
-                  <TrashIcon className="h-4 w-4 mr-2" />
-                  {deletingLead ? 'Excluindo...' : 'Excluir Lead'}
-                </button>
-              )}
-
-              <div className="flex flex-wrap items-center gap-3">
-                <button onClick={() => setSelectedLead(null)} className={`px-6 py-3 text-xs font-bold uppercase tracking-widest ${t.textMuted} hover:text-blue-500 transition-all`}>Fechar</button>
-                {!selectedLead.deleted_at && tenantConfig?.calendario && (
-                  <button
-                    onClick={() => setIsAgendarOpen(true)}
-                    className="flex items-center px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all uppercase active:scale-95 shadow-lg shadow-indigo-500/20"
-                  >
-                    <CalendarDaysIcon className="h-4 w-4 mr-2" />
-                    Agendar Visita
-                  </button>
-                )}
-                {!selectedLead.deleted_at && getPrevColumn(selectedLead.coluna_nome) && (
-                  <button onClick={() => moveLead(selectedLead, 'backward')} disabled={movingLead}
-                    className={`flex items-center px-6 py-3 ${t.cardBg} disabled:opacity-50 ${t.textSecondary} text-xs font-bold rounded-xl transition-all uppercase active:scale-95`}>
-                    <ArrowUturnLeftIcon className="h-4 w-4 mr-2" />
-                    {movingLead ? 'Movendo...' : 'Recuar Etapa'}
-                  </button>
-                )}
-                {selectedLead.deleted_at ? null : getNextColumn(selectedLead.coluna_nome) ? (
-                  <button onClick={() => moveLead(selectedLead, 'forward')} disabled={movingLead}
-                    className="flex items-center px-8 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-500 text-white text-xs font-bold rounded-xl transition-all uppercase active:scale-95">
-                    <CheckBadgeIcon className="h-4 w-4 mr-2" />
-                    {movingLead ? 'Movendo...' : `Avançar → ${getNextColumn(selectedLead.coluna_nome)?.titulo_exibicao}`}
-                  </button>
-                ) : (
-                  <div className="flex items-center px-6 py-3 text-xs font-bold text-emerald-500 uppercase">
-                    <CheckBadgeIcon className="h-4 w-4 mr-2" />Pipeline Concluída
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <LeadFichaModal<Lead> ficha={ficha} />
 
       <NovoLeadModal
         isOpen={isNovoLeadOpen}
@@ -1472,111 +892,12 @@ export default function KanbanPage() {
         clientName={scopeClientName}
       />
 
-      {/* Modal "Valor de Fechamento" — sempre que um lead entra numa etapa de Ganho */}
-      {pendingGanhoMove && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
-          <div className={`${t.modalBg} w-full max-w-sm rounded-[2rem] p-7 shadow-2xl border border-white/10 animate-in zoom-in-95`}>
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="h-11 w-11 rounded-2xl bg-emerald-600 flex items-center justify-center shadow-lg flex-shrink-0">
-                <CheckBadgeIcon className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h3 className={`text-base font-black italic tracking-tight ${t.textPrimary}`}>Negócio Fechado 🎉</h3>
-                <p className={`text-[10px] font-bold ${t.textMuted}`}>{pendingGanhoMove.lead.nome}</p>
-              </div>
-            </div>
-            {/* Referência: o valor que o PRÓPRIO lead declarou no Perfil de Interesse (ex.:
-                "Faixa de Valor"), sempre desabilitado — nunca editável aqui, é só contexto pra
-                o atendente comparar com o que vai informar como fechamento real abaixo. Só
-                aparece quando o segmento tem esse campo configurado E o lead de fato preencheu. */}
-            {referenceValueField && pendingGanhoMove.lead.raw_json?.[referenceValueField.name] && (
-              <div className="mb-4">
-                <label className={`block text-[9px] font-black uppercase tracking-widest ${t.textMuted} mb-2`}>
-                  {referenceValueField.label} (declarado pelo lead)
-                </label>
-                <input
-                  type="text"
-                  disabled
-                  value={String(pendingGanhoMove.lead.raw_json[referenceValueField.name])}
-                  className={`w-full rounded-2xl py-3 px-4 text-sm font-bold cursor-not-allowed opacity-60 ${t.isDark ? t.inputBg : 'bg-slate-100 text-slate-500 border border-slate-200'}`}
-                />
-              </div>
-            )}
-            {/* Referência: o Valor Estimado que o próprio pipeline já vinha acumulando (editável
-                na ficha ao longo das etapas, docs/CHECKPOINT.md 2026-08-27) — desabilitado aqui,
-                nunca editável neste modal: é só contexto pra comparar com o valor real de
-                fechamento que o atendente vai informar abaixo. Só aparece quando existe. */}
-            {pendingGanhoMove.lead.valor_venda_estimado != null && (
-              <div className="mb-4">
-                <label className={`block text-[9px] font-black uppercase tracking-widest ${t.textMuted} mb-2`}>
-                  Valor Estimado
-                </label>
-                <input
-                  type="text"
-                  disabled
-                  value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pendingGanhoMove.lead.valor_venda_estimado)}
-                  className={`w-full rounded-2xl py-3 px-4 text-sm font-bold cursor-not-allowed opacity-60 ${t.isDark ? t.inputBg : 'bg-slate-100 text-slate-500 border border-slate-200'}`}
-                />
-              </div>
-            )}
-            <label className={`block text-[9px] font-black uppercase tracking-widest ${t.textMuted} mb-2`}>
-              Valor de Fechamento (opcional)
-            </label>
-            <div className="relative">
-              <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold ${t.textMuted}`}>R$</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                autoFocus
-                value={valorVendaInput}
-                onChange={e => {
-                  const digits = e.target.value.replace(/\D/g, '')
-                  const num = digits ? parseInt(digits, 10) / 100 : 0
-                  setValorVendaInput(num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
-                }}
-                onKeyDown={e => { if (e.key === 'Enter') confirmGanhoMove() }}
-                placeholder="0,00"
-                className={`w-full rounded-2xl py-3 pl-11 pr-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/30 ${t.isDark ? t.inputBg : 'bg-slate-50 text-slate-700 border border-slate-200'}`}
-              />
-            </div>
-            <p className={`text-[10px] ${t.textMuted} mt-2 italic`}>
-              Alimenta o CPA/ROAS real de Campanhas — deixe em branco pra registrar sem valor.
-            </p>
-            <div className="mt-7 flex gap-3">
-              <button
-                onClick={() => setPendingGanhoMove(null)}
-                className={`flex-1 py-3 ${t.isDark ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'} text-[10px] font-black uppercase tracking-widest rounded-xl transition-all`}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={confirmGanhoMove}
-                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95"
-              >
-                Confirmar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Agendar Visita */}
-      {isAgendarOpen && selectedLead && tenantConfig && (
-        <AgendarVisitaModal
-          isOpen={isAgendarOpen}
-          onClose={() => setIsAgendarOpen(false)}
-          onSuccess={() => { setIsAgendarOpen(false); setAgendamentosVersion(v => v + 1) }}
-          lead={selectedLead}
-          tenantConfig={tenantConfig}
-        />
-      )}
-
       {/* Modal Visão Geral do Calendário */}
       {isCalendarioViewOpen && (
         <CalendarioGeralView 
           isOpen={isCalendarioViewOpen} 
           onClose={() => setIsCalendarioViewOpen(false)}
-          onNovoAgendamento={() => { setIsCalendarioViewOpen(false); setIsAgendarOpen(true); }}
+          onNovoAgendamento={() => { setIsCalendarioViewOpen(false); ficha.setIsAgendarOpen(true); }}
           tenantId={tenantId}
         />
       )}

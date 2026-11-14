@@ -75,7 +75,7 @@ export async function PATCH(
       anthropic_api_key, slack_webhook_url, evolution_api_url, evolution_api_key, evolution_instance, agent_confidence_threshold,
       numero_whatsapp, crm_clientes, associa_segmento_negocio_cliente, marketing_digital,
       isento_marketingdigital, isento_mensageria, isento_crm, public_domain,
-      tipo_atividade_mensagem_id
+      tipo_atividade_mensagem_id, gera_mensagens_whatsapp
     } = body;
 
     await client.query('BEGIN');
@@ -111,6 +111,23 @@ export async function PATCH(
             userValues
           );
         }
+      }
+    }
+
+    // GERA_MENSAGENS_WHATSAPP só pode ser ligado com CRM e/ou Mensageria contratados.
+    if (gera_mensagens_whatsapp === true) {
+      const { rows: mods } = await client.query(
+        `SELECT sm.slug FROM public.tenant_modules tm
+           JOIN public.system_modules sm ON sm.id = tm.module_id
+          WHERE tm.tenant_id = $1::uuid AND tm.is_enabled = true AND sm.slug IN ('crm', 'mensageria')`,
+        [id],
+      );
+      if (mods.length === 0) {
+        await client.query('ROLLBACK');
+        return NextResponse.json(
+          { error: 'GERA_MENSAGENS_WHATSAPP só pode ser ligado com o módulo CRM e/ou Mensageria contratado.' },
+          { status: 400 },
+        );
       }
     }
 
@@ -154,6 +171,7 @@ export async function PATCH(
         marketing_digital = COALESCE($33, marketing_digital),
         public_domain = CASE WHEN $34::boolean THEN $35 ELSE public_domain END,
         tipo_atividade_mensagem_id = CASE WHEN $37::boolean THEN $38::integer ELSE tipo_atividade_mensagem_id END,
+        gera_mensagens_whatsapp = COALESCE($39, gera_mensagens_whatsapp),
         updated_at = NOW()
       WHERE id = $36
       RETURNING *
@@ -188,6 +206,7 @@ export async function PATCH(
       id,
       tipo_atividade_mensagem_id !== undefined,
       tipo_atividade_mensagem_id ? parseInt(tipo_atividade_mensagem_id, 10) : null,
+      gera_mensagens_whatsapp !== undefined ? gera_mensagens_whatsapp === true : null,
     ];
 
     const result = await client.query(query, values);
@@ -195,6 +214,22 @@ export async function PATCH(
     if (result.rows.length === 0) {
       await client.query('ROLLBACK');
       return NextResponse.json({ error: 'Unidade não encontrada' }, { status: 404 });
+    }
+
+    // Liberação do bot (parâmetro só do Master). Ao revogar, desliga o bot já ativo do tenant
+    // na mesma transação, para não deixar bot ativo sem liberação.
+    if (body.bot_ativacao_liberada !== undefined) {
+      const liberada = body.bot_ativacao_liberada === true
+      await client.query(
+        'UPDATE public.tenants SET bot_ativacao_liberada = $2 WHERE id = $1',
+        [id, liberada],
+      )
+      if (!liberada) {
+        await client.query(
+          'UPDATE mensageria.bot_flows SET is_active = false WHERE tenant_id = $1',
+          [id],
+        )
+      }
     }
 
     await client.query('COMMIT');

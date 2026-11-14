@@ -1,3 +1,4 @@
+import { hasMensageriaModule } from '@/lib/crm/leadTimeline'
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { getTokenPayload } from '@/lib/auth/jwt-node'
@@ -20,6 +21,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   const payload = getTokenPayload(request)
   if (!payload?.tenantId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+  if (!payload.is_system_role && !(await hasMensageriaModule(payload.tenantId))) return NextResponse.json({ error: 'Módulo Mensageria não contratado' }, { status: 403 })
 
   try {
   const sp = new URL(request.url).searchParams

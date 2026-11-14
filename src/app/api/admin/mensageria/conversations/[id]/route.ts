@@ -1,3 +1,4 @@
+import { hasMensageriaModule } from '@/lib/crm/leadTimeline'
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { getTokenPayload } from '@/lib/auth/jwt-node'
@@ -13,6 +14,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const payload = getTokenPayload(request)
   if (!payload?.tenantId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+  if (!payload.is_system_role && !(await hasMensageriaModule(payload.tenantId))) return NextResponse.json({ error: 'Módulo Mensageria não contratado' }, { status: 403 })
 
   // Visibilidade gerencial (seção 16) — fora do escopo retorna 404, não 403 (não confirma
   // nem a existência da conversa para quem não pode vê-la).
@@ -28,11 +30,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
             ct.email AS contact_email, ct.avatar_url AS contact_avatar_url, ct.lead_uuid,
             ib.id AS inbox_id, ib.channel_type, ib.name AS inbox_name,
             u.nome AS assignee_name,
+            c.team_id, tm.name AS team_name,
             attr.campaign_id, attr.utm_source, attr.utm_medium, attr.utm_campaign, camp.name AS campaign_name
        FROM mensageria.conversations c
        JOIN mensageria.contacts ct ON ct.id = c.contact_id
        JOIN mensageria.inboxes ib ON ib.id = c.inbox_id
        LEFT JOIN public.users u ON u.id = c.assignee_id
+       LEFT JOIN mensageria.teams tm ON tm.id = c.team_id
        LEFT JOIN public.clientes cl ON cl.uuid = c.client_id
        -- Atribuição de campanha (T3 — docs/TESTES_UNIFICACAO_LEADS_3_MODULOS.md): o dado já
        -- existe via ct.lead_uuid -> marketing_eventos, mas nenhuma tela de Mensageria mostrava
@@ -92,6 +96,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       clientName: conv.client_name,
       inbox: { id: conv.inbox_id, channelType: conv.channel_type, name: conv.inbox_name },
       assignee: conv.assignee_id ? { id: conv.assignee_id, name: conv.assignee_name } : null,
+      team: conv.team_id ? { id: conv.team_id, name: conv.team_name } : null,
       contact: {
         id: conv.contact_id,
         name: conv.contact_name,
@@ -140,6 +145,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   const payload = getTokenPayload(request)
   if (!payload?.tenantId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+  if (!payload.is_system_role && !(await hasMensageriaModule(payload.tenantId))) return NextResponse.json({ error: 'Módulo Mensageria não contratado' }, { status: 403 })
 
   const body = await request.json().catch(() => ({}))
   const sets: string[] = []

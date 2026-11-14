@@ -45,20 +45,63 @@ export async function sendEvolutionMessage(
   }
 }
 
+export type EvolutionMediaKind = 'image' | 'video' | 'document'
+
+/** Envia imagem, vídeo ou documento (PDF) por URL pública. `kind` default: imagem (uso do bot). */
 export async function sendEvolutionMedia(
   config: EvolutionInboxConfig,
   toPhone: string,
   mediaUrl: string,
   caption?: string,
+  opts?: { kind?: EvolutionMediaKind; fileName?: string; mimetype?: string },
 ): Promise<{ ok: boolean; externalId?: string; error?: string }> {
   if (!config.api_url || !config.api_key || !config.instance) {
     return { ok: false, error: 'Inbox sem credenciais Evolution configuradas' }
   }
 
   try {
+    // A Evolution 2.x só aceita base64 cru (sem prefixo data:) ou URL pública resolvível pelo
+    // próprio servidor dela. Como o arquivo fica no storage interno (ex.: minio:9000), baixamos
+    // aqui no servidor da app e enviamos em base64 — o único formato que o provider aceita.
+    const fileRes = await axios.get(mediaUrl, { responseType: 'arraybuffer', timeout: 30000 })
+    const base64 = Buffer.from(fileRes.data).toString('base64')
     const res = await axios.post(
       `${config.api_url}/message/sendMedia/${config.instance}`,
-      { number: normalizePhone(toPhone), mediatype: 'image', media: mediaUrl, caption: caption || undefined },
+      {
+        number: normalizePhone(toPhone),
+        mediatype: opts?.kind ?? 'image',
+        media: base64,
+        caption: caption || undefined,
+        fileName: opts?.fileName || undefined,
+        mimetype: opts?.mimetype || undefined,
+      },
+      { headers: { 'Content-Type': 'application/json', apikey: config.api_key } },
+    )
+    const externalId = res.data?.key?.id ?? res.data?.id ?? undefined
+    return { ok: true, externalId }
+  } catch (err: any) {
+    return { ok: false, error: err.response?.data?.message || err.message }
+  }
+}
+
+/** Envia áudio como nota de voz (sendWhatsAppAudio). `encoding: true` pede à Evolution a conversão para opus. */
+export async function sendEvolutionAudio(
+  config: EvolutionInboxConfig,
+  toPhone: string,
+  audioUrl: string,
+): Promise<{ ok: boolean; externalId?: string; error?: string }> {
+  if (!config.api_url || !config.api_key || !config.instance) {
+    return { ok: false, error: 'Inbox sem credenciais Evolution configuradas' }
+  }
+
+  try {
+    // Mesmo motivo do sendEvolutionMedia: a Evolution só aceita base64 ou URL que ela alcance.
+    // Baixamos o áudio aqui e enviamos em base64; `encoding: true` converte para opus.
+    const fileRes = await axios.get(audioUrl, { responseType: 'arraybuffer', timeout: 30000 })
+    const base64 = Buffer.from(fileRes.data).toString('base64')
+    const res = await axios.post(
+      `${config.api_url}/message/sendWhatsAppAudio/${config.instance}`,
+      { number: normalizePhone(toPhone), audio: base64, encoding: true },
       { headers: { 'Content-Type': 'application/json', apikey: config.api_key } },
     )
     const externalId = res.data?.key?.id ?? res.data?.id ?? undefined

@@ -17,6 +17,7 @@ import { hasKnowledgeBase, searchKnowledge } from '@/lib/mensageria/tools/knowle
 import { ingestMessage } from '@/lib/mensageria/ingest'
 import { sendWhatsAppMessage, sendWhatsAppMedia, type WhatsAppSendConfig } from '@/lib/mensageria/channels/dispatch'
 import { logAiAtividade } from '@/lib/crm/atividades/logAiAtividade'
+import { hasMensageriaModule } from '@/lib/crm/leadTimeline'
 
 const SCHEMA = 'mensageria'
 const MAX_HISTORY = 20
@@ -550,6 +551,9 @@ async function handoffToHuman(
  * ou responde (com tool-use quando aplicável) ou transfere pra fila humana.
  */
 export async function maybeRunBot(conversationId: string, tenantId: string, extraContext?: string | null): Promise<void> {
+  // Bot só responde com o módulo Mensageria contratado (decisão de 2026-11-16): nos cenários com
+  // histórico no CRM sem Mensageria, a mensagem é guardada mas nunca respondida pelo bot.
+  if (!(await hasMensageriaModule(tenantId))) return
   const { rows: convRows } = await pool.query(
     `SELECT c.id, c.client_id, c.assignee_id, c.inbox_id, ib.channel_type, ib.provider, ib.config, ct.phone, ct.lead_uuid
        FROM ${SCHEMA}.conversations c

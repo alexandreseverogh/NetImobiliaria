@@ -134,6 +134,14 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
   const selectedImages = selectedImagesProp ?? [];
   const [step, setStep]             = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  // Tema do ciclo de vendas: o campo só existe quando o tenant contratou o módulo de CRM.
+  const [temaOptions, setTemaOptions] = useState<{ crmContracted: boolean; temas: { id: number; nome: string }[] }>({ crmContracted: false, temas: [] });
+  useEffect(() => {
+    fetch('/api/admin/campanhas/temas-disponiveis', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => { if (d.success) setTemaOptions({ crmContracted: !!d.crmContracted, temas: d.temas || [] }); })
+      .catch(() => {});
+  }, []);
   // Passos cujo "Próximo"/"Lançar" já foi tentado com erro — só a partir daí os campos
   // obrigatórios ficam vermelhos; evita abrir um passo em branco já gritando erro.
   const [attemptedSteps, setAttemptedSteps] = useState<Set<number>>(new Set());
@@ -203,6 +211,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
     pixelId:           '',
     customEventType:   '',
     declaredAngle:     '',   // FASE 14 — vazio = deixa o Vision inferir
+    temaId:            '',   // Tema do ciclo de vendas — só exigido com o módulo de CRM contratado
     initiativeId:      '',   // vínculo opcional a uma Iniciativa de Marketing
   });
 
@@ -407,6 +416,10 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
   }
 
   async function handleSubmit(launchNow = false) {
+    if (temaOptions.crmContracted && !form.temaId) {
+      alert('Selecione o tema do ciclo de vendas desta campanha.');
+      return;
+    }
     setSubmitting(true);
     try {
       // Build Meta API adset_schedule format
@@ -467,6 +480,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
         optimizationGoal:  autoFields.optimizationGoal || 'LEAD_GENERATION',
         billingEvent:      autoFields.billingEvent     || 'IMPRESSIONS',
         declaredAngle:     form.declaredAngle || undefined,   // FASE 14
+        temaId:            temaOptions.crmContracted && form.temaId ? Number(form.temaId) : undefined,
         initiativeId:      form.initiativeId || undefined,    // vínculo opcional à iniciativa
         clientId:          clientId || undefined,
         assetIds:          assetIds.length > 0 ? assetIds : undefined,
@@ -603,7 +617,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
               {step === 2 && <StepTextCta   form={form} updateForm={updateForm} autoFields={autoFields} hookTextHint={initialValues?.hookText} isPrefilled={!!(initialValues?.body || initialValues?.headline)} errors={errorsByField} showErrors={showErrorsForStep} clientId={clientId} />}
               {step === 3 && <StepTargeting form={form} updateForm={updateForm} clientId={clientId} suggestedInterests={autoFields.suggestedInterests} errors={errorsByField} showErrors={showErrorsForStep} />}
               {step === 4 && <StepBudget    form={form} updateForm={updateForm} errors={errorsByField} showErrors={showErrorsForStep} />}
-              {step === 5 && <StepObjective form={form} updateForm={updateForm} autoFields={autoFields} initiatives={initiatives} />}
+              {step === 5 && <StepObjective form={form} updateForm={updateForm} autoFields={autoFields} initiatives={initiatives} temaOptions={temaOptions} />}
               {step === 6 && <StepReview    form={form} selectedImages={selectedImages} autoFields={autoFields} initiatives={initiatives} />}
             </motion.div>
           </AnimatePresence>
@@ -1839,7 +1853,7 @@ function StepBudget({ form, updateForm, errors = {}, showErrors }: any) {
    STEP 5 — OBJETIVO & CONVERSÃO
 ══════════════════════════════════════════════════════════ */
 
-function StepObjective({ form, updateForm, autoFields, initiatives = [] }: any) {
+function StepObjective({ form, updateForm, autoFields, initiatives = [], temaOptions }: any) {
   const effectiveSpecial = form.specialAdCategory || autoFields.specialAdCategory || 'NONE';
   const effectivePixel   = form.pixelId           || autoFields.pixelId           || '';
   const effectiveEvent   = form.customEventType   || autoFields.customEventType   || 'LEAD';
@@ -1959,6 +1973,32 @@ function StepObjective({ form, updateForm, autoFields, initiatives = [] }: any) 
           ))}
         </select>
       </Section>
+
+      {/* Tema do ciclo de vendas — obrigatório e visível SOMENTE com o módulo de CRM contratado
+          (sem CRM não existe conteúdo de tema, então o campo nem aparece). Os leads captados
+          por esta campanha herdam o tema escolhido aqui. */}
+      {temaOptions?.crmContracted && (
+        <Section title="Tema do ciclo de vendas">
+          <p className="text-sm text-gray-500 -mt-2 mb-2">
+            Obrigatório. Os leads captados por esta campanha entram no funil deste tema.
+          </p>
+          <select
+            value={form.temaId || ''}
+            onChange={e => updateForm({ temaId: e.target.value })}
+            className={cn(inputCls, 'w-full max-w-sm')}
+          >
+            <option value="">Selecione um tema…</option>
+            {temaOptions.temas.map((tm: { id: number; nome: string }) => (
+              <option key={tm.id} value={String(tm.id)}>{tm.nome}</option>
+            ))}
+          </select>
+          {temaOptions.temas.length === 0 && (
+            <p className="text-xs text-amber-600 mt-2">
+              Nenhum tema cadastrado. Cadastre os temas em Configurações de CRM → Temas do Ciclo de Vendas.
+            </p>
+          )}
+        </Section>
+      )}
 
       {/* Vínculo opcional a uma Iniciativa de Marketing — agrupa a campanha sob um objetivo/budget comuns */}
       {initiatives.length > 0 && (

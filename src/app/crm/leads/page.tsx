@@ -13,6 +13,9 @@ import AtividadesLead from '@/components/crm/AtividadesLead'
 import NextBestActionCard from '@/components/crm/NextBestActionCard'
 import AgendarVisitaModal from '@/components/crm/AgendarVisitaModal'
 import DateInputPtBR from '@/components/ui/DateInputPtBR'
+import TemaMultiSelect from '@/components/crm/TemaMultiSelect'
+import LeadFichaModal, { formatPhone } from '@/components/crm/LeadFichaModal'
+import { useLeadFicha } from '@/components/crm/useLeadFicha'
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme } from '@/hooks/useTheme'
 
@@ -22,6 +25,9 @@ interface LeadStaging {
   /** Texto literal digitado/enviado pelo lead na captação — nunca reescrito pela IA (resumo_ia
    *  é a versão dela). null pra leads anteriores a esta coluna, ou sem nenhuma mensagem livre. */
   mensagem_original?: string | null;
+  /** Tema do ciclo de vendas (null = sem tema). */
+  tema_id?: number | null;
+  tema_nome?: string | null;
   score_prontidao: number | null;
   /** Encaixe no perfil ideal de cliente — dimensão separada de score_prontidao
    *  (intenção). null = ainda não avaliado (sem critério de fit cadastrado pro
@@ -48,7 +54,7 @@ interface LeadStaging {
   match_method?: string | null;
 }
 
-interface Coluna { id: number; nome: string; titulo_exibicao: string }
+interface Coluna { id: number; nome: string; titulo_exibicao: string; is_ganho?: boolean; is_perda?: boolean }
 
 /** Rótulo + explicação de cada valor real de `match_method` (docs/CHECKPOINT.md, 2026-07-21 —
  *  "F4: Match Engine real"). Único lugar de tradução — se um método novo for adicionado no
@@ -56,29 +62,22 @@ interface Coluna { id: number; nome: string; titulo_exibicao: string }
 const MATCH_METHOD_INFO: Record<string, { label: string; desc: string }> = {
   email: {
     label: 'E-mail',
-    desc: 'Já existia um lead com este e-mail — os dados foram mesclados no mesmo registro, sem criar duplicata.',
+    desc: 'O sistema identificou este lead pelo e-mail. Já existia um cadastro com o mesmo e-mail, então as informações novas foram somadas a ele, em vez de criar um card repetido.',
   },
   telefone: {
     label: 'Telefone',
-    desc: 'Já existia um lead com este telefone (comparado só pelos dígitos, tolerante a formatação/+55) — os dados foram mesclados no mesmo registro, sem criar duplicata.',
+    desc: 'O sistema identificou este lead pelo telefone. Já existia um cadastro com o mesmo número (parênteses, traços e o +55 são ignorados na comparação), então as informações novas foram somadas a ele, em vez de criar um card repetido.',
   },
   manual: {
     label: 'Cadastro Manual',
-    desc: 'Criado direto no CRM pelo botão "+ Novo Lead", sem passar pelo motor de correspondência automática.',
+    desc: 'Este lead foi cadastrado manualmente pelo botão "+ Novo Lead". Nesse caso o sistema não procura duplicatas: cada cadastro manual gera um card novo.',
   },
   novo: {
     label: 'Lead Novo',
-    desc: 'Nenhum lead existente batia com o e-mail/telefone informados — um registro novo foi criado.',
+    desc: 'Nenhum cadastro existente tinha o mesmo e-mail ou telefone. Por isso o sistema criou um card novo para esta pessoa.',
   },
 }
 
-const formatPhone = (phone: string) => {
-  if (!phone) return 'S/ Telefone'
-  const c = phone.replace(/\D/g, '')
-  if (c.length === 11) return `(${c.slice(0,2)}) ${c.slice(2,7)}-${c.slice(7)}`
-  if (c.length === 10) return `(${c.slice(0,2)}) ${c.slice(2,6)}-${c.slice(6)}`
-  return phone
-}
 
 const getInitials = (name: string) => {
   if (!name) return 'LD'
@@ -118,7 +117,6 @@ export default function LeadsStagingPage() {
   const [leads, setLeads] = useState<LeadStaging[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [selectedLead, setSelectedLead] = useState<LeadStaging | null>(null)
   // Filtro de período (De/Até) — mesmo seletor 7/30/90/Personalizado/Histórico já usado em
   // /crm (docs/CHECKPOINT.md, 2026-08-16), pedido pra funcionar igual aqui.
   const [timeframe, setTimeframe] = useState('30')
@@ -128,16 +126,23 @@ export default function LeadsStagingPage() {
   // dropdown "Todos os Status/Novos/Duplicados", que nunca teve value/onChange nenhum).
   const [colunas, setColunas] = useState<Coluna[]>([])
   const [filterColunaId, setFilterColunaId] = useState<number | ''>('')
-  // Config do tenant (calendário pessoal/empresa) — necessária pro botão "Agendar Visita" e
-  // pro "+ Nova visita" dentro de AgendamentosLead, mesmo padrão já usado em /crm/kanban.
-  const [tenantConfig, setTenantConfig] = useState<any>(null)
-  const [isAgendarOpen, setIsAgendarOpen] = useState(false)
-  const [agendamentosVersion, setAgendamentosVersion] = useState(0)
-  // "Registrar como Atividade" no card "Sugestão da IA" pré-preenche o form de Nova
-  // Atividade — mesmo mecanismo de /crm/kanban (nonce garante reabrir o form mesmo se o
-  // atendente clicar 2x seguidas na mesma sugestão).
-  const [activityPrefill, setActivityPrefill] = useState<{ text: string; nonce: number } | undefined>(undefined)
-  const handleUseSuggestionAsActivity = (text: string) => setActivityPrefill({ text, nonce: Date.now() })
+  // Filtro por Tema do ciclo de vendas — 'todos' = sem filtro (default).
+  const [temas, setTemas] = useState<{ id: number; nome: string }[]>([])
+  // Temas DESMARCADOS no filtro (vazio = todos marcados = sem filtro).
+  const [temaExcluidos, setTemaExcluidos] = useState<string[]>([])
+  // Ficha do lead — mesmo hook/componente usados pelo Kanban (fonte única, sem cópia).
+  const ficha = useLeadFicha<LeadStaging>({
+    colunas,
+    onPatchLead: (uuid, patch) => setLeads(prev => prev.map(l => l.lead_uuid === uuid ? { ...l, ...patch } : l)),
+    onReload: () => { fetchLeads() },
+  })
+
+  useEffect(() => {
+    fetch('/api/crm/temas', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => { if (d.success) setTemas(d.temas || []) })
+      .catch(() => setTemas([]))
+  }, [])
   // Expandir/recolher o snippet de mensagem original na listagem — lista densa (muitos leads
   // por tela) nunca mostra a mensagem inteira por padrão, mas o hover no `title` nativo é
   // pouco descobrível e não funciona em touch; este toggle dá uma forma explícita e clicável
@@ -165,7 +170,7 @@ export default function LeadsStagingPage() {
   }
 
   useEffect(() => { fetchLeads() }, [timeframe])
-  useEffect(() => { fetchColunas(); fetchTenantConfig() }, [tenantId])
+  useEffect(() => { fetchColunas() }, [tenantId])
 
   const fetchLeads = async () => {
     setLoading(true)
@@ -185,17 +190,6 @@ export default function LeadsStagingPage() {
     } catch { /* silent — filtro de Etapa só não aparece populado */ }
   }
 
-  const fetchTenantConfig = async () => {
-    try {
-      const token = localStorage.getItem('admin-auth-token')
-      const res = await fetch(`/api/crm/config/tenant?tenantId=${tenantId}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      })
-      const data = await res.json()
-      if (data.success) setTenantConfig(data.config)
-    } catch { /* silent — botão "Agendar Visita" só não aparece */ }
-  }
-
   const filteredLeads = leads.filter(l => {
     const searchDigits = search.replace(/\D/g, '')
     const matchesSearch = !search ||
@@ -205,7 +199,8 @@ export default function LeadsStagingPage() {
       l.mensagem_original?.toLowerCase().includes(search.toLowerCase()) ||
       (searchDigits.length > 0 && l.telefone?.replace(/\D/g, '').includes(searchDigits))
     const matchesEtapa = filterColunaId === '' || l.coluna_id === filterColunaId
-    return matchesSearch && matchesEtapa
+    const matchesTema = temaExcluidos.length === 0 || !temaExcluidos.includes(String(l.tema_id ?? ''))
+    return matchesSearch && matchesEtapa && matchesTema
   })
 
   return (
@@ -253,8 +248,13 @@ export default function LeadsStagingPage() {
         </div>
       </div>
 
+      {/* Total de leads conforme os filtros aplicados abaixo */}
+      <div className={`text-base font-bold ${t.isDark ? 'text-amber-300/90' : 'text-amber-700'}`}>
+        Total de leads: <span className="font-black text-lg">{filteredLeads.length}</span>
+      </div>
+
       {/* Filters */}
-      <div className={`flex flex-col md:flex-row gap-4 ${t.cardBg} p-4 rounded-2xl`}>
+      <div className={`relative z-30 flex flex-col md:flex-row gap-4 ${t.cardBg} p-4 rounded-2xl`}>
         <div className="relative flex-1">
           <MagnifyingGlassIcon className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 ${t.textMuted}`} />
           <input type="text" placeholder="Filtrar por nome, telefone, email, tag de sonho ou mensagem original..."
@@ -264,6 +264,7 @@ export default function LeadsStagingPage() {
         {/* Filtro de Etapa real — antes era um <select> decorativo ("Todos os Status/Novos/
             Duplicados"), sem value/onChange, sem correspondência nenhuma com o schema real.
             Opções vêm das colunas reais do Kanban do tenant, na mesma ordem do board. */}
+        <TemaMultiSelect temas={temas} excluded={temaExcluidos} onChange={setTemaExcluidos} isDark={t.isDark} />
         <select
           value={filterColunaId}
           onChange={e => setFilterColunaId(e.target.value === '' ? '' : Number(e.target.value))}
@@ -274,6 +275,22 @@ export default function LeadsStagingPage() {
             <option key={c.id} value={c.id}>{c.titulo_exibicao}</option>
           ))}
         </select>
+        {(search || filterColunaId !== '' || temaExcluidos.length > 0 || timeframe !== '30') && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearch('')
+              setFilterColunaId('')
+              setTemaExcluidos([])
+              setTimeframe('30')
+              setStartDate('')
+              setEndDate('')
+            }}
+            className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide ${t.isDark ? 'text-amber-300 hover:bg-white/5' : 'text-amber-700 hover:bg-slate-100'}`}
+          >
+            Limpar filtros
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -308,8 +325,12 @@ export default function LeadsStagingPage() {
                         diferente do azul (já o acento dominante no resto da tela: filtros,
                         badge de telefone, "Abrir Ficha") porque o cliente é a informação mais
                         importante da linha e precisa se destacar visualmente das demais. */}
-                    <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 border ${t.isDark ? 'bg-orange-500/10 border-orange-500/20 text-orange-400' : 'bg-orange-50 border-orange-200 text-orange-500'}`}>
-                      <UserIcon className="h-5 w-5" />
+                    <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 border overflow-hidden ${t.isDark ? 'bg-orange-500/10 border-orange-500/20 text-orange-400' : 'bg-orange-50 border-orange-200 text-orange-500'}`}>
+                      {lead.contato_avatar_url ? (
+                        <img src={lead.contato_avatar_url} alt={lead.nome || 'Contato'} className="h-full w-full object-cover" />
+                      ) : (
+                        <UserIcon className="h-5 w-5" />
+                      )}
                     </div>
                     <div className="ml-4">
                       <div className={`text-sm font-bold leading-tight ${t.textPrimary}`}>{lead.nome || 'Não Identificado'}</div>
@@ -425,7 +446,7 @@ export default function LeadsStagingPage() {
                     >
                       <FingerPrintIcon className="h-4 w-4" />
                     </button>
-                    <button onClick={() => setSelectedLead(lead)}
+                    <button onClick={() => ficha.openLead(lead)}
                       className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black rounded-lg uppercase tracking-widest transition-all">
                       Abrir Ficha
                     </button>
@@ -460,209 +481,7 @@ export default function LeadsStagingPage() {
         </table>
       </div>
 
-      {/* Modal — mesmos campos/componentes já usados na ficha do Kanban (Dashboard de
-          Interesse, Análise por IA, Sugestão da IA, Histórico de Visitas, Atividades)
-          reaproveitados aqui pra paridade real, não uma versão resumida à parte. Fora de
-          escopo, deliberadamente: barra de progresso de etapa e botões Avançar/Recuar —
-          são navegação de board, não campos do lead; esta tela nunca teve conceito de
-          "próxima coluna" pra oferecer. */}
-      {selectedLead && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
-          <div className={`${t.modalBg} w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 border ${t.borderSub}`}>
-            <div className={`relative p-6 border-b ${t.borderSub} bg-gradient-to-br from-blue-600/10 to-indigo-600/5`}>
-              <button onClick={() => setSelectedLead(null)}
-                className={`absolute right-6 top-1/2 -translate-y-1/2 p-2 ${t.textMuted} ${t.hoverBg} rounded-full transition-all`}>
-                <XMarkIcon className="h-6 w-6" />
-              </button>
-              <div className="flex items-center space-x-5">
-                <div className="h-14 w-14 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30 overflow-hidden">
-                  {selectedLead.contato_avatar_url ? (
-                    <img src={selectedLead.contato_avatar_url} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <UsersIcon className="h-8 w-8" />
-                  )}
-                </div>
-                <div>
-                  <h3 className={`text-xl font-bold italic tracking-tight ${t.textPrimary}`}>{selectedLead.nome}</h3>
-                  <div className={`flex items-center text-xs space-x-3 mt-1 ${t.textMuted}`}>
-                    <span className="font-medium bg-blue-500/10 text-blue-500 px-2 py-0.5 rounded-md">{formatPhone(selectedLead.telefone)}</span>
-                    <span className="opacity-30">•</span>
-                    <span className="opacity-80">{selectedLead.email}</span>
-                    {selectedLead.coluna_titulo && (
-                      <>
-                        <span className="opacity-30">•</span>
-                        <span className={`font-bold px-2 py-0.5 rounded-md ${t.isDark ? 'bg-white/5' : 'bg-slate-100'}`}>{selectedLead.coluna_titulo}</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6 space-y-6 overflow-y-auto max-h-[75vh]">
-              {/* Mensagem Original — texto literal digitado/enviado pelo lead, nunca a reescrita
-                  da IA (essa vive em "Análise por IA" logo abaixo). Deliberadamente NEUTRO (não
-                  azul/âmbar) — essas cores já significam "isto é trabalho da IA" nesta UI, e este
-                  bloco é o oposto disso: a palavra exata do lead. Só renderiza quando existe —
-                  leads anteriores a esta coluna nunca tiveram esse texto persistido. */}
-              {selectedLead.mensagem_original && (
-                <div className={`p-5 ${t.cardBg} rounded-3xl border ${t.borderSub}`}>
-                  <div className="flex items-center space-x-2 mb-3">
-                    <ChatBubbleLeftRightIcon className={`h-4 w-4 ${t.textMuted}`} />
-                    <span className={`text-xs font-bold uppercase tracking-widest ${t.textMuted}`}>Mensagem do Lead</span>
-                  </div>
-                  <p className={`text-sm leading-relaxed whitespace-pre-wrap ${t.textPrimary}`}>
-                    "{selectedLead.mensagem_original}"
-                  </p>
-                </div>
-              )}
-
-              {/* Grid 2 colunas para dados principais */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                {/* Coluna 1: Dados Enriquecidos */}
-                {selectedLead.enriquecimento_cache ? (
-                  <div className={`p-5 ${t.cardBg} rounded-3xl border-emerald-500/20 border relative h-full`}>
-                    <div className="absolute -top-3 left-6 flex items-center space-x-2 bg-emerald-600 text-[9px] font-bold text-white px-3 py-0.5 rounded-full uppercase shadow-lg shadow-emerald-500/20">
-                      <CheckBadgeIcon className="h-3 w-3" /><span>Dashboard de Interesse</span>
-                    </div>
-                    <div className="mt-2"><EnrichedLeadData cache={selectedLead.enriquecimento_cache} /></div>
-                  </div>
-                ) : (
-                  <div className={`p-5 ${t.cardBg} rounded-3xl border-dashed border ${t.borderSub} flex flex-col items-center justify-center text-center min-h-[200px]`}>
-                    <SparklesIcon className="h-8 w-8 text-blue-500/20 mb-3" />
-                    <p className={`text-xs font-bold ${t.textMuted}`}>Aguardando Enriquecimento de Dados</p>
-                  </div>
-                )}
-
-                {/* Coluna 2: Análise IA */}
-                <div className={`p-5 ${t.cardBg} rounded-3xl border border-blue-500/20 relative h-full flex flex-col`}>
-                  <div className="absolute -top-3 left-6 flex items-center space-x-2 bg-blue-600 text-[9px] font-bold text-white px-3 py-0.5 rounded-full uppercase shadow-lg shadow-blue-500/20">
-                    <SparklesIcon className="h-3 w-3" /><span>Análise por IA</span>
-                  </div>
-
-                  <div className="mt-4 flex-1">
-                    <div className={`flex items-center justify-between border-b pb-3 mb-4 ${t.borderSub}`}>
-                      <div className="flex items-center space-x-2">
-                        <ChatBubbleBottomCenterTextIcon className="h-4 w-4 text-blue-500" />
-                        <span className={`text-xs font-bold uppercase tracking-tighter ${t.textPrimary}`}>Perfil Emocional</span>
-                      </div>
-                      <span className="bg-blue-500/10 text-blue-400 px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase border border-blue-500/20">
-                        {selectedLead.tag_sonho}
-                      </span>
-                    </div>
-
-                    <div className={`text-xs leading-relaxed italic ${t.textMuted} bg-blue-500/5 p-4 rounded-2xl border border-blue-500/10`}>
-                      "{selectedLead.resumo_ia || 'A IA ainda não processou uma análise profunda deste lead.'}"
-                    </div>
-
-                    {/* Intenção (score_prontidao) e Aderência (score_fit) — 2 dimensões
-                        SEPARADAS, nunca combinadas num 3º número sintético (docs/
-                        PLANO_AGENTES_ACELERACAO_CRM.md §3.1). Mesma cor de fundo distinta
-                        já usada na ficha do Kanban — azul pra Intenção, violeta pra
-                        Aderência (mesma cor já usada em todo o resto da plataforma pra
-                        esse conceito — SegmentFitCriteriaModal.tsx). */}
-                    <div className="grid grid-cols-2 gap-3 mt-4">
-                      {[
-                        {
-                          label: 'Intenção',
-                          val: selectedLead.score_prontidao != null ? `${selectedLead.score_prontidao}%` : 'Não avaliado',
-                          bg: t.isDark ? 'bg-blue-500/10 border-blue-500/20' : 'bg-blue-50 border-blue-200',
-                          fg: t.isDark ? 'text-blue-400' : 'text-blue-700',
-                        },
-                        {
-                          label: 'Aderência',
-                          val: selectedLead.score_fit != null ? `${selectedLead.score_fit}%` : '—',
-                          bg: t.isDark ? 'bg-violet-500/10 border-violet-500/20' : 'bg-violet-50 border-violet-200',
-                          fg: t.isDark ? 'text-violet-400' : 'text-violet-700',
-                        },
-                      ].map(({ label, val, bg, fg }) => (
-                        <div key={label} className={`p-3 rounded-xl border ${bg}`}>
-                          <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${fg}`}>{label}</p>
-                          <span className={`text-lg font-bold ${fg}`}>{val}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Valor Fechado (REAL, só existe no negócio ganho) e Valor Potencial
-                        (ESTIMADO, palpite editável durante o pipeline) — nunca no mesmo
-                        tile, nunca a mesma cor (docs/CHECKPOINT.md, 2026-08-13). */}
-                    {(selectedLead.valor_venda != null || selectedLead.valor_venda_estimado != null) && (
-                      <div className="grid grid-cols-2 gap-3 mt-3">
-                        {selectedLead.valor_venda != null && (
-                          <div className="p-3 rounded-xl border bg-emerald-500/5 border-emerald-500/20">
-                            <p className="text-[9px] font-bold uppercase tracking-widest mb-1 text-emerald-500">Valor Fechado (real)</p>
-                            <span className="text-lg font-bold text-emerald-500">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedLead.valor_venda)}</span>
-                          </div>
-                        )}
-                        {selectedLead.valor_venda_estimado != null && (
-                          <div className={`p-3 rounded-xl border ${t.isDark ? 'bg-amber-500/5 border-amber-500/20' : 'bg-amber-50 border-amber-200'}`}>
-                            <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>Valor Potencial (estimado)</p>
-                            <span className={`text-lg font-bold ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedLead.valor_venda_estimado)}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Sugestão da IA — F3 next_best_action, informativo, nunca bloqueante */}
-              <NextBestActionCard
-                leadUuid={selectedLead.lead_uuid}
-                onUseAsActivity={handleUseSuggestionAsActivity}
-              />
-
-              {/* Histórico de Visitas */}
-              <div className={`p-5 ${t.cardBg} rounded-3xl border border-indigo-500/10`}>
-                <AgendamentosLead
-                  leadUuid={selectedLead.lead_uuid}
-                  onAgendar={tenantConfig?.calendario ? () => setIsAgendarOpen(true) : undefined}
-                  refreshKey={agendamentosVersion}
-                />
-              </div>
-
-              {/* Atividades do Ciclo de Vendas/Perda */}
-              <div className={`p-5 ${t.cardBg} rounded-3xl border border-indigo-500/10`}>
-                <AtividadesLead
-                  leadUuid={selectedLead.lead_uuid}
-                  clientId={selectedLead.client_id}
-                  prefill={activityPrefill}
-                />
-              </div>
-            </div>
-
-            <div className={`p-6 border-t ${t.borderSub} ${t.isDark ? 'bg-black/20' : 'bg-gray-50'} flex flex-wrap items-center justify-between gap-3`}>
-              <div />
-              <div className="flex flex-wrap items-center gap-3">
-                <button onClick={() => setSelectedLead(null)} className={`px-6 py-3 text-xs font-bold uppercase tracking-widest ${t.textMuted} hover:text-blue-500 transition-all`}>Fechar</button>
-                {tenantConfig?.calendario && (
-                  <button
-                    onClick={() => setIsAgendarOpen(true)}
-                    className="flex items-center px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all uppercase active:scale-95 shadow-lg shadow-indigo-500/20"
-                  >
-                    <CalendarDaysIcon className="h-4 w-4 mr-2" />
-                    Agendar Visita
-                  </button>
-                )}
-                <button className="flex items-center px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all uppercase">
-                  <CheckBadgeIcon className="h-4 w-4 mr-2" />Assumir Atendimento
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Agendar Visita — mesmo componente/config já usados em /crm/kanban */}
-      {isAgendarOpen && selectedLead && tenantConfig && (
-        <AgendarVisitaModal
-          isOpen={isAgendarOpen}
-          onClose={() => setIsAgendarOpen(false)}
-          onSuccess={() => { setIsAgendarOpen(false); setAgendamentosVersion(v => v + 1) }}
-          lead={selectedLead}
-          tenantConfig={tenantConfig}
-        />
-      )}
+      <LeadFichaModal<LeadStaging> ficha={ficha} />
     </div>
   )
 }

@@ -33,6 +33,13 @@ export async function GET(request: NextRequest) {
   const segment = await resolveSegment(payload.tenantId).catch(() => null)
   const segmentMaxTurnsDefault = segment?.chatbot_max_turns_default ?? 6
 
+  // Liberação do Master: o front usa para habilitar ou não o toggle de ativação do bot.
+  const { rows: libRows } = await pool.query(
+    `SELECT bot_ativacao_liberada FROM public.tenants WHERE id = $1`,
+    [payload.tenantId],
+  )
+  const botAtivacaoLiberada = !!libRows[0]?.bot_ativacao_liberada
+
   return NextResponse.json({
     flow: row ? {
       id: row.id,
@@ -42,6 +49,8 @@ export async function GET(request: NextRequest) {
       maxTurns: row.handoff_rules?.maxTurns ?? null,
     } : null,
     segmentMaxTurnsDefault,
+    botAtivacaoLiberada,
+    isMaster: !!(payload as any).is_system_role,
   })
 }
 
@@ -55,6 +64,21 @@ export async function PUT(request: NextRequest) {
 
   const body = await request.json().catch(() => ({}))
   const isActive = !!body.isActive
+
+  // Ativação do bot depende de liberação do Master (parâmetro do tenant, editável só pelo Master).
+  // Desativar é sempre permitido; ativar exige a liberação, exceto para o próprio Master.
+  if (isActive && !(payload as any).is_system_role) {
+    const { rows: lib } = await pool.query(
+      `SELECT bot_ativacao_liberada FROM public.tenants WHERE id = $1`,
+      [payload.tenantId],
+    )
+    if (!lib[0]?.bot_ativacao_liberada) {
+      return NextResponse.json(
+        { error: 'A ativação do bot ainda não foi liberada para esta empresa. Solicite à equipe da plataforma.' },
+        { status: 403 },
+      )
+    }
+  }
   const handoffKeywords: string[] = Array.isArray(body.handoffKeywords)
     ? body.handoffKeywords.map((k: any) => String(k).trim()).filter(Boolean)
     : []

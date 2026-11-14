@@ -48,14 +48,40 @@ export async function POST(request: NextRequest) {
     if (own.length === 0) return NextResponse.json({ error: 'Cliente não encontrado neste tenant' }, { status: 400 })
   }
 
+  // Nome já existente no mesmo escopo é recusado (409), e não sobrescreve a cor em silêncio.
+  // Para trocar a cor de uma etiqueta existente, use PATCH.
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO mensageria.labels (tenant_id, client_id, name, color) VALUES ($1, $2, $3, $4)
+       RETURNING id, name, color`,
+      [payload.tenantId, clientId, name, color],
+    )
+    return NextResponse.json({ label: { ...rows[0], clientId, clientName: null } })
+  } catch (err: any) {
+    if (err?.code === '23505') {
+      return NextResponse.json({ error: `Já existe uma etiqueta "${name}" neste escopo.` }, { status: 409 })
+    }
+    throw err
+  }
+}
+
+/** PATCH /api/admin/mensageria/labels?id=... — altera a cor de uma etiqueta existente. Body: { color } */
+export async function PATCH(request: NextRequest) {
+  const payload = getTokenPayload(request)
+  if (!payload?.tenantId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+
+  const id = new URL(request.url).searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'id é obrigatório' }, { status: 400 })
+  const body = await request.json().catch(() => ({}))
+  const color: string = (body.color || '').trim()
+  if (!/^#[0-9a-fA-F]{6}$/.test(color)) return NextResponse.json({ error: 'Cor inválida' }, { status: 400 })
+
   const { rows } = await pool.query(
-    `INSERT INTO mensageria.labels (tenant_id, client_id, name, color) VALUES ($1, $2, $3, $4)
-     ON CONFLICT (tenant_id, (COALESCE(client_id, '00000000-0000-0000-0000-000000000000'::uuid)), name)
-     DO UPDATE SET color = EXCLUDED.color
-     RETURNING id, name, color`,
-    [payload.tenantId, clientId, name, color],
+    `UPDATE mensageria.labels SET color = $1 WHERE id = $2 AND tenant_id = $3 RETURNING id, name, color`,
+    [color, id, payload.tenantId],
   )
-  return NextResponse.json({ label: { ...rows[0], clientId, clientName: null } })
+  if (rows.length === 0) return NextResponse.json({ error: 'Etiqueta não encontrada' }, { status: 404 })
+  return NextResponse.json({ label: rows[0] })
 }
 
 /** DELETE /api/admin/mensageria/labels?id=... */

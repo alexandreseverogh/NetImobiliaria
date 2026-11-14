@@ -15,6 +15,7 @@ import { ingestMessage } from '@/lib/mensageria/ingest'
 import type { InboundMedia } from '@/lib/mensageria/inboundMedia'
 import { resolveWhatsAppInbox } from '@/lib/mensageria/inboxes'
 import { logInteraction, insertSubmission, linkSubmissionLead, resolveCtaRef } from '@/lib/cta/service'
+import { getWhatsappPolicy, leadExistsForPhone } from '@/lib/crm/whatsappPolicy'
 
 export interface NormalizedWhatsAppInbound {
   tenantId: string
@@ -70,6 +71,9 @@ export async function processInboundWhatsAppMessage(
   const phone = normalizeBrazilianMobile(input.phone)
 
   const refMatch = text?.match(/\[ref:([^\]]+)\]/)
+  // A tag [ref:...] só serve para identificar a origem (já extraída acima). Não entra no texto
+  // gravado na conversa, no histórico do lead nem na qualificação da IA.
+  const cleanText = text ? text.replace(/\[ref:[^\]]+\]/g, '').trim() || null : null
   const ref = refMatch?.[1] || null
 
   const resolved = ref ? await resolveCtaRef(ref, tenantId).catch(() => null) : null
@@ -82,11 +86,27 @@ export async function processInboundWhatsAppMessage(
   // corretamente pra ele. Os dois caminhos agora usam a mesma variável, propositalmente.
   const mensageriaClientId = ownerClientId ?? resolved?.clientId ?? null
 
+  // Política por tenant (decisão de 2026-11-16, ver src/lib/crm/whatsappPolicy.ts):
+  //  - shouldIngest: grava a mensagem no modelo da Mensageria (com o parâmetro ligado, ou se o
+  //    módulo Mensageria estiver contratado).
+  //  - createsLead: cria/atualiza lead no CRM. Com o parâmetro desligado, só o primeiro contato
+  //    via CTA gera lead; mensagem orgânica e re-contato de quem já é lead são ignorados.
+  const policy = await getWhatsappPolicy(tenantId).catch(() => ({ gerarHistorico: false, gerarMensagens: false, criarLead: false, mensageriaContratada: false, crmContratado: false }))
+  const shouldIngest = policy.gerarMensagens
+  // Lead exige o módulo CRM. Com o parâmetro ligado, toda mensagem atualiza o lead (Match Engine);
+  // desligado, só o primeiro contato via CTA cria lead.
+  const createsLead = policy.criarLead && (policy.gerarHistorico
+    ? true
+    : resolved !== null && !(await leadExistsForPhone(tenantId, phone)))
+  if (!shouldIngest && !createsLead) {
+    return { leadUuid: null, mensageriaContactId: null, mensageriaConversationId: null }
+  }
+
   // 1. Ingestão na Mensageria — thread unificada. Falha aqui NUNCA deve derrubar a captação de
   // lead abaixo (best-effort, isolado em try/catch próprio).
   let mensageriaResult: { contactId: string; conversationId: string } | null = null
   let newMessageId: string | null = null
-  try {
+  if (shouldIngest) try {
     const inboxId = await resolveWhatsAppInbox(tenantId, mensageriaClientId)
     const r = await ingestMessage({
       tenantId,
@@ -95,7 +115,7 @@ export async function processInboundWhatsAppMessage(
       contact: { name: pushName, phone, avatarUrl: input.avatarUrl ?? null },
       direction: 'inbound',
       senderType: 'contact',
-      content: input.media ? input.media.content : (text || null),
+      content: input.media ? input.media.content : cleanText,
       contentType: input.media?.contentType ?? 'text',
       attachments: input.media?.attachments ?? [],
       externalId: externalMessageId,
@@ -109,6 +129,16 @@ export async function processInboundWhatsAppMessage(
   // Reação com emoji: só registra no histórico do contato já existente. Não gera interação de
   // campanha, submissão nem lead no CRM (lead só nasce de mensagem real de quem procurou a empresa).
   if (input.skipCrm) {
+    return {
+      leadUuid: null,
+      mensageriaContactId: mensageriaResult?.contactId ?? null,
+      mensageriaConversationId: mensageriaResult?.conversationId ?? null,
+    }
+  }
+
+  // Sem criação de lead nesta mensagem (parâmetro desligado e não é primeiro contato via CTA):
+  // para aqui — sem interação de campanha, sem submissão e sem lead.
+  if (!createsLead) {
     return {
       leadUuid: null,
       mensageriaContactId: mensageriaResult?.contactId ?? null,
@@ -136,7 +166,7 @@ export async function processInboundWhatsAppMessage(
     interactionId: interactionId || null,
     campaignId: resolved?.campaignId ?? null,
     ctaType: resolved?.ctaType ?? 'WHATSAPP',
-    payload: { phone, pushName, message: text },
+    payload: { phone, pushName, message: cleanText },
     name: pushName,
     phone,
     utm: { source: 'whatsapp', medium: ref ? 'cta' : 'organico' },
@@ -175,7 +205,7 @@ export async function processInboundWhatsAppMessage(
         // Nome de campo real esperado por POST /api/crm/leads — antes era `mensagem_inicial`,
         // nunca lido pela rota (que só destructura `data.mensagem`), então todo lead vindo de
         // WhatsApp orgânico era qualificado pela IA com string vazia, sempre, silenciosamente.
-        mensagem: text || null,
+        mensagem: cleanText,
         payload_extra: { pushName, ref, ad_id: resolved?.adId ?? null },
       }),
     })

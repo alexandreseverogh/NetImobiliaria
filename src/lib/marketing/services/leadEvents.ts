@@ -4,15 +4,25 @@ import { leadSourceForNetwork } from '@/lib/marketing/services/networkLeadSource
 /**
  * Fonte única de verdade pra "o que é um lead" no módulo de Campanhas — extraído de
  * cplTimelineService.ts depois de uma auditoria (sessão 2026-07-21) encontrar ~15 arquivos
- * diferentes reimplementando a MESMA contagem, cada um só com `CtaInteraction.WHATSAPP_CLICK`,
- * sem form leads nem conversões do Google. Isso causava: (a) inconsistência visível na mesma
- * tela (cplByNetwork mostrando um número, o card de KPI "Leads" mostrando outro); (b) decisões
- * de IA erradas (campanha de Google/formulário marcada como "0 leads" e recomendada pra pausar).
+ * diferentes reimplementando a MESMA contagem.
+ *
+ * Regra de contagem (aprovada 2026-11-13):
+ *  - Um lead de CTA (WhatsApp ou formulário) conta quando a pessoa REALMENTE responde/envia,
+ *    não no clique. O clique (CtaInteraction WHATSAPP_CLICK) continua logado pra analytics de
+ *    cliques, mas não entra no CPL: no clique não se sabe quem é a pessoa.
+ *  - Deduplicação por pessoa + campanha: a mesma pessoa conta UMA vez por campanha a cada
+ *    LEAD_DEDUPE_WINDOW_DAYS. A janela é medida a partir do último evento CONTADO (um lead
+ *    contado abre uma janela nova de 30 dias).
+ *  - Identidade = lead_uuid do CRM (que já deduplica por telefone/e-mail).
+ *  - Google/YouTube usam a conversão real vinda da própria API da rede (sem dedupe local).
  *
  * TODO consumidor de "quantos leads teve essa campanha/período" deve usar `getLeadEvents` (ou
- * os helpers de agregação abaixo) em vez de escrever a própria query — nenhum lugar deveria
- * saber, por conta própria, que WhatsApp e Google contam lead de formas diferentes.
+ * os helpers de agregação abaixo) em vez de escrever a própria query.
  */
+
+/** Janela de deduplicação por pessoa + campanha, em dias. Aprovada em 30 dias. */
+export const LEAD_DEDUPE_WINDOW_DAYS = 30;
+const DAY_MS = 86_400_000;
 
 export interface LeadEvent {
   date: string;       // YYYY-MM-DD
@@ -52,42 +62,52 @@ export async function getLeadEvents(tenantId: string, opts: GetLeadEventsOptions
   const events: LeadEvent[] = [];
   const toDateKey = (d: Date) => d.toISOString().split('T')[0];
 
-  // cta_engagement (Meta): clique de WhatsApp + submissão de formulário (Formulário Instantâneo
-  // do Meta incluso — vem marcado como CtaSubmission igual formulário hospedado aqui). Os dois
-  // são mutuamente exclusivos por anúncio (Ad.ctaType só pode ser um), então somar nunca conta
-  // o mesmo lead 2x — EXCETO submissões com cta_type='WHATSAPP_MESSAGE', que são o eco de uma
-  // resposta de WhatsApp já contada como WHATSAPP_CLICK (inboundProcessor.ts grava as duas).
+  // cta_engagement (Meta): lead = pessoa que respondeu no WhatsApp OU enviou formulário.
+  // Ambos vêm de CtaSubmission com lead_uuid preenchido. Respostas de WhatsApp gravam
+  // cta_type='WHATSAPP_MESSAGE' e formulários gravam o tipo do formulário — os dois contam, com
+  // a mesma deduplicação por pessoa + campanha. Não há mais contagem por clique.
   const ctaEngagementCampaignIds = campaignsByLeadSource.get('cta_engagement') || [];
   if (ctaEngagementCampaignIds.length > 0) {
-    const [whatsappClicksRaw, formSubmissionsRaw] = await Promise.all([
-      prisma.$queryRaw<{ date: Date; campaign_id: string; count: bigint }[]>`
-        SELECT DATE(created_at) as date, campaign_id, COUNT(*)::int as count
-        FROM campanhasmarketingdigital."CtaInteraction"
-        WHERE tenant_id = ${tenantId}::uuid
-          AND campaign_id = ANY(${ctaEngagementCampaignIds})
-          AND event_type = 'WHATSAPP_CLICK'
-          AND created_at >= ${startDate}::timestamp
-          AND created_at <= ${endDate}::timestamp
-        GROUP BY DATE(created_at), campaign_id
-      `,
-      prisma.$queryRaw<{ date: Date; campaign_id: string; count: bigint }[]>`
-        SELECT DATE(created_at) as date, campaign_id, COUNT(*)::int as count
-        FROM campanhasmarketingdigital."CtaSubmission"
-        WHERE tenant_id = ${tenantId}::uuid
-          AND campaign_id = ANY(${ctaEngagementCampaignIds})
-          AND lead_uuid IS NOT NULL
-          AND cta_type != 'WHATSAPP_MESSAGE'
-          AND created_at >= ${startDate}::timestamp
-          AND created_at <= ${endDate}::timestamp
-        GROUP BY DATE(created_at), campaign_id
-      `,
-    ]);
-    for (const row of whatsappClicksRaw) {
-      events.push({ date: toDateKey(new Date(row.date)), campaignId: row.campaign_id, network: networkByCampaignId.get(row.campaign_id) || 'meta', count: Number(row.count) });
+    // Busca também a janela anterior ao período, pra saber se uma pessoa já foi contada
+    // nos últimos LEAD_DEDUPE_WINDOW_DAYS antes do início do período.
+    const lookbackStart = new Date(startDate.getTime() - LEAD_DEDUPE_WINDOW_DAYS * DAY_MS);
+    const submissions = await prisma.$queryRaw<{ created_at: Date; campaign_id: string; lead_uuid: string }[]>`
+      SELECT created_at, campaign_id, lead_uuid
+      FROM campanhasmarketingdigital."CtaSubmission"
+      WHERE tenant_id = ${tenantId}::uuid
+        AND campaign_id = ANY(${ctaEngagementCampaignIds})
+        AND lead_uuid IS NOT NULL
+        AND created_at >= ${lookbackStart}::timestamp
+        AND created_at <= ${endDate}::timestamp
+      ORDER BY created_at ASC
+    `;
+
+    // Deduplicação: um evento é contado só se a mesma (pessoa, campanha) não foi contada nos
+    // LEAD_DEDUPE_WINDOW_DAYS anteriores. Eventos da janela anterior alimentam o controle, mas
+    // não são emitidos.
+    const windowMs = LEAD_DEDUPE_WINDOW_DAYS * DAY_MS;
+    const lastCountedAt = new Map<string, number>(); // "lead|campanha" -> ms do último contado
+    const aggregated = new Map<string, LeadEvent>(); // "data|campanha" -> evento
+    const periodStartMs = startDate.getTime();
+    for (const row of submissions) {
+      const t = new Date(row.created_at).getTime();
+      const key = `${row.lead_uuid}|${row.campaign_id}`;
+      const prev = lastCountedAt.get(key);
+      if (prev !== undefined && t - prev < windowMs) continue; // mesma pessoa, ainda dentro da janela
+      lastCountedAt.set(key, t);
+      if (t < periodStartMs) continue; // contado antes do período: só alimenta o controle
+      const date = toDateKey(new Date(row.created_at));
+      const aggKey = `${date}|${row.campaign_id}`;
+      const existing = aggregated.get(aggKey);
+      if (existing) existing.count += 1;
+      else aggregated.set(aggKey, {
+        date,
+        campaignId: row.campaign_id,
+        network: networkByCampaignId.get(row.campaign_id) || 'meta',
+        count: 1,
+      });
     }
-    for (const row of formSubmissionsRaw) {
-      events.push({ date: toDateKey(new Date(row.date)), campaignId: row.campaign_id, network: networkByCampaignId.get(row.campaign_id) || 'meta', count: Number(row.count) });
-    }
+    events.push(...aggregated.values());
   }
 
   // insight_conversions (Google/YouTube): conversão real já sincronizada da própria API da rede.

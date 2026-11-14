@@ -678,6 +678,27 @@ export default function TenantDetailPage() {
                   </div>
                 </div>
 
+                {/* GERA_MENSAGENS_WHATSAPP (2026-11-16) — só o Master edita aqui. */}
+                <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-gray-100">
+                  <div className="flex items-start justify-between gap-6">
+                    <div className="pr-4">
+                      <p className="text-xs font-black uppercase tracking-tight text-gray-900">
+                        GERA_MENSAGENS_WHATSAPP
+                      </p>
+                      <p className="text-[11px] text-gray-400 mt-1">
+                        Quando ativo, as mensagens de WhatsApp são gravadas e alimentam o histórico do lead no CRM. Só pode ser ligado se o tenant tiver CRM e/ou Mensageria contratados. Desligado: só o primeiro contato via CTA gera lead e nenhuma mensagem é gravada. Recurso pago, definido pelo Master.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setTenant({ ...tenant, gera_mensagens_whatsapp: !tenant.gera_mensagens_whatsapp })}
+                      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${tenant.gera_mensagens_whatsapp ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${tenant.gera_mensagens_whatsapp ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                </div>
+
                 {/* Isenção de cobrança por módulo (Stripe Billing, 2026-09-19) */}
                 <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-gray-100">
                   <h3 className="text-md font-black text-gray-900 mb-6 flex items-center uppercase tracking-tighter">

@@ -1,3 +1,4 @@
+import { hasMensageriaModule } from '@/lib/crm/leadTimeline'
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { getTokenPayload } from '@/lib/auth/jwt-node'
@@ -34,6 +35,7 @@ const SORTABLE_COLUMNS: Record<string, string> = {
 export async function GET(request: NextRequest) {
   const payload = getTokenPayload(request)
   if (!payload?.tenantId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+  if (!payload.is_system_role && !(await hasMensageriaModule(payload.tenantId))) return NextResponse.json({ error: 'Módulo Mensageria não contratado' }, { status: 403 })
 
   const sp = new URL(request.url).searchParams
   const status = sp.get('status')
@@ -67,7 +69,15 @@ export async function GET(request: NextRequest) {
   if (channelType) { args.push(channelType); where.push(`ib.channel_type = $${args.length}`) }
   if (teamId) { args.push(teamId); where.push(`c.team_id = $${args.length}`) }
   if (priority) { args.push(priority); where.push(`c.priority = $${args.length}`) }
-  if (labelId) { args.push(labelId); where.push(`EXISTS (SELECT 1 FROM mensageria.conversation_labels cl WHERE cl.conversation_id = c.id AND cl.label_id = $${args.length})`) }
+  // labelId aceita uma lista separada por vírgula. Regra OU: a conversa passa se tiver QUALQUER
+  // uma das etiquetas escolhidas (o filtro multi-select da tela é de "qualquer uma").
+  if (labelId) {
+    const ids = labelId.split(',').map((s) => s.trim()).filter(Boolean)
+    if (ids.length > 0) {
+      args.push(ids)
+      where.push(`EXISTS (SELECT 1 FROM mensageria.conversation_labels cl WHERE cl.conversation_id = c.id AND cl.label_id = ANY($${args.length}::uuid[]))`)
+    }
+  }
   if (assigneeId === 'unassigned') where.push('c.assignee_id IS NULL')
   else if (assigneeId === 'me') { args.push(payload.userId); where.push(`c.assignee_id = $${args.length}`) }
   else if (assigneeId) { args.push(assigneeId); where.push(`c.assignee_id = $${args.length}`) }
@@ -132,7 +142,10 @@ export async function GET(request: NextRequest) {
        u.nome AS assignee_name,
        tm.name AS team_name,
        (SELECT m.content FROM mensageria.messages m
-          WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_message_preview
+          WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_message_preview,
+       (SELECT COALESCE(json_agg(json_build_object('id', l.id, 'name', l.name, 'color', l.color) ORDER BY l.name), '[]'::json)
+          FROM mensageria.conversation_labels cl JOIN mensageria.labels l ON l.id = cl.label_id
+         WHERE cl.conversation_id = c.id) AS labels
      FROM mensageria.conversations c
      JOIN mensageria.contacts ct ON ct.id = c.contact_id
      JOIN mensageria.inboxes ib ON ib.id = c.inbox_id
@@ -154,6 +167,7 @@ export async function GET(request: NextRequest) {
       unreadCount: r.unread_count,
       lastMessageAt: r.last_message_at,
       lastMessagePreview: r.last_message_preview,
+      labels: r.labels ?? [],
       handledByBot: r.handled_by_bot,
       channelType: r.channel_type,
       inboxName: r.inbox_name,
@@ -191,6 +205,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const payload = getTokenPayload(request)
   if (!payload?.tenantId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+  if (!payload.is_system_role && !(await hasMensageriaModule(payload.tenantId))) return NextResponse.json({ error: 'Módulo Mensageria não contratado' }, { status: 403 })
 
   const body = await request.json().catch(() => ({}))
   const { name, phone, email, initialMessage, clientId } = body

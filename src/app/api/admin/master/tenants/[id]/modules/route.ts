@@ -59,6 +59,10 @@ export async function POST(
 
     await client.query('BEGIN');
 
+    // 0. Módulos atuais (antes da troca), para saber quais saem e quais entram
+    const beforeRes = await client.query('SELECT module_id FROM tenant_modules WHERE tenant_id = $1', [id]);
+    const beforeIds: string[] = beforeRes.rows.map((r: { module_id: string }) => r.module_id);
+
     // 1. Remover módulos atuais
     await client.query('DELETE FROM tenant_modules WHERE tenant_id = $1', [id]);
 
@@ -70,6 +74,44 @@ export async function POST(
           [id, moduleId]
         );
       }
+    }
+
+    // 2b. Sincroniza as funcionalidades provisionadas com os módulos: o que sai do contrato some
+    // da sidebar; o que volta a entrar reaparece (só provisões já existentes são reativadas).
+    // Funcionalidade ligada a um módulo que continua contratado NÃO é desativada.
+    const newIds: string[] = moduleIds as string[];
+    const removedIds = beforeIds.filter(mid => !newIds.includes(mid));
+    const addedIds = newIds.filter(mid => !beforeIds.includes(mid));
+    if (removedIds.length > 0) {
+      await client.query(
+        `UPDATE public.tenant_feature_overrides SET is_active = false
+          WHERE tenant_id = $1
+            AND feature_id IN (SELECT feature_id FROM public.system_feature_modules WHERE module_id = ANY($2::uuid[]))
+            AND feature_id NOT IN (SELECT feature_id FROM public.system_feature_modules WHERE module_id = ANY($3::uuid[]))`,
+        [id, removedIds, newIds],
+      )
+    }
+    if (addedIds.length > 0) {
+      await client.query(
+        `UPDATE public.tenant_feature_overrides SET is_active = true
+          WHERE tenant_id = $1
+            AND feature_id IN (SELECT feature_id FROM public.system_feature_modules WHERE module_id = ANY($2::uuid[]))`,
+        [id, addedIds],
+      )
+    }
+
+    // 3. Regra GERA_MENSAGENS_WHATSAPP: só pode ficar ligado com CRM e/ou Mensageria contratado.
+    // Se a nova lista não tiver nenhum dos dois, desliga o GERA na mesma transação.
+    const slugsResult = moduleIds.length > 0
+      ? await client.query('SELECT slug FROM system_modules WHERE id = ANY($1::uuid[])', [moduleIds])
+      : { rows: [] as { slug: string }[] };
+    const slugs = slugsResult.rows.map((r: { slug: string }) => r.slug);
+    if (!slugs.includes('crm') && !slugs.includes('mensageria')) {
+      await client.query('UPDATE tenants SET gera_mensagens_whatsapp = false WHERE id = $1', [id]);
+    }
+    // Com a Mensageria contratada, o GERA é obrigatoriamente ligado (sem ele as mensagens não chegam).
+    if (slugs.includes('mensageria')) {
+      await client.query('UPDATE tenants SET gera_mensagens_whatsapp = true WHERE id = $1', [id]);
     }
 
     await client.query('COMMIT');

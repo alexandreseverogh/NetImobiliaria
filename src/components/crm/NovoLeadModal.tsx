@@ -81,6 +81,9 @@ export default function NovoLeadModal({ isOpen, onClose, onSuccess, clientId, cl
   // pedido automaticamente só na etapa de Ganho). Grava direto em valor_venda_estimado,
   // nunca em raw_json.
   const [valorEstimadoInput, setValorEstimadoInput] = useState('')
+  // Tema do ciclo de vendas ('' = sem tema). Com um único tema cadastrado, já vem preenchido.
+  const [temas, setTemas] = useState<{ id: number; nome: string }[]>([])
+  const [temaId, setTemaId] = useState('')
 
   useEffect(() => {
     if (isOpen) {
@@ -98,6 +101,17 @@ export default function NovoLeadModal({ isOpen, onClose, onSuccess, clientId, cl
        setDemanda('')
        setValorEstimadoInput('')
        setQualificationResult(null)
+
+       fetch('/api/crm/temas', { credentials: 'include' })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+              const lista: { id: number; nome: string }[] = data.temas || []
+              setTemas(lista)
+              setTemaId(lista.length === 1 ? String(lista[0].id) : '')
+            }
+        })
+        .catch(() => setTemas([]))
 
        // Config do ativo (Vínculo Exato) + formulário de Perfil de Interesse do segmento —
        // endpoint leve, não exige permissão de editar o Segment Builder (docs/CHECKPOINT.md,
@@ -219,6 +233,7 @@ export default function NovoLeadModal({ isOpen, onClose, onSuccess, clientId, cl
          raw_json: modoSelecao === 'perfil' ? customData : {},
          mensagem: demanda,
          valor_venda_estimado: valorEstimado,
+         tema_id: temaId ? Number(temaId) : null,
          utm_source: 'CRM Manual',
          // Escopo escolhido na tela do Kanban antes de abrir este modal — nunca um campo
          // preenchido aqui dentro (ver nota da prop clientId).
@@ -336,6 +351,17 @@ export default function NovoLeadModal({ isOpen, onClose, onSuccess, clientId, cl
                             <input value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-black/20 border border-white/5 rounded-xl px-4 py-3 text-white text-sm" placeholder="Opcional" />
                         </div>
                      </div>
+                     {temas.length > 0 && (
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Tema do ciclo de vendas</label>
+                            <select value={temaId} onChange={e => setTemaId(e.target.value)} className="w-full bg-black/20 border border-white/5 rounded-xl px-4 py-3 text-white text-sm">
+                                <option value="">Sem tema</option>
+                                {temas.map(t => (
+                                    <option key={t.id} value={String(t.id)}>{t.nome}</option>
+                                ))}
+                            </select>
+                        </div>
+                     )}
                   </div>
                )}
 

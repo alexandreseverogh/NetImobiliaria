@@ -18,6 +18,27 @@ export default function MensageriaLayoutContent({
   const { user, loading: authLoading } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
+  // Gate de contratação: só mostra o conteúdo da Central de Mensagens se o módulo estiver
+  // contratado pelo tenant (ou se for Master). Enquanto verifica, não bloqueia a tela.
+  const [contracted, setContracted] = useState(true)
+  const [accessChecked, setAccessChecked] = useState(false)
+  useEffect(() => {
+    if (authLoading || !user) return
+    let cancelled = false
+    const token = localStorage.getItem('admin-auth-token')
+    fetch('/api/admin/mensageria/access', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => {
+        if (cancelled) return
+        if (data && typeof data.contracted === 'boolean') setContracted(data.contracted)
+        setAccessChecked(true)
+      })
+      .catch(() => { if (!cancelled) setAccessChecked(true) })
+    return () => { cancelled = true }
+  }, [authLoading, user])
+
   const handleLogout = useCallback(async () => {
     try {
       const token = localStorage.getItem('admin-auth-token')
@@ -117,7 +138,14 @@ export default function MensageriaLayoutContent({
 
           <main className="w-full min-w-0" role="main" aria-label="Conteúdo principal">
             <HorizontalTabsBar menuItems={menuItems} theme={{ ...theme, mode: 'dark' }} />
-            {children}
+            {accessChecked && !contracted ? (
+              <div className="flex flex-col items-center justify-center text-center py-24 px-8">
+                <h2 className="text-xl font-black uppercase tracking-tight text-white">Acesso negado</h2>
+                <p className="mt-3 max-w-md text-sm text-gray-400">
+                  A Central de Mensagens não está contratada para esta empresa. Entre em contato com a equipe da plataforma para habilitar o módulo.
+                </p>
+              </div>
+            ) : children}
           </main>
         </div>
       </div>
