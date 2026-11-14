@@ -4,6 +4,9 @@
 
 # CHECKPOINT — Estado Atual do Projeto
 
+> **⏰ PENDÊNCIA — TESTAR DEPOIS (registrada em 2026-11-14):** atualização da biblioteca `google-ads-api` de 24.1.0 para 25.1.0 (PR do Dependabot, branch `dependabot/npm_and_yarn/google-ads-api-25.1.0`). **NÃO foi mesclada na `main`** de propósito: a regra FASE 19.4 exige validação em staging antes. Passos: (1) aplicar a versão 25 em branch própria; (2) deploy manual em staging (`deploy.yml`, ambiente `staging`); (3) confirmar 1 sincronização real de campanha de teste sem erro; (4) só então mesclar na `main`. Decisão do usuário: testar depois.
+
+
 > **📌 REATIVAR APÓS OS TESTES — eventos de contato do webhook da Evolution (decisão 2026-11-17):** na instância `teste-artemis9-testes` os eventos `CONTACTS_UPSERT` e `CONTACTS_UPDATE` foram **desativados** para interromper o download de fotos de perfil (enxurrada de uploads no MinIO durante a sincronização pós-reconexão). Configuração original salva em `scratchpad/webhook-original.json` (events: `MESSAGES_UPSERT`, `SEND_MESSAGE`, `CONTACTS_UPSERT`, `CONTACTS_UPDATE`; URL com token). Para reativar: `POST /webhook/set/teste-artemis9-testes` com os 4 eventos e a mesma URL. Só reativar depois de todos os testes.
 
 > **📌 PENDÊNCIA — reavaliar o cache de fotos de perfil (decisão 2026-11-17):** o webhook baixa e grava no MinIO a foto de perfil de cada contato recebido por `CONTACTS_UPSERT`/`CONTACTS_UPDATE` (`mensageria/avatars/<tenant>/<telefone>.jpg`). Em sincronização grande isso gera milhares de uploads. Decidir se vale manter: (1) manter, mas com limite/fila; (2) buscar a foto só sob demanda; (3) remover. Não atacado.
