@@ -82,8 +82,8 @@ export async function GET(request: NextRequest) {
   else if (assigneeId === 'me') { args.push(payload.userId); where.push(`c.assignee_id = $${args.length}`) }
   else if (assigneeId) { args.push(assigneeId); where.push(`c.assignee_id = $${args.length}`) }
   if (search) { args.push(`%${search}%`); where.push(`(ct.name ILIKE $${args.length} OR ct.phone ILIKE $${args.length})`) }
-  if (dateFrom) { args.push(dateFrom); where.push(`c.last_message_at >= $${args.length}::date`) }
-  if (dateTo) { args.push(dateTo); where.push(`c.last_message_at < ($${args.length}::date + interval '1 day')`) }
+  if (dateFrom) { args.push(dateFrom); where.push(`(c.last_message_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${args.length}::date`) }
+  if (dateTo) { args.push(dateTo); where.push(`(c.last_message_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${args.length}::date`) }
 
   // Contagem total do filtro (sem cursor/página) — usada no contador da pasta "Todas"
   // e no total de páginas do Painel do Gestor. JOIN inboxes é necessário mesmo aqui

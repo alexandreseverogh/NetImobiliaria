@@ -61,16 +61,16 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    # Mesmas variáveis do .env.local (JWT_SECRET, Google, SMTP, Evolution, etc.). As chaves abaixo
+    # em "environment" têm precedência e apontam para os nomes dos serviços dentro do Docker.
+    env_file:
+      - .env.local
     environment:
-      # DB dentro do compose: host = nome do serviço
+      # DB dentro do compose: host = nome do serviço (o acesso é direto pela rede interna,
+      # sem passar pela porta publicada do Windows)
       DB_HOST: db
       DB_PORT: "5432"
-      DB_NAME: ${DB_NAME:-net_imobiliaria}
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
 
-      # Ajuste recomendado (evita loop de login entre máquinas/containers)
-      JWT_SECRET: "CHANGE_ME_IN_PROD"
       # Prisma schema campanhasmarketingdigital (usa adapter-pg, precisa de URL completa)
       MARKETING_DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-net_imobiliaria}
       # Cron jobs

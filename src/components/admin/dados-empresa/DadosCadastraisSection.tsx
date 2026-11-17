@@ -15,7 +15,7 @@ type Perfil = {
   logradouro: string; numero: string; complemento: string; bairro: string;
   cep: string; cidade: string; estado: string;
   primaryColor: string; secondaryColor: string;
-  numeroWhatsapp: string; slackWebhookUrl: string;
+  numeroWhatsapp: string; whatsappAlerta: string; slackWebhookUrl: string;
   calendario: boolean; googleEmail: string; duracaoVisita: number;
 };
 
@@ -23,7 +23,7 @@ const EMPTY: Perfil = {
   razaoSocial: '', cnpjCpf: '', emailContato: '', telefone: '',
   logradouro: '', numero: '', complemento: '', bairro: '',
   cep: '', cidade: '', estado: '', primaryColor: '', secondaryColor: '',
-  numeroWhatsapp: '', slackWebhookUrl: '',
+  numeroWhatsapp: '', whatsappAlerta: '', slackWebhookUrl: '',
   calendario: false, googleEmail: '', duracaoVisita: 60,
 };
 
@@ -140,7 +140,8 @@ export function DadosCadastraisSection() {
       <div className="space-y-4">
         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Comunicação e alertas</p>
         <div className="grid md:grid-cols-2 gap-4">
-          <Input label="Número WhatsApp para alertas (DDD + número)" value={data.numeroWhatsapp} onChange={set('numeroWhatsapp')} placeholder="5581999999999" />
+          <Input label="Número do canal WhatsApp (Mensageria)" value={data.numeroWhatsapp} onChange={set('numeroWhatsapp')} placeholder="5581999999999" />
+          <Input label="Número WhatsApp para alertas (DDD + número)" value={data.whatsappAlerta} onChange={set('whatsappAlerta')} placeholder="5581999999999" />
           <Input label="Webhook do Slack" value={data.slackWebhookUrl} onChange={set('slackWebhookUrl')} placeholder="https://hooks.slack.com/services/..." />
         </div>
       </div>

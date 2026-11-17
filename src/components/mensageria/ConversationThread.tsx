@@ -45,17 +45,6 @@ interface ConversationDetail {
 interface Label { id: string; name: string; color: string }
 interface CannedResponse { id: string; shortcut: string; content: string }
 
-function timeAgo(iso: string | null): string {
-  if (!iso) return ''
-  const diffMs = Date.now() - new Date(iso).getTime()
-  const min = Math.floor(diffMs / 60000)
-  if (min < 1) return 'agora'
-  if (min < 60) return `${min}min`
-  const h = Math.floor(min / 60)
-  if (h < 24) return `${h}h`
-  return `${Math.floor(h / 24)}d`
-}
-
 function attributionLabel(attr: ConversationDetail['contact']['attribution']): string | null {
   if (!attr) return null
   if (attr.campaignName) return attr.campaignName
@@ -64,9 +53,13 @@ function attributionLabel(attr: ConversationDetail['contact']['attribution']): s
   return attr.utmSource
 }
 
+// Exibe data absoluta com horário completo (hh:mm:ss), no fuso de Brasília.
 function formatFullDate(iso: string | null): string {
   if (!iso) return ''
-  return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+  const d = new Date(iso)
+  const data = d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' })
+  const hora = d.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  return `${data} ${hora}`
 }
 
 function isSameDay(isoA: string, isoB: string): boolean {
@@ -119,7 +112,7 @@ function VideoAttachment({ url }: { url: string }) {
   }, [open])
   return (
     <div className="space-y-1 w-fit">
-      <video controls playsInline preload="auto" src={url} className="rounded-lg h-auto w-auto max-w-full max-h-[420px] bg-black" />
+      <video controls playsInline preload="auto" src={url} className="rounded-lg h-auto w-auto max-w-full max-h-[560px] bg-black" />
       <button type="button" onClick={() => setOpen(true)} className="text-xs underline text-[#d4af37]">▶ Abrir vídeo em nova aba</button>
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setOpen(false) }}>
@@ -171,7 +164,7 @@ function MessageBubble({ message }: { message: Message }) {
             </div>
           )}
           <div className="flex items-center justify-end gap-1 px-3.5 py-1.5">
-            <span className="text-[10px] text-slate-500" title={formatFullDate(message.createdAt)}>{timeAgo(message.createdAt)}</span>
+            <span className="text-[10px] text-slate-500">{formatFullDate(message.createdAt)}</span>
             {isOutbound && message.deliveryStatus === 'failed' && <span className="text-[10px] text-rose-400">falhou</span>}
           </div>
         </div>
@@ -200,10 +193,10 @@ function MessageBubble({ message }: { message: Message }) {
           <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
         )}
         {mediaUrl && message.content && (
-          <p className="text-sm whitespace-pre-wrap leading-relaxed mt-1">{message.content}</p>
+          <p className="text-sm whitespace-pre-line break-words leading-relaxed mt-1">{message.content}</p>
         )}
         <div className="flex items-center justify-end gap-1 mt-1">
-          <span className="text-[10px] text-slate-500" title={formatFullDate(message.createdAt)}>{timeAgo(message.createdAt)}</span>
+          <span className="text-[10px] text-slate-500">{formatFullDate(message.createdAt)}</span>
           {isOutbound && message.deliveryStatus === 'failed' && <span className="text-[10px] text-rose-400">falhou</span>}
         </div>
       </div>
@@ -272,17 +265,25 @@ export default function ConversationThread({ conversationId, onUpdated }: { conv
   const [cannedResponses, setCannedResponses] = useState<CannedResponse[]>([])
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
-  async function loadDetail() {
-    setLoading(true)
+  async function loadDetail(silent = false) {
+    if (!silent) setLoading(true)
     try {
       const res = await adminFetch(`/api/admin/mensageria/conversations/${conversationId}`)
+      if (!res.ok) return
       const data = await res.json()
       setDetail(data.conversation)
       setMessages(data.messages || [])
+    } catch {
+      // Falha de rede: mantém o histórico já exibido.
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
+
+  // Ponteiro para a recarga silenciosa, usado pelo SSE (que é montado uma vez por conversa
+  // e não deve capturar uma versão antiga de loadDetail).
+  const reloadThreadRef = useRef<(() => void) | null>(null)
+  reloadThreadRef.current = () => { loadDetail(true) }
 
   // Abrir a conversa zera unread_count no servidor (GET .../[id]) — repassa pro
   // chamador atualizar a lista (badge) sem o thread precisar conhecer o estado da lista.
@@ -313,18 +314,23 @@ export default function ConversationThread({ conversationId, onUpdated }: { conv
   }, [messages])
 
   // Tempo real — a mesma conversa pode estar sendo vista por outro atendente simultaneamente
+  // Ao receber uma mensagem da conversa aberta, recarrega o histórico completo em vez de
+  // acrescentar o evento à mão. Motivo: duas mensagens chegando juntas faziam a segunda ser
+  // descartada (estado `prev` desatualizado), e um evento perdido na reconexão do SSE nunca
+  // aparecia. Recarregar a partir da API corrige os dois casos e não depende da ordem dos eventos.
   useEffect(() => {
+    let cancelled = false
     const es = new EventSource('/api/admin/mensageria/stream')
     es.onmessage = (ev) => {
       try {
         const event = JSON.parse(ev.data)
         if (event.type === 'message.created' && event.conversationId === conversationId) {
-          setMessages((prev) => (prev.some((m) => m.id === event.message.id) ? prev : [...prev, event.message]))
+          reloadThreadRef.current?.()
         }
       } catch { /* ignora payload inválido */ }
     }
     es.onerror = () => {}
-    return () => es.close()
+    return () => { cancelled = true; es.close() }
   }, [conversationId])
 
   async function sendMessage() {
@@ -495,9 +501,14 @@ export default function ConversationThread({ conversationId, onUpdated }: { conv
               <CheckCircleIcon className="w-3.5 h-3.5" /> Resolver
             </button>
           ) : (
-            <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-emerald-500/10 text-emerald-400 text-xs font-medium">
-              <CheckCircleIcon className="w-3.5 h-3.5" /> Resolvida
-            </span>
+            <div className="inline-flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-emerald-500/10 text-emerald-400 text-xs font-medium">
+                <CheckCircleIcon className="w-3.5 h-3.5" /> Resolvida
+              </span>
+              <button onClick={() => patchConversation({ status: 'open' })} className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white/5 text-slate-300 text-xs font-medium hover:bg-white/10 transition-colors">
+                Reabrir
+              </button>
+            </div>
           )}
         </div>
       </div>

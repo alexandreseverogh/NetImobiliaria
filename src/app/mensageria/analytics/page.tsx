@@ -41,8 +41,14 @@ export default function MensageriaAnalyticsPage() {
   const [teamId, setTeamId] = useState('')
   const [assigneeId, setAssigneeId] = useState('')
   const [channelType, setChannelType] = useState('')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  // Data local (não UTC): depois das 21h em Brasília, toISOString() devolveria o dia seguinte.
+  const todayLocal = (() => {
+    const d = new Date()
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  })()
+  const [dateFrom, setDateFrom] = useState(todayLocal)
+  const [dateTo, setDateTo] = useState(todayLocal)
 
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<any>(null)
@@ -145,8 +151,8 @@ export default function MensageriaAnalyticsPage() {
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">
           <KpiCard label="Novas conversas" value={kpis ? String(kpis.novas) : '—'} delta={kpis?.deltaNovasPct ?? null} />
           <KpiCard label="Resolvidas" value={kpis ? String(kpis.resolvidas) : '—'} />
-          <KpiCard label="1ª resposta (mediana)" value={kpis ? formatDuration(kpis.medianaPrimeiraRespostaSeg) : '—'} />
-          <KpiCard label="Resolução (mediana)" value={kpis ? formatDuration(kpis.medianaResolucaoSeg) : '—'} />
+          <KpiCard label="1ª resposta (mediana)" value={kpis ? (kpis.medianaPrimeiraRespostaSeg == null ? 'Sem dados' : formatDuration(kpis.medianaPrimeiraRespostaSeg)) : '—'} />
+          <KpiCard label="Resolução (mediana)" value={kpis ? (kpis.medianaResolucaoSeg == null ? 'Sem dados' : formatDuration(kpis.medianaResolucaoSeg)) : '—'} />
           <KpiCard label="Resolvidas pelo bot" value={kpis ? `${kpis.taxaResolucaoBotPct}%` : '—'} />
           <KpiCard
             label="Vindas de campanha"

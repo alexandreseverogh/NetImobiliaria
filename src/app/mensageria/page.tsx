@@ -29,16 +29,6 @@ interface ConversationSummary {
   createdAt: string
 }
 
-function timeAgo(iso: string | null): string {
-  if (!iso) return ''
-  const diffMs = Date.now() - new Date(iso).getTime()
-  const min = Math.floor(diffMs / 60000)
-  if (min < 1) return 'agora'
-  if (min < 60) return `${min}min`
-  const h = Math.floor(min / 60)
-  if (h < 24) return `${h}h`
-  return `${Math.floor(h / 24)}d`
-}
 
 function initials(name: string | null): string {
   if (!name) return '?'
@@ -47,9 +37,13 @@ function initials(name: string | null): string {
 
 // Data absoluta — timeAgo() sozinho ("3d") não diferencia conversas do mesmo
 // período em alto volume; usada em tooltips (title=) sobre os horários relativos.
+// Exibe data absoluta com horário completo (hh:mm:ss), no fuso de Brasília.
 function formatFullDate(iso: string | null): string {
   if (!iso) return ''
-  return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+  const d = new Date(iso)
+  const data = d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' })
+  const hora = d.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  return `${data} ${hora}`
 }
 
 // Validação reforçada — a global validateTelefone()/validateEmail() (src/lib/utils/formatters.ts)
@@ -100,6 +94,12 @@ export default function MensageriaPage() {
   const [selectedLabelIds, setSelectedLabelIds] = useState<string[]>([])
   const [availableLabels, setAvailableLabels] = useState<{ id: string; name: string; color: string }[]>([])
   const [labelMenuOpen, setLabelMenuOpen] = useState(false)
+  // Força re-renderização periódica para o tempo relativo ("3min", "2h") envelhecer junto com o relógio.
+  const [, setClockTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setClockTick((t) => t + 1), 30000)
+    return () => clearInterval(id)
+  }, [])
   useEffect(() => {
     adminFetch('/api/admin/mensageria/labels')
       .then((r) => r.json())
@@ -136,14 +136,28 @@ export default function MensageriaPage() {
     return qs
   }
 
+  // Lê a resposta sem lançar exceção: se o servidor falhar (ex.: banco instável)
+  // o corpo pode vir vazio ou não-JSON, e isso não deve derrubar a tela.
+  async function readConversationsResponse(res: Response): Promise<any | null> {
+    if (!res.ok) return null
+    try {
+      return await res.json()
+    } catch {
+      return null
+    }
+  }
+
   async function loadConversations() {
     setLoadingList(true)
     try {
       const res = await adminFetch(`/api/admin/mensageria/conversations?${buildConversationsQuery()}`)
-      const data = await res.json()
+      const data = await readConversationsResponse(res)
+      if (!data) return
       setConversations(data.conversations || [])
       setNextCursor(data.nextCursor || null)
       setTotalCount(data.totalCount ?? (data.conversations || []).length)
+    } catch {
+      // Falha de rede: mantém a lista atual sem derrubar a página.
     } finally {
       setLoadingList(false)
     }
@@ -156,9 +170,12 @@ export default function MensageriaPage() {
     setLoadingMore(true)
     try {
       const res = await adminFetch(`/api/admin/mensageria/conversations?${buildConversationsQuery(nextCursor)}`)
-      const data = await res.json()
+      const data = await readConversationsResponse(res)
+      if (!data) return
       setConversations((prev) => [...prev, ...(data.conversations || [])])
       setNextCursor(data.nextCursor || null)
+    } catch {
+      // Falha de rede: mantém o que já está carregado.
     } finally {
       setLoadingMore(false)
     }
@@ -407,7 +424,7 @@ export default function MensageriaPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-medium text-white truncate">{c.contact.name || c.contact.phone || 'Sem nome'}</span>
-                      <span className="text-[10px] text-slate-500 shrink-0" title={formatFullDate(c.lastMessageAt)}>{timeAgo(c.lastMessageAt)}</span>
+                      <span className="text-[10px] text-slate-500 shrink-0 whitespace-nowrap">{formatFullDate(c.lastMessageAt)}</span>
                     </div>
                     <p className="text-xs text-slate-400 truncate mt-0.5">{c.lastMessagePreview || '—'}</p>
                     <div className="flex items-center gap-1.5 mt-1.5">

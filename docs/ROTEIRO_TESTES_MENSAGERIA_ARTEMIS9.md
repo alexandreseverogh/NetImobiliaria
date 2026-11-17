@@ -196,6 +196,8 @@ Usar o **atendente comum** logado (em janela anônima ou outro navegador).
 ### 7.4 Desativar política
 7. Desativar a política de inbox → a conversa passa a usar a de time, depois a global.
 
+**Execução (2026-11-15):** política "Inbox WhatsApp" (5 min) marcada `is_active=false`. Resolução em `src/lib/mensageria/sla.ts` filtra `is_active = true` antes da precedência, então a conversa passa a usar "Time Vendas" (10 min). Global só vale sem time. ✅
+
 ---
 
 ## Bloco 8 — Impacto nas saídas

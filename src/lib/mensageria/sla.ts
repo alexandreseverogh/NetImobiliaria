@@ -138,7 +138,7 @@ export async function scanAndAlertBreaches(): Promise<{ scanned: number; alerted
        VALUES ($1, 'status_changed', NULL, $2::jsonb)`,
       [r.conversation_id, JSON.stringify({ sla: 'first_response_breached' })],
     )
-    const msg = `⏰ SLA estourado: conversa com ${r.contact_name || r.contact_phone || 'contato'} sem 1ª resposta dentro do prazo.`
+    const msg = `⏰ SLA estourado: conversa com ${r.contact_name || r.contact_phone || 'contato'} sem 1ª resposta dentro do prazo. 🚨`
     await notifyWhatsApp(msg, r.tenant_id).catch(() => {})
     await notifySlack(msg, r.tenant_id).catch(() => {})
     alerted++

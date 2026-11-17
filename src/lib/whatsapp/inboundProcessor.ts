@@ -36,6 +36,8 @@ export interface NormalizedWhatsAppInbound {
   skipCrm?: boolean
   /** ID da mensagem no provider de origem — usado pra dedupe/idempotência na Mensageria */
   externalMessageId: string | null
+  /** Horário real em que a mensagem foi enviada (messageTimestamp do provider). Ausente = agora. */
+  occurredAt?: Date | null
 }
 
 /**
@@ -91,7 +93,10 @@ export async function processInboundWhatsAppMessage(
   //    módulo Mensageria estiver contratado).
   //  - createsLead: cria/atualiza lead no CRM. Com o parâmetro desligado, só o primeiro contato
   //    via CTA gera lead; mensagem orgânica e re-contato de quem já é lead são ignorados.
-  const policy = await getWhatsappPolicy(tenantId).catch(() => ({ gerarHistorico: false, gerarMensagens: false, criarLead: false, mensageriaContratada: false, crmContratado: false }))
+  // Sem fallback silencioso: se a política não puder ser lida (ex.: banco indisponível), o erro sobe
+  // e o webhook responde 500 para a Evolution reenviar. Antes, caía em "desligado" e a mensagem
+  // era descartada sem nenhum aviso.
+  const policy = await getWhatsappPolicy(tenantId)
   const shouldIngest = policy.gerarMensagens
   // Lead exige o módulo CRM. Com o parâmetro ligado, toda mensagem atualiza o lead (Match Engine);
   // desligado, só o primeiro contato via CTA cria lead.
@@ -119,6 +124,7 @@ export async function processInboundWhatsAppMessage(
       contentType: input.media?.contentType ?? 'text',
       attachments: input.media?.attachments ?? [],
       externalId: externalMessageId,
+      occurredAt: input.occurredAt ?? null,
     })
     mensageriaResult = { contactId: r.contactId, conversationId: r.conversationId }
     newMessageId = r.messageId

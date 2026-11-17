@@ -71,8 +71,13 @@ export async function GET(request: NextRequest) {
     const a = [...args, from, to]
     const fromIdx = a.length - 1
     const toIdx = a.length
-    const clause = `c.created_at >= $${fromIdx}::date AND c.created_at < ($${toIdx}::date + interval '1 day')`
-    return { args: a, clause }
+    const clause = `(c.created_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $${fromIdx}::date AND $${toIdx}::date`
+    // Mesmo intervalo de datas, aplicado a outra coluna de data (ex.: resolved_at). Medianas de
+    // resposta/resolução usam a data do EVENTO, não a da criação da conversa, para bater com o
+    // KPI "Resolvidas" (que também filtra por resolved_at).
+    const clauseOn = (col: string) =>
+      `(${col} AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $${fromIdx}::date AND $${toIdx}::date`
+    return { args: a, clause, clauseOn }
   }
 
   const period = withPeriod(dateFrom, dateTo)
@@ -84,13 +89,13 @@ export async function GET(request: NextRequest) {
   const messagesArgs = [...args, dateFrom, dateTo]
   const messagesFromIdx = messagesArgs.length - 1
   const messagesToIdx = messagesArgs.length
-  const messagesPeriodClause = `m.created_at >= $${messagesFromIdx}::date AND m.created_at < ($${messagesToIdx}::date + interval '1 day')`
+  const messagesPeriodClause = `(m.created_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $${messagesFromIdx}::date AND $${messagesToIdx}::date`
 
   const [kpiRows, prevKpiRows, canalRows, tendenciaRows, heatmapRows, rankingRows, leaderboardRows, hourlyRows] = await Promise.all([
     pool.query(
       `SELECT
          COUNT(*) FILTER (WHERE ${period.clause})::int AS novas,
-         COUNT(*) FILTER (WHERE c.resolved_at >= $${args.length + 1}::date AND c.resolved_at < ($${args.length + 2}::date + interval '1 day'))::int AS resolvidas,
+         COUNT(*) FILTER (WHERE (c.resolved_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $${args.length + 1}::date AND $${args.length + 2}::date)::int AS resolvidas,
          COUNT(*) FILTER (WHERE c.status IN ('open','pending'))::int AS abertas,
          COUNT(*) FILTER (WHERE c.status IN ('open','pending') AND c.assignee_id IS NULL)::int AS backlog_nao_atribuido,
          COUNT(*) FILTER (WHERE cs.first_response_breached OR cs.resolution_breached)::int AS sla_estourado,
@@ -104,9 +109,9 @@ export async function GET(request: NextRequest) {
             WHERE me.lead_uuid = ct.lead_uuid AND me.campaign_id IS NOT NULL
          ))::int AS de_campanha,
          PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (c.first_response_at - c.created_at)))
-           FILTER (WHERE c.first_response_at IS NOT NULL AND ${period.clause}) AS mediana_primeira_resposta_seg,
+           FILTER (WHERE c.first_response_at IS NOT NULL AND ${period.clauseOn('c.first_response_at')}) AS mediana_primeira_resposta_seg,
          PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (c.resolved_at - c.created_at)))
-           FILTER (WHERE c.resolved_at IS NOT NULL AND ${period.clause}) AS mediana_resolucao_seg
+           FILTER (WHERE c.resolved_at IS NOT NULL AND ${period.clauseOn('c.resolved_at')}) AS mediana_resolucao_seg
        ${baseFrom} WHERE ${baseWhereSql}`,
       period.args,
     ),

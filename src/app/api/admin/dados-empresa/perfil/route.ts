@@ -36,6 +36,7 @@ const EDITABLE_FIELDS: Record<string, string> = {
   secondaryColor: 'secondary_color',
   // Comunicação (alertas)
   numeroWhatsapp: 'numero_whatsapp',
+  whatsappAlerta: 'whatsapp_alerta',
   slackWebhookUrl:'slack_webhook_url',
   // Google Calendar
   calendario:     'calendario',
@@ -115,6 +116,7 @@ export async function PUT(request: NextRequest) {
       if (s && (col === 'primary_color' || col === 'secondary_color') && !HEX_RE.test(s)) return invalid('Cor deve estar no formato #RRGGBB');
       if (s && col === 'slack_webhook_url' && !SLACK_RE.test(s)) return invalid('Webhook do Slack deve começar com https://hooks.slack.com/services/');
       if (s && col === 'numero_whatsapp' && !/^\d{10,13}$/.test(s)) return invalid('Número de WhatsApp deve conter apenas dígitos, com DDD (10 a 13 dígitos)');
+      if (s && col === 'whatsapp_alerta' && !/^\d{10,13}$/.test(s)) return invalid('Número para alertas deve conter apenas dígitos, com DDD (10 a 13 dígitos)');
       value = s || null;
     }
     values.push(value);

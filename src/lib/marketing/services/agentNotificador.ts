@@ -105,9 +105,9 @@ export async function notifyWhatsApp(message: string, tenantId?: string | null) 
       evolution_api_url: string | null;
       evolution_api_key: string | null;
       evolution_instance: string | null;
-      numero_whatsapp: string | null;
+      whatsapp_alerta: string | null;
     }[]>`
-      SELECT evolution_api_url, evolution_api_key, evolution_instance, numero_whatsapp
+      SELECT evolution_api_url, evolution_api_key, evolution_instance, whatsapp_alerta
       FROM public.tenants WHERE id = ${tenantId}::uuid LIMIT 1
     `;
     const cfg = row[0];
@@ -115,9 +115,10 @@ export async function notifyWhatsApp(message: string, tenantId?: string | null) 
     if (cfg?.evolution_api_key)  apiKey = cfg.evolution_api_key;
     if (cfg?.evolution_instance) instance = cfg.evolution_instance;
 
-    // numero_whatsapp tem prioridade sobre WhatsAppConfig
-    if (cfg?.numero_whatsapp) {
-      phoneNumber = normalizePhone(cfg.numero_whatsapp);
+    // whatsapp_alerta (número dedicado a alertas, editável em Dados da Empresa) é o destino.
+    // NÃO usar numero_whatsapp: ele é o número do canal da Mensageria, não o de alerta.
+    if (cfg?.whatsapp_alerta) {
+      phoneNumber = normalizePhone(cfg.whatsapp_alerta);
     }
   }
 

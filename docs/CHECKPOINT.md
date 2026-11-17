@@ -23,7 +23,9 @@
 
 > **📌 PENDÊNCIA — IA na VPS (testar depois dos testes locais):** a qualificação de leads por IA depende da configuração global em `/admin/master/ia-plataforma`. Em 2026-11-13 o Gemini (free tier, `gemini-flash-latest`) retornou 429 — cota diária de 20 requisições esgotada. Decidido migrar para Groq e testar **localmente** primeiro. Pendente: (1) confirmar que o Groq funciona em dev (Testar Conexão + lead real avaliado, sem "Não avaliado" indevido); (2) repetir o mesmo teste na VPS (`prod_app`/`staging_app`) — chave de LLM, saída de rede para a API do provedor e cota/custo de produção; (3) decidir cobrança/plano do provedor escolhido para uso real. Até isso ser testado na VPS, a IA não deve ser considerada validada em produção.
 
-> **⚠️ DEPLOY VPS — banco pendente:** rodar `prisma/deploy-batch-vps-pendente.sql` em prod_db e staging_db ANTES do código (idempotente, testado 2x). Cobre tudo desde 2026-11-06 (inclui `leads_staging.dono_user_id`, 2026-11-13). Confirmar pré-requisito: migração 2026-11-05 (metric-catalog cascade) já na VPS.
+> **Atualizado em:** 2026-11-15 — **Número de alerta separado do canal.** Novo campo `tenants.whatsapp_alerta` (migração `prisma/migration-2026-11-15-tenants-whatsapp-alerta.sql`, incluída no lote da VPS). Alertas de SLA e agentes agora vão para `whatsapp_alerta` (editável em Dados da Empresa e no cadastro do tenant no Master). `numero_whatsapp` continua sendo o número do canal da Mensageria. Pendente: rodar o lote na VPS antes do código.
+>
+> **⚠️ DEPLOY VPS — banco pendente:** rodar `prisma/deploy-batch-vps-pendente.sql` em prod_db e staging_db ANTES do código (idempotente, testado 2x). Cobre tudo desde 2026-11-06 (inclui `leads_staging.dono_user_id`, 2026-11-13, e `mensageria.conversations` com conversa única aberta por contato+inbox, 2026-11-17 — mescla as duplicadas existentes antes de criar o índice único). Confirmar pré-requisito: migração 2026-11-05 (metric-catalog cascade) já na VPS.
 >
 > **Atualizado em:** 2026-11-12 — Ficha do lead no CRM: histórico unificado (mensagens em balão, atividades editáveis/excluíveis com tipo/ícone/cor, visitas com ícone de calendário); foto do contato no card do Kanban; seção "Informações do Lead" com campos realçados.
 
@@ -15981,3 +15983,14 @@ sem criar lead nem atribuição (corrigido em `src/app/api/public/evolution/webh
 
 **Pendente:** implementar `lead_timeline`, o vínculo de mensagens externas com o lead existente,
 e a leitura na ficha.
+
+> **📌 PENDÊNCIA — instabilidade do Docker Desktop no ambiente de desenvolvimento (registrada em 2026-11-17):**
+> O Docker Desktop nesta máquina deixa de responder a cada poucas horas. Quando isso acontece, a porta
+> encaminhada ao Windows para o Postgres (15432) e o Redis (6380) cai, e o servidor `npm run dev` perde
+> conexão com o banco e o cache. Os sintomas são: login com "Connection is closed" ou "Connection terminated
+> due to connection timeout", logout que não volta à tela de login, e webhook da Evolution que responde 500
+> e descarta mensagens. Reiniciar o container do banco ou do Redis restabelece a porta só temporariamente.
+> **Solução de longo prazo:** tirar o app desse caminho, rodando-o dentro do Docker na mesma rede do banco
+> (serviço `app` do `docker-compose.yml`, já ajustado para ler o `.env.local`). Pendente: o build da imagem
+> do app trava no `npm ci` (ver tentativas registradas no histórico desta sessão). A VPS não depende disso.
+> Decisão do usuário: discutir depois de fechar os testes de hoje.

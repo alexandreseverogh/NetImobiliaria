@@ -39,6 +39,7 @@ export interface IngestMessageInput {
   contentType?: ContentType
   attachments?: any[]
   externalId?: string | null         // id da mensagem no provider — garante idempotência
+  occurredAt?: Date | null           // horário real da mensagem no provider (ex.: messageTimestamp do WhatsApp). Ausente = agora.
   isPrivate?: boolean
   botContext?: string | null         // hint textual pro bot NESTE turno (ex.: contexto de página do widget público) — nunca vira mensagem visível, só é lido pelo LLM
 }
@@ -120,13 +121,27 @@ async function findOrCreateConversation(
   )
   if (existing[0]) return { id: existing[0].id, isNew: false }
 
+  // ON CONFLICT no índice único parcial (ux_conversations_open_per_contact): se outra mensagem
+  // do mesmo contato criou a conversa aberta no meio do caminho, reaproveita essa em vez de
+  // criar uma duplicata. Sem essa cláusula a corrida gera conversas paralelas.
   const { rows } = await pool.query(
     `INSERT INTO ${SCHEMA}.conversations (tenant_id, client_id, inbox_id, contact_id, status)
      VALUES ($1,$2,$3,$4,'open')
+     ON CONFLICT (tenant_id, inbox_id, contact_id) WHERE status IN ('open','pending')
+     DO NOTHING
      RETURNING id`,
     [tenantId, clientId ?? null, inboxId, contactId],
   )
-  return { id: rows[0].id, isNew: true }
+  if (rows[0]) return { id: rows[0].id, isNew: true }
+
+  // Conflito: a conversa aberta já existe (criada por outra requisição concorrente).
+  const { rows: winner } = await pool.query(
+    `SELECT id FROM ${SCHEMA}.conversations
+      WHERE tenant_id = $1 AND inbox_id = $2 AND contact_id = $3 AND status IN ('open','pending')
+      LIMIT 1`,
+    [tenantId, inboxId, contactId],
+  )
+  return { id: winner[0].id, isNew: false }
 }
 
 /**
@@ -136,6 +151,9 @@ async function findOrCreateConversation(
 export async function ingestMessage(input: IngestMessageInput): Promise<IngestResult> {
   const { tenantId, clientId = null, inboxId, contact, direction, senderType, senderId, content,
           contentType = 'text', attachments = [], externalId = null, isPrivate = false, botContext = null } = input
+  // Horário da mensagem: o do provider quando informado (reentregas do WhatsApp chegam horas
+  // depois do envio original), senão o do próprio processamento.
+  const occurredAt = input.occurredAt && !Number.isNaN(input.occurredAt.getTime()) ? input.occurredAt : null
 
   if (externalId) {
     const { rows: dup } = await pool.query(
@@ -173,11 +191,11 @@ export async function ingestMessage(input: IngestMessageInput): Promise<IngestRe
   const { rows: msgRows } = await pool.query(
     `INSERT INTO ${SCHEMA}.messages
        (tenant_id, conversation_id, direction, sender_type, sender_id, content, content_type,
-        attachments, external_id, is_private)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10)
+        attachments, external_id, is_private, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10, COALESCE($11::timestamptz, now()))
      RETURNING id`,
     [tenantId, conversationId, direction, senderType, senderId ?? null, content ?? null, contentType,
-     JSON.stringify(attachments), externalId, isPrivate],
+     JSON.stringify(attachments), externalId, isPrivate, occurredAt],
   )
   const messageId = msgRows[0].id
 
@@ -185,24 +203,25 @@ export async function ingestMessage(input: IngestMessageInput): Promise<IngestRe
   // (recebida ou enviada, qualquer que seja o remetente). Idempotente por origem.
   await pool.query(
     `INSERT INTO public.lead_timeline (tenant_id, lead_uuid, tipo_origem, origem_id, occurred_at)
-     SELECT $1, c.lead_uuid, 'mensageria_message', $2, now()
+     SELECT $1, c.lead_uuid, 'mensageria_message', $2, COALESCE($4::timestamptz, now())
        FROM ${SCHEMA}.contacts c
       WHERE c.id = $3 AND c.lead_uuid IS NOT NULL
      ON CONFLICT (tipo_origem, origem_id) DO NOTHING`,
-    [tenantId, messageId, contactId],
+    [tenantId, messageId, contactId, occurredAt],
   )
 
-  // last_message_at sempre avança; first_response_at só é marcado na 1ª mensagem outbound de agent/bot
+  // last_message_at só avança: uma reentrega antiga nunca puxa a conversa para trás no tempo.
+  // first_response_at só é marcado na 1ª mensagem outbound de agent/bot.
   await pool.query(
     `UPDATE ${SCHEMA}.conversations
-        SET last_message_at = now(),
+        SET last_message_at = GREATEST(COALESCE(last_message_at, '-infinity'::timestamptz), COALESCE($4::timestamptz, now())),
             unread_count = CASE WHEN $2 = 'inbound' THEN unread_count + 1 ELSE unread_count END,
             first_response_at = CASE
               WHEN first_response_at IS NULL AND $2 = 'outbound' AND $3 IN ('agent','bot') THEN now()
               ELSE first_response_at
             END
       WHERE id = $1`,
-    [conversationId, direction, senderType],
+    [conversationId, direction, senderType, occurredAt],
   )
 
   if (direction === 'outbound' && (senderType === 'agent' || senderType === 'bot')) {

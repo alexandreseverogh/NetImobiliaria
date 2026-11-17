@@ -154,7 +154,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (body.status) { args.push(body.status); sets.push(`status = $${args.length}`) }
   if (body.priority !== undefined) { args.push(body.priority); sets.push(`priority = $${args.length}`) }
   if (body.assigneeId !== undefined) { args.push(body.assigneeId); sets.push(`assignee_id = $${args.length}`) }
+  // resolved_at marca o momento da resolução atual: sobe ao resolver e é limpo ao reabrir,
+  // senão o KPI "Resolvidas" contaria conversas reabertas.
   if (body.status === 'resolved') sets.push('resolved_at = now()')
+  else if (body.status) sets.push('resolved_at = NULL')
 
   if (sets.length === 0) return NextResponse.json({ error: 'Nada para atualizar' }, { status: 400 })
 

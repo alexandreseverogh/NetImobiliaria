@@ -75,7 +75,7 @@ export async function PATCH(
       anthropic_api_key, slack_webhook_url, evolution_api_url, evolution_api_key, evolution_instance, agent_confidence_threshold,
       numero_whatsapp, crm_clientes, associa_segmento_negocio_cliente, marketing_digital,
       isento_marketingdigital, isento_mensageria, isento_crm, public_domain,
-      tipo_atividade_mensagem_id, gera_mensagens_whatsapp
+      tipo_atividade_mensagem_id, gera_mensagens_whatsapp, whatsapp_alerta
     } = body;
 
     await client.query('BEGIN');
@@ -172,6 +172,7 @@ export async function PATCH(
         public_domain = CASE WHEN $34::boolean THEN $35 ELSE public_domain END,
         tipo_atividade_mensagem_id = CASE WHEN $37::boolean THEN $38::integer ELSE tipo_atividade_mensagem_id END,
         gera_mensagens_whatsapp = COALESCE($39, gera_mensagens_whatsapp),
+        whatsapp_alerta = CASE WHEN $40::boolean THEN $41 ELSE whatsapp_alerta END,
         updated_at = NOW()
       WHERE id = $36
       RETURNING *
@@ -207,6 +208,8 @@ export async function PATCH(
       tipo_atividade_mensagem_id !== undefined,
       tipo_atividade_mensagem_id ? parseInt(tipo_atividade_mensagem_id, 10) : null,
       gera_mensagens_whatsapp !== undefined ? gera_mensagens_whatsapp === true : null,
+      whatsapp_alerta !== undefined,
+      whatsapp_alerta ? String(whatsapp_alerta).replace(/\D/g, '') || null : null,
     ];
 
     const result = await client.query(query, values);

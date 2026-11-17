@@ -104,7 +104,7 @@ export default function MasterTenantsPage() {
     evolution_api_url: '',
     evolution_api_key: '',
     evolution_instance: '',
-    numero_whatsapp: '',
+    numero_whatsapp: '', whatsapp_alerta: '',
     agent_confidence_threshold: '0.85',
   })
 
@@ -277,7 +277,7 @@ export default function MasterTenantsPage() {
           evolution_api_url: '',
           evolution_api_key: '',
           evolution_instance: '',
-          numero_whatsapp: '',
+          numero_whatsapp: '', whatsapp_alerta: '',
           agent_confidence_threshold: '0.85',
         })
         fetchData()
@@ -558,7 +558,7 @@ export default function MasterTenantsPage() {
                     evolution_api_url: '',
                     evolution_api_key: '',
                     evolution_instance: '',
-                    numero_whatsapp: '',
+                    numero_whatsapp: '', whatsapp_alerta: '',
                     agent_confidence_threshold: '0.85',
                   });
                   setUserFound(false);
@@ -1010,11 +1010,11 @@ export default function MasterTenantsPage() {
                         className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
                     </div>
                     <div>
-                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Número WhatsApp (alertas do agente)</label>
-                      <input type="text" value={newTenant.numero_whatsapp || ''} onChange={e => setNewTenant({ ...newTenant, numero_whatsapp: e.target.value })}
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Número WhatsApp para alertas (SLA e agentes)</label>
+                      <input type="text" value={newTenant.whatsapp_alerta || ''} onChange={e => setNewTenant({ ...newTenant, whatsapp_alerta: e.target.value })}
                         placeholder="5581999999999 (DDI+DDD+número, sem espaços)"
                         className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
-                      <p className="text-[9px] text-gray-400 mt-1">Número que receberá as notificações do agente (SCALE, PAUSE, alertas). Tem prioridade sobre o WhatsAppConfig.</p>
+                      <p className="text-[9px] text-gray-400 mt-1">Número que recebe os alertas (SLA estourado, agentes). Deve ser diferente do número conectado à Evolution.</p>
                     </div>
                     <div>
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Anthropic API Key (IA do Tenant)</label>
@@ -1664,11 +1664,11 @@ export default function MasterTenantsPage() {
                         className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
                     </div>
                     <div>
-                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Número WhatsApp (alertas do agente)</label>
-                      <input type="text" value={editingTenant.numero_whatsapp || ''} onChange={e => setEditingTenant({ ...editingTenant, numero_whatsapp: e.target.value })}
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Número WhatsApp para alertas (SLA e agentes)</label>
+                      <input type="text" value={editingTenant.whatsapp_alerta || ''} onChange={e => setEditingTenant({ ...editingTenant, whatsapp_alerta: e.target.value })}
                         placeholder="5581999999999 (DDI+DDD+número, sem espaços)"
                         className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
-                      <p className="text-[9px] text-gray-400 mt-1">Número que receberá as notificações do agente (SCALE, PAUSE, alertas). Tem prioridade sobre o WhatsAppConfig.</p>
+                      <p className="text-[9px] text-gray-400 mt-1">Número que recebe os alertas (SLA estourado, agentes). Deve ser diferente do número conectado à Evolution.</p>
                     </div>
                     <div>
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Tipo de atividade para mensagens trocadas</label>

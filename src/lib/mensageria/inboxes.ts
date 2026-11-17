@@ -48,7 +48,7 @@ async function resolveWhatsAppCloudInbox(tenantId: string, clientId: string | nu
   })
 
   const { rows: existing } = await pool.query(
-    `SELECT id FROM ${SCHEMA}.inboxes WHERE tenant_id = $1 AND client_id ${clientId ? '= $2' : 'IS NULL'} AND channel_type = 'whatsapp' LIMIT 1`,
+    `SELECT id FROM ${SCHEMA}.inboxes WHERE tenant_id = $1 AND client_id ${clientId ? '= $2' : 'IS NULL'} AND channel_type = 'whatsapp' ORDER BY created_at ASC LIMIT 1`,
     clientId ? [tenantId, clientId] : [tenantId],
   )
   if (existing[0]) {
@@ -102,7 +102,7 @@ export async function resolveWhatsAppInbox(tenantId: string, clientId?: string |
         number: c.numero_whatsapp ?? null,
       })
       const { rows: existingClientInbox } = await pool.query(
-        `SELECT id FROM ${SCHEMA}.inboxes WHERE tenant_id = $1 AND client_id = $2 AND channel_type = 'whatsapp' LIMIT 1`,
+        `SELECT id FROM ${SCHEMA}.inboxes WHERE tenant_id = $1 AND client_id = $2 AND channel_type = 'whatsapp' ORDER BY created_at ASC LIMIT 1`,
         [tenantId, clientId],
       )
       if (existingClientInbox[0]) {
@@ -134,7 +134,7 @@ export async function resolveWhatsAppInbox(tenantId: string, clientId?: string |
   })
 
   const { rows: existingTenantInbox } = await pool.query(
-    `SELECT id FROM ${SCHEMA}.inboxes WHERE tenant_id = $1 AND client_id IS NULL AND channel_type = 'whatsapp' LIMIT 1`,
+    `SELECT id FROM ${SCHEMA}.inboxes WHERE tenant_id = $1 AND client_id IS NULL AND channel_type = 'whatsapp' ORDER BY created_at ASC LIMIT 1`,
     [tenantId],
   )
   if (existingTenantInbox[0]) {

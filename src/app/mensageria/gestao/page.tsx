@@ -80,8 +80,14 @@ export default function PainelDoGestorPage() {
   const [channelType, setChannelType] = useState('')
   const [status, setStatus] = useState('')
   const [priority, setPriority] = useState('')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  // Data local (não UTC): depois das 21h em Brasília, toISOString() já devolveria o dia seguinte.
+  const todayLocal = (() => {
+    const d = new Date()
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  })()
+  const [dateFrom, setDateFrom] = useState(todayLocal)
+  const [dateTo, setDateTo] = useState(todayLocal)
 
   const [sortBy, setSortBy] = useState<'lastMessageAt' | 'firstResponseDurationSec'>('lastMessageAt')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')

@@ -977,7 +977,49 @@ function SlaTab() {
   const [newClientId, setNewClientId] = useState<string | null>(null)
   const [newClientName, setNewClientName] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const allClients = useAllClients()
+
+  function startEdit(p: SlaPolicy) {
+    setEditingId(p.id)
+    setName(p.name)
+    setFirstResponseMin(p.first_response_target_min ? String(p.first_response_target_min) : '')
+    setResolutionMin(p.resolution_target_min ? String(p.resolution_target_min) : '')
+    const s = (p.scope || {}) as Record<string, any>
+    if (s.inbox_id) { setScopeMode('inbox'); setScopeTarget(s.inbox_id) }
+    else if (s.team_id) { setScopeMode('team'); setScopeTarget(s.team_id) }
+    else { setScopeMode('global'); setScopeTarget('') }
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setName(''); setFirstResponseMin(''); setResolutionMin(''); setScopeMode('global'); setScopeTarget('')
+  }
+
+  async function saveEdit() {
+    if (!editingId || !name.trim()) return
+    if (scopeMode !== 'global' && !scopeTarget) return
+    setCreating(true)
+    try {
+      const scope = scopeMode === 'inbox' ? { inbox_id: scopeTarget }
+        : scopeMode === 'team' ? { team_id: scopeTarget }
+        : {}
+      await adminFetch(`/api/admin/mensageria/sla-policies?id=${editingId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: name.trim(),
+          scope,
+          firstResponseTargetMin: firstResponseMin ? parseInt(firstResponseMin, 10) : null,
+          resolutionTargetMin: resolutionMin ? parseInt(resolutionMin, 10) : null,
+        }),
+      })
+      cancelEdit()
+      await load()
+    } finally {
+      setCreating(false)
+    }
+  }
 
   async function load() {
     setLoading(true)
@@ -1001,7 +1043,7 @@ function SlaTab() {
     if (!scope || Object.keys(scope).length === 0) return 'Global (todas as conversas do tenant)'
     if (scope.inbox_id) {
       const ib = inboxes.find((i) => i.id === scope.inbox_id)
-      return `Inbox: ${ib ? (CHANNEL_LABELS[ib.channelType] || ib.name) : scope.inbox_id}`
+      return `Inbox: ${ib ? `${ib.name} (${CHANNEL_LABELS[ib.channelType] || ib.channelType})` : scope.inbox_id}`
     }
     if (scope.team_id) {
       const tm = teams.find((t) => t.id === scope.team_id)
@@ -1086,7 +1128,7 @@ function SlaTab() {
               className="h-8 px-2 rounded-lg bg-[#112240] border border-white/8 text-xs text-slate-300 outline-none"
             >
               <option value="">Selecione a inbox...</option>
-              {inboxes.map((ib) => <option key={ib.id} value={ib.id}>{CHANNEL_LABELS[ib.channelType] || ib.name}</option>)}
+              {inboxes.map((ib) => <option key={ib.id} value={ib.id}>{ib.name} ({CHANNEL_LABELS[ib.channelType] || ib.channelType})</option>)}
             </select>
           )}
           {scopeMode === 'team' && (
@@ -1104,8 +1146,11 @@ function SlaTab() {
         <ClientPicker clientId={newClientId} clientName={newClientName} allClients={allClients} onChange={(id, n) => { setNewClientId(id); setNewClientName(n) }} />
 
         <div className="flex justify-end mt-3">
-          <PrimaryButton onClick={create} disabled={creating || !name.trim() || (scopeMode !== 'global' && !scopeTarget)}>
-            <PlusIcon className="w-4 h-4" /> Criar política
+          {editingId && (
+            <button onClick={cancelEdit} className="mr-2 h-9 px-3 rounded-lg text-xs text-slate-400 hover:text-slate-200 border border-white/8">Cancelar edição</button>
+          )}
+          <PrimaryButton onClick={editingId ? saveEdit : create} disabled={creating || !name.trim() || (scopeMode !== 'global' && !scopeTarget)}>
+            {editingId ? 'Salvar alterações' : <><PlusIcon className="w-4 h-4" /> Criar política</>}
           </PrimaryButton>
         </div>
       </Card>
@@ -1128,9 +1173,14 @@ function SlaTab() {
                     {p.resolution_target_min ? `Resolução: ${p.resolution_target_min}min` : 'sem meta de resolução'}
                   </p>
                 </div>
-                <button onClick={() => remove(p.id)} className="text-slate-500 hover:text-rose-400 transition-colors">
-                  <TrashIcon className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => startEdit(p)} title="Editar" className="text-slate-500 hover:text-[#d4af37] transition-colors">
+                    <PencilIcon className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => remove(p.id)} title="Excluir" className="text-slate-500 hover:text-rose-400 transition-colors">
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>

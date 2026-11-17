@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       selected_modules, ai_config, primary_color, secondary_color,
       calendario, google_email, duracao_visita,
       anthropic_api_key, slack_webhook_url, evolution_api_url, evolution_api_key, evolution_instance, agent_confidence_threshold,
-      numero_whatsapp
+      numero_whatsapp, whatsapp_alerta
     } = body;
 
     // Segmento é obrigatório para todo tenant (decisão 2026-11-07).
@@ -87,8 +87,8 @@ export async function POST(request: NextRequest) {
         logradouro, numero, bairro, cidade, estado, cep, telefone, email_contato, status, ai_config,
         primary_color, secondary_color, calendario, google_email, duracao_visita,
         anthropic_api_key, slack_webhook_url, evolution_api_url, evolution_api_key, evolution_instance, agent_confidence_threshold,
-        numero_whatsapp
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active', $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+        numero_whatsapp, whatsapp_alerta
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active', $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
       RETURNING id
     `, [
       name, slug, segment_id, logo || null, cnpj_cpf || null,
@@ -107,6 +107,7 @@ export async function POST(request: NextRequest) {
       evolution_instance || null,
       agent_confidence_threshold !== undefined && agent_confidence_threshold !== null ? parseFloat(agent_confidence_threshold) : 0.85,
       numero_whatsapp || null,
+      whatsapp_alerta ? String(whatsapp_alerta).replace(/\D/g, '') || null : null,
     ]);
     const tenantId = tenantResult.rows[0].id;
 

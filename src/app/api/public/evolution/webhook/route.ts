@@ -42,6 +42,7 @@ async function recordOutboundFromTenant(input: {
   text: string
   media?: InboundMedia | null
   externalMessageId: string | null
+  occurredAt?: Date | null
 }): Promise<void> {
   try {
     const inboxId = await resolveWhatsAppInbox(input.tenantId, null)
@@ -55,6 +56,7 @@ async function recordOutboundFromTenant(input: {
       contentType: input.media?.contentType ?? 'text',
       attachments: input.media?.attachments ?? [],
       externalId: input.externalMessageId,
+      occurredAt: input.occurredAt ?? null,
     })
     // Resposta enviada por você também entra na linha do tempo do lead, se o contato tiver um.
     const { rows: lead } = await pool.query(
@@ -169,6 +171,17 @@ async function applyContactEvent(tenantId: string, entries: any[]) {
   }
 }
 
+/**
+ * Horário real da mensagem, vindo do provider (messageTimestamp, em segundos desde a época).
+ * Sem ele, devolve null e o registro usa o horário do processamento.
+ */
+function messageTimeOf(entry: any): Date | null {
+  const raw = entry?.messageTimestamp
+  const seconds = typeof raw === 'string' ? Number(raw) : raw
+  if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0) return null
+  return new Date(seconds * 1000)
+}
+
 function resolveRealPhone(key: any): string {
   const digits = (s: string) => normalizeBrMobile(s.replace(/@(s\.whatsapp\.net|c\.us|lid)$/, '').replace(/\D/g, ''))
   const jid: string = key?.remoteJid || ''
@@ -239,6 +252,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, agenda: true })
   }
 
+  let processingFailed = false
   for (const entry of entries) {
     const remoteJid: string = entry?.key?.remoteJid || ''
     if (!remoteJid || remoteJid.includes('@g.us')) continue // ignorar grupos
@@ -265,6 +279,7 @@ export async function POST(request: NextRequest) {
           text: outText,
           media: outMedia,
           externalMessageId: entry?.key?.id ?? null,
+          occurredAt: messageTimeOf(entry),
         })
       }
       continue
@@ -308,6 +323,7 @@ export async function POST(request: NextRequest) {
 
     // 4. Normaliza e delega toda a lógica de negócio (atribuição + lead + Mensageria) pro
     // processador agnóstico de provider.
+    // Falha de processamento NÃO é engolida: responde 500 e a Evolution reenvia a mensagem.
     await processInboundWhatsAppMessage({
       tenantId: tenant.id,
       ownerClientId,
@@ -318,9 +334,16 @@ export async function POST(request: NextRequest) {
       media,
       skipCrm: isReaction,
       externalMessageId: entry?.key?.id ?? null,
+      occurredAt: messageTimeOf(entry),
     }).catch((err) => {
       console.error('[evolution-webhook] processInboundWhatsAppMessage falhou:', err)
+      processingFailed = true
     })
+  }
+
+  // Falha de processamento: 500 para a Evolution reenviar (ela tenta várias vezes).
+  if (processingFailed) {
+    return NextResponse.json({ ok: false, error: 'falha ao processar mensagem' }, { status: 500 })
   }
 
   // Evolution espera resposta rápida (< 5s)

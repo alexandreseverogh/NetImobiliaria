@@ -56,6 +56,45 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ policy: { ...rows[0], clientId, clientName: null } })
 }
 
+/**
+ * PATCH /api/admin/mensageria/sla-policies?id=... — edita uma política existente.
+ * Body (todos opcionais; só o que vier é alterado): { name?, scope?, firstResponseTargetMin?,
+ * resolutionTargetMin?, isActive? }. Não altera tenant nem cliente.
+ */
+export async function PATCH(request: NextRequest) {
+  const payload = getTokenPayload(request)
+  if (!payload?.tenantId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+
+  const id = new URL(request.url).searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'id é obrigatório' }, { status: 400 })
+
+  const body = await request.json().catch(() => ({}))
+  const sets: string[] = []
+  const vals: unknown[] = []
+  const push = (col: string, val: unknown, cast = '') => { vals.push(val); sets.push(`${col} = $${vals.length}${cast}`) }
+
+  if (body.name !== undefined) {
+    const name = String(body.name || '').trim()
+    if (!name) return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 })
+    push('name', name)
+  }
+  if (body.scope !== undefined) push('scope', JSON.stringify(body.scope || {}), '::jsonb')
+  if (body.firstResponseTargetMin !== undefined) push('first_response_target_min', body.firstResponseTargetMin ?? null)
+  if (body.resolutionTargetMin !== undefined) push('resolution_target_min', body.resolutionTargetMin ?? null)
+  if (body.isActive !== undefined) push('is_active', body.isActive === true)
+  if (sets.length === 0) return NextResponse.json({ error: 'Nada para alterar' }, { status: 400 })
+
+  vals.push(id, payload.tenantId)
+  const { rows } = await pool.query(
+    `UPDATE mensageria.sla_policies SET ${sets.join(', ')}
+      WHERE id = $${vals.length - 1} AND tenant_id = $${vals.length}
+      RETURNING id, name, scope, first_response_target_min, resolution_target_min, is_active`,
+    vals,
+  )
+  if (!rows[0]) return NextResponse.json({ error: 'Política não encontrada' }, { status: 404 })
+  return NextResponse.json({ policy: rows[0] })
+}
+
 /** DELETE /api/admin/mensageria/sla-policies?id=... */
 export async function DELETE(request: NextRequest) {
   const payload = getTokenPayload(request)
