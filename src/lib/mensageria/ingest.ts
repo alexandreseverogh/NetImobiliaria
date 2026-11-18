@@ -12,6 +12,7 @@ import { autoAssignConversation } from '@/lib/mensageria/autoAssign'
 import { attachSlaPolicy, checkFirstResponseBreach } from '@/lib/mensageria/sla'
 import { maybeRunBot } from '@/lib/mensageria/botAdapter'
 import { touchPendencyByContact } from '@/lib/crm/pendencia/pendencyState'
+import { recomputeConversationBola } from '@/lib/mensageria/pendency'
 
 const SCHEMA = 'mensageria'
 
@@ -223,6 +224,11 @@ export async function ingestMessage(input: IngestMessageInput): Promise<IngestRe
       WHERE id = $1`,
     [conversationId, direction, senderType, occurredAt],
   )
+
+  // "De quem é a bola" da conversa (mesma regra do CRM). Best-effort: não derruba a ingestão.
+  await recomputeConversationBola(conversationId).catch((err) => {
+    console.error('[mensageria/ingest] falha ao atualizar bola da conversa:', err)
+  })
 
   if (direction === 'outbound' && (senderType === 'agent' || senderType === 'bot')) {
     await checkFirstResponseBreach(conversationId).catch(() => {})

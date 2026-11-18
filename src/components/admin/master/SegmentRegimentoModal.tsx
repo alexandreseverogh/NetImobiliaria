@@ -17,14 +17,14 @@ import {
   XMarkIcon, ChevronDownIcon, ArrowRightIcon, BookOpenIcon,
   BuildingOffice2Icon, SparklesIcon, HashtagIcon, AdjustmentsHorizontalIcon,
   CircleStackIcon, UserGroupIcon, CpuChipIcon, BoltIcon, ScaleIcon,
-  ArchiveBoxIcon, BeakerIcon, ChartBarIcon,
+  ArchiveBoxIcon, BeakerIcon, ChartBarIcon, ClipboardDocumentCheckIcon,
 } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/marketing-utils';
 
 export type RegimentoKey =
   | 'tenants' | 'angles' | 'interests' | 'benchmarks' | 'dataEntities'
   | 'distribution' | 'qualification' | 'agentes' | 'fitCriteria'
-  | 'ativoConfig' | 'llmDefault' | 'metrics' | 'auditBands' | 'auditTexts';
+  | 'ativoConfig' | 'llmDefault' | 'metrics' | 'auditBands' | 'auditTexts' | 'resolutionAudit';
 
 interface Segment { id: string; name: string }
 
@@ -285,6 +285,27 @@ const ITEMS: RegimentoItem[] = [
     ],
     example: 'Redução de CPL de 15 a 30% aparece como "Redução estimada de 15–30% no CPL médio".',
     impact: 'Afeta os conselhos e a quantidade de itens do relatório de auditoria deste segmento.',
+  },
+  {
+    key: 'resolutionAudit', color: 'emerald', icon: ClipboardDocumentCheckIcon,
+    title: 'Auditoria de Resolução (Mensageria)',
+    summary: 'Os limites que sinalizam conversas resolvidas que podem ter sido encerradas sem atendimento.',
+    objective:
+      'Uma conversa resolvida é decisão humana, e o administrador precisa conferir se foi resolvida ' +
+      'de verdade. O sistema sinaliza, sem julgar, quatro situações: resolvida rápido demais depois ' +
+      'de o cliente escrever sem resposta nossa, resolvida após longo silêncio, sem nenhuma resposta ' +
+      'nossa, e cliente que voltou logo depois. Estes limites definem o que conta como "rápido demais" ' +
+      'e "logo depois" para este segmento — cada negócio tem um ritmo de conversa diferente.',
+    howToFill: [
+      'Resolução rápida (minutos): quanto tempo, no máximo, é suspeito encerrar logo após o cliente escrever sem resposta nossa.',
+      'Longo silêncio (horas): a partir de quanto tempo sem resposta nossa, uma resolução já é suspeita.',
+      'Reincidência (dias): se o mesmo contato voltar dentro deste prazo após a resolução, a conversa anterior é sinalizada.',
+      'Valores precisam ser maiores que zero. Os valores atuais valem como ponto de partida para testes.',
+    ],
+    example: 'Marketing Digital: resolvida em menos de 15 min depois de o cliente escrever sem resposta → sinal "Resolvida rápido".',
+    impact:
+      'Afeta somente a aba de auditoria do Painel do Gestor (/mensageria/gestao). Não altera nenhuma conversa, ' +
+      'nenhuma resolução e nenhum envio.',
   },
   {
     key: 'metrics', color: 'indigo', icon: ChartBarIcon,

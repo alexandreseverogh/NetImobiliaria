@@ -228,8 +228,15 @@ export async function PATCH(
         [id, liberada],
       )
       if (!liberada) {
+        // Revogar limpa o uso do bot por completo: desliga o flow e encerra as sessões ativas,
+        // para que nenhuma conversa em andamento continue sendo respondida pelo bot.
         await client.query(
           'UPDATE mensageria.bot_flows SET is_active = false WHERE tenant_id = $1',
+          [id],
+        )
+        await client.query(
+          `UPDATE mensageria.bot_sessions SET active = false
+            WHERE flow_id IN (SELECT id FROM mensageria.bot_flows WHERE tenant_id = $1)`,
           [id],
         )
       }

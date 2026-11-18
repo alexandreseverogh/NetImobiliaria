@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { getTokenPayload } from '@/lib/auth/jwt-node'
 import { resolveSegment } from '@/lib/intelligence/segmentResolver'
+import { isTenantAdminFromPayload } from '@/lib/mensageria/visibilityScope'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,6 +52,8 @@ export async function GET(request: NextRequest) {
     segmentMaxTurnsDefault,
     botAtivacaoLiberada,
     isMaster: !!(payload as any).is_system_role,
+    // Quem pode alterar o bot e os parâmetros de auditoria (administrador da empresa ou Master).
+    canEdit: isTenantAdminFromPayload(payload as any),
   })
 }
 
@@ -61,6 +64,10 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const payload = getTokenPayload(request)
   if (!payload?.tenantId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+  // Só o administrador da empresa (ou Master) configura o bot. Checado no servidor, não só na tela.
+  if (!isTenantAdminFromPayload(payload as any)) {
+    return NextResponse.json({ error: 'Apenas o administrador da empresa pode alterar o bot.' }, { status: 403 })
+  }
 
   const body = await request.json().catch(() => ({}))
   const isActive = !!body.isActive

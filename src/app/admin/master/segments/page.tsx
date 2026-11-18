@@ -19,6 +19,7 @@ import { CreateGuard, UpdateGuard } from '@/components/admin/PermissionGuard'
 import { SegmentInterestsModal } from '@/components/admin/master/SegmentInterestsModal'
 import { SegmentAnglesModal } from '@/components/admin/master/SegmentAnglesModal'
 import { SegmentBenchmarksModal } from '@/components/admin/master/SegmentBenchmarksModal'
+import SegmentResolutionAuditModal from '@/components/admin/master/SegmentResolutionAuditModal'
 import { SegmentAuditBandsModal } from '@/components/admin/master/SegmentAuditBandsModal'
 import { SegmentAuditTextsModal } from '@/components/admin/master/SegmentAuditTextsModal'
 import { SegmentDataEntitiesModal } from '@/components/admin/master/SegmentDataEntitiesModal'
@@ -116,6 +117,7 @@ export default function MasterSegmentsPage() {
   const [auditBandsSegment, setAuditBandsSegment] = useState<Segment | null>(null)
   const [auditTextsSegment, setAuditTextsSegment] = useState<Segment | null>(null)
   const [regimentoSegment, setRegimentoSegment] = useState<Segment | null>(null)
+  const [resolutionAuditSegment, setResolutionAuditSegment] = useState<Segment | null>(null)
   const [ativoConfigSegment, setAtivoConfigSegment] = useState<Segment | null>(null)
   
   const [formData, setFormData] = useState({
@@ -797,6 +799,10 @@ export default function MasterSegmentsPage() {
         />
       )}
 
+      {resolutionAuditSegment && (
+        <SegmentResolutionAuditModal segment={resolutionAuditSegment} onClose={() => setResolutionAuditSegment(null)} />
+      )}
+
       {/* Regimento do Segmento — índice documentado dos 12 modais acima; "Abrir" fecha o
           Regimento e abre o modal real correspondente, exatamente como abria direto da tabela. */}
       {regimentoSegment && (
@@ -821,6 +827,7 @@ export default function MasterSegmentsPage() {
               metrics: setMetricsSegment,
               auditBands: setAuditBandsSegment,
               auditTexts: setAuditTextsSegment,
+              resolutionAudit: setResolutionAuditSegment,
             }
             setters[key](target)
           }}

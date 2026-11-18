@@ -3,18 +3,32 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   InboxIcon, UserCircleIcon, UsersIcon,
-  CheckCircleIcon, PlusIcon, XMarkIcon,
+  CheckCircleIcon, PlusIcon, XMarkIcon, ClockIcon,
 } from '@heroicons/react/24/outline'
 import { adminFetch } from '@/lib/auth/adminFetch'
 import { formatTelefone } from '@/lib/utils/formatters'
 import DateInputPtBR from '@/components/ui/DateInputPtBR'
 import ConversationThread from '@/components/mensageria/ConversationThread'
 
-type Folder = 'all' | 'unassigned' | 'mine'
+type Folder = 'pending' | 'all' | 'unassigned' | 'mine'
+
+/** Há quanto tempo a bola está com a gente (ex.: "há 3 dias", "há 5 h", "agora"). */
+function idadePendencia(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const minutos = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+  if (minutos < 1) return 'agora'
+  if (minutos < 60) return `há ${minutos} min`
+  const horas = Math.floor(minutos / 60)
+  if (horas < 24) return `há ${horas} h`
+  const dias = Math.floor(horas / 24)
+  return `há ${dias} ${dias === 1 ? 'dia' : 'dias'}`
+}
 
 interface ConversationSummary {
   id: string
   status: string
+  bolaCom?: 'nos' | 'cliente' | null
+  bolaDesde?: string | null
   priority: string | null
   teamName?: string | null
   labels?: { id: string; name: string; color: string }[]
@@ -83,6 +97,8 @@ export default function MensageriaPage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [totalCount, setTotalCount] = useState(0)
+  // Contador da pasta "Aguardando resposta" — vem sempre do servidor, sem período.
+  const [pendingCount, setPendingCount] = useState(0)
   // Período padrão = hoje (data local, yyyy-mm-dd), para a caixa abrir já filtrada no dia atual.
   const todayIso = (() => {
     const d = new Date()
@@ -128,9 +144,11 @@ export default function MensageriaPage() {
 
   function buildConversationsQuery(cursor?: string) {
     const qs = new URLSearchParams()
+    if (folder === 'pending') qs.set('folder', 'pending')
     if (assigneeParam) qs.set('assigneeId', assigneeParam)
-    if (dateFrom) qs.set('dateFrom', dateFrom)
-    if (dateTo) qs.set('dateTo', dateTo)
+    // Pendentes não sofrem corte de período: uma pendência de dias atrás não pode sumir.
+    if (folder !== 'pending' && dateFrom) qs.set('dateFrom', dateFrom)
+    if (folder !== 'pending' && dateTo) qs.set('dateTo', dateTo)
     if (selectedLabelIds.length > 0) qs.set('labelId', selectedLabelIds.join(','))
     if (cursor) qs.set('cursor', cursor)
     return qs
@@ -156,6 +174,7 @@ export default function MensageriaPage() {
       setConversations(data.conversations || [])
       setNextCursor(data.nextCursor || null)
       setTotalCount(data.totalCount ?? (data.conversations || []).length)
+      setPendingCount(data.pendingCount ?? 0)
     } catch {
       // Falha de rede: mantém a lista atual sem derrubar a página.
     } finally {
@@ -321,6 +340,7 @@ export default function MensageriaPage() {
           </button>
         </div>
         <nav className="space-y-0.5 px-2">
+          <FolderButton icon={<ClockIcon className="w-4 h-4" />} label="Aguardando resposta" active={folder === 'pending'} onClick={() => setFolder('pending')} count={pendingCount} />
           <FolderButton icon={<InboxIcon className="w-4 h-4" />} label="Todas" active={folder === 'all'} onClick={() => setFolder('all')} count={counts.all} />
           <FolderButton icon={<UserCircleIcon className="w-4 h-4" />} label="Minhas" active={folder === 'mine'} onClick={() => setFolder('mine')} />
           <FolderButton icon={<UsersIcon className="w-4 h-4" />} label="Não atribuídas" active={folder === 'unassigned'} onClick={() => setFolder('unassigned')} />
@@ -370,12 +390,17 @@ export default function MensageriaPage() {
         <div className="px-4 mt-5 pt-4 border-t border-white/5">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Período</p>
-            {(dateFrom || dateTo) && (
+            {(dateFrom || dateTo) && folder !== 'pending' && (
               <button onClick={() => { setDateFrom(''); setDateTo('') }} className="text-[10px] text-[#d4af37] hover:underline">
                 Limpar
               </button>
             )}
           </div>
+          {folder === 'pending' ? (
+            <p className="text-[10px] text-slate-500 leading-snug">
+              Mostrando todas as pendências, independente da data.
+            </p>
+          ) : (
           <div className="space-y-1.5">
             <div>
               <label className="block text-[9px] text-slate-500 mb-0.5">De</label>
@@ -394,6 +419,7 @@ export default function MensageriaPage() {
               />
             </div>
           </div>
+          )}
         </div>
       </div>
 
@@ -427,6 +453,11 @@ export default function MensageriaPage() {
                       <span className="text-[10px] text-slate-500 shrink-0 whitespace-nowrap">{formatFullDate(c.lastMessageAt)}</span>
                     </div>
                     <p className="text-xs text-slate-400 truncate mt-0.5">{c.lastMessagePreview || '—'}</p>
+                    {c.bolaCom === 'nos' && (
+                      <p className="text-[10px] text-[#d4af37] mt-0.5" title="Aguardando a nossa resposta desde">
+                        Aguardando resposta · {idadePendencia(c.bolaDesde)}
+                      </p>
+                    )}
                     <div className="flex items-center gap-1.5 mt-1.5">
                       <ChannelChip channelType={c.channelType} />
                       {(c.labels ?? []).map((l) => (

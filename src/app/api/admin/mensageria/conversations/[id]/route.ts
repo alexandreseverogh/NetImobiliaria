@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { getTokenPayload } from '@/lib/auth/jwt-node'
 import { checkResolutionBreach } from '@/lib/mensageria/sla'
+import { recomputeConversationBola } from '@/lib/mensageria/pendency'
 import { resolveMensageriaScope, isTenantAdminFromPayload, scopeToSql } from '@/lib/mensageria/visibilityScope'
 
 export const dynamic = 'force-dynamic'
@@ -172,13 +173,29 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const scoped = scopeToSql(scope, args)
   const scopeClause = scoped.clause ? ` AND ${scoped.clause}` : ''
 
-  const { rows } = await pool.query(
-    `UPDATE mensageria.conversations AS c SET ${sets.join(', ')}
-      WHERE c.id = $${idIdx} AND c.tenant_id = $${tenantIdx}${scopeClause}
-      RETURNING id, status, priority, assignee_id`,
-    args,
-  )
+  let rows: any[]
+  try {
+    ;({ rows } = await pool.query(
+      `UPDATE mensageria.conversations AS c SET ${sets.join(', ')}
+        WHERE c.id = $${idIdx} AND c.tenant_id = $${tenantIdx}${scopeClause}
+        RETURNING id, status, priority, assignee_id`,
+      args,
+    ))
+  } catch (err: any) {
+    // Reabrir uma conversa resolvida quando o contato já tem outra conversa aberta nesta inbox:
+    // o índice único (ux_conversations_open_per_contact) impede duplicar. Devolve 409 explícito.
+    if (err?.code === '23505') {
+      return NextResponse.json(
+        { error: 'Este contato já tem outra conversa aberta nesta inbox. Resolva-a antes de reabrir esta.' },
+        { status: 409 },
+      )
+    }
+    throw err
+  }
   if (!rows[0]) return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
+
+  // Bola recalculada: resolvida fica sem bola; reaberta volta a ter bola conforme as mensagens.
+  if (body.status) await recomputeConversationBola(params.id).catch(() => {})
 
   if (body.status === 'resolved') await checkResolutionBreach(params.id).catch(() => {})
 

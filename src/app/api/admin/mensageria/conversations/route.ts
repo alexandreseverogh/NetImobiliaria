@@ -51,8 +51,12 @@ export async function GET(request: NextRequest) {
   const cursor = sp.get('cursor')
   const page = sp.get('page') ? Math.max(1, parseInt(sp.get('page')!, 10) || 1) : null
   const pageSize = Math.min(200, Math.max(1, parseInt(sp.get('pageSize') || String(PAGE_SIZE), 10) || PAGE_SIZE))
-  const sortBy = SORTABLE_COLUMNS[sp.get('sortBy') || ''] || 'c.last_message_at'
-  const sortDir = sp.get('sortDir') === 'asc' ? 'ASC' : 'DESC'
+  const folder = sp.get('folder')
+  // Pendentes: as mais antigas primeiro (a que está há mais tempo esperando é a mais urgente).
+  const defaultSortBy = folder === 'pending' ? 'c.bola_desde' : 'c.last_message_at'
+  const defaultSortDir = folder === 'pending' ? 'asc' : 'desc'
+  const sortBy = SORTABLE_COLUMNS[sp.get('sortBy') || ''] || defaultSortBy
+  const sortDir = (sp.get('sortDir') || defaultSortDir) === 'asc' ? 'ASC' : 'DESC'
   const includeKpis = sp.get('includeKpis') === '1'
 
   const where: string[] = ['c.tenant_id = $1']
@@ -63,6 +67,24 @@ export async function GET(request: NextRequest) {
   const scope = await resolveMensageriaScope(payload.tenantId, payload.userId, isTenantAdminFromPayload(payload))
   const scoped = scopeToSql(scope, args)
   if (scoped.clause) where.push(scoped.clause)
+
+  // Pasta "Aguardando resposta" (folder=pending): conversas abertas com a bola conosco, de
+  // qualquer data. Nunca é cortada pelo período — pendência de dias atrás não pode sumir.
+  const isPendingFolder = folder === 'pending'
+  // Contador da pasta: sempre calculado (mesmo escopo, sem data, sem os demais filtros da pasta),
+  // para aparecer na lateral mesmo quando outra pasta está aberta. Usa cópia dos parâmetros
+  // neste ponto — o Postgres rejeita parâmetros sobrando na query.
+  const pendingCountArgs = [...args]
+  const { rows: pendingRows } = await pool.query(
+    `SELECT COUNT(*)::int AS total
+       FROM mensageria.conversations c
+      WHERE ${[...where, `c.status IN ('open','pending')`, `c.bola_com = 'nos'`].join(' AND ')}`,
+    pendingCountArgs,
+  )
+  const pendingCount = pendingRows[0]?.total ?? 0
+  if (isPendingFolder) {
+    where.push(`c.status IN ('open','pending')`, `c.bola_com = 'nos'`)
+  }
 
   if (status) { args.push(status); where.push(`c.status = $${args.length}`) }
   if (inboxId) { args.push(inboxId); where.push(`c.inbox_id = $${args.length}`) }
@@ -82,8 +104,9 @@ export async function GET(request: NextRequest) {
   else if (assigneeId === 'me') { args.push(payload.userId); where.push(`c.assignee_id = $${args.length}`) }
   else if (assigneeId) { args.push(assigneeId); where.push(`c.assignee_id = $${args.length}`) }
   if (search) { args.push(`%${search}%`); where.push(`(ct.name ILIKE $${args.length} OR ct.phone ILIKE $${args.length})`) }
-  if (dateFrom) { args.push(dateFrom); where.push(`(c.last_message_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${args.length}::date`) }
-  if (dateTo) { args.push(dateTo); where.push(`(c.last_message_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${args.length}::date`) }
+  // Período não se aplica à pasta de pendentes (ver acima).
+  if (dateFrom && !isPendingFolder) { args.push(dateFrom); where.push(`(c.last_message_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${args.length}::date`) }
+  if (dateTo && !isPendingFolder) { args.push(dateTo); where.push(`(c.last_message_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${args.length}::date`) }
 
   // Contagem total do filtro (sem cursor/página) — usada no contador da pasta "Todas"
   // e no total de páginas do Painel do Gestor. JOIN inboxes é necessário mesmo aqui
@@ -134,7 +157,7 @@ export async function GET(request: NextRequest) {
   const { rows } = await pool.query(
     `SELECT
        c.id, c.status, c.priority, c.unread_count, c.last_message_at, c.handled_by_bot,
-       c.assignee_id, c.created_at, c.team_id,
+       c.assignee_id, c.created_at, c.team_id, c.bola_com, c.bola_desde,
        EXTRACT(EPOCH FROM (c.first_response_at - c.created_at)) AS first_response_duration_sec,
        ct.id AS contact_id, ct.name AS contact_name, ct.phone AS contact_phone,
        ct.avatar_url AS contact_avatar_url, ct.lead_uuid,
@@ -174,6 +197,9 @@ export async function GET(request: NextRequest) {
       teamId: r.team_id,
       teamName: r.team_name,
       firstResponseDurationSec: r.first_response_duration_sec != null ? Math.round(Number(r.first_response_duration_sec)) : null,
+      // Bola: 'nos' = aguardando nossa resposta; 'cliente' = aguardando o contato; null = resolvida.
+      bolaCom: r.bola_com ?? null,
+      bolaDesde: r.bola_desde ?? null,
       assignee: r.assignee_id ? { id: r.assignee_id, name: r.assignee_name } : null,
       contact: {
         id: r.contact_id,
@@ -186,6 +212,7 @@ export async function GET(request: NextRequest) {
     })),
     nextCursor,
     totalCount,
+    pendingCount,
     totalPages: page !== null ? Math.max(1, Math.ceil(totalCount / pageSize)) : null,
     kpis,
   })

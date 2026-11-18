@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/database/connection';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
+import { isTenantAdminFromPayload } from '@/lib/mensageria/visibilityScope';
 
 export const dynamic = 'force-dynamic';
+
+/** Só o administrador da empresa (ou Master) altera benchmarks. Leitura segue aberta. */
+const FORBIDDEN_NOT_ADMIN = { error: 'Apenas o administrador da empresa pode alterar os parâmetros.' };
 
 /**
  * GET  /api/admin/campanhas/intelligence/benchmarks/client?clientId=<uuid>
@@ -101,6 +105,9 @@ export async function POST(request: NextRequest) {
     if (!payload?.tenantId) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
+    if (!isTenantAdminFromPayload(payload as any)) {
+      return NextResponse.json(FORBIDDEN_NOT_ADMIN, { status: 403 });
+    }
     const tenantId = payload.tenantId;
 
     const body = await request.json();
@@ -143,6 +150,9 @@ export async function DELETE(request: NextRequest) {
     const payload = getTokenPayload(request);
     if (!payload?.tenantId) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    }
+    if (!isTenantAdminFromPayload(payload as any)) {
+      return NextResponse.json(FORBIDDEN_NOT_ADMIN, { status: 403 });
     }
     const tenantId = payload.tenantId;
 

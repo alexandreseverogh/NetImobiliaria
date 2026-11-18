@@ -9,6 +9,7 @@ import { publishMensageriaEvent } from '@/lib/mensageria/realtime'
 import { checkFirstResponseBreach } from '@/lib/mensageria/sla'
 import { resolveMensageriaScope, isTenantAdminFromPayload, scopeToSql } from '@/lib/mensageria/visibilityScope'
 import { touchPendencyByConversation } from '@/lib/crm/pendencia/pendencyState'
+import { recomputeConversationBola } from '@/lib/mensageria/pendency'
 
 export const dynamic = 'force-dynamic'
 
@@ -137,6 +138,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       console.error('[mensageria/messages] falha ao atualizar pendência de atendimento:', err)
     })
   }
+  // "De quem é a bola" da conversa: nossa resposta pública devolve a bola ao contato.
+  // Nota interna não devolve (recomputeConversationBola ignora is_private).
+  await recomputeConversationBola(params.id).catch((err) => {
+    console.error('[mensageria/messages] falha ao atualizar bola da conversa:', err)
+  })
 
   // 2. Envio real pelo canal (pulado para notas internas)
   let sendResult: { ok: boolean; externalId?: string; error?: string } = { ok: true }

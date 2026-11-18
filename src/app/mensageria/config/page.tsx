@@ -5,8 +5,9 @@ import Link from 'next/link'
 import {
   InboxStackIcon, UsersIcon, TagIcon, ChatBubbleBottomCenterTextIcon,
   ClockIcon, PlusIcon, TrashIcon, CheckCircleIcon, XCircleIcon, StarIcon, CpuChipIcon,
-  BookOpenIcon, PencilIcon, XMarkIcon, ChevronDownIcon,
+  BookOpenIcon, PencilIcon, XMarkIcon, ChevronDownIcon, ClipboardDocumentCheckIcon,
 } from '@heroicons/react/24/outline'
+import { AuditSettingsTab } from '@/components/mensageria/AuditSettingsTab'
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
 import { adminFetch } from '@/lib/auth/adminFetch'
 import EmojiTextarea from '@/components/mensageria/EmojiTextarea'
@@ -16,7 +17,7 @@ import { LlmCascadeSection } from '@/components/crm/LlmCascadeSection'
 import { AgentWhatsAppChannelSection } from '@/components/crm/AgentWhatsAppChannelSection'
 import { WhatsAppWebhookSection } from '@/components/crm/WhatsAppWebhookSection'
 
-type Tab = 'inboxes' | 'teams' | 'labels' | 'canned' | 'sla' | 'bot' | 'knowledge'
+type Tab = 'inboxes' | 'teams' | 'labels' | 'canned' | 'sla' | 'bot' | 'knowledge' | 'audit'
 
 const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: 'inboxes', label: 'Inboxes', icon: InboxStackIcon },
@@ -26,6 +27,7 @@ const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: st
   { id: 'sla', label: 'SLA', icon: ClockIcon },
   { id: 'bot', label: 'Bot', icon: CpuChipIcon },
   { id: 'knowledge', label: 'Base de Conhecimento', icon: BookOpenIcon },
+  { id: 'audit', label: 'Auditoria', icon: ClipboardDocumentCheckIcon },
 ]
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -56,6 +58,8 @@ export default function MensageriaConfigPage() {
   // Aba Bot: fica bloqueada para o administrador da empresa enquanto o Master não liberar.
   // O Master (is_system_role) sempre vê a aba.
   const [botLocked, setBotLocked] = useState(false)
+  // Bot ligado mesmo sem liberação (ex.: liberação revogada): a aba segue aberta para permitir desligar.
+  const [botWasActive, setBotWasActive] = useState(false)
   useEffect(() => {
     let cancelled = false
     fetch('/api/admin/mensageria/bot-flows')
@@ -63,6 +67,7 @@ export default function MensageriaConfigPage() {
       .then(data => {
         if (cancelled || !data) return
         setBotLocked(!data.botAtivacaoLiberada && !data.isMaster)
+        setBotWasActive(!!data.flow?.isActive)
       })
       .catch(() => {})
     return () => { cancelled = true }
@@ -70,16 +75,16 @@ export default function MensageriaConfigPage() {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-[#020c1b] px-6 py-6">
-      <div className="max-w-4xl mx-auto">
+      <div className="w-full max-w-none mx-auto">
         <h1 className="text-lg font-semibold text-white mb-1">Configurações — Mensageria</h1>
         <p className="text-sm text-slate-400 mb-6">Canais, times, etiquetas, respostas rápidas e políticas de SLA.</p>
 
-        <div className="flex items-center gap-1 border-b border-white/5 mb-6 overflow-x-auto">
-          {TABS.filter((t) => !(t.id === 'bot' && botLocked)).map((t) => (
+        <div className="flex flex-wrap items-center gap-1 border-b border-white/5 mb-6">
+          {TABS.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-1.5 px-3.5 py-2.5 text-sm font-medium border-b-2 transition-colors shrink-0 ${
+              className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 tab === t.id ? 'border-[#c5a028] text-[#d4af37]' : 'border-transparent text-slate-500 hover:text-slate-300'
               }`}
             >
@@ -94,15 +99,11 @@ export default function MensageriaConfigPage() {
         {tab === 'canned' && <CannedTab />}
         {tab === 'sla' && <SlaTab />}
         {tab === 'bot' && botLocked && (
-          <div className="rounded-2xl border border-white/8 bg-[#0d1b2e] p-10 text-center">
-            <p className="text-sm font-semibold text-white">Bot de atendimento indisponível</p>
-            <p className="text-xs text-slate-400 mt-2">
-              A configuração do bot ainda não foi liberada para esta empresa. Solicite à equipe da plataforma.
-            </p>
-          </div>
+          <BotLockedNotice botWasActive={botWasActive} onDeactivated={() => setBotWasActive(false)} />
         )}
         {tab === 'bot' && !botLocked && <BotTab />}
         {tab === 'knowledge' && <KnowledgeTab />}
+        {tab === 'audit' && <AuditSettingsTab onClose={() => setTab('inboxes')} />}
       </div>
     </div>
   )
@@ -1201,6 +1202,56 @@ interface BotFlow {
 }
 interface TestMessage { id: string; direction: 'inbound' | 'outbound'; senderType: string; content: string | null; contentType?: string; attachments?: { url: string }[] | null; createdAt: string }
 
+/**
+ * Aba Bot sem liberação do Master: só o aviso. Se o bot ainda estiver ligado (liberação revogada),
+ * oferece apenas o botão de desativar — nenhum outro campo. Desativar é sempre permitido.
+ */
+function BotLockedNotice({ botWasActive, onDeactivated }: { botWasActive: boolean; onDeactivated: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const [erro, setErro] = useState('')
+
+  async function desativar() {
+    setBusy(true)
+    setErro('')
+    try {
+      const res = await adminFetch('/api/admin/mensageria/bot-flows', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: false }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        setErro(d.error || 'Falha ao desativar o bot.')
+        return
+      }
+      onDeactivated()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-amber-400/20 bg-[#0d1b2e] p-6">
+      <p className="text-sm font-semibold text-amber-300">Bot de atendimento</p>
+      <p className="text-xs text-slate-400 mt-2">
+        A ativação do bot ainda não foi liberada para esta empresa. Solicite à equipe da plataforma.
+      </p>
+      {botWasActive && (
+        <div className="mt-4 flex items-center gap-3">
+          <button
+            onClick={desativar}
+            disabled={busy}
+            className="h-9 px-4 rounded-lg text-xs font-semibold bg-red-500/15 text-red-300 hover:bg-red-500/25 disabled:opacity-50"
+          >
+            {busy ? 'Desativando…' : 'Desativar bot'}
+          </button>
+          {erro && <span className="text-xs text-red-400">{erro}</span>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function BotTab() {
   const [flow, setFlow] = useState<BotFlow | null>(null)
   const [loading, setLoading] = useState(true)
@@ -1213,6 +1264,8 @@ function BotTab() {
   const [segmentMaxTurnsDefault, setSegmentMaxTurnsDefault] = useState(6)
   // Liberação do Master: sem ela, a empresa não consegue ligar o bot (só o Master libera).
   const [botAtivacaoLiberada, setBotAtivacaoLiberada] = useState(false)
+  // Só o administrador da empresa (ou Master) altera o bot. Os demais veem em modo somente leitura.
+  const [canEdit, setCanEdit] = useState(false)
 
   const [inboxes, setInboxes] = useState<Inbox[]>([])
   const [testInboxId, setTestInboxId] = useState('')
@@ -1247,6 +1300,7 @@ function BotTab() {
       setKeywordsText(flowData?.handoffKeywords?.length ? flowData.handoffKeywords.join(', ') : keywordsText)
       setSegmentMaxTurnsDefault(flowJson.segmentMaxTurnsDefault ?? 6)
       setBotAtivacaoLiberada(!!flowJson.botAtivacaoLiberada)
+      setCanEdit(!!flowJson.canEdit)
       // maxTurns nulo/ausente = tenant nunca sobrepôs — segue o padrão do segmento (editável
       // pelo Master), com opção de personalizar.
       setUseSegmentDefault(flowData?.maxTurns == null)
@@ -1442,7 +1496,12 @@ function BotTab() {
         </div>
 
         <div className="flex justify-end">
-          <PrimaryButton onClick={save} disabled={saving}>
+          {!canEdit && (
+            <p className="text-xs text-amber-300 mr-auto self-center">
+              Somente leitura. Apenas o administrador da empresa altera a configuração do bot.
+            </p>
+          )}
+          <PrimaryButton onClick={save} disabled={saving || !canEdit}>
             {saving ? 'Salvando...' : flow ? 'Salvar alterações' : 'Ativar bot'}
           </PrimaryButton>
         </div>

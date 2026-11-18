@@ -7,6 +7,7 @@ import {
 import { adminFetch } from '@/lib/auth/adminFetch'
 import DateInputPtBR from '@/components/ui/DateInputPtBR'
 import ConversationThread from '@/components/mensageria/ConversationThread'
+import ResolutionAuditPanel from '@/components/mensageria/ResolutionAuditPanel'
 
 const CHANNEL_LABELS: Record<string, string> = {
   whatsapp: 'WhatsApp', webform: 'Formulário', manual: 'Manual', chatbot: 'Chatbot', webchat: 'Chat do site',
@@ -100,6 +101,7 @@ export default function PainelDoGestorPage() {
   const [loading, setLoading] = useState(true)
 
   const [drawerId, setDrawerId] = useState<string | null>(null)
+  const [view, setView] = useState<'fila' | 'auditoria'>('fila')
 
   useEffect(() => {
     adminFetch('/api/admin/mensageria/my-scope').then((r) => r.json()).then((d) => setScopeLevel(d.level ?? null)).catch(() => setScopeLevel(null))
@@ -171,6 +173,25 @@ export default function PainelDoGestorPage() {
         <p className="text-sm text-slate-400 mb-6">
           Fila operacional ao vivo{scopeLevel === 'team' ? ' — escopo do(s) time(s) que você lidera' : ''}.
         </p>
+
+        {/* Abas: fila operacional ao vivo × auditoria de resolução (só leitura, para o administrador) */}
+        <div className="flex items-center gap-1 mb-5 border-b border-white/8">
+          {([['fila', 'Fila operacional'], ['auditoria', 'Auditoria de resolução']] as const).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setView(key)}
+              className={`px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors ${
+                view === key ? 'border-[#c5a028] text-[#d4af37]' : 'border-transparent text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {view === 'auditoria' ? (
+          <ResolutionAuditPanel dateFrom={dateFrom} dateTo={dateTo} onOpen={(id) => setDrawerId(id)} />
+        ) : (<>
 
         {/* KPIs */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
@@ -297,6 +318,7 @@ export default function PainelDoGestorPage() {
             </div>
           )}
         </div>
+        </>)}
       </div>
 
       {/* Drawer — reaproveita o componente de thread da Caixa de Entrada */}
