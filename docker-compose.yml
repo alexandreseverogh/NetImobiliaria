@@ -164,6 +164,34 @@ services:
       CRON_SECRET: ${CRON_SECRET:-dev-cron-secret-local}
       # Windows/Docker: garante que scripts/watchers (se existirem) detectem mudanças
       CHOKIDAR_USEPOLLING: "true"
+      # Só coleta de notícias (feed-sync). Os jobs de negócio ficam no serviço `cron`.
+      CRON_GROUP: news
+    volumes:
+      - .:/app
+      - /app/node_modules
+
+  # Jobs de negócio (mensageria, CRM, campanhas) — separado do feed de notícias para que
+  # uma falha do feed não derrube os crons de atendimento. Espelha prod_cron/staging_cron da VPS.
+  cron:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: netimobiliaria-cron
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-net_imobiliaria}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_API_URL: "http://app:3000"
+      CRON_SECRET: ${CRON_SECRET:-dev-cron-secret-local}
+      CRON_GROUP: business
     volumes:
       - .:/app
       - /app/node_modules

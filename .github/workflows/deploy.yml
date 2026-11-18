@@ -80,13 +80,16 @@ jobs:
           # ── Stripe (cobrança dos módulos billáveis) ───────
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          # ── Cron (autenticação dos endpoints /api/cron/*) ─
+          PROD_CRON_SECRET: ${{ secrets.PROD_CRON_SECRET }}
+          STAGING_CRON_SECRET: ${{ secrets.STAGING_CRON_SECRET }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_KEY }}
           port: ${{ secrets.VPS_PORT }}
           command_timeout: 20m
-          envs: ANTHROPIC_API_KEY,GEMINI_API_KEY,EVOLUTION_API_URL,EVOLUTION_API_KEY,EVOLUTION_INSTANCE,SLACK_WEBHOOK_URL,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,GOOGLE_SERVICE_ACCOUNT_KEY,SMTP_HOST,SMTP_PORT,SMTP_SECURE,SMTP_USER,SMTP_PASS,SMTP_FROM_NAME,STRIPE_SECRET_KEY,STRIPE_WEBHOOK_SECRET
+          envs: ANTHROPIC_API_KEY,GEMINI_API_KEY,EVOLUTION_API_URL,EVOLUTION_API_KEY,EVOLUTION_INSTANCE,SLACK_WEBHOOK_URL,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,GOOGLE_SERVICE_ACCOUNT_KEY,SMTP_HOST,SMTP_PORT,SMTP_SECURE,SMTP_USER,SMTP_PASS,SMTP_FROM_NAME,STRIPE_SECRET_KEY,STRIPE_WEBHOOK_SECRET,PROD_CRON_SECRET,STAGING_CRON_SECRET
           script: |
             set -e
             BRANCH="${{ github.event.inputs.branch }}"

@@ -20,6 +20,25 @@ if (!CRON_SECRET) {
 }
 
 /**
+ * Grupo de jobs que este processo executa. Separa as duas responsabilidades para que uma falha
+ * numa não derrube a outra:
+ *   - news:     coleta de notícias do feed (landpaging). Depende de fontes externas e do tradutor.
+ *   - business: mensageria, CRM, campanhas e distribuição de leads. Crítico: não pode parar.
+ *   - all:      todos os jobs num processo só (padrão; uso de desenvolvimento).
+ */
+const CRON_GROUP = (process.env.CRON_GROUP || 'all').toLowerCase();
+if (!['all', 'news', 'business'].includes(CRON_GROUP)) {
+  console.error(`[FATAL] CRON_GROUP inválido: "${CRON_GROUP}". Use all, news ou business.`);
+  process.exit(1);
+}
+
+/** Registra o job só se o grupo deste processo o incluir. */
+function scheduleJob(group, expression, task, options) {
+  if (CRON_GROUP !== 'all' && CRON_GROUP !== group) return null;
+  return cron.schedule(expression, task, options);
+}
+
+/**
  * Cria novos jobs na fila
  */
 async function createJobs() {
@@ -135,7 +154,7 @@ async function processAllPendingJobs() {
 console.log('⏰ Configurando agendador de feeds...\n');
 
 // 1. Criar e processar jobs uma única vez ao dia (às 03:00 da manhã)
-cron.schedule('0 3 * * *', async () => {
+scheduleJob('news', '0 3 * * *', async () => {
   console.log(`\n🕐 [${new Date().toISOString()}] Executando sincronização diária de feeds...`);
   try {
     const { processAllPendingJobs: processDirect, cleanupOldFeeds } = require('./feed-cron-processor.js');
@@ -158,7 +177,7 @@ cron.schedule('0 3 * * *', async () => {
 
 // 2. EXECUTAR TRANSBORDO E LIMPEZA DE HISTÓRICO (A CADA 5 MINUTOS)
 // Regra: Verifica SLAs de corretores, redistribui leads e limpa histórico antigo.
-cron.schedule('*/5 * * * *', async () => {
+scheduleJob('business', '*/5 * * * *', async () => {
   console.log(`🔄 [${new Date().toISOString()}] Iniciando transbordo de leads e manutenção de histórico...`);
   try {
     const response = await fetch(`${API_BASE_URL}/api/cron/transbordo`, {
@@ -191,7 +210,7 @@ cron.schedule('*/5 * * * *', async () => {
 
 // 3. AUDIT REPORT MENSAL — 1º dia do mês às 09:00
 // Gera relatório de auditoria (30 dias) para todos os tenants e seus clientes.
-cron.schedule('0 9 1 * *', async () => {
+scheduleJob('business', '0 9 1 * *', async () => {
   console.log(`\n📊 [${new Date().toISOString()}] Iniciando audit-monthly...`);
   try {
     const response = await fetch(`${API_BASE_URL}/api/cron/campanhas/audit-monthly`, {
@@ -222,7 +241,7 @@ cron.schedule('0 9 1 * *', async () => {
 
 // 4. AUDIT REPORT SEMANAL — todo domingo às 18:00
 // Gera relatório de auditoria (7 dias) para todos os tenants e seus clientes.
-cron.schedule('0 18 * * 0', async () => {
+scheduleJob('business', '0 18 * * 0', async () => {
   console.log(`\n📊 [${new Date().toISOString()}] Iniciando audit-weekly...`);
   try {
     const response = await fetch(`${API_BASE_URL}/api/cron/campanhas/audit-weekly`, {
@@ -254,7 +273,7 @@ cron.schedule('0 18 * * 0', async () => {
 // 5. REALOCAÇÃO DE VERBA — medição D+14 — diário às 07:00
 // docs/PLANO_TIKTOK.md §8.4 — fecha o loop de aprendizado do motor de realocação (T4): mede
 // propostas EXECUTED há ≥14 dias, grava verdict, alimenta o circuit breaker (H15).
-cron.schedule('0 7 * * *', async () => {
+scheduleJob('business', '0 7 * * *', async () => {
   console.log(`\n💰 [${new Date().toISOString()}] Iniciando realloc-measure...`);
   try {
     const response = await fetch(`${API_BASE_URL}/api/cron/campanhas/realloc-measure`, {
@@ -284,7 +303,7 @@ cron.schedule('0 7 * * *', async () => {
 });
 
 // FASE 16.F — Publicação orgânica agendada: a cada 5 minutos
-cron.schedule('*/5 * * * *', async () => {
+scheduleJob('business', '*/5 * * * *', async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/cron/campanhas/organic-publish`, {
       method: 'POST',
@@ -308,7 +327,7 @@ cron.schedule('*/5 * * * *', async () => {
 
 // MENSAGERIA — Varredura de SLA estourado (M3): a cada 5 minutos
 // Marca conversas com 1ª resposta atrasada e dispara alerta WhatsApp/Slack do tenant.
-cron.schedule('*/5 * * * *', async () => {
+scheduleJob('business', '*/5 * * * *', async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/cron/mensageria/sla-check`, {
       method: 'POST',
@@ -330,9 +349,34 @@ cron.schedule('*/5 * * * *', async () => {
   timezone: 'America/Sao_Paulo'
 });
 
+// MENSAGERIA — Drenagem da fila de eventos da Evolution (webhook_inbox): a cada minuto.
+// Processa o que o webhook gravou mas não conseguiu processar na hora (queda, falha, backoff).
+// Nenhuma mensagem se perde: o evento só sai da fila quando processado.
+scheduleJob('business', '* * * * *', async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/cron/mensageria/webhook-drain`, {
+      method: 'POST',
+      headers: { 'x-cron-secret': CRON_SECRET, 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+      console.error(`❌ [mensageria-webhook-drain] Erro (${response.status})`);
+      return;
+    }
+    const data = await response.json();
+    if (data.claimed > 0) {
+      console.log(`✅ [mensageria-webhook-drain] claimed=${data.claimed} done=${data.done} retry=${data.retry} failed=${data.failed}`);
+    }
+  } catch (error) {
+    console.error('❌ [mensageria-webhook-drain] Erro de conexão:', error.message);
+  }
+}, {
+  scheduled: true,
+  timezone: 'America/Sao_Paulo'
+});
+
 // CRM — Agentes de Aceleração, varredura SCHEDULED_SCAN (F1 Velocidade de 1º Contato):
 // a cada 5 minutos. docs/PLANO_AGENTES_ACELERACAO_CRM.md.
-cron.schedule('*/5 * * * *', async () => {
+scheduleJob('business', '*/5 * * * *', async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/cron/crm/agentes-scan`, {
       method: 'POST',
@@ -357,7 +401,7 @@ cron.schedule('*/5 * * * *', async () => {
 // CRM — Agentes de Aceleração, recalibração de score (F5): job DIÁRIO, não lead-scoped
 // como os outros 4 agentes — nunca passa pelo scan de 5 em 5 min. 04:00, janela de baixo
 // tráfego. docs/PLANO_AGENTES_ACELERACAO_CRM.md §3.2.
-cron.schedule('0 4 * * *', async () => {
+scheduleJob('business', '0 4 * * *', async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/cron/crm/score-recalibration`, {
       method: 'POST',
@@ -383,7 +427,7 @@ cron.schedule('0 4 * * *', async () => {
 // consistentemente > 0 significa que algum caminho de escrita não está chamando o helper.
 // 03:30, entre o feed sync (03:00) e a recalibração de score (04:00).
 // docs/PLANO_PENDENCIA_ATENDIMENTO.md §5.
-cron.schedule('30 3 * * *', async () => {
+scheduleJob('business', '30 3 * * *', async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/cron/crm/pendencia-reconciliar`, {
       method: 'POST',
@@ -407,7 +451,7 @@ cron.schedule('30 3 * * *', async () => {
 // credencial de cada tenant+rede ainda responde (validateCredentials, já existente em todo
 // adapter) — bem mais frequente que o sync pesado (6h), garante que o disjuntor da 19.2 nunca
 // fica preso pelo cooldown inteiro sem uma tentativa de recuperação. docs/CHECKPOINT.md.
-cron.schedule('0 * * * *', async () => {
+scheduleJob('business', '0 * * * *', async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/cron/campanhas/network-healthcheck`, {
       method: 'POST',
@@ -435,7 +479,7 @@ cron.schedule('0 * * * *', async () => {
 // que de fato altera segmentação de campanha (USE_LOOKALIKE_AUDIENCE) sempre passa por
 // aprovação humana via PIN, disparada pelo ciclo do agente (agentMonitor.ts), não por aqui.
 // Diário às 07:30 — negócio fechado não muda em alta frequência, não precisa de mais que isso.
-cron.schedule('30 7 * * *', async () => {
+scheduleJob('business', '30 7 * * *', async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/cron/campanhas/audiences-refresh`, {
       method: 'POST',
@@ -459,7 +503,7 @@ cron.schedule('30 7 * * *', async () => {
 // Diário às 06:00, conforme o próprio comentário da rota. Achado real em 2026-09-03: existia
 // desde a FASE 18.2, documentada como "cron diário" no CHECKPOINT, mas nunca foi de fato
 // agendada em lugar nenhum — só disparada manualmente durante depuração.
-cron.schedule('0 6 * * *', async () => {
+scheduleJob('business', '0 6 * * *', async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/cron/campanhas/exogenous-signals`, {
       method: 'POST',
@@ -483,7 +527,7 @@ cron.schedule('0 6 * * *', async () => {
 // em hora, deslocado 15min do canário de rede (:00) pra não bater os dois no mesmo instante.
 // Achado real em 2026-09-03: rota já existia e já dizia no próprio comentário "chamado pelo
 // cron (ex: a cada hora)", mas nunca tinha sido agendada.
-cron.schedule('15 * * * *', async () => {
+scheduleJob('business', '15 * * * *', async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/cron/agent-expire`, {
       method: 'GET',
@@ -505,19 +549,27 @@ cron.schedule('15 * * * *', async () => {
   timezone: 'America/Sao_Paulo'
 });
 
-console.log('✅ Agendador configurado:');
-console.log('   • Feed sync diário        → 03:00 (America/Sao_Paulo)');
-console.log('   • Transbordo de leads     → a cada 5 min');
-console.log('   • Audit report mensal     → 1º dia do mês às 09:00');
-console.log('   • Audit report semanal    → domingos às 18:00');
-console.log('   • Publicação orgânica     → a cada 5 min (agendadas)');
-console.log('   • Mensageria SLA check    → a cada 5 min');
-console.log('   • CRM agentes (scan)      → a cada 5 min');
-console.log('   • CRM pendência (reconc.) → diário às 03:30');
-console.log('   • CRM recalibração score  → diário às 04:00');
-console.log('   • Canário de rede (19.3)  → de hora em hora');
-console.log('   • Sinais exógenos (Trends)→ diário às 06:00');
-console.log('   • Expira PIN de agente    → de hora em hora (15min)');
+const SCHEDULE_SUMMARY = [
+  { group: 'news',     text: 'Feed sync diário        → 03:00 (America/Sao_Paulo)' },
+  { group: 'business', text: 'Transbordo de leads     → a cada 5 min' },
+  { group: 'business', text: 'Audit report mensal     → 1º dia do mês às 09:00' },
+  { group: 'business', text: 'Audit report semanal    → domingos às 18:00' },
+  { group: 'business', text: 'Publicação orgânica     → a cada 5 min (agendadas)' },
+  { group: 'business', text: 'Mensageria SLA check    → a cada 5 min' },
+  { group: 'business', text: 'CRM agentes (scan)      → a cada 5 min' },
+  { group: 'business', text: 'CRM pendência (reconc.) → diário às 03:30' },
+  { group: 'business', text: 'CRM recalibração score  → diário às 04:00' },
+  { group: 'business', text: 'Canário de rede (19.3)  → de hora em hora' },
+  { group: 'business', text: 'Sinais exógenos (Trends)→ diário às 06:00' },
+  { group: 'business', text: 'Expira PIN de agente    → de hora em hora (15min)' },
+];
+
+console.log(`✅ Agendador configurado (CRON_GROUP=${CRON_GROUP}):`);
+for (const item of SCHEDULE_SUMMARY) {
+  if (CRON_GROUP === 'all' || CRON_GROUP === item.group) {
+    console.log(`   • ${item.text}`);
+  }
+}
 console.log('\n🚀 Agendador rodando... (Ctrl+C para parar)\n');
 
 // Removido o boot sync imediato para respeitar a janela das 03:00h conforme solicitado pelo usuário.

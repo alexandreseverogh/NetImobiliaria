@@ -160,6 +160,10 @@ log "[3/5] Gerando .env de build para $AMBIENTE..."
 set -o allexport; source "$ENV_FILE"; set +o allexport
 
 if [ "$AMBIENTE" == "producao" ]; then
+  if [ -z "${PROD_CRON_SECRET:-}" ]; then
+    log "❌ PROD_CRON_SECRET ausente — deploy abortado (crons falhariam com 401)"
+    exit 1
+  fi
   cat > "$TARGET_SOURCE/.env" <<ENVEOF
 DB_HOST=prod_db
 DB_PORT=5432
@@ -204,6 +208,10 @@ ENVEOF
   log "   ✅ .env de PRODUÇÃO gerado"
 
 elif [ "$AMBIENTE" == "staging" ]; then
+  if [ -z "${STAGING_CRON_SECRET:-}" ]; then
+    log "❌ STAGING_CRON_SECRET ausente — deploy abortado (crons falhariam com 401)"
+    exit 1
+  fi
   cat > "$TARGET_SOURCE/.env" <<ENVEOF
 DB_HOST=staging_db
 DB_PORT=5432
@@ -247,10 +255,12 @@ log "[4/5] Construindo imagens Docker para $AMBIENTE..."
 if [ "$AMBIENTE" == "producao" ]; then
   docker build -t "net-imobiliaria-prod_app:latest"  -f "$BASE_DIR/Dockerfile.prod" "$TARGET_SOURCE"
   docker build -t "net-imobiliaria-prod_feed:latest" -f "$BASE_DIR/Dockerfile.feed" "$TARGET_SOURCE"
+  docker build -t "net-imobiliaria-prod_cron:latest"  -f "$BASE_DIR/Dockerfile.feed" "$TARGET_SOURCE"
   log "   ✅ Imagens de PRODUÇÃO construídas"
 else
   docker build -t "net-imobiliaria-staging_app:latest"  -f "$BASE_DIR/Dockerfile.prod" "$TARGET_SOURCE"
   docker build -t "net-imobiliaria-staging_feed:latest" -f "$BASE_DIR/Dockerfile.feed" "$TARGET_SOURCE"
+  docker build -t "net-imobiliaria-staging_cron:latest"  -f "$BASE_DIR/Dockerfile.feed" "$TARGET_SOURCE"
   log "   ✅ Imagens de STAGING construídas"
 fi
 
@@ -271,7 +281,7 @@ if [ "$AMBIENTE" == "producao" ]; then
   # torna esse `up -d` tolerante e despeja o log do container na hora, antes de seguir pro resto
   # do fluxo (que já tenta de novo com o loop manual + aplica migrations + confere o status
   # final, com outro log em caso de falha persistente).
-  docker compose -f "$COMPOSE_FILE" up -d --no-build prod_app prod_feed || {
+  docker compose -f "$COMPOSE_FILE" up -d --no-build prod_app prod_feed prod_cron || {
     log "   ⚠️  'docker compose up' falhou (provável healthcheck do próprio container, não dependência externa) — log real do prod_app:"
     docker compose -f "$COMPOSE_FILE" logs --tail=150 prod_app || true
   }
@@ -297,7 +307,7 @@ if [ "$AMBIENTE" == "producao" ]; then
 
 else
   # Ver comentário equivalente no branch "producao" acima — mesma causa raiz.
-  docker compose -f "$COMPOSE_FILE" up -d --no-build staging_app staging_feed || {
+  docker compose -f "$COMPOSE_FILE" up -d --no-build staging_app staging_feed staging_cron || {
     log "   ⚠️  'docker compose up' falhou (provável healthcheck do próprio container, não dependência externa) — log real do staging_app:"
     docker compose -f "$COMPOSE_FILE" logs --tail=150 staging_app || true
   }

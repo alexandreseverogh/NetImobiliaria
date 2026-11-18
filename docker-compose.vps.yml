@@ -222,6 +222,27 @@ services:
       CRON_SECRET: ${PROD_CRON_SECRET}
       # Usar tradutor local próprio
       LIBRETRANSLATE_URL: "http://libretranslate:5000"
+      # Só o grupo de notícias. Os jobs de negócio (mensageria/CRM/campanhas) rodam em prod_cron.
+      CRON_GROUP: news
+    command: ["node", "scripts/feed-cron-scheduler.js"]
+
+  # Jobs de NEGÓCIO: mensageria (fila de webhook, SLA), CRM (transbordo, agentes), campanhas.
+  # Separado do prod_feed para que uma falha de notícias (fonte fora do ar, tradutor parado)
+  # nunca interrompa a troca de mensagens nem a distribuição de leads.
+  prod_cron:
+    build:
+      context: ${PROD_CONTEXT:-.}
+      dockerfile: Dockerfile.feed
+    restart: unless-stopped
+    depends_on:
+      prod_app:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_API_URL: "http://prod_app:3000"
+      CRON_SECRET: ${PROD_CRON_SECRET}
+      CRON_GROUP: business
     command: ["node", "scripts/feed-cron-scheduler.js"]
 
   # Tradutor gratuito e sem limites (self-hosted)
@@ -351,6 +372,7 @@ services:
       NEXT_PUBLIC_API_URL: "http://staging_app:3000"
       CRON_SECRET: ${STAGING_CRON_SECRET}
       LIBRETRANSLATE_URL: ${LIBRETRANSLATE_URL:-https://libretranslate.com}
+      CRON_GROUP: news
     command: ["node", "scripts/feed-cron-scheduler.js"]
     healthcheck:
       test:
@@ -364,6 +386,23 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  # Jobs de NEGÓCIO do staging (ver prod_cron). Separado do staging_feed pelo mesmo motivo.
+  staging_cron:
+    build:
+      context: ${STAGING_CONTEXT:-.}
+      dockerfile: Dockerfile.feed
+    restart: unless-stopped
+    depends_on:
+      staging_app:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_API_URL: "http://staging_app:3000"
+      CRON_SECRET: ${STAGING_CRON_SECRET}
+      CRON_GROUP: business
+    command: ["node", "scripts/feed-cron-scheduler.js"]
 
   # =========================
   # REVERSE PROXY ÚNICO (80/443)

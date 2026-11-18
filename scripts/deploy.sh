@@ -227,11 +227,11 @@ header "Subindo containers"
 
 if [[ "$UPDATE_MODE" == true ]]; then
   info "Modo update: rebuild apenas do app e feed, sem recriar db/minio/redis."
-  $COMPOSE -f docker-compose.vps.yml build prod_app prod_feed staging_app staging_feed
-  $COMPOSE -f docker-compose.vps.yml up -d --no-deps prod_app prod_feed staging_app staging_feed
+  $COMPOSE -f docker-compose.vps.yml build prod_app prod_feed prod_cron staging_app staging_feed staging_cron
+  $COMPOSE -f docker-compose.vps.yml up -d --no-deps prod_app prod_feed prod_cron staging_app staging_feed staging_cron
 else
   $COMPOSE -f docker-compose.vps.yml pull redis minio libretranslate caddy 2>/dev/null || true
-  $COMPOSE -f docker-compose.vps.yml build prod_app prod_feed staging_app staging_feed
+  $COMPOSE -f docker-compose.vps.yml build prod_app prod_feed prod_cron staging_app staging_feed staging_cron
   $COMPOSE -f docker-compose.vps.yml up -d
 fi
 
