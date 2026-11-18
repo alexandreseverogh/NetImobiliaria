@@ -576,8 +576,17 @@ já estava com 3 das 5 rotas mortas (renomeadas em sessões anteriores sem atual
 duplicava trabalho que os outros 2 já cobriam. Removido. **A partir de agora, só existem 2
 mecanismos legítimos — nunca adicionar um 3º sem revisar esta seção primeiro:**
 
-1. **`scripts/feed-cron-scheduler.js`** — processo Node persistente (`node-cron`), roda dentro
-   do container `prod_feed`/`staging_feed` (`docker-compose.vps.yml`). Chama rotas HTTP via
+1. **`scripts/feed-cron-scheduler.js`** — processo Node persistente (`node-cron`). Desde 2026-11-18
+   roda em **dois containers** a partir da mesma imagem (`Dockerfile.feed`), separados pela
+   variável `CRON_GROUP` para que uma falha de um não derrube o outro:
+   - `prod_feed` / `staging_feed` → `CRON_GROUP=news`: só a coleta de notícias (feed-sync, 03h).
+     Depende de fontes externas e do LibreTranslate. Falha aqui não afeta negócio.
+   - `prod_cron` / `staging_cron` → `CRON_GROUP=business`: os 14 jobs de mensageria, CRM e
+     campanhas (fila de webhook a cada minuto, SLA, transbordo, agentes, auditorias, etc.).
+     **Crítico:** um deploy precisa subir este container também (`scripts/deploy.sh` e
+     `scripts/vps/deploy-github.sh` já incluem).
+   - `CRON_GROUP` ausente = `all` (todos os jobs num processo; uso de desenvolvimento).
+   Chama rotas HTTP via
    `fetch` com header `x-cron-secret`, contra `prod_app`/`staging_app` (endereço interno do
    Docker network). 14 jobs hoje: feed-sync (diário 03h), transbordo (5/5min), audit-monthly
    (1º dia do mês), audit-weekly (domingo), realloc-measure (diário 07h), organic-publish
