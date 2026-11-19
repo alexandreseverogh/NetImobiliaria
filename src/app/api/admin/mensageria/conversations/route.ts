@@ -121,6 +121,39 @@ export async function GET(request: NextRequest) {
   )
   const totalCount = countRows[0]?.total ?? 0
 
+  // Total da caixa sem o filtro de atribuição (Minhas / Não atribuídas).
+  // Alimenta o contador de "Todas", que não deve mudar com a pasta selecionada.
+  const allCountWhere: string[] = []
+  const allCountArgs: unknown[] = []
+  if (labelId) {
+    const ids = labelId.split(',').map((x) => x.trim()).filter(Boolean)
+    if (ids.length > 0) {
+      allCountArgs.push(ids)
+      allCountWhere.push(`EXISTS (SELECT 1 FROM mensageria.conversation_labels cl WHERE cl.conversation_id = c.id AND cl.label_id = ANY($${allCountArgs.length}::uuid[]))`)
+    }
+  }
+  if (search) {
+    allCountArgs.push(`%${search}%`)
+    allCountWhere.push(`(ct.name ILIKE $${allCountArgs.length} OR ct.phone ILIKE $${allCountArgs.length})`)
+  }
+  if (dateFrom) {
+    allCountArgs.push(dateFrom)
+    allCountWhere.push(`(c.last_message_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${allCountArgs.length}::date`)
+  }
+  if (dateTo) {
+    allCountArgs.push(dateTo)
+    allCountWhere.push(`(c.last_message_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${allCountArgs.length}::date`)
+  }
+  const { rows: allRows } = await pool.query(
+    `SELECT COUNT(*)::int AS total
+       FROM mensageria.conversations c
+       JOIN mensageria.contacts ct ON ct.id = c.contact_id
+       JOIN mensageria.inboxes ib ON ib.id = c.inbox_id
+      WHERE ${allCountWhere.length ? allCountWhere.join(' AND ') : 'TRUE'}`,
+    allCountArgs,
+  )
+  const allCount = allRows[0]?.total ?? 0
+
   let kpis: { emAberto: number; slaEstourado: number; tempoMedioSegundos: number | null } | null = null
   if (includeKpis) {
     const { rows: kpiRows } = await pool.query(
@@ -158,6 +191,9 @@ export async function GET(request: NextRequest) {
     `SELECT
        c.id, c.status, c.priority, c.unread_count, c.last_message_at, c.handled_by_bot,
        c.assignee_id, c.created_at, c.team_id, c.bola_com, c.bola_desde,
+       sp.continuity_target_min AS sla_continuity_target_min,
+       (sp.continuity_target_min IS NOT NULL AND c.bola_com = 'nos'
+         AND c.bola_desde + make_interval(mins => sp.continuity_target_min) < now()) AS sla_continuity_expired,
        EXTRACT(EPOCH FROM (c.first_response_at - c.created_at)) AS first_response_duration_sec,
        ct.id AS contact_id, ct.name AS contact_name, ct.phone AS contact_phone,
        ct.avatar_url AS contact_avatar_url, ct.lead_uuid,
@@ -174,6 +210,8 @@ export async function GET(request: NextRequest) {
      JOIN mensageria.inboxes ib ON ib.id = c.inbox_id
      LEFT JOIN public.users u ON u.id = c.assignee_id
      LEFT JOIN mensageria.teams tm ON tm.id = c.team_id
+     LEFT JOIN mensageria.conversation_sla csl ON csl.conversation_id = c.id
+     LEFT JOIN mensageria.sla_policies sp ON sp.id = csl.policy_id
      WHERE ${listWhere.join(' AND ')}
      ORDER BY ${sortBy} ${sortDir} NULLS LAST
      ${limitOffsetClause}`,
@@ -200,6 +238,8 @@ export async function GET(request: NextRequest) {
       // Bola: 'nos' = aguardando nossa resposta; 'cliente' = aguardando o contato; null = resolvida.
       bolaCom: r.bola_com ?? null,
       bolaDesde: r.bola_desde ?? null,
+      slaContinuityTargetMin: r.sla_continuity_target_min ?? null,
+      slaContinuityExpired: r.sla_continuity_expired === true,
       assignee: r.assignee_id ? { id: r.assignee_id, name: r.assignee_name } : null,
       contact: {
         id: r.contact_id,
@@ -212,6 +252,7 @@ export async function GET(request: NextRequest) {
     })),
     nextCursor,
     totalCount,
+    allCount,
     pendingCount,
     totalPages: page !== null ? Math.max(1, Math.ceil(totalCount / pageSize)) : null,
     kpis,

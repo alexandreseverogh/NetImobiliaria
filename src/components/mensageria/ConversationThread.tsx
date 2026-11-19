@@ -9,6 +9,7 @@ import {
 } from '@heroicons/react/24/outline'
 import EmojiPicker from 'emoji-picker-react'
 import { adminFetch } from '@/lib/auth/adminFetch'
+import { LinkifiedText } from './LinkifiedText'
 
 interface Message {
   id: string
@@ -190,7 +191,7 @@ function MessageBubble({ message }: { message: Message }) {
             📎 {att?.name || 'Abrir documento'}
           </a>
         ) : (
-          <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+          <p className="text-sm whitespace-pre-wrap leading-relaxed"><LinkifiedText text={message.content ?? ''} /></p>
         )}
         {mediaUrl && message.content && (
           <p className="text-sm whitespace-pre-line break-words leading-relaxed mt-1">{message.content}</p>
@@ -259,11 +260,28 @@ export default function ConversationThread({ conversationId, onUpdated }: { conv
     })
   }
   const [isPrivateNote, setIsPrivateNote] = useState(false)
+
+  // Crescimento automático do composer: a altura acompanha o texto até o teto de 40% da tela.
+  useEffect(() => {
+    const el = composerRef.current
+    const wrap = composerWrapRef.current
+    if (!el || !wrap) return
+    // Teto: a altura do container inteiro da conversa. O campo começa no topo e cresce até
+    // o topo do container; além disso, a própria área rola (overflow no textarea).
+    const root = rootRef.current
+    const rootH = root ? root.clientHeight : window.innerHeight * 0.6
+    const maxH = Math.max(120, rootH - 140)
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, maxH) + 'px'
+    el.style.maxHeight = maxH + 'px'
+  }, [composer, detail?.id])
   const [sending, setSending] = useState(false)
   const [allLabels, setAllLabels] = useState<Label[]>([])
   const [showLabelPicker, setShowLabelPicker] = useState(false)
   const [cannedResponses, setCannedResponses] = useState<CannedResponse[]>([])
   const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const composerWrapRef = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
 
   async function loadDetail(silent = false) {
     if (!silent) setLoading(true)
@@ -409,7 +427,11 @@ export default function ConversationThread({ conversationId, onUpdated }: { conv
   function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] ?? null
     e.target.value = ''
-    if (!f) return
+    if (f) acceptAttachment(f)
+  }
+
+  // Valida e define o anexo pendente. Usada pelo clipe e pela colagem (Ctrl+V).
+  function acceptAttachment(f: File) {
     const ok = f.type.startsWith('image/') || f.type.startsWith('audio/') || f.type === 'application/pdf'
     if (!ok) { alert('Use imagem, PDF ou áudio.'); return }
     if (f.size > MAX_ATTACHMENT_BYTES) {
@@ -450,7 +472,7 @@ export default function ConversationThread({ conversationId, onUpdated }: { conv
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#0a192f]">
+    <div ref={rootRef} className="flex flex-col h-full bg-[#091628]">
       <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-[#c5a028]/15 border border-[#c5a028]/20 flex items-center justify-center text-[11px] font-semibold text-[#d4af37]">
@@ -544,7 +566,7 @@ export default function ConversationThread({ conversationId, onUpdated }: { conv
         ))}
       </div>
 
-      <div className="border-t border-white/5 p-3 relative">
+      <div ref={composerWrapRef} className="border-t border-white/5 px-3 pb-3 pt-1.5 relative">
         {isPrivateNote && (
           <div className="mb-2 flex items-center gap-1.5 text-[11px] text-amber-400/80">
             <LockClosedIcon className="w-3 h-3" /> Nota interna — não será enviada ao contato
@@ -587,7 +609,7 @@ export default function ConversationThread({ conversationId, onUpdated }: { conv
             <button onClick={() => setPendingFile(null)} className="text-slate-400 hover:text-red-400" title="Remover anexo">✕</button>
           </div>
         )}
-        <div className="flex items-end gap-2">
+        <div className="flex items-start gap-2">
           <input
             ref={fileInputRef}
             type="file"
@@ -599,10 +621,23 @@ export default function ConversationThread({ conversationId, onUpdated }: { conv
             ref={composerRef}
             value={composer}
             onChange={(e) => setComposer(e.target.value)}
+            onPaste={(e) => {
+              if (isPrivateNote) return
+              const img = Array.from(e.clipboardData?.items ?? []).find((it) => it.kind === 'file' && it.type.startsWith('image/'))
+              const raw = img?.getAsFile()
+              if (raw) {
+                // Imagem colada costuma chegar sem tipo/nome definidos; a API só aceita MIME de imagem.
+                const ext = (raw.type.split('/')[1] || 'png').replace('jpeg', 'jpg')
+                const file = new File([raw], `colado-${Date.now()}.${ext}`, { type: raw.type || 'image/png' })
+                e.preventDefault()
+                acceptAttachment(file)
+              }
+            }}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
             placeholder={isPrivateNote ? 'Escreva uma nota interna...' : 'Escreva uma mensagem... (/ para respostas rápidas)'}
-            rows={6}
-            className={`flex-1 resize-none rounded-lg px-3 py-2 text-sm outline-none border transition-colors ${
+            rows={4}
+            style={{ maxHeight: '40vh' }}
+            className={`flex-1 self-stretch resize-none overflow-y-auto rounded-lg px-3 py-2 text-sm outline-none border transition-colors ${
               isPrivateNote ? 'bg-amber-500/5 border-amber-500/20 text-amber-100 focus:border-amber-500/40' : 'bg-[#112240] border-white/8 text-slate-200 focus:border-[#c5a028]'
             }`}
           />

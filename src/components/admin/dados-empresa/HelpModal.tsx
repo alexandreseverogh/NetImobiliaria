@@ -93,16 +93,15 @@ const SECTIONS: FieldSection[] = [
   },
   {
     title: 'Evolution API',
-    intro: 'Única seção que NÃO vem da Meta — a Evolution é uma API de terceiro, não-oficial. Os 3 valores vêm de onde essa instância está hospedada (geralmente quem configurou o WhatsApp não-oficial da sua empresa — um dev, agência ou fornecedor técnico).',
+    intro: 'A conexão do WhatsApp é criada automaticamente quando você clica em Conectar WhatsApp na aba Comunicação. Nenhum dado técnico precisa ser digitado.',
     fields: [
       {
-        label: 'Evolution API URL / Key / Instance',
-        what: 'Endereço do servidor, chave de acesso e nome da instância da sua Evolution API — só relevante se o provider de WhatsApp escolhido abaixo for "Evolution".',
+        label: 'Conexão do WhatsApp',
+        what: 'O número que envia e recebe as mensagens da sua empresa. Fica na aba Comunicação.',
         where: [
-          'Pergunte a quem hospedou/configurou sua instância Evolution API (geralmente aparece no painel de administração dela, ou foi te repassado quando o serviço foi contratado/configurado).',
-          'Não existe tela da Meta pra isso — é 100% independente.',
+          'Clique em Conectar WhatsApp e escaneie o QR code com o celular que vai receber as mensagens.',
         ],
-        badge: 'manual',
+        badge: 'self-chosen',
       },
     ],
   },

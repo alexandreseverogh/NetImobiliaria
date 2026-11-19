@@ -5,6 +5,7 @@ import { getTokenPayload } from '@/lib/auth/jwt-node'
 import { checkResolutionBreach } from '@/lib/mensageria/sla'
 import { recomputeConversationBola } from '@/lib/mensageria/pendency'
 import { resolveMensageriaScope, isTenantAdminFromPayload, scopeToSql } from '@/lib/mensageria/visibilityScope'
+import { ensureContactAvatar } from '@/lib/mensageria/avatarService'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,6 +57,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   )
   const conv = convRows[0]
   if (!conv) return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
+  // Foto sob demanda: ao abrir a conversa, atualiza a foto em segundo plano se o TTL venceu.
+  if (conv.contact_phone) ensureContactAvatar(payload.tenantId, conv.contact_phone)
 
   const { rows: messages } = await pool.query(
     `SELECT id, direction, sender_type, sender_id, content, content_type, attachments,

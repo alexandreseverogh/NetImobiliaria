@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/database/connection';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { requireAnyApiPermission } from '@/lib/auth/apiPermissions';
+import { isAvatarTtlEnabled } from '@/lib/mensageria/avatarService';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +43,8 @@ const EDITABLE_FIELDS: Record<string, string> = {
   calendario:     'calendario',
   googleEmail:    'google_email',
   duracaoVisita:  'duracao_visita',
+  // Foto de contatos: dias até atualizar. Vazio = herda do segmento.
+  avatarTtlDays:  'avatar_ttl_days',
 };
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
@@ -71,9 +74,11 @@ export async function GET(request: NextRequest) {
   for (const [apiKey, col] of Object.entries(EDITABLE_FIELDS)) {
     if (col === 'calendario') out[apiKey] = rows[0][col] === true;
     else if (col === 'duracao_visita') out[apiKey] = rows[0][col] ?? 60;
+    else if (col === 'avatar_ttl_days') out[apiKey] = rows[0][col] ?? null;
     else out[apiKey] = rows[0][col] ?? '';
   }
   out.logo = rows[0].logo_url ?? '';
+  out.avatarTtlEnabled = await isAvatarTtlEnabled(payload.tenantId);
   return NextResponse.json(out);
 }
 
@@ -97,8 +102,13 @@ export async function PUT(request: NextRequest) {
   const values: unknown[] = [];
   const invalid = (msg: string) => NextResponse.json({ error: msg }, { status: 400 });
 
+  // TTL da foto só é gravado quando o tenant tem Mensageria + Gerar mensagens. Fora disso o campo
+  // nem aparece na tela; se vier no corpo, é ignorado sem erro (não trava o salvamento do formulário).
+  const avatarTtlEnabled = await isAvatarTtlEnabled(payload.tenantId);
+
   for (const [apiKey, col] of Object.entries(EDITABLE_FIELDS)) {
     if (!(apiKey in body)) continue;
+    if (col === 'avatar_ttl_days' && !avatarTtlEnabled) continue;
     const raw = body[apiKey];
     let value: unknown;
 
@@ -109,6 +119,15 @@ export async function PUT(request: NextRequest) {
       const n = Number(raw);
       if (!Number.isInteger(n) || n < 15 || n > 480) return invalid('Duração deve estar entre 15 e 480 minutos');
       value = n;
+    } else if (col === 'avatar_ttl_days') {
+      // Vazio = null = herda do segmento. Preenchido: inteiro de 1 a 365 dias.
+      if (raw == null || raw === '') {
+        value = null;
+      } else {
+        const n = Number(raw);
+        if (!Number.isInteger(n) || n < 1 || n > 365) return invalid('Atualização da foto deve estar entre 1 e 365 dias');
+        value = n;
+      }
     } else {
       const s = raw == null ? '' : String(raw).trim();
       if (s && col === 'email_contato' && !EMAIL_RE.test(s)) return invalid('E-mail de notificações inválido');

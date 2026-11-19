@@ -4,11 +4,13 @@ import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import {
   ArrowLeftIcon, PencilIcon, TrashIcon,
-  MegaphoneIcon, UserIcon,
+  MegaphoneIcon, UserIcon, ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
 import { UpdateGuard, DeleteGuard } from '@/components/admin/PermissionGuard'
 import ClientCampaignSettings from '@/components/admin/clientes/ClientCampaignSettings'
+import { adminFetch } from '@/lib/auth/adminFetch'
+import { useTenantModulos } from '@/hooks/useTenantModulos'
 
 // ─── tipos ────────────────────────────────────────────────────────────────────
 interface Cliente {
@@ -26,7 +28,7 @@ const TIPO_CLIENTE_LABEL: Record<string, string> = {
 }
 
 // ─── página principal ──────────────────────────────────────────────────────────
-type Tab = 'dados' | 'campanha'
+type Tab = 'dados' | 'integracoes' | 'comunicacao'
 
 export default function VisualizarClientePage() {
   const { get, delete: del } = useAuthenticatedFetch()
@@ -34,12 +36,19 @@ export default function VisualizarClientePage() {
   const params  = useParams()
 
   const [cliente, setCliente] = useState<Cliente | null>(null)
+  const [mensagensEnabled, setMensagensEnabled] = useState(false)
+  const { modulos } = useTenantModulos()
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
   const [tab, setTab]         = useState<Tab>('dados')
 
   useEffect(() => {
     if (!params.id) return
+    // Aba Central de Mensagens: só existe com Mensageria contratada + Gerar mensagens no WhatsApp.
+    adminFetch(`/api/admin/clientes/${params.id}/central-mensagens`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setMensagensEnabled(!!d?.enabled))
+      .catch(() => setMensagensEnabled(false))
     get(`/api/admin/clientes/${params.id}`)
       .then(r => {
         if (!r.ok) throw new Error(r.status === 404 ? 'Cliente não encontrado' : 'Erro ao carregar cliente')
@@ -78,10 +87,14 @@ export default function VisualizarClientePage() {
     </div>
   )
 
+  // Abas de integração/comunicação: só para conta gerenciada, e só com o módulo contratado pelo tenant.
   const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: 'dados',    label: 'Dados do Cliente',    icon: UserIcon },
-    ...(cliente.tipo_cliente !== 'conta_gerenciada' ? [] : [
-      { id: 'campanha' as Tab, label: 'Configurações Meta',  icon: MegaphoneIcon },
+    ...(cliente.tipo_cliente !== 'conta_gerenciada' || !modulos?.campanhas ? [] : [
+      { id: 'integracoes' as Tab, label: 'Integração Mídias Sociais', icon: MegaphoneIcon },
+    ]),
+    ...(cliente.tipo_cliente !== 'conta_gerenciada' || !modulos?.comunicacao ? [] : [
+      { id: 'comunicacao' as Tab, label: 'Comunicação', icon: ChatBubbleLeftRightIcon },
     ]),
   ]
 
@@ -220,7 +233,8 @@ export default function VisualizarClientePage() {
           )}
 
           {/* ── ABA: CAMPANHA ── */}
-          {tab === 'campanha' && <ClientCampaignSettings clientId={cliente.uuid} />}
+          {tab === 'integracoes' && <ClientCampaignSettings clientId={cliente.uuid} section="integracoes" />}
+          {tab === 'comunicacao' && <ClientCampaignSettings clientId={cliente.uuid} section="comunicacao" mensagensEnabled={mensagensEnabled} />}
         </div>
       </div>
     </div>

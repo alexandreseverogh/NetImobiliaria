@@ -769,3 +769,15 @@ os produtos WhatsApp + Facebook Login for Business (se ainda não tiverem), cria
 na variação WhatsApp Embedded Signup com as permissões `whatsapp_business_messaging` +
 `whatsapp_business_management`, e me passar o Config ID resultante — é o que falta pra eu
 implementar e testar M2 (troca do código por token) e M3 (botão + popup no frontend) de verdade.
+
+---
+
+## Pendência registrada (2026-11-18)
+
+**Testar tudo relacionado à WhatsApp Cloud API** (envio, recebimento via webhook da Meta,
+conexão Embedded Signup, templates, janela de 24h e cobrança por conversa na conta da empresa).
+Os testes ficam para depois. Por enquanto, todos os testes de WhatsApp são feitos com a
+**Evolution API**.
+
+Pré-requisito: M1 (aplicativo e configuração de login do Embedded Signup criados pelo
+administrador da plataforma no Meta for Developers) e uma conta de teste da Meta.

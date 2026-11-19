@@ -1,0 +1,32 @@
+# =============================================================
+# Dockerfile.feed.cache — VARIANTE TESTE (não substitui o Dockerfile.feed)
+# Igual ao Dockerfile.feed, mas usa cache de build do BuildKit no
+# npm ci, para reduzir a escrita repetida no SSD em builds seguidos.
+# Rollback: basta não usar este arquivo (o Dockerfile.feed original segue intacto).
+# Requer BuildKit (padrão no Docker Desktop).
+# =============================================================
+
+# syntax=docker/dockerfile:1
+
+FROM node:20-bookworm-slim AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1
+
+# Instalar apenas dependências de produção, com cache persistente do npm
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --omit=dev --legacy-peer-deps
+
+# Copiar apenas os scripts — sem código-fonte Next.js, sem .next/
+COPY scripts ./scripts
+
+# Criar usuário não-root
+RUN groupadd -r nodejs && useradd -r -g nodejs feedworker
+
+USER feedworker
+
+# O scheduler roda o cron continuamente (não tem porta exposta)
+CMD ["node", "scripts/feed-cron-scheduler.js"]

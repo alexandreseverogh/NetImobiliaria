@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback, ReactNode } from 'rea
 import { useAuth } from '@/hooks/useAuth'
 import { useSessionWarning } from '@/hooks/useSessionWarning'
 import AdminHeader from '@/components/admin/AdminHeader'
+import WhatsappConnectionBanner from '@/components/admin/WhatsappConnectionBanner'
 import AdminSidebar from '@/components/admin/AdminSidebar'
 import HorizontalTabsBar from '@/components/admin/HorizontalTabsBar'
 import LoadingSpinner from '@/components/admin/LoadingSpinner'
@@ -179,6 +180,8 @@ function AdminLayoutPrivateContent({
   return (
     <ErrorBoundary onError={onError}>
       <div className={containerClasses}>
+        <WhatsappConnectionBanner />
+
         {/* Header fixo no topo */}
         <AdminHeader
           user={user}

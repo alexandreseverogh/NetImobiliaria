@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   if (!payload?.tenantId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
   const { rows } = await pool.query(
-    `SELECT p.id, p.name, p.scope, p.first_response_target_min, p.resolution_target_min, p.is_active,
+    `SELECT p.id, p.name, p.scope, p.first_response_target_min, p.resolution_target_min, p.continuity_target_min, p.is_active,
             p.client_id, cl.nome AS client_name
        FROM mensageria.sla_policies p
        LEFT JOIN public.clientes cl ON cl.uuid = p.client_id
@@ -20,10 +20,17 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     policies: rows.map((r) => ({
       id: r.id, name: r.name, scope: r.scope,
-      first_response_target_min: r.first_response_target_min, resolution_target_min: r.resolution_target_min,
+      first_response_target_min: r.first_response_target_min, resolution_target_min: r.resolution_target_min, continuity_target_min: r.continuity_target_min,
       is_active: r.is_active, clientId: r.client_id, clientName: r.client_name,
     })),
   })
+}
+
+/** Prazo de continuidade em minutos: nulo = sem SLA de continuidade; senão inteiro positivo. */
+function continuityOf(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null
+  const n = Math.round(Number(v))
+  return Number.isFinite(n) && n > 0 ? n : null
 }
 
 /**
@@ -45,12 +52,12 @@ export async function POST(request: NextRequest) {
 
   const { rows } = await pool.query(
     `INSERT INTO mensageria.sla_policies
-       (tenant_id, client_id, name, scope, first_response_target_min, resolution_target_min)
-     VALUES ($1, $2, $3, $4::jsonb, $5, $6)
-     RETURNING id, name, scope, first_response_target_min, resolution_target_min, is_active`,
+       (tenant_id, client_id, name, scope, first_response_target_min, resolution_target_min, continuity_target_min)
+     VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7)
+     RETURNING id, name, scope, first_response_target_min, resolution_target_min, continuity_target_min, is_active`,
     [
       payload.tenantId, clientId, name, JSON.stringify(body.scope || {}),
-      body.firstResponseTargetMin ?? null, body.resolutionTargetMin ?? null,
+      body.firstResponseTargetMin ?? null, body.resolutionTargetMin ?? null, continuityOf(body.continuityTargetMin),
     ],
   )
   return NextResponse.json({ policy: { ...rows[0], clientId, clientName: null } })
@@ -81,6 +88,7 @@ export async function PATCH(request: NextRequest) {
   if (body.scope !== undefined) push('scope', JSON.stringify(body.scope || {}), '::jsonb')
   if (body.firstResponseTargetMin !== undefined) push('first_response_target_min', body.firstResponseTargetMin ?? null)
   if (body.resolutionTargetMin !== undefined) push('resolution_target_min', body.resolutionTargetMin ?? null)
+  if (body.continuityTargetMin !== undefined) push('continuity_target_min', continuityOf(body.continuityTargetMin))
   if (body.isActive !== undefined) push('is_active', body.isActive === true)
   if (sets.length === 0) return NextResponse.json({ error: 'Nada para alterar' }, { status: 400 })
 

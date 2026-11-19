@@ -15,7 +15,6 @@ import ClientSelector, { useClientSelector } from '@/components/crm/ClientSelect
 import { PromptOverrideCard } from '@/components/crm/PromptOverrideCard'
 import { LlmCascadeSection } from '@/components/crm/LlmCascadeSection'
 import { AgentWhatsAppChannelSection } from '@/components/crm/AgentWhatsAppChannelSection'
-import { WhatsAppWebhookSection } from '@/components/crm/WhatsAppWebhookSection'
 
 type Tab = 'inboxes' | 'teams' | 'labels' | 'canned' | 'sla' | 'bot' | 'knowledge' | 'audit'
 
@@ -49,7 +48,7 @@ interface Label { id: string; name: string; color: string; clientId: string | nu
 interface CannedResponse { id: string; shortcut: string; content: string; clientId: string | null; clientName: string | null }
 interface SlaPolicy {
   id: string; name: string; scope: Record<string, any>
-  first_response_target_min: number | null; resolution_target_min: number | null; is_active: boolean
+  first_response_target_min: number | null; resolution_target_min: number | null; continuity_target_min: number | null; is_active: boolean
   clientId: string | null; clientName: string | null
 }
 
@@ -301,13 +300,6 @@ function InboxesTab() {
 
   return (
     <div className="space-y-4">
-      {/* Portão de entrada de WhatsApp (docs/CHECKPOINT.md, Peça 3, 2026-09-02) — URL+secret
-          que precisa estar colado na Evolution API. Sem isto, o canal WhatsApp desta lista
-          abaixo nunca recebe mensagem real, mesmo já criado. Componente compartilhado com
-          /admin/campanhas/mecanismos e /crm/config/agentes. */}
-      <WhatsAppWebhookSection
-        t={{ isDark: true, textPrimary: 'text-white', textMuted: 'text-slate-500', textSecondary: 'text-slate-300', inputBg: 'bg-[#112240] border border-white/8' }}
-      />
       {/* Provider (Evolution/Cloud API) + credencial tenant-wide movidos pra "Dados da Empresa"
           em 2026-10-28 (docs/PLANO_WHATSAPP_CLOUD_API_PROVIDER.md §9/§10) — module-independent,
           nunca deveria ficar preso atrás de Mensageria. Credencial POR CLIENTE fica na ficha do
@@ -973,6 +965,7 @@ function SlaTab() {
   const [name, setName] = useState('')
   const [firstResponseMin, setFirstResponseMin] = useState('')
   const [resolutionMin, setResolutionMin] = useState('')
+  const [continuityMin, setContinuityMin] = useState('')
   const [scopeMode, setScopeMode] = useState<ScopeMode>('global')
   const [scopeTarget, setScopeTarget] = useState('')
   const [newClientId, setNewClientId] = useState<string | null>(null)
@@ -986,6 +979,7 @@ function SlaTab() {
     setName(p.name)
     setFirstResponseMin(p.first_response_target_min ? String(p.first_response_target_min) : '')
     setResolutionMin(p.resolution_target_min ? String(p.resolution_target_min) : '')
+    setContinuityMin(p.continuity_target_min ? String(p.continuity_target_min) : '')
     const s = (p.scope || {}) as Record<string, any>
     if (s.inbox_id) { setScopeMode('inbox'); setScopeTarget(s.inbox_id) }
     else if (s.team_id) { setScopeMode('team'); setScopeTarget(s.team_id) }
@@ -995,7 +989,7 @@ function SlaTab() {
 
   function cancelEdit() {
     setEditingId(null)
-    setName(''); setFirstResponseMin(''); setResolutionMin(''); setScopeMode('global'); setScopeTarget('')
+    setName(''); setFirstResponseMin(''); setResolutionMin(''); setContinuityMin(''); setScopeMode('global'); setScopeTarget('')
   }
 
   async function saveEdit() {
@@ -1013,6 +1007,7 @@ function SlaTab() {
           scope,
           firstResponseTargetMin: firstResponseMin ? parseInt(firstResponseMin, 10) : null,
           resolutionTargetMin: resolutionMin ? parseInt(resolutionMin, 10) : null,
+          continuityTargetMin: continuityMin ? parseInt(continuityMin, 10) : null,
         }),
       })
       cancelEdit()
@@ -1068,10 +1063,11 @@ function SlaTab() {
           scope,
           firstResponseTargetMin: firstResponseMin ? parseInt(firstResponseMin, 10) : null,
           resolutionTargetMin: resolutionMin ? parseInt(resolutionMin, 10) : null,
+          continuityTargetMin: continuityMin ? parseInt(continuityMin, 10) : null,
           clientId: newClientId,
         }),
       })
-      setName(''); setFirstResponseMin(''); setResolutionMin(''); setScopeMode('global'); setScopeTarget('')
+      setName(''); setFirstResponseMin(''); setResolutionMin(''); setContinuityMin(''); setScopeMode('global'); setScopeTarget('')
       setNewClientId(null); setNewClientName(null)
       await load()
     } finally {
@@ -1106,6 +1102,7 @@ function SlaTab() {
           <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome da política" />
           <TextInput type="number" value={firstResponseMin} onChange={(e) => setFirstResponseMin(e.target.value)} placeholder="1ª resposta (min)" />
           <TextInput type="number" value={resolutionMin} onChange={(e) => setResolutionMin(e.target.value)} placeholder="Resolução (min)" />
+          <TextInput type="number" value={continuityMin} onChange={(e) => setContinuityMin(e.target.value)} placeholder="Continuidade (min, sem vazio = sem SLA)" title="Prazo para responder sempre que a bola voltar para nós" />
         </div>
 
         <p className="text-xs text-slate-500 mb-1.5">Aplicar a:</p>
@@ -1171,7 +1168,7 @@ function SlaTab() {
                   <p className="text-xs text-slate-500">
                     {p.first_response_target_min ? `1ª resposta: ${p.first_response_target_min}min` : 'sem meta de 1ª resposta'}
                     {' · '}
-                    {p.resolution_target_min ? `Resolução: ${p.resolution_target_min}min` : 'sem meta de resolução'}
+                    {p.resolution_target_min ? `Resolução: ${p.resolution_target_min}min` : 'sem meta de resolução'}{p.continuity_target_min ? ` · Continuidade: ${p.continuity_target_min}min` : ''}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

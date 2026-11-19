@@ -1,0 +1,11 @@
+{
+  "name": "feed-minimal",
+  "private": true,
+  "description": "Dependências mínimas do feed-cron-scheduler (versões fixas do package-lock do projeto)",
+  "dependencies": {
+    "dotenv": "17.4.2",
+    "node-cron": "4.2.1",
+    "pg": "8.16.3",
+    "rss-parser": "3.13.0"
+  }
+}

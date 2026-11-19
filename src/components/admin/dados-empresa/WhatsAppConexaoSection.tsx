@@ -12,6 +12,7 @@ const RESOURCE = 'dados-empresa';
 
 type Status = {
   connected: boolean;
+  notConfigured?: boolean;
   instance: string;
   error?: string;
   qrCode: string | null;
@@ -68,8 +69,9 @@ export function WhatsAppConexaoSection() {
 
       {!loading && status && (
         <>
-          <div className={`rounded-xl px-4 py-3 text-sm font-semibold ${status.connected ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
-            {status.connected ? 'Conectado ao WhatsApp' : 'Desconectado. Escaneie o QR Code com o celular que vai receber as mensagens.'}
+          <div className={`rounded-xl px-4 py-3 text-sm font-semibold flex items-center justify-between ${status.connected ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
+            <span>{status.connected ? 'Conectada' : 'Não Conectada'}</span>
+            {!status.connected && <span className="text-xs font-medium">Escaneie o QR Code com o celular que vai receber as mensagens.</span>}
           </div>
 
           {!status.connected && (
@@ -83,7 +85,9 @@ export function WhatsAppConexaoSection() {
                   />
                 ) : (
                   <span className="text-xs text-gray-400 px-4 text-center">
-                    {status.qrError || 'QR Code indisponível. Gere um novo.'}
+                    {status.notConfigured
+                      ? 'Clique em "Gerar QR Code" para criar a conexão do WhatsApp desta empresa.'
+                      : (status.qrError || 'QR Code indisponível. Clique em "Gerar QR Code" para tentar de novo.')}
                   </span>
                 )}
               </div>
@@ -95,15 +99,17 @@ export function WhatsAppConexaoSection() {
       {error && <p className="text-xs font-semibold text-red-600">{error}</p>}
 
       <div className="flex items-center gap-3 pt-1 border-t border-gray-50">
+        {!status?.connected && (
         <UpdateGuard resource={RESOURCE}>
           <button
             onClick={newQr}
             disabled={busy || loading}
             className="px-6 py-2.5 bg-[#1877f2] text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-[#1464d0] active:scale-95 transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50"
           >
-            {busy ? 'Gerando...' : 'Gerar novo QR Code'}
+            {busy ? 'Aguarde...' : 'Gerar QR Code'}
           </button>
         </UpdateGuard>
+        )}
         <button onClick={load} className="text-xs font-bold text-gray-500 hover:text-gray-800">Atualizar status</button>
       </div>
     </div>

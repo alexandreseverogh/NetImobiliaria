@@ -555,15 +555,6 @@ function MasterSettingsView() {
         {/* <Field label="Slack Webhook URL" value={settings.slackWebhookUrl}
           onChange={v => setSettings(s => ({ ...s, slackWebhookUrl: v }))}
           placeholder="https://hooks.slack.com/services/..." /> */}
-        <Field label="Evolution API URL" value={settings.evolutionApiUrl}
-          onChange={v => setSettings(s => ({ ...s, evolutionApiUrl: v }))}
-          placeholder="http://localhost:8080" />
-        <Field label="Evolution API Key" value={settings.evolutionApiKey}
-          onChange={v => setSettings(s => ({ ...s, evolutionApiKey: v }))}
-          placeholder="Chave da API Evolution" type="password" />
-        <Field label="Evolution Instance" value={settings.evolutionInstance}
-          onChange={v => setSettings(s => ({ ...s, evolutionInstance: v }))}
-          placeholder="Nome da Instância" />
         <Field label="Anthropic API Key (IA do Tenant)" value={settings.anthropicApiKey}
           onChange={v => setSettings(s => ({ ...s, anthropicApiKey: v }))}
           placeholder="Cole a chave Anthropic do Tenant" type="password" />

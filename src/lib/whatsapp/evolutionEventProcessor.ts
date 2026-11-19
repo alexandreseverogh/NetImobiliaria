@@ -3,9 +3,8 @@ import { processInboundWhatsAppMessage } from '@/lib/whatsapp/inboundProcessor'
 import { ingestMessage } from '@/lib/mensageria/ingest'
 import { resolveWhatsAppInbox } from '@/lib/mensageria/inboxes'
 import { buildInboundMedia, type InboundMedia } from '@/lib/mensageria/inboundMedia'
-import { uploadToS3 } from '@/lib/storage/s3-client'
 import { getWhatsappPolicy } from '@/lib/crm/whatsappPolicy'
-import axios from 'axios'
+import { storeAvatar, ensureContactAvatar } from '@/lib/mensageria/avatarService'
 
 /**
  * Processamento de UM evento bruto da Evolution API já recebido e persistido em
@@ -84,22 +83,6 @@ async function getContactProfile(tenantId: string, phone: string): Promise<{ nam
   return { name: rows[0]?.name ?? null, avatarUrl: rows[0]?.avatar_url ?? null }
 }
 
-/**
- * Baixa a foto de perfil do WhatsApp e guarda no nosso armazenamento (o link original expira).
- * Falha não bloqueia nada: sem foto, o avatar segue com as iniciais.
- */
-async function storeAvatar(tenantId: string, phone: string, sourceUrl: string): Promise<string | null> {
-  try {
-    const res = await axios.get(sourceUrl, { responseType: 'arraybuffer', timeout: 15000 })
-    const buffer = Buffer.from(res.data)
-    const mime: string = String(res.headers?.['content-type'] || 'image/jpeg')
-    const uploaded = await uploadToS3(`mensageria/avatars/${tenantId}/${phone}.jpg`, buffer, mime)
-    return uploaded?.url ?? null
-  } catch (err) {
-    console.error('[evolution-processor] falha ao guardar foto de perfil:', err)
-    return null
-  }
-}
 
 /**
  * Eventos de contato (upsert/update): guardam o nome e a foto de perfil do WhatsApp. Só atualiza
@@ -256,6 +239,8 @@ async function processEntry(tenantId: string, ownerClientId: string | null, entr
     externalMessageId: entry?.key?.id ?? null,
     occurredAt: messageTimeOf(entry),
   })
+  // Foto de perfil sob demanda: em segundo plano, só se o TTL estiver vencido. Não bloqueia.
+  ensureContactAvatar(tenantId, phone)
 }
 
 /**

@@ -24,11 +24,22 @@ function idadePendencia(iso: string | null | undefined): string {
   return `há ${dias} ${dias === 1 ? 'dia' : 'dias'}`
 }
 
+// Tempo decorrido em hh:mm (ex.: 01:25), usado no aviso de SLA expirado.
+function tempoHHMM(iso: string | null | undefined): string {
+  if (!iso) return '00:00'
+  const minutos = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000))
+  const hh = String(Math.floor(minutos / 60)).padStart(2, '0')
+  const mm = String(minutos % 60).padStart(2, '0')
+  return `${hh}:${mm}`
+}
+
 interface ConversationSummary {
   id: string
   status: string
   bolaCom?: 'nos' | 'cliente' | null
   bolaDesde?: string | null
+  slaContinuityTargetMin?: number | null
+  slaContinuityExpired?: boolean
   priority: string | null
   teamName?: string | null
   labels?: { id: string; name: string; color: string }[]
@@ -97,6 +108,7 @@ export default function MensageriaPage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [totalCount, setTotalCount] = useState(0)
+  const [allCount, setAllCount] = useState(0)
   // Contador da pasta "Aguardando resposta" — vem sempre do servidor, sem período.
   const [pendingCount, setPendingCount] = useState(0)
   // Período padrão = hoje (data local, yyyy-mm-dd), para a caixa abrir já filtrada no dia atual.
@@ -146,9 +158,10 @@ export default function MensageriaPage() {
     const qs = new URLSearchParams()
     if (folder === 'pending') qs.set('folder', 'pending')
     if (assigneeParam) qs.set('assigneeId', assigneeParam)
-    // Pendentes não sofrem corte de período: uma pendência de dias atrás não pode sumir.
-    if (folder !== 'pending' && dateFrom) qs.set('dateFrom', dateFrom)
-    if (folder !== 'pending' && dateTo) qs.set('dateTo', dateTo)
+    // O período vale em todas as pastas, inclusive pendentes, para o contador de Todas
+    // refletir sempre o período informado.
+    if (dateFrom) qs.set('dateFrom', dateFrom)
+    if (dateTo) qs.set('dateTo', dateTo)
     if (selectedLabelIds.length > 0) qs.set('labelId', selectedLabelIds.join(','))
     if (cursor) qs.set('cursor', cursor)
     return qs
@@ -174,6 +187,7 @@ export default function MensageriaPage() {
       setConversations(data.conversations || [])
       setNextCursor(data.nextCursor || null)
       setTotalCount(data.totalCount ?? (data.conversations || []).length)
+      setAllCount(data.allCount ?? data.totalCount ?? (data.conversations || []).length)
       setPendingCount(data.pendingCount ?? 0)
     } catch {
       // Falha de rede: mantém a lista atual sem derrubar a página.
@@ -321,9 +335,9 @@ export default function MensageriaPage() {
   // "all" usa totalCount (contagem real do servidor) — conversations.length agora só
   // reflete quantas já foram carregadas na tela (paginado), ficaria enganoso como contador.
   const counts = useMemo(() => ({
-    all: totalCount,
+    all: allCount,
     unread: conversations.filter((c) => c.unreadCount > 0).length,
-  }), [conversations, totalCount])
+  }), [conversations, allCount])
 
   return (
     <div className="h-[calc(100vh-4rem)] flex bg-[#020c1b]">
@@ -454,9 +468,15 @@ export default function MensageriaPage() {
                     </div>
                     <p className="text-xs text-slate-400 truncate mt-0.5">{c.lastMessagePreview || '—'}</p>
                     {c.bolaCom === 'nos' && (
-                      <p className="text-[10px] text-[#d4af37] mt-0.5" title="Aguardando a nossa resposta desde">
-                        Aguardando resposta · {idadePendencia(c.bolaDesde)}
-                      </p>
+                      c.slaContinuityExpired ? (
+                        <p className="text-[10px] text-red-400 font-semibold mt-0.5" title="Passou do prazo de SLA para responder">
+                          SLA expirado · {tempoHHMM(c.bolaDesde)}
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-[#d4af37] mt-0.5" title="Aguardando a nossa resposta desde">
+                          Aguardando resposta · {idadePendencia(c.bolaDesde)}
+                        </p>
+                      )
                     )}
                     <div className="flex items-center gap-1.5 mt-1.5">
                       <ChannelChip channelType={c.channelType} />
@@ -498,7 +518,7 @@ export default function MensageriaPage() {
       </div>
 
       {/* Coluna 3 — Thread (componente compartilhado com o drawer do Painel do Gestor) */}
-      <div className="flex-1 flex flex-col bg-[#0a192f] min-w-0">
+      <div className="flex-1 flex flex-col bg-[#091628] min-w-0">
         {!selectedId ? (
           <div className="flex-1 flex items-center justify-center">
             <p className="text-sm text-slate-500">Selecione uma conversa para começar.</p>

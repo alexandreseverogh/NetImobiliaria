@@ -1,0 +1,28 @@
+# =============================================================
+# Dockerfile.feed.minimal — VARIANTE TESTE (não substitui o Dockerfile.feed)
+# Instala só as dependências que o feed-cron-scheduler realmente usa
+# (21 pacotes, em vez dos ~1.191 do package-lock do projeto), para reduzir
+# drasticamente a escrita no disco durante o build local.
+# Versões idênticas às do package-lock principal (dotenv, node-cron, pg, rss-parser).
+# Rollback: não usar este arquivo; o Dockerfile.feed original segue intacto.
+# =============================================================
+
+FROM node:20-bookworm-slim AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1
+
+# Manifesto e lock mínimos do feed
+COPY docker/feed-minimal/package.json docker/feed-minimal/package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+
+# Scripts do feed (scheduler + processor + utils/db)
+COPY scripts ./scripts
+
+RUN groupadd -r nodejs && useradd -r -g nodejs feedworker
+
+USER feedworker
+
+CMD ["node", "scripts/feed-cron-scheduler.js"]

@@ -17,6 +17,8 @@ type Perfil = {
   primaryColor: string; secondaryColor: string;
   numeroWhatsapp: string; whatsappAlerta: string; slackWebhookUrl: string;
   calendario: boolean; googleEmail: string; duracaoVisita: number;
+  avatarTtlDays: number | null;
+  avatarTtlEnabled?: boolean;
 };
 
 const EMPTY: Perfil = {
@@ -25,6 +27,7 @@ const EMPTY: Perfil = {
   cep: '', cidade: '', estado: '', primaryColor: '', secondaryColor: '',
   numeroWhatsapp: '', whatsappAlerta: '', slackWebhookUrl: '',
   calendario: false, googleEmail: '', duracaoVisita: 60,
+  avatarTtlDays: null,
 };
 
 function Input({ label, value, onChange, placeholder, maxLength }: {

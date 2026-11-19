@@ -838,4 +838,106 @@ CREATE INDEX IF NOT EXISTS idx_webhook_inbox_drain
   ON mensageria.webhook_inbox (status, next_attempt_at)
   WHERE status IN ('pending', 'processing');
 
+-- ── migration-2026-11-18-avatar-ttl-cascade.sql ──
+-- Foto de perfil sob demanda com TTL em cascata: cliente > tenant > segmento.
+-- Idempotente. O valor padrão (7 dias) vive no banco (system_segments), nunca no código.
+
+ALTER TABLE public.system_segments
+  ADD COLUMN IF NOT EXISTS avatar_ttl_days_default INTEGER NOT NULL DEFAULT 7;
+
+ALTER TABLE public.tenants
+  ADD COLUMN IF NOT EXISTS avatar_ttl_days INTEGER NULL;
+
+ALTER TABLE public.clientes
+  ADD COLUMN IF NOT EXISTS avatar_ttl_days INTEGER NULL;
+
+ALTER TABLE mensageria.contact_profiles
+  ADD COLUMN IF NOT EXISTS avatar_fetched_at TIMESTAMPTZ NULL;
+
+-- Garante o intervalo válido (1 a 365 dias) para os três níveis.
+DO $$ BEGIN
+  ALTER TABLE public.system_segments ADD CONSTRAINT chk_system_segments_avatar_ttl
+    CHECK (avatar_ttl_days_default BETWEEN 1 AND 365);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE public.tenants ADD CONSTRAINT chk_tenants_avatar_ttl
+    CHECK (avatar_ttl_days IS NULL OR avatar_ttl_days BETWEEN 1 AND 365);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE public.clientes ADD CONSTRAINT chk_clientes_avatar_ttl
+    CHECK (avatar_ttl_days IS NULL OR avatar_ttl_days BETWEEN 1 AND 365);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- ── migration-2026-11-18-evolution-servers.sql ──
+-- Servidores Evolution gerenciados pelo Master. A chave GLOBAL de administração fica só aqui.
+-- Cada tenant guarda: o servidor (evolution_server_id), a URL, o nome da instância e o TOKEN
+-- DA PRÓPRIA INSTÂNCIA (devolvido pela Evolution ao criá-la). O token da instância não dá
+-- controle sobre o servidor, por isso ele pode ser guardado no tenant.
+-- Idempotente. Os campos legados (evolution_api_url/key/instance) continuam sendo lidos.
+
+CREATE TABLE IF NOT EXISTS public.evolution_servers (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        VARCHAR(100) NOT NULL,
+  api_url     TEXT NOT NULL,
+  api_key     TEXT NOT NULL,
+  is_default  BOOLEAN NOT NULL DEFAULT false,
+  is_active   BOOLEAN NOT NULL DEFAULT true,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Só um servidor padrão por vez.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_evolution_servers_default
+  ON public.evolution_servers (is_default) WHERE is_default = true;
+
+ALTER TABLE public.tenants
+  ADD COLUMN IF NOT EXISTS evolution_server_id UUID NULL REFERENCES public.evolution_servers(id);
+
+-- Backfill: se houver configuração legada, vira o servidor padrão (uma única vez).
+INSERT INTO public.evolution_servers (name, api_url, api_key, is_default)
+SELECT 'Servidor principal', t.evolution_api_url, t.evolution_api_key, true
+  FROM public.tenants t
+ WHERE t.evolution_api_url IS NOT NULL AND t.evolution_api_url <> ''
+   AND t.evolution_api_key IS NOT NULL AND t.evolution_api_key <> ''
+   AND NOT EXISTS (SELECT 1 FROM public.evolution_servers WHERE is_default = true)
+ ORDER BY t.created_at NULLS LAST
+ LIMIT 1;
+
+-- Vincula os tenants legados ao servidor que tem a mesma URL e a mesma chave.
+UPDATE public.tenants t
+   SET evolution_server_id = s.id
+  FROM public.evolution_servers s
+ WHERE t.evolution_server_id IS NULL
+   AND t.evolution_api_url = s.api_url
+   AND t.evolution_api_key = s.api_key;
+
+-- ── migration-2026-11-18-master-evolution-sidebar.sql ──
+-- Registra a tela "Servidores WhatsApp (Evolution)" no menu do Master, na mesma categoria da
+-- "IA da Plataforma". Idempotente.
+INSERT INTO public.system_features (name, slug, url, category_id, sort_order, is_active)
+SELECT 'Servidores WhatsApp', 'master-evolution-servers', '/admin/master/evolution', f.category_id, 1, true
+  FROM public.system_features f
+ WHERE f.slug = 'master-ia-plataforma'
+   AND NOT EXISTS (SELECT 1 FROM public.system_features WHERE slug = 'master-evolution-servers');
+
+-- ── migration-2026-11-18-whatsapp-connection-health.sql ──
+-- Saúde da conexão de WhatsApp: estado por empresa e disponibilidade por servidor Evolution.
+-- Idempotente.
+
+ALTER TABLE public.tenants
+  ADD COLUMN IF NOT EXISTS evolution_state VARCHAR(20) NULL,
+  ADD COLUMN IF NOT EXISTS evolution_checked_at TIMESTAMPTZ NULL,
+  ADD COLUMN IF NOT EXISTS evolution_disconnected_at TIMESTAMPTZ NULL;
+
+ALTER TABLE public.evolution_servers
+  ADD COLUMN IF NOT EXISTS last_reachable BOOLEAN NULL,
+  ADD COLUMN IF NOT EXISTS last_checked_at TIMESTAMPTZ NULL;
+
+-- 2026-11-19: SLA de continuidade (prazo para responder quando a bola volta para nós)
+-- SLA de continuidade: prazo para o atendente responder sempre que a bola volta para nós.
+-- Nulo = sem SLA de continuidade (comportamento atual preservado).
+ALTER TABLE mensageria.sla_policies
+  ADD COLUMN IF NOT EXISTS continuity_target_min INTEGER;
+
 COMMIT;

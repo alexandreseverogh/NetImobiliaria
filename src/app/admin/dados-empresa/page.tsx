@@ -25,7 +25,10 @@ import { DadosEmpresaHelpButton } from '@/components/admin/dados-empresa/HelpMod
 import { DadosCadastraisSection } from '@/components/admin/dados-empresa/DadosCadastraisSection';
 import { WhatsAppCampanhasSection } from '@/components/admin/dados-empresa/WhatsAppCampanhasSection';
 import { WhatsAppConexaoSection } from '@/components/admin/dados-empresa/WhatsAppConexaoSection';
+import { WhatsAppWebhookSection } from '@/components/crm/WhatsAppWebhookSection';
 import { FormularioLeadSection } from '@/components/admin/dados-empresa/FormularioLeadSection';
+import { CentralMensagensSection } from '@/components/admin/dados-empresa/CentralMensagensSection';
+import { useTenantModulos } from '@/hooks/useTenantModulos';
 
 /**
  * "Dados da Empresa" — self-service do próprio tenant admin pros campos tenant-wide que antes
@@ -100,7 +103,6 @@ function TechSettingsSection() {
   const [loaded, setLoaded] = useState(false);
   const [settings, setSettings] = useState({
     metaAppId: '', metaAppSecret: '', metaToken: '', adAccountId: '',
-    evolutionApiUrl: '', evolutionApiKey: '', evolutionInstance: '',
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -111,8 +113,6 @@ function TechSettingsSection() {
       setSettings({
         metaAppId: s.metaAppId || '', metaAppSecret: s.metaAppSecret || '',
         metaToken: s.metaToken || '', adAccountId: s.adAccountId || '',
-        evolutionApiUrl: s.evolutionApiUrl || '', evolutionApiKey: s.evolutionApiKey || '',
-        evolutionInstance: s.evolutionInstance || '',
       });
     }).catch(() => {}).finally(() => setLoaded(true));
   }, []);
@@ -124,9 +124,6 @@ function TechSettingsSection() {
         metaAppId: settings.metaAppId,
         metaAppSecret: settings.metaAppSecret,
         adAccountId: settings.adAccountId,
-        evolutionApiUrl: settings.evolutionApiUrl,
-        evolutionApiKey: settings.evolutionApiKey,
-        evolutionInstance: settings.evolutionInstance,
       };
       if (settings.metaToken) payload.metaToken = settings.metaToken;
       await updateSettings(payload);
@@ -184,34 +181,7 @@ function TechSettingsSection() {
         </div>
       </SectionCard>
 
-      <SectionCard icon={ChatBubbleLeftRightIcon} title="Evolution API" description="Instância WhatsApp não-oficial (QR code) — só relevante se o provider abaixo for Evolution">
-        <Field label="Evolution API URL" value={settings.evolutionApiUrl}
-          onChange={v => setSettings(s => ({ ...s, evolutionApiUrl: v }))}
-          placeholder="http://localhost:8080" />
-        <Field label="Evolution API Key" value={settings.evolutionApiKey}
-          onChange={v => setSettings(s => ({ ...s, evolutionApiKey: v }))}
-          placeholder="Chave da API Evolution" type="password" />
-        <Field label="Evolution Instance" value={settings.evolutionInstance}
-          onChange={v => setSettings(s => ({ ...s, evolutionInstance: v }))}
-          placeholder="Nome da Instância" />
-
-        <div className="flex items-center gap-3 pt-2 border-t border-gray-50">
-          <UpdateGuard resource={RESOURCE}>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="px-6 py-2.5 bg-gold-premium text-navy-dark text-xs font-black uppercase tracking-widest rounded-xl hover:bg-gold transition-colors disabled:opacity-50"
-            >
-              {saving ? 'Salvando...' : 'Salvar'}
-            </button>
-          </UpdateGuard>
-          {saved && (
-            <span className="flex items-center gap-1.5 text-xs font-black text-emerald-600">
-              <CheckCircleIcon className="h-4 w-4" /> Salvo com sucesso
-            </span>
-          )}
-        </div>
-      </SectionCard>
+      
     </>
   );
 }
@@ -363,11 +333,10 @@ function MetaIdentitySection() {
 
 // ─── WhatsApp — provider + credencial tenant-wide + config do App (Embedded Signup) ───────────
 
-function WhatsAppCloudSection() {
+function WhatsAppCloudSection({ selected, setSelected }: { selected: string; setSelected: (p: string) => void }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [tenantProvider, setTenantProvider] = useState('evolution');
-  const [selected, setSelected] = useState('evolution');
   const [tenantApp, setTenantApp] = useState<{ hasMetaApp: boolean; embeddedSignupConfigId: string | null; hasWebhookVerifyToken: boolean }>({ hasMetaApp: false, embeddedSignupConfigId: null, hasWebhookVerifyToken: false });
   const [credential, setCredential] = useState<{ phoneNumberId: string; wabaId: string; displayPhoneNumber: string | null; paymentMethodConfirmed: boolean } | null>(null);
   const [usage, setUsage] = useState<{ sentThisMonth: number } | null>(null);
@@ -456,8 +425,8 @@ function WhatsAppCloudSection() {
               : <ExclamationTriangleIcon className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />}
             <p className="text-[11px] text-gray-600 leading-relaxed">
               {tenantApp.hasMetaApp
-                ? 'Seu App Meta (acima, Marketing API) já está configurado — reaproveitado pra WhatsApp Cloud API.'
-                : 'Configure primeiro o App ID/Secret em "Meta Marketing API" acima — WhatsApp Cloud API reaproveita o mesmo App.'}
+                ? 'O App Meta desta empresa já existe e pode ser usado no WhatsApp Cloud API. Preencha abaixo as credenciais do WhatsApp (Embedded Signup, número e token) para ativar.'
+                : 'Ainda não há App Meta configurado. Configure o App ID e o Secret na aba "Integração Mídias Sociais" para usar o WhatsApp Cloud API.'}
             </p>
           </div>
 
@@ -519,28 +488,112 @@ function WhatsAppCloudSection() {
   );
 }
 
+type TabKey = 'empresa' | 'comunicacao' | 'integracoes' | 'formulario';
+
+const TABS: { key: TabKey; label: string; hint: string; icon: React.ElementType }[] = [
+  { key: 'empresa', label: 'Empresa', hint: 'Cadastro, contato e identidade visual', icon: IdentificationIcon },
+  { key: 'comunicacao', label: 'Comunicação', hint: 'WhatsApp, conexão e Central de Mensagens', icon: ChatBubbleLeftRightIcon },
+  { key: 'integracoes', label: 'Integração Mídias Sociais', hint: 'Páginas, pixel e contas de anúncio das redes sociais', icon: LinkIcon },
+  { key: 'formulario', label: 'Formulário de Lead', hint: 'Campos capturados dos leads', icon: ShieldCheckIcon },
+];
+
+// Tema leve do bloco de webhook (página de Dados da Empresa é clara).
+const LIGHT_WEBHOOK_THEME = { isDark: false, textPrimary: 'text-gray-900', textMuted: 'text-gray-500', textSecondary: 'text-gray-600', inputBg: 'bg-gray-50 border border-gray-200' };
+
 export default function DadosEmpresaPage() {
+  const [tab, setTab] = useState<TabKey>('empresa');
+  const { modulos, loaded } = useTenantModulos();
+  // Provider salvo do tenant: o bloco de webhook só existe para Evolution (escolha excludente).
+  // Escolha de provider da tela (fonte única): a seção Cloud e o bloco do webhook leem daqui.
+  const [selectedProvider, setSelectedProvider] = useState<string>('evolution');
+  useEffect(() => {
+    let alive = true;
+    adminFetch('/api/admin/mensageria/whatsapp-cloud')
+      .then((r) => r.json())
+      .then((d) => { if (alive) setSelectedProvider(d.tenantProvider ?? 'evolution') })
+      .catch(() => { if (alive) setSelectedProvider('evolution') });
+    return () => { alive = false };
+  }, []);
+
+  // Abas visíveis conforme os módulos contratados: Integração Mídias Sociais só com Campanhas;
+  // Comunicação só com Mensageria, ou CRM + Gerar mensagens no WhatsApp.
+  const visibleTabs = TABS.filter(t => {
+    if (t.key === 'integracoes') return !!modulos?.campanhas;
+    if (t.key === 'comunicacao') return !!modulos?.comunicacao;
+    return true;
+  });
+
+  // Link da faixa de aviso (?tab=comunicacao) abre direto na aba certa.
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get('tab') as TabKey | null;
+    if (t && TABS.some(x => x.key === t)) setTab(t);
+  }, []);
+
+  // Se a aba atual não estiver disponível para este tenant, cai na primeira visível.
+  useEffect(() => {
+    if (loaded && !visibleTabs.some(t => t.key === tab)) setTab('empresa');
+  }, [loaded, modulos]);
+
+  const current = TABS.find(t => t.key === tab)!;
+
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
-      <div className="max-w-5xl mx-auto">
-        <div className="mb-8 flex items-start justify-between gap-4">
+      <div className="max-w-6xl mx-auto">
+        <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <p className="text-[10px] font-black text-gold-premium uppercase tracking-[0.3em] mb-2">Dados da Empresa</p>
             <h1 className="text-3xl font-black text-gray-900 tracking-tight">Dados da Empresa</h1>
-            <p className="text-gray-500 mt-1 text-sm font-medium">
-              Dados cadastrais, Identidade Meta, Evolution API e provider de WhatsApp — independente dos módulos que você contratou.
-            </p>
+            <p className="text-gray-500 mt-1 text-sm font-medium">{current.hint}</p>
           </div>
           <DadosEmpresaHelpButton />
         </div>
+
+        <nav className="sticky top-0 z-10 mb-6 bg-white/90 backdrop-blur rounded-2xl border border-gray-100 shadow-sm p-1.5 flex gap-1 overflow-x-auto">
+          {visibleTabs.map(t => {
+            const Icon = t.icon;
+            const active = t.key === tab;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setTab(t.key)}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all',
+                  active ? 'bg-navy-dark text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800',
+                )}
+              >
+                <Icon className={cn('h-4 w-4', active ? 'text-gold-premium' : '')} />
+                {t.label}
+              </button>
+            );
+          })}
+        </nav>
+
         <div className="space-y-6">
-          <DadosCadastraisSection />
-          <FormularioLeadSection />
-          <WhatsAppCampanhasSection />
-          <WhatsAppConexaoSection />
-          <TechSettingsSection />
-          <MetaIdentitySection />
-          <WhatsAppCloudSection />
+          {tab === 'empresa' && <DadosCadastraisSection />}
+
+          {tab === 'comunicacao' && (
+            <>
+              <WhatsAppCloudSection selected={selectedProvider} setSelected={setSelectedProvider} />
+              {selectedProvider === 'evolution' && (
+                <>
+                  <WhatsAppConexaoSection />
+                  <WhatsAppWebhookSection t={LIGHT_WEBHOOK_THEME} />
+                </>
+              )}
+              <WhatsAppCampanhasSection />
+              <CentralMensagensSection />
+            </>
+          )}
+
+          {tab === 'integracoes' && (
+            <>
+              <TechSettingsSection />
+              <MetaIdentitySection />
+            </>
+          )}
+
+          {tab === 'formulario' && <FormularioLeadSection />}
         </div>
       </div>
     </div>

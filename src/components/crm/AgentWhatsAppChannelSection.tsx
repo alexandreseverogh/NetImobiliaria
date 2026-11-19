@@ -84,40 +84,13 @@ export function AgentWhatsAppChannelSection({ t }: Props) {
         Canal de WhatsApp dos Agentes
       </h3>
       <p className={`text-xs font-medium -mt-2 ${t.textMuted}`}>
-        Evolution API usada por Campanhas, CRM e Mensageria pra mandar alerta de agente/SLA pro
-        WhatsApp do tenant — 1 valor único, não é por cliente. O número que recebe os alertas é
+        Usado por Campanhas, CRM e Mensageria para mandar alerta de agente/SLA ao
+        WhatsApp da empresa — 1 valor único, não é por cliente. O número que recebe os alertas é
         curado pelo Master (Empresas → aba Comunicação e IA).
       </p>
 
-      <div>
-        <label className={`block text-[10px] font-black uppercase tracking-widest mb-2 ${t.textMuted}`}>Evolution API URL</label>
-        <input type="text" value={apiUrl} onChange={e => setApiUrl(e.target.value)}
-          placeholder="http://localhost:8080" className={inputCls} />
-      </div>
-
-      <div>
-        <label className={`block text-[10px] font-black uppercase tracking-widest mb-2 ${t.textMuted}`}>Evolution API Key</label>
-        <div className="relative">
-          <input type={showKey ? 'text' : 'password'} value={apiKey} onChange={e => setApiKey(e.target.value)}
-            placeholder="Chave da API Evolution" className={`${inputCls} pr-12`} />
-          <button type="button" onClick={() => setShowKey(!showKey)}
-            className={`absolute right-4 top-1/2 -translate-y-1/2 ${t.isDark ? 'text-white/40 hover:text-white/70' : 'text-gray-400 hover:text-gray-600'}`}>
-            {showKey ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
-          </button>
-        </div>
-      </div>
-
-      <div>
-        <label className={`block text-[10px] font-black uppercase tracking-widest mb-2 ${t.textMuted}`}>Evolution Instance</label>
-        <input type="text" value={instance} onChange={e => setInstance(e.target.value)}
-          placeholder="Nome da Instância" className={inputCls} />
-      </div>
-
+      <p className={`text-xs font-semibold ${t.textPrimary}`}>A conexão deste canal é a mesma conexão de WhatsApp da empresa, configurada em Dados da Empresa → Comunicação.</p>
       <div className="flex items-center gap-3 flex-wrap pt-1">
-        <button onClick={handleSave} disabled={saving}
-          className="px-5 py-2.5 bg-blue-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-blue-500 transition-colors disabled:opacity-50">
-          {saving ? 'Salvando...' : 'Salvar Canal'}
-        </button>
         {saved && (
           <span className="flex items-center gap-1.5 text-xs font-black text-emerald-500">
             <CheckCircleIcon className="h-4 w-4" /> Salvo

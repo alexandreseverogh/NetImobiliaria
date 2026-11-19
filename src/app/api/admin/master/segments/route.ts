@@ -146,6 +146,16 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'id e name são obrigatórios' }, { status: 400 });
     }
 
+    // TTL padrão da foto de contatos (dias). Se não vier, mantém o valor atual do segmento.
+    let avatarTtlDefault: number | null = null;
+    if ('avatar_ttl_days_default' in body && body.avatar_ttl_days_default != null && body.avatar_ttl_days_default !== '') {
+      const n = Number(body.avatar_ttl_days_default);
+      if (!Number.isInteger(n) || n < 1 || n > 365) {
+        return NextResponse.json({ error: 'Atualização da foto deve estar entre 1 e 365 dias' }, { status: 400 });
+      }
+      avatarTtlDefault = n;
+    }
+
     await pool.query(`
       UPDATE public.system_segments SET
         name                           = $2,
@@ -156,11 +166,12 @@ export async function PUT(request: NextRequest) {
         imagens_por_ia                 = $7::BOOLEAN,
         chatbot_max_turns_default      = $8,
         distribution_role_name         = $9,
-        vocabulary                     = $10::jsonb
+        vocabulary                     = $10::jsonb,
+        avatar_ttl_days_default        = COALESCE($11::int, avatar_ttl_days_default)
       WHERE id = $1::uuid
     `, [
       id, name, description, icon, color_theme, is_active, imagens_por_ia ?? false, chatbot_max_turns_default || 6,
-      distribution_role_name || 'Corretor', JSON.stringify(vocabulary ?? {}),
+      distribution_role_name || 'Corretor', JSON.stringify(vocabulary ?? {}), avatarTtlDefault,
     ]);
 
     // Re-sincronizar módulos: remove todos e reinsere

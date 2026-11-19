@@ -94,11 +94,9 @@ export function WhatsAppWebhookSection({ t }: Props) {
       </p>
 
       <div className={boxCls}>
-        <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${t.textMuted}`}>Instância conectada</p>
+        <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${t.textMuted}`}>Número conectado</p>
         <div className="space-y-1.5 text-xs">
           {[
-            { label: 'API URL', value: config?.evolution_api_url },
-            { label: 'Instância', value: config?.evolution_instance },
             { label: 'Número WA', value: config?.numero_whatsapp },
           ].map(({ label, value }) => (
             <div key={label} className="flex items-center justify-between gap-2">
@@ -110,7 +108,7 @@ export function WhatsAppWebhookSection({ t }: Props) {
       </div>
 
       <div className={boxCls}>
-        <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${t.textMuted}`}>URL do Webhook (cole na Evolution API)</p>
+        <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${t.textMuted}`}>URL do webhook (configurada automaticamente pela plataforma)</p>
         <div className="flex gap-2 items-center">
           <code className={`flex-1 text-xs font-mono rounded-lg px-3 py-2 break-all ${t.isDark ? 'bg-black/30 text-white/80' : 'bg-white text-gray-800 border border-gray-200'}`}>
             {webhookUrl}
@@ -137,18 +135,11 @@ export function WhatsAppWebhookSection({ t }: Props) {
         </div>
         <p className="flex items-start gap-1.5 text-xs text-rose-500 mt-2">
           <ExclamationTriangleIcon className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-          Regenerar invalida a URL anterior na hora — mensagens param de entrar até você colar a
-          nova URL na Evolution API.
+          Regenerar troca o webhook da conexão na hora. A plataforma atualiza a configuração sozinha.
         </p>
       </div>
 
-      <ol className={`text-xs space-y-1.5 list-decimal list-inside ${t.textSecondary}`}>
-        <li>Acesse o painel da Evolution API → Instâncias → selecione sua instância.</li>
-        <li>Vá em Configurações → Webhook.</li>
-        <li>Cole a URL do Webhook acima no campo Webhook URL.</li>
-        <li>Ative o evento <strong>MESSAGES_UPSERT</strong> (mensagens recebidas).</li>
-        <li>Salve — mensagens recebidas passam a criar lead/conversa automaticamente.</li>
-      </ol>
+
     </div>
   )
 }

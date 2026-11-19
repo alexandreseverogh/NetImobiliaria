@@ -119,7 +119,8 @@ export async function PUT(
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
 
-    const { pageId, pixelId, instagramActorId, website, whatsappNumber, whatsappMessage, whatsappBusinessName } = await request.json();
+    const body = await request.json();
+    const { pageId, pixelId, instagramActorId, website, whatsappNumber, whatsappMessage, whatsappBusinessName } = body;
 
     const res = await pool.query(`
       UPDATE public.clientes
@@ -143,6 +144,7 @@ export async function PUT(
     if (res.rows.length === 0) {
       return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 });
     }
+
 
     // WhatsApp: ambos preenchidos → grava override do cliente (upsert); ambos vazios → apaga o
     // override (restaura herança do tenant); só um preenchido → combinação inválida, 400.

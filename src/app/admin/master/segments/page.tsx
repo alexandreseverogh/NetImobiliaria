@@ -47,6 +47,7 @@ interface Segment {
   imagens_por_ia: boolean
   tenant_count:   number
   chatbot_max_turns_default: number
+  avatar_ttl_days_default?: number
   distribution_role_name: string
   crm_ia_ativa: boolean
   vocabulary?: Record<string, any>
@@ -130,6 +131,7 @@ export default function MasterSegmentsPage() {
     module_ids: [] as string[],
     imagens_por_ia: false,
     chatbot_max_turns_default: 6,
+    avatar_ttl_days_default: undefined as number | undefined,
     distribution_role_name: 'Corretor',
     vocabulary: { ...EMPTY_VOCAB_FORM } as VocabForm,
   })
@@ -166,7 +168,7 @@ export default function MasterSegmentsPage() {
       if (response.ok) {
         setShowModal(false)
         setEditingSegment(null)
-        setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false, chatbot_max_turns_default: 6, distribution_role_name: 'Corretor', vocabulary: { ...EMPTY_VOCAB_FORM } })
+        setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false, chatbot_max_turns_default: 6, avatar_ttl_days_default: undefined, distribution_role_name: 'Corretor', vocabulary: { ...EMPTY_VOCAB_FORM } })
         fetchSegments()
       } else {
         const err = await response.json()
@@ -189,6 +191,7 @@ export default function MasterSegmentsPage() {
       module_ids:     (segment.module_ids || []).filter(Boolean),
       imagens_por_ia: segment.imagens_por_ia ?? false,
       chatbot_max_turns_default: segment.chatbot_max_turns_default ?? 6,
+      avatar_ttl_days_default: segment.avatar_ttl_days_default ?? 7,
       distribution_role_name: segment.distribution_role_name || 'Corretor',
       vocabulary: vocabToForm(segment.vocabulary),
     })
@@ -226,7 +229,7 @@ export default function MasterSegmentsPage() {
             <button
               onClick={() => {
                 setEditingSegment(null)
-                setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false, chatbot_max_turns_default: 6, distribution_role_name: 'Corretor', vocabulary: { ...EMPTY_VOCAB_FORM } })
+                setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false, chatbot_max_turns_default: 6, avatar_ttl_days_default: undefined, distribution_role_name: 'Corretor', vocabulary: { ...EMPTY_VOCAB_FORM } })
                 setShowModal(true)
               }}
               className="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 transition-all hover:scale-105 active:scale-95"
@@ -397,7 +400,7 @@ export default function MasterSegmentsPage() {
       {/* Segment Modal — 2 colunas, sem scroll */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl transform transition-all animate-in fade-in zoom-in duration-300">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col transform transition-all animate-in fade-in zoom-in duration-300">
 
             {/* ── Cabeçalho ── */}
             <div className="px-6 py-4 bg-indigo-600 text-white flex items-center justify-between rounded-t-3xl">
@@ -414,8 +417,8 @@ export default function MasterSegmentsPage() {
             </div>
 
             {/* ── Formulário 2 colunas ── */}
-            <form onSubmit={handleSubmit}>
-              <div className="grid grid-cols-2 gap-x-8 gap-y-5 px-8 pt-6 pb-5">
+            <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+              <div className="flex-1 min-h-0 overflow-y-auto grid grid-cols-1 xl:grid-cols-2 gap-x-10 gap-y-5 px-8 pt-6 pb-5">
 
                 {/* ╔══════════════ COLUNA ESQUERDA ══════════════╗ */}
                 <div className="space-y-5">
@@ -524,6 +527,27 @@ export default function MasterSegmentsPage() {
                       value={formData.chatbot_max_turns_default}
                       onChange={e => setFormData({...formData, chatbot_max_turns_default: parseInt(e.target.value, 10) || 6})}
                       className="w-24 px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all font-medium text-sm"
+                    />
+                  </div>
+
+                  {/* Foto de contatos — dias até atualizar (padrão do segmento; tenant e cliente sobrepõem) */}
+                  <div className="p-3.5 rounded-xl border border-dashed border-violet-200 bg-violet-50/50">
+                    <label htmlFor="avatar_ttl_days_default" className="text-sm font-black text-violet-800 flex items-center gap-1.5 mb-1">
+                      Foto de contatos — atualizar a cada N dias (padrão)
+                    </label>
+                    <p className="text-[10px] text-violet-600 mb-2 leading-relaxed">
+                      Padrão do segmento. Cada tenant pode sobrepor em Dados da Empresa, e cada cliente
+                      pode sobrepor o do tenant. Segmentos de giro rápido (ex.: venda de carros) pedem um
+                      valor menor.
+                    </p>
+                    <input
+                      type="number" id="avatar_ttl_days_default" min={1} max={365}
+                      value={formData.avatar_ttl_days_default ?? ''}
+                      onChange={e => {
+                        const v = parseInt(e.target.value, 10)
+                        setFormData({...formData, avatar_ttl_days_default: Number.isNaN(v) ? undefined : v})
+                      }}
+                      className="w-24 px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-violet-500 outline-none transition-all font-medium text-sm"
                     />
                   </div>
 
@@ -673,7 +697,7 @@ export default function MasterSegmentsPage() {
               </div>
 
               {/* ── Botões ── */}
-              <div className="flex gap-4 px-8 py-5 border-t border-gray-100">
+              <div className="shrink-0 flex gap-4 px-8 py-5 border-t border-gray-100 bg-white rounded-b-3xl">
                 <button type="button" onClick={() => setShowModal(false)}
                   className="flex-1 py-2.5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-all text-sm">
                   Cancelar

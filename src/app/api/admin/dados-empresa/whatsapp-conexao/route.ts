@@ -11,6 +11,7 @@ import pool from '@/lib/database/connection';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { requireAnyApiPermission } from '@/lib/auth/apiPermissions';
 import { getEvolutionStatus } from '@/lib/marketing/services/agentNotificador';
+import { createTenantInstance } from '@/lib/mensageria/evolutionServer';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,7 +58,8 @@ export async function GET(request: NextRequest) {
     qrCode = qr.qrCode;
     qrError = qr.error;
   }
-  return NextResponse.json({ ...status, qrCode, qrError });
+  const cfgNow = await getEvoCfg(payload.tenantId);
+  return NextResponse.json({ ...status, qrCode, qrError, notConfigured: !cfgNow?.evolution_instance });
 }
 
 export async function POST(request: NextRequest) {
@@ -67,6 +69,17 @@ export async function POST(request: NextRequest) {
   }
   const denied = await requireAnyApiPermission(request, [RESOURCE], 'UPDATE');
   if (denied) return denied;
+
+  // Sem instância ainda: cria a conexão desta empresa agora (o administrador nunca vê a chave).
+  const cfg = await getEvoCfg(payload.tenantId);
+  if (!cfg?.evolution_instance) {
+    try {
+      const created = await createTenantInstance(payload.tenantId);
+      return NextResponse.json({ qrCode: created.qrBase64, connected: false });
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+  }
 
   const qr = await fetchQr(payload.tenantId);
   if (qr.error && !qr.qrCode) {

@@ -8,6 +8,8 @@ import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
 import { buscarEnderecoPorCep } from '@/lib/utils/geocoding'
 import EstadoSelect from '@/components/shared/EstadoSelect'
 import ClientCampaignSettings from '@/components/admin/clientes/ClientCampaignSettings'
+import { adminFetch } from '@/lib/auth/adminFetch'
+import { useTenantModulos } from '@/hooks/useTenantModulos'
 import ClientAvatar from '@/components/admin/ClientAvatar'
 
 type TipoCliente = 'conta_gerenciada' | 'comprador_pj' | 'consumidor_pf'
@@ -64,7 +66,17 @@ export default function EditarClientePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [cliente, setCliente] = useState<Cliente | null>(null)
-  const [activeTab, setActiveTab] = useState<'dados' | 'meta'>('dados')
+  const [activeTab, setActiveTab] = useState<'dados' | 'integracoes' | 'comunicacao'>('dados')
+  const [mensagensEnabled, setMensagensEnabled] = useState(false)
+
+  // Central de Mensagens (dentro de Comunicação): só com Mensageria contratada + Gerar mensagens.
+  useEffect(() => {
+    if (!cliente?.uuid) return
+    adminFetch(`/api/admin/clientes/${cliente.uuid}/central-mensagens`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setMensagensEnabled(!!d?.enabled))
+      .catch(() => setMensagensEnabled(false))
+  }, [cliente?.uuid])
   // Mesmo gate do "novo cliente": aba "Config. Meta" só é oferecida quando o TENANT ativou
   // isso explicitamente (tenants.marketing_digital, curado pelo Master).
   const [hasMarketingDigital, setHasMarketingDigital] = useState(false)
@@ -121,6 +133,7 @@ export default function EditarClientePage() {
   // Quando desligado, o tipo é derivado automaticamente de qual documento está preenchido:
   // CNPJ → comprador_pj (pessoa jurídica), CPF → consumidor_pf (pessoa física).
   const [contaGerenciada, setContaGerenciada] = useState(false)
+  const { modulos } = useTenantModulos()
 
   // Segmento obrigatório para todo cliente, exceto consumidor PF (decisão 2026-11-07).
   const exigeSegmento = deriveTipoCliente(contaGerenciada, formData.cpf, formData.cnpj) !== 'consumidor_pf'
@@ -129,10 +142,10 @@ export default function EditarClientePage() {
   // Meta" está aberta, a tela ficaria em branco — o botão da aba já some do menu, mas activeTab
   // continuaria 'meta'. Volta sozinho pra "Dados do Cliente" nesse caso.
   useEffect(() => {
-    if (activeTab === 'meta' && !(contaGerenciada && hasMarketingDigital)) {
+    if (activeTab !== 'dados' && !contaGerenciada) {
       setActiveTab('dados')
     }
-  }, [contaGerenciada, hasMarketingDigital, activeTab])
+  }, [contaGerenciada, activeTab])
 
   const [errors, setErrors] = useState<ValidationErrors>({})
   const [cpfValidating, setCpfValidating] = useState(false)
@@ -995,26 +1008,45 @@ export default function EditarClientePage() {
           >
             👤 Dados do Cliente
           </button>
-          {contaGerenciada && hasMarketingDigital && (
+          {contaGerenciada && modulos?.campanhas && (
             <button
               type="button"
-              onClick={() => setActiveTab('meta')}
+              onClick={() => setActiveTab('integracoes')}
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all
-                ${activeTab === 'meta'
+                ${activeTab === 'integracoes'
                   ? 'bg-indigo-600 text-white shadow-sm'
                   : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
                 }`}
             >
-              📣 Config. Meta
+              🔗 Integração Mídias Sociais
+            </button>
+          )}
+          {contaGerenciada && modulos?.comunicacao && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('comunicacao')}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all
+                ${activeTab === 'comunicacao'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+            >
+              💬 Comunicação
             </button>
           )}
         </div>
       </div>
 
       {/* ── ABA: CONFIGURAÇÕES META ── */}
-      {activeTab === 'meta' && cliente && contaGerenciada && hasMarketingDigital && (
+      {activeTab === 'integracoes' && cliente && contaGerenciada && (
         <div className="max-w-3xl">
-          <ClientCampaignSettings clientId={cliente.uuid} />
+          <ClientCampaignSettings clientId={cliente.uuid} section="integracoes" />
+        </div>
+      )}
+
+      {activeTab === 'comunicacao' && cliente && contaGerenciada && (
+        <div className="max-w-3xl">
+          <ClientCampaignSettings clientId={cliente.uuid} section="comunicacao" mensagensEnabled={mensagensEnabled} />
         </div>
       )}
 
@@ -1136,7 +1168,7 @@ export default function EditarClientePage() {
           <p className="text-xs text-gray-500 mt-3">
             {contaGerenciada ? (
               <>Só "Conta Gerenciada" aparece nos seletores de cliente do módulo de Campanhas e ganha
-                configuração de pixel/página/WhatsApp (aba "Config. Meta").</>
+                configuração de pixel/página/WhatsApp (abas "Integração Mídias Sociais" e "Comunicação").</>
             ) : (
               <>Desligado, o tipo é inferido automaticamente pelo documento preenchido — será
                 classificado como <strong>{formData.cnpj.trim() !== '' ? 'Pessoa Jurídica (CNPJ)' : 'Pessoa Física (CPF)'}</strong>.</>

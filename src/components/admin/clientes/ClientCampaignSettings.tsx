@@ -5,6 +5,7 @@
  * Seção de configurações de campanha (Meta) por cliente.
  * Reutilizável na página de visualização e na de edição.
  */
+import ClientCentralMensagensSection from './ClientCentralMensagensSection'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircleIcon, ExclamationTriangleIcon, ArrowLeftIcon } from '@heroicons/react/24/outline'
@@ -274,7 +275,11 @@ function WhatsAppCloudApiSection({ clientId }: { clientId: string }) {
   )
 }
 
-export default function ClientCampaignSettings({ clientId }: { clientId: string }) {
+export default function ClientCampaignSettings({
+  clientId, section, mensagensEnabled = false,
+}: {
+  clientId: string; section?: 'integracoes' | 'comunicacao'; mensagensEnabled?: boolean;
+}) {
   const router = useRouter()
   const { get, put } = useAuthenticatedFetch()
   const [data, setData]       = useState<CampaignSettings | null>(null)
@@ -362,6 +367,7 @@ export default function ClientCampaignSettings({ clientId }: { clientId: string 
         </button>
       </div>
 
+      {(!section || section === 'integracoes') && (<>
       {/* Header */}
       <div
         className="rounded-2xl p-5 text-white relative overflow-hidden"
@@ -435,6 +441,11 @@ export default function ClientCampaignSettings({ clientId }: { clientId: string 
         </div>
       )}
 
+      </>)}
+
+      {(!section || section === 'comunicacao') && (<>
+      {/* Provider no topo: a escolha por cliente define o restante da aba. */}
+      <WhatsAppCloudApiSection clientId={clientId} />
       {/* ── WhatsApp — número de redirect do CTA de anúncio ── */}
       <div
         className="rounded-2xl p-5 text-white relative overflow-hidden"
@@ -489,7 +500,8 @@ export default function ClientCampaignSettings({ clientId }: { clientId: string 
         </div>
       )}
 
-      <WhatsAppCloudApiSection clientId={clientId} />
+      {mensagensEnabled && <ClientCentralMensagensSection clientId={clientId} />}
+      </>)}
 
       {error && (
         <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 font-medium">{error}</div>
@@ -507,7 +519,7 @@ export default function ClientCampaignSettings({ clientId }: { clientId: string 
             style={{ background: saving ? '#94a3b8' : '#1877f2' }}>
             {saving
               ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Salvando…</>
-              : 'Salvar Configurações Meta'}
+              : section === 'integracoes' ? 'Salvar Integrações' : section === 'comunicacao' ? 'Salvar Comunicação' : 'Salvar Configurações'}
           </button>
         </UpdateGuard>
       </div>

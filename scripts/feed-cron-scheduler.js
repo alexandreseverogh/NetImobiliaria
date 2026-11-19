@@ -556,6 +556,7 @@ const SCHEDULE_SUMMARY = [
   { group: 'business', text: 'Audit report semanal    → domingos às 18:00' },
   { group: 'business', text: 'Publicação orgânica     → a cada 5 min (agendadas)' },
   { group: 'business', text: 'Mensageria SLA check    → a cada 5 min' },
+  { group: 'business', text: 'Saúde WhatsApp (Evolution) → a cada 5 min' },
   { group: 'business', text: 'CRM agentes (scan)      → a cada 5 min' },
   { group: 'business', text: 'CRM pendência (reconc.) → diário às 03:30' },
   { group: 'business', text: 'CRM recalibração score  → diário às 04:00' },
@@ -574,3 +575,22 @@ console.log('\n🚀 Agendador rodando... (Ctrl+C para parar)\n');
 
 // Removido o boot sync imediato para respeitar a janela das 03:00h conforme solicitado pelo usuário.
 
+
+// MENSAGERIA — Saúde das conexões de WhatsApp (Evolution): a cada 5 minutos
+// Atualiza o estado de cada empresa e a disponibilidade de cada servidor (faixa de aviso e Master).
+scheduleJob('business', '*/5 * * * *', async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/cron/mensageria/connection-health`, {
+      method: 'POST',
+      headers: { 'x-cron-secret': CRON_SECRET, 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+      console.error(`❌ [mensageria-connection-health] Erro (${response.status})`);
+    }
+  } catch (error) {
+    console.error('❌ [mensageria-connection-health] Erro de conexão:', error.message);
+  }
+}, {
+  scheduled: true,
+  timezone: 'America/Sao_Paulo'
+});

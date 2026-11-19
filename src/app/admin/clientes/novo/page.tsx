@@ -10,6 +10,8 @@ import { useEstadosCidades } from '@/hooks/useEstadosCidades'
 import { buscarEnderecoPorCep } from '@/lib/utils/geocoding'
 import EstadoSelect from '@/components/shared/EstadoSelect'
 import ClientCampaignSettings from '@/components/admin/clientes/ClientCampaignSettings'
+import { adminFetch } from '@/lib/auth/adminFetch'
+import { useTenantModulos } from '@/hooks/useTenantModulos'
 
 interface FormData {
   nome: string
@@ -60,11 +62,20 @@ export default function NovoClientePage() {
   } = useEstadosCidades('all')
   const [saving, setSaving] = useState(false)
   const [createdClientId, setCreatedClientId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'dados' | 'meta'>('dados')
+  const [activeTab, setActiveTab] = useState<'dados' | 'integracoes' | 'comunicacao'>('dados')
+  const [mensagensEnabled, setMensagensEnabled] = useState(false)
+  useEffect(() => {
+    if (!createdClientId) return
+    adminFetch(`/api/admin/clientes/${createdClientId}/central-mensagens`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setMensagensEnabled(!!d?.enabled))
+      .catch(() => setMensagensEnabled(false))
+  }, [createdClientId])
   // A aba "Config. Meta" só é oferecida quando o TENANT ativou isso explicitamente
   // (tenants.marketing_digital, curado pelo Master em /admin/master/tenants) — não mais
   // amarrado a "o tenant contratou o módulo de Campanhas".
   const [hasMarketingDigital, setHasMarketingDigital] = useState(false)
+  const { modulos } = useTenantModulos()
 
   useEffect(() => {
     get('/api/admin/clientes/tem-marketing-digital')
@@ -747,7 +758,7 @@ export default function NovoClientePage() {
           // Só faz sentido oferecer a config. Meta pra conta gerenciada (o tipo que de fato
           // aparece nos seletores de Campanhas) e quando o tenant contratou o módulo.
           setCreatedClientId(created.uuid)
-          setActiveTab('meta')
+          setActiveTab('integracoes')
         } else {
           router.push('/admin/clientes')
         }
@@ -811,25 +822,41 @@ export default function NovoClientePage() {
               >
                 👤 Dados do Cliente
               </button>
-              <button
+              {modulos?.campanhas && <button
                 type="button"
-                onClick={() => setActiveTab('meta')}
+                onClick={() => setActiveTab('integracoes')}
                 className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all
-                  ${activeTab === 'meta'
+                  ${activeTab === 'integracoes'
                     ? 'bg-indigo-600 text-white shadow-sm'
                     : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
                   }`}
               >
-                📣 Config. Meta
-              </button>
+                🔗 Integração Mídias Sociais
+              </button>}
+              {modulos?.comunicacao && <button
+                type="button"
+                onClick={() => setActiveTab('comunicacao')}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all
+                  ${activeTab === 'comunicacao'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+              >
+                💬 Comunicação
+              </button>}
             </div>
           )}
         </div>
 
         {/* ── ABA: CONFIGURAÇÕES META ── */}
-        {activeTab === 'meta' && createdClientId && (
+        {activeTab === 'integracoes' && createdClientId && modulos?.campanhas && (
           <div className="max-w-3xl space-y-4">
-            <ClientCampaignSettings clientId={createdClientId} />
+            <ClientCampaignSettings clientId={createdClientId} section="integracoes" />
+          </div>
+        )}
+        {activeTab === 'comunicacao' && createdClientId && modulos?.comunicacao && (
+          <div className="max-w-3xl space-y-4">
+            <ClientCampaignSettings clientId={createdClientId} section="comunicacao" mensagensEnabled={mensagensEnabled} />
           </div>
         )}
 
@@ -1010,7 +1037,7 @@ export default function NovoClientePage() {
               <p className="text-xs text-gray-500 mt-3">
                 {contaGerenciada ? (
                   <>Só "Conta Gerenciada" aparece nos seletores de cliente do módulo de Campanhas e ganha
-                    configuração de pixel/página/WhatsApp (aba "Config. Meta").</>
+                    configuração de pixel/página/WhatsApp (abas "Integração Mídias Sociais" e "Comunicação").</>
                 ) : (
                   <>Desligado, o tipo é inferido automaticamente pelo documento preenchido — será
                     classificado como <strong>{formData.cnpj.trim() !== '' ? 'Pessoa Jurídica (CNPJ)' : 'Pessoa Física (CPF)'}</strong>.</>
