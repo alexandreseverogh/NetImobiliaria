@@ -6,6 +6,7 @@
  * ativaram o bot, e evita expor a existência de tenants inválidos via erro diferenciado).
  */
 import { NextRequest, NextResponse } from 'next/server'
+import { verifyPublicChatToken } from '@/lib/security/publicChatToken'
 import pool from '@/lib/database/connection'
 import { ingestMessage } from '@/lib/mensageria/ingest'
 import { resolveWebchatInbox } from '@/lib/mensageria/inboxes'
@@ -93,7 +94,9 @@ async function loadMessages(conversationId: string) {
  *  nunca erro (mesmo espírito de "falha silenciosa e segura" já usado no pageContext abaixo). */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const tenantId = searchParams.get('tenantId') || ''
+  // O tenant vem do token assinado pelo servidor (ficha do imóvel), nunca do cliente.
+  const tenantId = verifyPublicChatToken(searchParams.get('token')) || ''
+  if (!tenantId) return NextResponse.json({ error: 'Token do chat inválido ou expirado' }, { status: 403 })
   const sessionId = searchParams.get('sessionId') || ''
   if (!UUID_RE.test(tenantId) || !UUID_RE.test(sessionId)) {
     return NextResponse.json({ error: 'tenantId e sessionId são obrigatórios (UUID)' }, { status: 400 })
@@ -113,7 +116,9 @@ export async function GET(request: NextRequest) {
  *  internamente. clientId segue a mesma regra de degradação graciosa do GET acima. */
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}))
-  const tenantId: string = body.tenantId || ''
+  // O tenant vem do token assinado pelo servidor; o corpo não escolhe tenant.
+  const tenantId: string = verifyPublicChatToken(body.token) || ''
+  if (!tenantId) return NextResponse.json({ error: 'Token do chat inválido ou expirado' }, { status: 403 })
   const sessionId: string = body.sessionId || ''
   const message: string = String(body.message || '').trim()
   const pageContext: { entity?: string; id?: string | number } | undefined = body.pageContext

@@ -66,7 +66,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const scopeClause = scoped.clause ? ` AND ${scoped.clause}` : ''
 
   const { rows: convRows } = await pool.query(
-    `SELECT c.id, c.tenant_id, ct.phone, ib.channel_type, ib.provider, ib.config
+    `SELECT c.id, c.tenant_id, COALESCE(ct.phone, ct.attributes->>'lid') AS phone, ib.channel_type, ib.provider, ib.config
        FROM mensageria.conversations c
        JOIN mensageria.contacts ct ON ct.id = c.contact_id
        JOIN mensageria.inboxes ib ON ib.id = c.inbox_id

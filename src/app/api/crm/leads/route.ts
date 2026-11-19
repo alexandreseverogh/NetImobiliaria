@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isInternalCall } from '@/lib/security/internalCall'
 import pool from '@/lib/database/connection'
 import { DistributionEngine } from '@/lib/routing/distributionEngine'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
@@ -38,6 +39,17 @@ function getCurrentUser(request: NextRequest): { userId: string, tenantId?: stri
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json()
+    // Quem pode criar lead: (1) usuário logado do CRM, ou (2) chamada interna da própria aplicação
+    // (webhooks de captura, CTA, WhatsApp), que precisa informar o tenant_id. Sem nenhuma das duas,
+    // recusa — antes, qualquer requisição criava lead em qualquer tenant.
+    const sessionUserGate = getCurrentUser(request)
+    const internalGate = isInternalCall(request)
+    if (!sessionUserGate && !internalGate) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+    }
+    if (!sessionUserGate && !data.tenant_id) {
+      return NextResponse.json({ error: 'tenant_id obrigatório em chamada interna' }, { status: 400 })
+    }
     const { nome, email, telefone, tag_sonho, raw_json, utm_params, imovel_id } = data
     // ID real de campanhasmarketingdigital."Campaign" — só vem preenchido quando o lead se
     // origina de uma campanha lançada por esta plataforma (resolveCtaRef via Ad.trackingId).
@@ -77,7 +89,7 @@ export async function POST(request: NextRequest) {
     // chamadores servidor-a-servidor sem sessão (webhooks do Meta/Google, inboundProcessor do
     // WhatsApp, mecanismo de CTA) que já resolvem o tenant certo antes de chamar esta rota.
     // (3) Master como último fallback, só alcançável se nem sessão nem corpo informarem nada.
-    const sessionUser = getCurrentUser(request)
+    const sessionUser = sessionUserGate
     let leadTenantId = (sessionUser && !sessionUser.is_system_role && sessionUser.tenantId)
       || data.tenant_id
       || '00000000-0000-0000-0000-000000000001'

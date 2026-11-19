@@ -752,6 +752,7 @@ export default function ImovelDetalhes() {
       {/* Chat público (M4.4) — só aparece se o tenant dono deste imóvel tiver bot ativo */}
       <ChatWidget
         tenantId={dadosBasicos?.tenant_id}
+        webchatToken={dadosBasicos?.webchat_token}
         pageContext={dadosBasicos ? { entity: 'imovel', id: dadosBasicos.id } : null}
       />
     </div>

@@ -25,6 +25,8 @@ interface ChatMessage {
 
 interface Props {
   tenantId: string | null | undefined
+  /** Token emitido pelo servidor junto com a ficha do imóvel. Sem ele o widget não fala com o tenant. */
+  webchatToken?: string | null
   /** Cliente dono da página, quando ela pertence a um cliente específico do tenant (ex.: uma
    *  landing page própria de uma empresa gerenciada) — escopa o bot pro bot_flow/base de
    *  conhecimento DESSE cliente. Ausente/null = escopo tenant-wide, mesmo comportamento de antes. */
@@ -46,7 +48,7 @@ function getOrCreateSessionId(tenantId: string, clientId: string | null): string
   return id
 }
 
-export default function ChatWidget({ tenantId, clientId = null, pageContext }: Props) {
+export default function ChatWidget({ tenantId, webchatToken, clientId = null, pageContext }: Props) {
   const [available, setAvailable] = useState(false)
   const [checked, setChecked] = useState(false)
   const [open, setOpen] = useState(false)
@@ -59,10 +61,10 @@ export default function ChatWidget({ tenantId, clientId = null, pageContext }: P
   // Checa 1x se esse tenant tem bot ativo — sem isso, a bolha nunca aparece (evita oferecer
   // um chat que nunca vai responder pra empresas que não configuraram o bot).
   useEffect(() => {
-    if (!tenantId) return
+    if (!tenantId || !webchatToken) return
     sessionIdRef.current = getOrCreateSessionId(tenantId, clientId)
     const sessionId = sessionIdRef.current
-    const qs = new URLSearchParams({ tenantId, sessionId })
+    const qs = new URLSearchParams({ token: webchatToken || '', sessionId })
     if (clientId) qs.set('clientId', clientId)
     fetch(`/api/public/mensageria/chat?${qs.toString()}`)
       .then((r) => r.json())
@@ -72,7 +74,7 @@ export default function ChatWidget({ tenantId, clientId = null, pageContext }: P
       })
       .catch(() => setAvailable(false))
       .finally(() => setChecked(true))
-  }, [tenantId, clientId])
+  }, [tenantId, webchatToken, clientId])
 
   useEffect(() => {
     if (open) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -80,7 +82,7 @@ export default function ChatWidget({ tenantId, clientId = null, pageContext }: P
 
   const sendMessage = useCallback(async () => {
     const text = input.trim()
-    if (!text || !tenantId || !sessionIdRef.current || sending) return
+    if (!text || !tenantId || !webchatToken || !sessionIdRef.current || sending) return
     setInput('')
     setSending(true)
     // Otimista: mostra a mensagem do visitante na hora, sem esperar o round-trip.
@@ -92,7 +94,7 @@ export default function ChatWidget({ tenantId, clientId = null, pageContext }: P
       const res = await fetch('/api/public/mensageria/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId, clientId, sessionId: sessionIdRef.current, message: text, pageContext }),
+        body: JSON.stringify({ token: webchatToken, clientId, sessionId: sessionIdRef.current, message: text, pageContext }),
       })
       const data = await res.json()
       if (res.ok && Array.isArray(data.messages)) setMessages(data.messages)
@@ -101,9 +103,9 @@ export default function ChatWidget({ tenantId, clientId = null, pageContext }: P
     } finally {
       setSending(false)
     }
-  }, [input, tenantId, clientId, sending])
+  }, [input, tenantId, webchatToken, clientId, sending])
 
-  if (!tenantId || !checked || !available) return null
+  if (!tenantId || !webchatToken || !checked || !available) return null
 
   return (
     <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3">

@@ -64,17 +64,21 @@ async function findOrCreateContact(
 ): Promise<{ id: string; isNew: boolean }> {
   const { name, phone, email, avatarUrl, attributes } = input
   const attrsJson = JSON.stringify(attributes ?? {})
+  // Identificador @lid do WhatsApp: chave de dedupe quando não há número (contato sem telefone).
+  const lid: string | null = (attributes?.lid as string | undefined) || null
 
-  if (!phone && !email) {
-    throw new Error('ingestMessage: contato precisa de phone ou email para dedupe')
+  if (!phone && !email && !lid) {
+    throw new Error('ingestMessage: contato precisa de phone, email ou lid para dedupe')
   }
 
   const { rows: existing } = await pool.query(
     `SELECT id FROM ${SCHEMA}.contacts
       WHERE tenant_id = $1
-        AND ((phone = $2 AND phone IS NOT NULL) OR (email = $3 AND email IS NOT NULL))
+        AND ((phone = $2 AND phone IS NOT NULL)
+          OR (email = $3 AND email IS NOT NULL)
+          OR ($4::text IS NOT NULL AND attributes->>'lid' = $4))
       LIMIT 1`,
-    [tenantId, phone ?? null, email ?? null],
+    [tenantId, phone ?? null, email ?? null, lid],
   )
 
   if (existing[0]) {
@@ -104,7 +108,7 @@ async function findOrCreateContact(
 
 /**
  * Encontra a conversa ABERTA mais recente do contato nesta inbox, ou cria uma nova.
- * Uma conversa resolvida/snoozed não é reaberta automaticamente — nova mensagem
+ * Uma conversa resolvida não é reaberta automaticamente — nova mensagem
  * do contato nesse caso abre uma conversa nova (comportamento do Chatwoot).
  */
 async function findOrCreateConversation(

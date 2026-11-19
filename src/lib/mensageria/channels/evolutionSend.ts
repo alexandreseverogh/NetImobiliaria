@@ -15,6 +15,9 @@ export interface EvolutionInboxConfig {
 }
 
 function normalizePhone(raw: string): string {
+  // Contato sem número: o destino é o identificador @lid, que NÃO pode virar número (senão a
+  // mensagem vai para um telefone inexistente ou errado).
+  if (raw.endsWith('@lid')) return raw
   let phone = raw.replace(/\D/g, '')
   // BR mobile: 55 + 2-digit DDD + 9-digit = 13 digits; Evolution espera 12 (remove o 9º dígito)
   if (phone.length === 13 && phone.startsWith('55')) {

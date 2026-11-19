@@ -555,7 +555,7 @@ export async function maybeRunBot(conversationId: string, tenantId: string, extr
   // histórico no CRM sem Mensageria, a mensagem é guardada mas nunca respondida pelo bot.
   if (!(await hasMensageriaModule(tenantId))) return
   const { rows: convRows } = await pool.query(
-    `SELECT c.id, c.client_id, c.assignee_id, c.inbox_id, ib.channel_type, ib.provider, ib.config, ct.phone, ct.lead_uuid
+    `SELECT c.id, c.client_id, c.assignee_id, c.inbox_id, ib.channel_type, ib.provider, ib.config, COALESCE(ct.phone, ct.attributes->>'lid') AS phone, ct.lead_uuid
        FROM ${SCHEMA}.conversations c
        JOIN ${SCHEMA}.inboxes ib ON ib.id = c.inbox_id
        JOIN ${SCHEMA}.contacts ct ON ct.id = c.contact_id

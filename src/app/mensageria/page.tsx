@@ -1,16 +1,16 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   InboxIcon, UserCircleIcon, UsersIcon,
-  CheckCircleIcon, PlusIcon, XMarkIcon, ClockIcon,
+  CheckCircleIcon, PlusIcon, XMarkIcon, ClockIcon, ArrowPathIcon,
 } from '@heroicons/react/24/outline'
 import { adminFetch } from '@/lib/auth/adminFetch'
 import { formatTelefone } from '@/lib/utils/formatters'
 import DateInputPtBR from '@/components/ui/DateInputPtBR'
 import ConversationThread from '@/components/mensageria/ConversationThread'
 
-type Folder = 'pending' | 'all' | 'unassigned' | 'mine'
+type Folder = 'pending' | 'waiting_client' | 'resolved' | 'all' | 'unassigned' | 'mine'
 
 /** Há quanto tempo a bola está com a gente (ex.: "há 3 dias", "há 5 h", "agora"). */
 function idadePendencia(iso: string | null | undefined): string {
@@ -54,6 +54,48 @@ interface ConversationSummary {
   createdAt: string
 }
 
+
+// Bip curto para chegada de conversa nova. Usa a Web Audio API (sem arquivo de som).
+// Navegadores só liberam áudio após algum gesto do usuário na página; antes disso, o bip é ignorado.
+let audioCtx: AudioContext | null = null
+// Libera o áudio da página. Precisa ser chamado a partir de um clique/toque do usuário.
+function unlockAudio() {
+  try {
+    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    if (!Ctx) return
+    audioCtx = audioCtx || new Ctx()
+    if (audioCtx.state === 'suspended') audioCtx.resume()
+  } catch {
+    // Sem áudio disponível.
+  }
+}
+function playNewMessageBeep() {
+  try {
+    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    if (!Ctx) return
+    audioCtx = audioCtx || new Ctx()
+    if (audioCtx.state === 'suspended') audioCtx.resume()
+    const osc = audioCtx.createOscillator()
+    const gain = audioCtx.createGain()
+    osc.type = 'sine'
+    osc.frequency.value = 880
+    gain.gain.setValueAtTime(0.0001, audioCtx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.2, audioCtx.currentTime + 0.02)
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.25)
+    osc.connect(gain).connect(audioCtx.destination)
+    osc.start()
+    osc.stop(audioCtx.currentTime + 0.3)
+  } catch {
+    // Sem áudio disponível: o selo visual continua funcionando.
+  }
+}
+
+type NewConversationItem = {
+  id: string
+  contact?: { name?: string | null; phone?: string | null } | null
+  lastMessagePreview?: string | null
+  unreadCount?: number | null
+}
 
 function initials(name: string | null): string {
   if (!name) return '?'
@@ -111,6 +153,14 @@ export default function MensageriaPage() {
   const [allCount, setAllCount] = useState(0)
   // Contador da pasta "Aguardando resposta" — vem sempre do servidor, sem período.
   const [pendingCount, setPendingCount] = useState(0)
+  const [waitingClientCount, setWaitingClientCount] = useState(0)
+  const [resolvedCount, setResolvedCount] = useState(0)
+  const [resolvedNotice, setResolvedNotice] = useState(false)
+  useEffect(() => {
+    if (!resolvedNotice) return
+    const t = setTimeout(() => setResolvedNotice(false), 4000)
+    return () => clearTimeout(t)
+  }, [resolvedNotice])
   // Período padrão = hoje (data local, yyyy-mm-dd), para a caixa abrir já filtrada no dia atual.
   const todayIso = (() => {
     const d = new Date()
@@ -136,6 +186,11 @@ export default function MensageriaPage() {
   }, [])
   const [dateTo, setDateTo] = useState(todayIso)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // Link direto para uma conversa (ex.: aviso de contato sem número): abre a conversa ao carregar.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('conversation')
+    if (id) setSelectedId(id)
+  }, [])
 
   // Nova conversa manual (input manual — canal 'manual', ver M2)
   const [showNewModal, setShowNewModal] = useState(false)
@@ -156,7 +211,7 @@ export default function MensageriaPage() {
 
   function buildConversationsQuery(cursor?: string) {
     const qs = new URLSearchParams()
-    if (folder === 'pending') qs.set('folder', 'pending')
+    if (folder === 'pending' || folder === 'waiting_client' || folder === 'resolved') qs.set('folder', folder)
     if (assigneeParam) qs.set('assigneeId', assigneeParam)
     // O período vale em todas as pastas, inclusive pendentes, para o contador de Todas
     // refletir sempre o período informado.
@@ -178,17 +233,102 @@ export default function MensageriaPage() {
     }
   }
 
+  // Conversas que chegaram desde a última atualização da lista — recebem o selo "Nova" por alguns segundos.
+  const [newIds, setNewIds] = useState<Set<string>>(new Set())
+  const knownIdsRef = useRef<Set<string> | null>(null)
+  // Contador de não lidas da última lista, por conversa (detecta mensagem nova em conversa já listada).
+  const prevUnreadRef = useRef<Map<string, number>>(new Map())
+
+  // Avisos do sistema (notificação do Windows/SO). A permissão é pedida só por clique do atendente,
+  // e fica guardada no navegador. "Dispensar" esconde a faixa até ele reativar pelo status da coluna 1.
+  const NOTIF_DISMISS_KEY = 'mensageria-notif-dismissed'
+  const [notifSupported, setNotifSupported] = useState(false)
+  const [notifPerm, setNotifPerm] = useState<'default' | 'granted' | 'denied'>('default')
+  const [notifDismissed, setNotifDismissed] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return
+    setNotifSupported(true)
+    setNotifPerm(Notification.permission)
+    try { setNotifDismissed(localStorage.getItem(NOTIF_DISMISS_KEY) === '1') } catch { /* sem storage */ }
+  }, [])
+  // Primeiro clique/toque em qualquer lugar da página libera o áudio (exigência do navegador).
+  useEffect(() => {
+    const onGesture = () => unlockAudio()
+    window.addEventListener('pointerdown', onGesture, { once: true })
+    window.addEventListener('keydown', onGesture, { once: true })
+    return () => {
+      window.removeEventListener('pointerdown', onGesture)
+      window.removeEventListener('keydown', onGesture)
+    }
+  }, [])
+  function enableNotifications() {
+    if (!('Notification' in window)) return
+    unlockAudio()
+    Notification.requestPermission().then((p) => {
+      setNotifPerm(p)
+      if (p === 'granted') {
+        try { localStorage.removeItem(NOTIF_DISMISS_KEY) } catch { /* sem storage */ }
+        setNotifDismissed(false)
+      }
+    }).catch(() => {})
+  }
+  function dismissNotifications() {
+    try { localStorage.setItem(NOTIF_DISMISS_KEY, '1') } catch { /* sem storage */ }
+    setNotifDismissed(true)
+  }
+
+  // Chegada de conversa nova: aviso do sistema quando permitido; caso contrário, bip da página.
+  function notifyNewConversations(items: NewConversationItem[]) {
+    // Bip da página sempre que chega mensagem nova (se o áudio estiver liberado).
+    playNewMessageBeep()
+    // Aviso do sistema, quando a permissão foi concedida.
+    if (notifSupported && Notification.permission === 'granted') {
+      for (const c of items.slice(0, 3)) {
+        const name = c.contact?.name || c.contact?.phone || 'Novo contato'
+        try {
+          // renotify: sem isso, o navegador substitui a notificação anterior da mesma conversa
+          // (mesmo tag) sem mostrar o pop-up nem tocar o som de novo.
+          const n = new Notification(`Nova mensagem de ${name}`, {
+            body: c.lastMessagePreview || 'Abra para ver a mensagem',
+            tag: c.id,
+            renotify: true,
+          } as NotificationOptions)
+          n.onclick = () => { window.focus(); setSelectedId(c.id); n.close() }
+        } catch { /* navegador não exibiu o aviso */ }
+      }
+    }
+  }
+
   async function loadConversations() {
     setLoadingList(true)
     try {
       const res = await adminFetch(`/api/admin/mensageria/conversations?${buildConversationsQuery()}`)
       const data = await readConversationsResponse(res)
       if (!data) return
+      const incoming: NewConversationItem[] = data.conversations || []
+      const prevIds = knownIdsRef.current
+      const prevUnread = prevUnreadRef.current
+      if (prevIds) {
+        // Atividade nova = conversa que entrou na lista OU que recebeu mensagem do contato
+        // (o contador de não lidas sobe só com mensagem recebida, nunca com a nossa resposta).
+        const activity = incoming.filter((c) =>
+          !prevIds.has(c.id) || (c.unreadCount ?? 0) > (prevUnread.get(c.id) ?? 0),
+        )
+        if (activity.length > 0) {
+          setNewIds(new Set(activity.map((c) => c.id)))
+          setTimeout(() => setNewIds(new Set()), 30000)
+          notifyNewConversations(activity)
+        }
+      }
+      knownIdsRef.current = new Set(incoming.map((c) => c.id))
+      prevUnreadRef.current = new Map(incoming.map((c) => [c.id, c.unreadCount ?? 0]))
       setConversations(data.conversations || [])
       setNextCursor(data.nextCursor || null)
       setTotalCount(data.totalCount ?? (data.conversations || []).length)
       setAllCount(data.allCount ?? data.totalCount ?? (data.conversations || []).length)
       setPendingCount(data.pendingCount ?? 0)
+      setWaitingClientCount(data.waitingClientCount ?? 0)
+      setResolvedCount(data.resolvedCount ?? 0)
     } catch {
       // Falha de rede: mantém a lista atual sem derrubar a página.
     } finally {
@@ -221,10 +361,23 @@ export default function MensageriaPage() {
 
   // Qualquer filtro (pasta, período, etiquetas) limpa a conversa aberta: a área central volta ao
   // estado vazio e reflete apenas o resultado do filtro na lista à esquerda.
+  const filterKeyRef = useRef<string | null>(null)
   useEffect(() => {
-    setSelectedId(null)
+    // Só limpa quando o filtro MUDA (não na montagem), para não desfazer a conversa vinda da URL.
+    const filterKey = JSON.stringify([folder, dateFrom, dateTo, selectedLabelIds])
+    if (filterKeyRef.current !== null && filterKeyRef.current !== filterKey) setSelectedId(null)
+    filterKeyRef.current = filterKey
+    // Trocar de pasta/período não é "chegada": a primeira lista da nova visão não recebe o selo "Nova".
+    knownIdsRef.current = null
+    prevUnreadRef.current = new Map()
+    setNewIds(new Set())
     loadConversations()
   }, [folder, dateFrom, dateTo, selectedLabelIds])
+
+  // Ref sempre apontando para a versão atual de loadConversations (com a pasta e o período da tela).
+  // O atualização em tempo real usa a ref, e não a função capturada no primeiro render.
+  const loadRef = useRef(loadConversations)
+  loadRef.current = loadConversations
 
   // Nome do time no card só quando quem vê tem mais de um time visível (admin/líder multi-time).
   // Com um time só, o rótulo seria redundante em todos os cards.
@@ -245,7 +398,7 @@ export default function MensageriaPage() {
     es.onmessage = (ev) => {
       try {
         const event = JSON.parse(ev.data)
-        if (event.type === 'message.created') loadConversations()
+        if (event.type === 'message.created') loadRef.current()
       } catch { /* ignora payload inválido */ }
     }
     es.onerror = () => { /* reconexão automática do EventSource */ }
@@ -353,11 +506,22 @@ export default function MensageriaPage() {
             <PlusIcon className="w-3.5 h-3.5" />
           </button>
         </div>
+        {notifSupported && (
+          <div className="px-4 mb-3 text-[10px] leading-snug">
+            {notifPerm === 'granted' && <span className="text-slate-500">Avisos de mensagem ativados</span>}
+            {notifPerm === 'denied' && <span className="text-slate-500">Avisos bloqueados no navegador. Libere nas configurações do site para receber.</span>}
+            {notifPerm === 'default' && notifDismissed && (
+              <button onClick={enableNotifications} className="text-[#d4af37] hover:underline">Ativar avisos de mensagem</button>
+            )}
+          </div>
+        )}
         <nav className="space-y-0.5 px-2">
           <FolderButton icon={<ClockIcon className="w-4 h-4" />} label="Aguardando resposta" active={folder === 'pending'} onClick={() => setFolder('pending')} count={pendingCount} />
+          <FolderButton icon={<ArrowPathIcon className="w-4 h-4" />} label="Aguardando cliente" active={folder === 'waiting_client'} onClick={() => setFolder('waiting_client')} count={waitingClientCount} />
           <FolderButton icon={<InboxIcon className="w-4 h-4" />} label="Todas" active={folder === 'all'} onClick={() => setFolder('all')} count={counts.all} />
           <FolderButton icon={<UserCircleIcon className="w-4 h-4" />} label="Minhas" active={folder === 'mine'} onClick={() => setFolder('mine')} />
           <FolderButton icon={<UsersIcon className="w-4 h-4" />} label="Não atribuídas" active={folder === 'unassigned'} onClick={() => setFolder('unassigned')} />
+          <FolderButton icon={<CheckCircleIcon className="w-4 h-4" />} label="Resolvidas" active={folder === 'resolved'} onClick={() => setFolder('resolved')} count={resolvedCount} />
         </nav>
 
         {/* Filtro por etiquetas — multi-select com checkbox, regra OU */}
@@ -439,6 +603,19 @@ export default function MensageriaPage() {
 
       {/* Coluna 2 — Lista de conversas */}
       <div className="w-80 shrink-0 border-r border-white/5 bg-[#0a192f] overflow-y-auto" onScroll={handleListScroll}>
+        {notifSupported && notifPerm === 'default' && !notifDismissed && (
+          <div className="sticky top-0 z-10 m-3 p-3 rounded-lg bg-[#020c1b] border border-[#c5a028]/30 shadow-lg">
+            <p className="text-xs text-slate-200 leading-snug">Receba um aviso no computador quando chegar mensagem nova.</p>
+            <div className="flex items-center gap-2 mt-2">
+              <button onClick={enableNotifications} className="h-7 px-3 rounded-md bg-[#c5a028] text-[#020c1b] text-xs font-semibold hover:bg-[#d4af37]">
+                Ativar
+              </button>
+              <button onClick={dismissNotifications} className="h-7 px-2 text-xs text-slate-400 hover:text-slate-200">
+                Agora não
+              </button>
+            </div>
+          </div>
+        )}
         {loadingList ? (
           <div className="p-3 space-y-2">
             {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 bg-white/5 rounded-lg animate-pulse" />)}
@@ -464,7 +641,12 @@ export default function MensageriaPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-medium text-white truncate">{c.contact.name || c.contact.phone || 'Sem nome'}</span>
-                      <span className="text-[10px] text-slate-500 shrink-0 whitespace-nowrap">{formatFullDate(c.lastMessageAt)}</span>
+                      <span className="flex items-center gap-1.5 shrink-0">
+                        {newIds.has(c.id) && (
+                          <span className="text-[9px] font-bold uppercase tracking-wide text-[#0a192f] bg-[#c5a028] rounded px-1.5 py-0.5">Nova</span>
+                        )}
+                        <span className="text-[10px] text-slate-500 whitespace-nowrap">{formatFullDate(c.lastMessageAt)}</span>
+                      </span>
                     </div>
                     <p className="text-xs text-slate-400 truncate mt-0.5">{c.lastMessagePreview || '—'}</p>
                     {c.bolaCom === 'nos' && (
@@ -477,6 +659,14 @@ export default function MensageriaPage() {
                           Aguardando resposta · {idadePendencia(c.bolaDesde)}
                         </p>
                       )
+                    )}
+                    {c.status === 'resolved' && (
+                      <p className="text-[10px] text-slate-500 mt-0.5">Resolvida</p>
+                    )}
+                    {c.bolaCom === 'cliente' && c.status !== 'resolved' && (
+                      <p className="text-[10px] text-sky-400 mt-0.5" title="Aguardando o retorno do cliente desde">
+                        Aguardando cliente · {idadePendencia(c.bolaDesde)}
+                      </p>
                     )}
                     <div className="flex items-center gap-1.5 mt-1.5">
                       <ChannelChip channelType={c.channelType} />
@@ -520,11 +710,23 @@ export default function MensageriaPage() {
       {/* Coluna 3 — Thread (componente compartilhado com o drawer do Painel do Gestor) */}
       <div className="flex-1 flex flex-col bg-[#091628] min-w-0">
         {!selectedId ? (
-          <div className="flex-1 flex items-center justify-center">
+          <div className="flex-1 flex flex-col items-center justify-center gap-2">
             <p className="text-sm text-slate-500">Selecione uma conversa para começar.</p>
+            {resolvedNotice && (
+              <p className="text-xs text-[#d4af37]">Conversa resolvida. Veja em &quot;Resolvidas&quot;.</p>
+            )}
           </div>
         ) : (
-          <ConversationThread key={selectedId} conversationId={selectedId} onUpdated={loadConversations} />
+          <ConversationThread
+            key={selectedId}
+            conversationId={selectedId}
+            onUpdated={loadConversations}
+            onResolved={() => {
+              setSelectedId(null)
+              setResolvedNotice(true)
+              loadConversations()
+            }}
+          />
         )}
       </div>
 

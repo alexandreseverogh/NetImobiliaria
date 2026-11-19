@@ -53,8 +53,9 @@ export async function GET(request: NextRequest) {
   const pageSize = Math.min(200, Math.max(1, parseInt(sp.get('pageSize') || String(PAGE_SIZE), 10) || PAGE_SIZE))
   const folder = sp.get('folder')
   // Pendentes: as mais antigas primeiro (a que está há mais tempo esperando é a mais urgente).
-  const defaultSortBy = folder === 'pending' ? 'c.bola_desde' : 'c.last_message_at'
-  const defaultSortDir = folder === 'pending' ? 'asc' : 'desc'
+  const bolaFolder = folder === 'pending' || folder === 'waiting_client'
+  const defaultSortBy = bolaFolder ? 'c.bola_desde' : 'c.last_message_at'
+  const defaultSortDir = bolaFolder ? 'asc' : 'desc'
   const sortBy = SORTABLE_COLUMNS[sp.get('sortBy') || ''] || defaultSortBy
   const sortDir = (sp.get('sortDir') || defaultSortDir) === 'asc' ? 'ASC' : 'DESC'
   const includeKpis = sp.get('includeKpis') === '1'
@@ -82,9 +83,42 @@ export async function GET(request: NextRequest) {
     pendingCountArgs,
   )
   const pendingCount = pendingRows[0]?.total ?? 0
+  // Pasta "Aguardando cliente" (folder=waiting_client): conversas abertas com a bola no cliente.
+  // Mesmo escopo e regra de data da pasta acima. Contador próprio, para as duas pastas aparecerem juntas.
+  const isWaitingClientFolder = folder === 'waiting_client'
+  const waitingCountArgs = [...args]
+  const { rows: waitingRows } = await pool.query(
+    `SELECT COUNT(*)::int AS total
+       FROM mensageria.conversations c
+      WHERE ${[...where, `c.status IN ('open','pending')`, `c.bola_com = 'cliente'`].join(' AND ')}`,
+    waitingCountArgs,
+  )
+  const waitingClientCount = waitingRows[0]?.total ?? 0
+  if (isWaitingClientFolder) {
+    where.push(`c.status IN ('open','pending')`, `c.bola_com = 'cliente'`)
+  }
+
+  // Pasta "Resolvidas" (folder=resolved): conversas resolvidas. Segue o período escolhido na tela.
+  const isResolvedFolder = folder === 'resolved'
+  const resolvedCountArgs = [...args]
+  const { rows: resolvedRows } = await pool.query(
+    `SELECT COUNT(*)::int AS total
+       FROM mensageria.conversations c
+      WHERE ${[...where, `c.status = 'resolved'`].join(' AND ')}`,
+    resolvedCountArgs,
+  )
+  const resolvedCount = resolvedRows[0]?.total ?? 0
+  if (isResolvedFolder) {
+    where.push(`c.status = 'resolved'`)
+  }
+  // Conversa resolvida só aparece na pasta "Resolvidas". Nas demais pastas fica fora da lista,
+  // a não ser que o filtro de status seja pedido explicitamente.
+  if (!isResolvedFolder && !status) where.push(`c.status <> 'resolved'`)
+
   if (isPendingFolder) {
     where.push(`c.status IN ('open','pending')`, `c.bola_com = 'nos'`)
   }
+
 
   if (status) { args.push(status); where.push(`c.status = $${args.length}`) }
   if (inboxId) { args.push(inboxId); where.push(`c.inbox_id = $${args.length}`) }
@@ -105,8 +139,8 @@ export async function GET(request: NextRequest) {
   else if (assigneeId) { args.push(assigneeId); where.push(`c.assignee_id = $${args.length}`) }
   if (search) { args.push(`%${search}%`); where.push(`(ct.name ILIKE $${args.length} OR ct.phone ILIKE $${args.length})`) }
   // Período não se aplica à pasta de pendentes (ver acima).
-  if (dateFrom && !isPendingFolder) { args.push(dateFrom); where.push(`(c.last_message_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${args.length}::date`) }
-  if (dateTo && !isPendingFolder) { args.push(dateTo); where.push(`(c.last_message_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${args.length}::date`) }
+  if (dateFrom && !bolaFolder) { args.push(dateFrom); where.push(`(c.last_message_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${args.length}::date`) }
+  if (dateTo && !bolaFolder) { args.push(dateTo); where.push(`(c.last_message_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${args.length}::date`) }
 
   // Contagem total do filtro (sem cursor/página) — usada no contador da pasta "Todas"
   // e no total de páginas do Painel do Gestor. JOIN inboxes é necessário mesmo aqui
@@ -125,6 +159,9 @@ export async function GET(request: NextRequest) {
   // Alimenta o contador de "Todas", que não deve mudar com a pasta selecionada.
   const allCountWhere: string[] = []
   const allCountArgs: unknown[] = []
+  // Sempre limitado ao tenant da sessão (sem isso o contador somava conversas de outras empresas).
+  allCountArgs.push(payload.tenantId)
+  allCountWhere.push(`c.tenant_id = $${allCountArgs.length}`)
   if (labelId) {
     const ids = labelId.split(',').map((x) => x.trim()).filter(Boolean)
     if (ids.length > 0) {
@@ -144,6 +181,10 @@ export async function GET(request: NextRequest) {
     allCountArgs.push(dateTo)
     allCountWhere.push(`(c.last_message_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${allCountArgs.length}::date`)
   }
+  // Contador de "Todas": só conversas que não estão resolvidas, com a mesma visibilidade da lista.
+  allCountWhere.push(`c.status <> 'resolved'`)
+  const allScoped = scopeToSql(scope, allCountArgs)
+  if (allScoped.clause) allCountWhere.push(allScoped.clause)
   const { rows: allRows } = await pool.query(
     `SELECT COUNT(*)::int AS total
        FROM mensageria.conversations c
@@ -254,6 +295,8 @@ export async function GET(request: NextRequest) {
     totalCount,
     allCount,
     pendingCount,
+    waitingClientCount,
+    resolvedCount,
     totalPages: page !== null ? Math.max(1, Math.ceil(totalCount / pageSize)) : null,
     kpis,
   })

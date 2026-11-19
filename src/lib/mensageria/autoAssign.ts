@@ -27,7 +27,8 @@ export async function autoAssignConversation(conversationId: string, inboxId: st
   const { rows: members } = await pool.query(
     `SELECT tm.user_id,
             (SELECT COUNT(*) FROM ${SCHEMA}.conversations c
-              WHERE c.assignee_id = tm.user_id AND c.status IN ('open','pending')) AS load
+              WHERE c.assignee_id = tm.user_id AND c.status IN ('open','pending')
+                AND c.tenant_id = (SELECT tenant_id FROM ${SCHEMA}.teams WHERE id = $1)) AS load
        FROM ${SCHEMA}.team_members tm
       WHERE tm.team_id = $1
       ORDER BY load ASC, tm.user_id ASC

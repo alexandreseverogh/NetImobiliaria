@@ -219,7 +219,7 @@ function DateDivider({ iso }: { iso: string }) {
  * `onUpdated` é chamado após ações que mudam status/atribuição — o chamador (tabela do
  * gestor) usa isso pra recarregar a lista sem o drawer precisar saber da tabela.
  */
-export default function ConversationThread({ conversationId, onUpdated }: { conversationId: string; onUpdated?: () => void }) {
+export default function ConversationThread({ conversationId, onUpdated, onResolved, readOnly = false }: { conversationId: string; onUpdated?: () => void; onResolved?: () => void; readOnly?: boolean }) {
   const [detail, setDetail] = useState<ConversationDetail | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
@@ -228,6 +228,7 @@ export default function ConversationThread({ conversationId, onUpdated }: { conv
   const [recording, setRecording] = useState(false)
   const [recError, setRecError] = useState<string | null>(null)
   const [attachError, setAttachError] = useState<string | null>(null)
+  const [statusError, setStatusError] = useState<string | null>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
@@ -443,7 +444,19 @@ export default function ConversationThread({ conversationId, onUpdated }: { conv
   }
 
   async function patchConversation(patch: Record<string, any>) {
-    await adminFetch(`/api/admin/mensageria/conversations/${conversationId}`, { method: 'PATCH', body: JSON.stringify(patch) })
+    setStatusError(null)
+    const res = await adminFetch(`/api/admin/mensageria/conversations/${conversationId}`, { method: 'PATCH', body: JSON.stringify(patch) })
+    if (!res.ok) {
+      // Recusa do servidor (ex.: reabrir com outra conversa aberta): mostra o motivo, sem mudar a tela.
+      const body = await res.json().catch(() => ({}))
+      setStatusError(body.error || 'Não foi possível alterar a conversa.')
+      return
+    }
+    // Resolvida sai da conversa aberta: quem chama fecha a área central e atualiza a lista.
+    if (patch.status === 'resolved' && onResolved) {
+      onResolved()
+      return
+    }
     await loadDetail()
     onUpdated?.()
   }
@@ -499,14 +512,12 @@ export default function ConversationThread({ conversationId, onUpdated }: { conv
                   <MegaphoneIcon className="w-3 h-3" /> {attributionLabel(detail.contact.attribution)}
                 </span>
               )}
-              {detail.contact.leadUuid && (
-                <a href={`/crm/leads?leadId=${detail.contact.leadUuid}`} target="_blank" rel="noreferrer" className="ml-2 text-[#d4af37] hover:underline">Ver no CRM →</a>
-              )}
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <SlaBadge detail={detail} />
+          {!readOnly && (<>
           <select
             value={detail.priority || ''}
             onChange={(e) => patchConversation({ priority: e.target.value || null })}
@@ -518,6 +529,9 @@ export default function ConversationThread({ conversationId, onUpdated }: { conv
             <option value="high">Alta</option>
             <option value="urgent">Urgente</option>
           </select>
+          {statusError && (
+            <p className="basis-full text-xs text-red-400">{statusError}</p>
+          )}
           {detail.status !== 'resolved' ? (
             <button onClick={() => patchConversation({ status: 'resolved' })} className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[#c5a028]/12 text-[#d4af37] text-xs font-medium hover:bg-[#c5a028]/20 transition-colors">
               <CheckCircleIcon className="w-3.5 h-3.5" /> Resolver
@@ -532,10 +546,16 @@ export default function ConversationThread({ conversationId, onUpdated }: { conv
               </button>
             </div>
           )}
+          </>)}
+          {readOnly && (
+            <span className="inline-flex items-center h-8 px-3 rounded-lg bg-white/5 text-slate-400 text-xs">
+              Somente leitura · {detail.status === 'resolved' ? 'Resolvida' : 'Aberta'}
+            </span>
+          )}
         </div>
       </div>
 
-      <div className="flex items-center gap-1.5 px-5 py-2 border-b border-white/5 flex-wrap relative">
+      <div className={`flex items-center gap-1.5 px-5 py-2 border-b border-white/5 flex-wrap relative ${readOnly ? 'hidden' : ''}`}>
         {detail.labels.map((l) => (
           <span key={l.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium" style={{ background: `${l.color}22`, color: l.color, border: `1px solid ${l.color}40` }}>
             {l.name}
@@ -566,7 +586,7 @@ export default function ConversationThread({ conversationId, onUpdated }: { conv
         ))}
       </div>
 
-      <div ref={composerWrapRef} className="border-t border-white/5 px-3 pb-3 pt-1.5 relative">
+      <div ref={composerWrapRef} className={`border-t border-white/5 px-3 pb-3 pt-1.5 relative ${readOnly ? 'hidden' : ''}`}>
         {isPrivateNote && (
           <div className="mb-2 flex items-center gap-1.5 text-[11px] text-amber-400/80">
             <LockClosedIcon className="w-3 h-3" /> Nota interna — não será enviada ao contato

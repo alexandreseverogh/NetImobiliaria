@@ -54,6 +54,15 @@ export async function GET(request: NextRequest) {
   if (scoped.clause) where.push(scoped.clause)
   if (dateFrom) { args.push(dateFrom); where.push(`(c.resolved_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${args.length}::date`) }
   if (dateTo) { args.push(dateTo); where.push(`(c.resolved_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${args.length}::date`) }
+  const teamId = sp.get('teamId')
+  const assigneeId = sp.get('assigneeId')
+  const channelType = sp.get('channelType')
+  const priority = sp.get('priority')
+  if (teamId) { args.push(teamId); where.push(`c.team_id = $${args.length}`) }
+  if (assigneeId === 'unassigned') where.push('c.assignee_id IS NULL')
+  else if (assigneeId) { args.push(assigneeId); where.push(`c.assignee_id = $${args.length}`) }
+  if (channelType) { args.push(channelType); where.push(`ib.channel_type = $${args.length}`) }
+  if (priority) { args.push(priority); where.push(`c.priority = $${args.length}`) }
 
   const { rows } = await pool.query(
     `SELECT c.id, c.client_id, c.created_at, c.resolved_at, c.assignee_id, u.nome AS assignee_name,

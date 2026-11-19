@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
+import { internalSecretValue } from '@/lib/security/internalCall'
 import {
   getDestinationBySlug,
   logInteraction,
@@ -132,7 +133,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       const origin = new URL(request.url).origin
       const crmRes = await fetch(`${origin}/api/crm/leads`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-internal-secret': internalSecretValue() },
         body: JSON.stringify({
           nome: name,
           email,

@@ -11,6 +11,7 @@
  * Ver docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §9.3.
  */
 import pool from '@/lib/database/connection'
+import { internalSecretValue } from '@/lib/security/internalCall'
 import { ingestMessage } from '@/lib/mensageria/ingest'
 import type { InboundMedia } from '@/lib/mensageria/inboundMedia'
 import { resolveWhatsAppInbox } from '@/lib/mensageria/inboxes'
@@ -192,7 +193,7 @@ export async function processInboundWhatsAppMessage(
 
     const crmRes = await fetch(`${baseUrl}/api/crm/leads`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': internalSecretValue() },
       body: JSON.stringify({
         tenant_id: tenantId,
         // Herda o dono do número físico quando não há atribuição de campanha — mesmo client_id

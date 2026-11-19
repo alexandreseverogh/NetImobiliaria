@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { resolveTenantLogo } from '@/lib/tenant/resolveTenantLogo'
+import { issuePublicChatToken } from '@/lib/security/publicChatToken'
 
 export async function GET(
   request: NextRequest,
@@ -109,6 +110,8 @@ export async function GET(
     const imovelResponse = {
       id: imovel.id,
       tenant_id: imovel.tenant_id,
+      // Token emitido pelo servidor: o widget de chat só fala com o tenant que este token assina.
+      webchat_token: issuePublicChatToken(imovel.tenant_id),
       tenant_logo: tenantLogo,
       codigo: imovel.codigo,
       titulo: imovel.titulo,

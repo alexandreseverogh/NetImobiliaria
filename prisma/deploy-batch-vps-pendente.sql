@@ -940,4 +940,45 @@ ALTER TABLE public.evolution_servers
 ALTER TABLE mensageria.sla_policies
   ADD COLUMN IF NOT EXISTS continuity_target_min INTEGER;
 
+
+-- 2026-11-19: mapa @lid -> numero (mensagens da Evolution sem numero real)
+CREATE TABLE IF NOT EXISTS mensageria.lid_phone_map (
+  tenant_id   UUID        NOT NULL,
+  lid         VARCHAR(64) NOT NULL,
+  phone       VARCHAR(32) NOT NULL,
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (tenant_id, lid)
+);
+
+
+-- 2026-11-19: pendências de mensagens @lid sem número (aviso ao administrador)
+CREATE TABLE IF NOT EXISTS mensageria.lid_unresolved (
+  tenant_id     UUID         NOT NULL,
+  lid           VARCHAR(64)  NOT NULL,
+  push_name     VARCHAR(255),
+  last_text     TEXT,
+  hits          INTEGER      NOT NULL DEFAULT 1,
+  first_seen_at TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  last_seen_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  PRIMARY KEY (tenant_id, lid)
+);
+
+
+-- 2026-11-19: índice para contato pelo @lid
+CREATE INDEX IF NOT EXISTS idx_contacts_tenant_lid
+  ON mensageria.contacts (tenant_id, (attributes->>'lid'))
+  WHERE attributes ? 'lid';
+
+
+-- 2026-11-19: tempo de download de mídia @lid por tenant
+ALTER TABLE public.tenants
+  ADD COLUMN IF NOT EXISTS lid_media_timeout_ms INTEGER NOT NULL DEFAULT 15000;
+
+ALTER TABLE public.tenants
+  DROP CONSTRAINT IF EXISTS chk_tenants_lid_media_timeout;
+ALTER TABLE public.tenants
+  ADD CONSTRAINT chk_tenants_lid_media_timeout CHECK (lid_media_timeout_ms BETWEEN 1000 AND 120000);
+
+UPDATE public.tenants SET lid_media_timeout_ms = 15000 WHERE id = 'efbf62cf-9e28-4b31-a4f6-82a037412353';
+
 COMMIT;

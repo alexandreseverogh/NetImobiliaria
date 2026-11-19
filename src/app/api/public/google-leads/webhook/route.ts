@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
+import { internalSecretValue } from '@/lib/security/internalCall'
 
 export const dynamic = 'force-dynamic'
 
@@ -134,7 +135,7 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.INTERNAL_BASE_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000'
     const crmRes = await fetch(`${baseUrl}/api/crm/leads`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': internalSecretValue() },
       body: JSON.stringify({
         tenant_id: camp.tenant_id,
         client_id: camp.client_id,

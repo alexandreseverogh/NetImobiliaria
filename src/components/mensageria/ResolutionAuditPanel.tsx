@@ -30,15 +30,49 @@ interface AuditItem {
 interface Props {
   dateFrom: string
   dateTo: string
+  teamId?: string
+  assigneeId?: string
+  channelType?: string
+  priority?: string
   onOpen: (conversationId: string) => void
 }
 
-const FLAG_LABELS: { key: keyof AuditItem['flags']; label: string; help: string }[] = [
-  { key: 'semResposta', label: 'Sem resposta', help: 'Nenhuma mensagem nossa, pública, na conversa inteira.' },
-  { key: 'resolucaoRapida', label: 'Resolvida rápido', help: 'Resolvida logo após mensagem do cliente sem resposta nossa.' },
-  { key: 'longoSilencio', label: 'Após longo silêncio', help: 'Resolvida muito depois da mensagem do cliente, sem resposta nossa.' },
-  { key: 'reincidencia', label: 'Cliente voltou', help: 'O mesmo contato abriu outra conversa logo após a resolução.' },
+type Thresholds = AuditItem['thresholds']
+
+/** Texto de ajuda de cada sinal. Os limites entram no texto quando a conversa os tem. */
+const FLAG_LABELS: { key: keyof AuditItem['flags']; label: string; help: (t?: Thresholds) => string }[] = [
+  { key: 'semResposta', label: 'Sem resposta', help: () => 'Resolvida sem nenhuma resposta nossa.' },
+  {
+    key: 'resolucaoRapida',
+    label: 'Resolvida rápido',
+    help: (t) => `Resolvida logo após mensagem do cliente sem resposta de atendimento${t ? ` (parâmetro: menos de ${t.fastResolveMin} min)` : ''}.`,
+  },
+  {
+    key: 'longoSilencio',
+    label: 'Após longo silêncio',
+    help: (t) => `Resolvida com tempo excedente ao parâmetro configurado${t ? ` - ${t.longSilenceHours} h` : ''}.`,
+  },
+  {
+    key: 'reincidencia',
+    label: 'Cliente voltou',
+    help: (t) => `O mesmo contato abriu outra conversa logo após a resolução${t ? ` (parâmetro: menos de ${t.reopenDays} dias)` : ''}.`,
+  },
 ]
+
+/** Formata os limites configurados que aparecem nas conversas exibidas (um valor ou intervalo). */
+function formatLimites(items: AuditItem[]): string {
+  if (items.length === 0) return ''
+  const uniq = (xs: number[]) => Array.from(new Set(xs)).sort((a, b) => a - b)
+  const fmt = (xs: number[], unit: string) => {
+    const u = uniq(xs)
+    return u.length === 1 ? `${u[0]} ${unit}` : `${u[0]} a ${u[u.length - 1]} ${unit}`
+  }
+  return [
+    `resolução rápida: ${fmt(items.map((i) => i.thresholds.fastResolveMin), 'min')}`,
+    `longo silêncio: ${fmt(items.map((i) => i.thresholds.longSilenceHours), 'h')}`,
+    `reincidência: ${fmt(items.map((i) => i.thresholds.reopenDays), 'dias')}`,
+  ].join(' · ')
+}
 
 function formatFullDate(iso: string | null): string {
   if (!iso) return ''
@@ -48,12 +82,13 @@ function formatFullDate(iso: string | null): string {
   return `${data} ${hora}`
 }
 
-export default function ResolutionAuditPanel({ dateFrom, dateTo, onOpen }: Props) {
+export default function ResolutionAuditPanel({ dateFrom, dateTo, teamId, assigneeId, channelType, priority, onOpen }: Props) {
   const [items, setItems] = useState<AuditItem[]>([])
   const [suspeitas, setSuspeitas] = useState(0)
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const [soSuspeitas, setSoSuspeitas] = useState(false)
+  const [mostrarLegenda, setMostrarLegenda] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -62,6 +97,10 @@ export default function ResolutionAuditPanel({ dateFrom, dateTo, onOpen }: Props
     const qs = new URLSearchParams()
     if (dateFrom) qs.set('dateFrom', dateFrom)
     if (dateTo) qs.set('dateTo', dateTo)
+    if (teamId) qs.set('teamId', teamId)
+    if (assigneeId) qs.set('assigneeId', assigneeId)
+    if (channelType) qs.set('channelType', channelType)
+    if (priority) qs.set('priority', priority)
     adminFetch(`/api/admin/mensageria/resolution-audit?${qs}`)
       .then(async (res) => {
         const data = await res.json().catch(() => null)
@@ -76,7 +115,7 @@ export default function ResolutionAuditPanel({ dateFrom, dateTo, onOpen }: Props
       .catch(() => { if (!cancelled) setErro('Falha de rede ao carregar a auditoria.') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [dateFrom, dateTo])
+  }, [dateFrom, dateTo, teamId, assigneeId, channelType, priority])
 
   const visiveis = soSuspeitas ? items.filter((i) => i.score > 0) : items
 
@@ -86,16 +125,48 @@ export default function ResolutionAuditPanel({ dateFrom, dateTo, onOpen }: Props
         <p className="text-xs text-slate-400">
           {loading ? 'Carregando…' : `${items.length} conversa(s) resolvida(s) no período · ${suspeitas} com algum sinal`}
         </p>
-        <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={soSuspeitas}
-            onChange={(e) => setSoSuspeitas(e.target.checked)}
-            className="accent-[#c5a028]"
-          />
-          Mostrar só com sinais
-        </label>
+        <div className="flex flex-col items-end gap-1.5 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400">Exibir:</span>
+            <div className="inline-flex rounded-lg border border-white/10 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setSoSuspeitas(false)}
+                className={`px-3 py-1.5 transition-colors ${!soSuspeitas ? 'bg-[#c5a028] text-[#020c1b] font-semibold' : 'text-slate-400 hover:text-slate-200'}`}
+              >
+                Todas as resolvidas
+              </button>
+              <button
+                type="button"
+                onClick={() => setSoSuspeitas(true)}
+                className={`px-3 py-1.5 transition-colors ${soSuspeitas ? 'bg-[#c5a028] text-[#020c1b] font-semibold' : 'text-slate-400 hover:text-slate-200'}`}
+              >
+                Só as com sinais de alerta
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMostrarLegenda((v) => !v)}
+            className="text-[11px] text-slate-500 hover:text-slate-300 underline-offset-2 hover:underline"
+            aria-expanded={mostrarLegenda}
+          >
+            {mostrarLegenda ? 'Ocultar explicação dos sinais' : 'Como ler os sinais'}
+          </button>
+        </div>
       </div>
+
+      {mostrarLegenda && (
+        <div className="mb-3 rounded-lg border border-white/8 bg-white/3 px-4 py-3 text-[11px] text-slate-500">
+          <ul className="space-y-1 pl-4 list-disc">
+            {FLAG_LABELS.map((f) => <li key={f.key}><span className="text-slate-300">{f.label}:</span> {f.help(items[0]?.thresholds)}</li>)}
+          </ul>
+          <p className="mt-2">
+            Limites configurados{items.length > 0 ? `: ${formatLimites(items)}` : ' (aparecem quando houver conversas no período)'}.
+            Cada conversa usa a configuração mais específica disponível na configuração da aplicação. Clique numa linha para conferir a conversa completa.
+          </p>
+        </div>
+      )}
 
       {erro && (
         <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">{erro}</div>
@@ -143,7 +214,7 @@ export default function ResolutionAuditPanel({ dateFrom, dateTo, onOpen }: Props
                         {FLAG_LABELS.filter((f) => it.flags[f.key]).map((f) => (
                           <span
                             key={f.key}
-                            title={f.help}
+                            title={f.help(it.thresholds)}
                             className="text-[10px] px-1.5 py-0.5 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-300"
                           >
                             {f.label}
@@ -159,13 +230,6 @@ export default function ResolutionAuditPanel({ dateFrom, dateTo, onOpen }: Props
         )}
       </div>
 
-      <details className="mt-3 text-[11px] text-slate-500">
-        <summary className="cursor-pointer hover:text-slate-300">Como ler os sinais</summary>
-        <ul className="mt-2 space-y-1 pl-4 list-disc">
-          {FLAG_LABELS.map((f) => <li key={f.key}><span className="text-slate-300">{f.label}:</span> {f.help}</li>)}
-        </ul>
-        <p className="mt-2">Os limites (minutos, dias e horas) vêm do segmento de cada conversa. Clique numa linha para conferir a conversa completa.</p>
-      </details>
     </div>
   )
 }

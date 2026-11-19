@@ -174,6 +174,7 @@ export async function GET(request: NextRequest) {
            JOIN mensageria.conversations c2 ON c2.id = m2.conversation_id
            JOIN mensageria.inboxes ib2 ON ib2.id = c2.inbox_id
           WHERE ib2.channel_type = 'manual'
+            AND c2.tenant_id = $1
           ORDER BY m2.conversation_id, m2.created_at ASC
        )
        SELECT EXTRACT(HOUR FROM m.created_at AT TIME ZONE 'America/Sao_Paulo')::int AS hr, COUNT(*)::int AS n

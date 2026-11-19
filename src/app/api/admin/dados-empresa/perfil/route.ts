@@ -45,6 +45,8 @@ const EDITABLE_FIELDS: Record<string, string> = {
   duracaoVisita:  'duracao_visita',
   // Foto de contatos: dias até atualizar. Vazio = herda do segmento.
   avatarTtlDays:  'avatar_ttl_days',
+  // Mídia de contato sem número: tempo máximo de download, em segundos (gravado em ms).
+  lidMediaTimeoutSeconds: 'lid_media_timeout_ms',
 };
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
@@ -75,6 +77,7 @@ export async function GET(request: NextRequest) {
     if (col === 'calendario') out[apiKey] = rows[0][col] === true;
     else if (col === 'duracao_visita') out[apiKey] = rows[0][col] ?? 60;
     else if (col === 'avatar_ttl_days') out[apiKey] = rows[0][col] ?? null;
+    else if (col === 'lid_media_timeout_ms') out[apiKey] = Math.round(Number(rows[0][col] ?? 15000) / 1000);
     else out[apiKey] = rows[0][col] ?? '';
   }
   out.logo = rows[0].logo_url ?? '';
@@ -119,6 +122,10 @@ export async function PUT(request: NextRequest) {
       const n = Number(raw);
       if (!Number.isInteger(n) || n < 15 || n > 480) return invalid('Duração deve estar entre 15 e 480 minutos');
       value = n;
+    } else if (col === 'lid_media_timeout_ms') {
+      const n = Number(raw);
+      if (!Number.isInteger(n) || n < 1 || n > 120) return invalid('Tempo de download da mídia deve estar entre 1 e 120 segundos');
+      value = n * 1000;
     } else if (col === 'avatar_ttl_days') {
       // Vazio = null = herda do segmento. Preenchido: inteiro de 1 a 365 dias.
       if (raw == null || raw === '') {

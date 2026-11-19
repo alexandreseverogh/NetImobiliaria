@@ -15,7 +15,6 @@ const CHANNEL_LABELS: Record<string, string> = {
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
   open: { label: 'Aberta', className: 'bg-amber-500/12 text-amber-400' },
   pending: { label: 'Pendente', className: 'bg-amber-500/12 text-amber-400' },
-  snoozed: { label: 'Adiada', className: 'bg-slate-500/15 text-slate-400' },
   resolved: { label: 'Resolvida', className: 'bg-emerald-500/12 text-emerald-400' },
 }
 const PRIORITY_LABELS: Record<string, { label: string; dot: string }> = {
@@ -57,10 +56,14 @@ function timeAgo(iso: string | null): string {
   const diffMs = Date.now() - new Date(iso).getTime()
   const min = Math.floor(diffMs / 60000)
   if (min < 1) return 'agora'
-  if (min < 60) return `${min}min`
-  const h = Math.floor(min / 60)
-  if (h < 24) return `${h}h`
-  return `${Math.floor(h / 24)}d`
+  const d = Math.floor(min / 1440)
+  const h = Math.floor((min % 1440) / 60)
+  const m = min % 60
+  const parts: string[] = []
+  if (d > 0) parts.push(`${d}d`)
+  if (h > 0) parts.push(`${h}h`)
+  if (m > 0 || parts.length === 0) parts.push(`${m}min`)
+  return parts.join(' ')
 }
 
 function initials(name: string | null): string {
@@ -190,7 +193,30 @@ export default function PainelDoGestorPage() {
         </div>
 
         {view === 'auditoria' ? (
-          <ResolutionAuditPanel dateFrom={dateFrom} dateTo={dateTo} onOpen={(id) => setDrawerId(id)} />
+          <>
+            <div className="mb-4">
+              <FilterBar
+                teamId={teamId} setTeamId={setTeamId}
+                assigneeId={assigneeId} setAssigneeId={setAssigneeId}
+                channelType={channelType} setChannelType={setChannelType}
+                priority={priority} setPriority={setPriority}
+                dateFrom={dateFrom} setDateFrom={setDateFrom}
+                dateTo={dateTo} setDateTo={setDateTo}
+                teams={teams} users={users} channelOptions={channelOptions}
+                showStatus={false}
+                status="" setStatus={() => {}}
+              />
+            </div>
+            <ResolutionAuditPanel
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              teamId={teamId}
+              assigneeId={assigneeId}
+              channelType={channelType}
+              priority={priority}
+              onOpen={(id) => setDrawerId(id)}
+            />
+          </>
         ) : (<>
 
         {/* KPIs */}
@@ -202,46 +228,18 @@ export default function PainelDoGestorPage() {
         </div>
 
         {/* Filtros */}
-        <div className="flex flex-wrap items-end gap-2 mb-4">
-          <FilterSelect label="Time" value={teamId} onChange={setTeamId}>
-            <option value="">Todos</option>
-            {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </FilterSelect>
-          <FilterSelect label="Atendente" value={assigneeId} onChange={setAssigneeId}>
-            <option value="">Todos</option>
-            <option value="unassigned">Não atribuídas</option>
-            {users.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
-          </FilterSelect>
-          <FilterSelect label="Canal" value={channelType} onChange={setChannelType}>
-            <option value="">Todos</option>
-            {channelOptions.map(([slug, label]) => <option key={slug} value={slug}>{label}</option>)}
-          </FilterSelect>
-          <FilterSelect label="Status" value={status} onChange={setStatus}>
-            <option value="">Todos</option>
-            {Object.entries(STATUS_LABELS).map(([slug, s]) => <option key={slug} value={slug}>{s.label}</option>)}
-          </FilterSelect>
-          <FilterSelect label="Prioridade" value={priority} onChange={setPriority}>
-            <option value="">Todas</option>
-            {Object.entries(PRIORITY_LABELS).map(([slug, p]) => <option key={slug} value={slug}>{p.label}</option>)}
-          </FilterSelect>
-          <div className="flex items-end gap-1.5">
-            <div>
-              <label className="block text-[10px] text-slate-500 mb-1">De</label>
-              <DateInputPtBR value={dateFrom} onChange={setDateFrom} className="h-8 px-2 rounded-lg bg-[#0a192f] border border-white/8 text-xs text-slate-300 outline-none focus:border-[#c5a028]" />
-            </div>
-            <div>
-              <label className="block text-[10px] text-slate-500 mb-1">Até</label>
-              <DateInputPtBR value={dateTo} onChange={setDateTo} className="h-8 px-2 rounded-lg bg-[#0a192f] border border-white/8 text-xs text-slate-300 outline-none focus:border-[#c5a028]" />
-            </div>
-          </div>
-          {(teamId || assigneeId || channelType || status || priority || dateFrom || dateTo) && (
-            <button
-              onClick={() => { setTeamId(''); setAssigneeId(''); setChannelType(''); setStatus(''); setPriority(''); setDateFrom(''); setDateTo('') }}
-              className="h-8 px-2 text-xs text-slate-500 hover:text-slate-300"
-            >
-              Limpar filtros
-            </button>
-          )}
+        <div className="mb-4">
+          <FilterBar
+            teamId={teamId} setTeamId={setTeamId}
+            assigneeId={assigneeId} setAssigneeId={setAssigneeId}
+            channelType={channelType} setChannelType={setChannelType}
+            status={status} setStatus={setStatus}
+            priority={priority} setPriority={setPriority}
+            dateFrom={dateFrom} setDateFrom={setDateFrom}
+            dateTo={dateTo} setDateTo={setDateTo}
+            teams={teams} users={users} channelOptions={channelOptions}
+            showStatus
+          />
         </div>
 
         {/* Tabela */}
@@ -333,7 +331,7 @@ export default function PainelDoGestorPage() {
               </button>
             </div>
             <div className="flex-1 min-h-0">
-              <ConversationThread conversationId={drawerId} onUpdated={load} />
+              <ConversationThread conversationId={drawerId} onUpdated={load} readOnly />
             </div>
           </div>
         </div>
@@ -347,6 +345,74 @@ function KpiCard({ label, value, tone }: { label: string; value: string; tone?: 
     <div className="rounded-xl bg-[#0a192f] border border-white/8 p-4">
       <p className="text-xs text-slate-500 mb-1">{label}</p>
       <p className={`text-2xl font-semibold ${tone === 'danger' ? 'text-rose-400' : 'text-white'}`}>{value}</p>
+    </div>
+  )
+}
+
+interface FilterBarProps {
+  teamId: string; setTeamId: (v: string) => void
+  assigneeId: string; setAssigneeId: (v: string) => void
+  channelType: string; setChannelType: (v: string) => void
+  status: string; setStatus: (v: string) => void
+  priority: string; setPriority: (v: string) => void
+  dateFrom: string; setDateFrom: (v: string) => void
+  dateTo: string; setDateTo: (v: string) => void
+  teams: { id: string; name: string }[]
+  users: { id: string; nome: string }[]
+  channelOptions: [string, string][]
+  showStatus: boolean
+}
+
+/** Barra de filtros compartilhada pela Fila operacional e pela Auditoria de resolução. */
+function FilterBar(p: FilterBarProps) {
+  const ativo = p.teamId || p.assigneeId || p.channelType || (p.showStatus && p.status) || p.priority || p.dateFrom || p.dateTo
+  return (
+    <div className="flex flex-wrap items-end gap-2">
+      <FilterSelect label="Time" value={p.teamId} onChange={p.setTeamId}>
+        <option value="">Todos</option>
+        {p.teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+      </FilterSelect>
+      <FilterSelect label="Atendente" value={p.assigneeId} onChange={p.setAssigneeId}>
+        <option value="">Todos</option>
+        <option value="unassigned">Não atribuídas</option>
+        {p.users.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+      </FilterSelect>
+      <FilterSelect label="Canal" value={p.channelType} onChange={p.setChannelType}>
+        <option value="">Todos</option>
+        {p.channelOptions.map(([slug, label]) => <option key={slug} value={slug}>{label}</option>)}
+      </FilterSelect>
+      {p.showStatus && (
+        <FilterSelect label="Status" value={p.status} onChange={p.setStatus}>
+          <option value="">Todos</option>
+          {Object.entries(STATUS_LABELS).map(([slug, s]) => <option key={slug} value={slug}>{s.label}</option>)}
+        </FilterSelect>
+      )}
+      <FilterSelect label="Prioridade" value={p.priority} onChange={p.setPriority}>
+        <option value="">Todas</option>
+        {Object.entries(PRIORITY_LABELS).map(([slug, pr]) => <option key={slug} value={slug}>{pr.label}</option>)}
+      </FilterSelect>
+      <div className="flex items-end gap-1.5">
+        <div>
+          <label className="block text-[10px] text-slate-500 mb-1">De</label>
+          <DateInputPtBR value={p.dateFrom} onChange={p.setDateFrom} className="h-8 px-2 rounded-lg bg-[#0a192f] border border-white/8 text-xs text-slate-300 outline-none focus:border-[#c5a028]" />
+        </div>
+        <div>
+          <label className="block text-[10px] text-slate-500 mb-1">Até</label>
+          <DateInputPtBR value={p.dateTo} onChange={p.setDateTo} className="h-8 px-2 rounded-lg bg-[#0a192f] border border-white/8 text-xs text-slate-300 outline-none focus:border-[#c5a028]" />
+        </div>
+      </div>
+      {ativo && (
+        <button
+          onClick={() => {
+            p.setTeamId(''); p.setAssigneeId(''); p.setChannelType(''); p.setPriority('')
+            if (p.showStatus) p.setStatus('')
+            p.setDateFrom(''); p.setDateTo('')
+          }}
+          className="h-8 px-2 text-xs text-slate-500 hover:text-slate-300"
+        >
+          Limpar filtros
+        </button>
+      )}
     </div>
   )
 }
