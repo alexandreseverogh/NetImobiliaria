@@ -945,6 +945,9 @@ export class MetaAdsAdapter implements AdNetworkService {
       special_ad_categories: input.specialAdCategory && input.specialAdCategory !== 'NONE'
         ? [input.specialAdCategory]
         : [],
+      // Obrigatório desde a versão atual da Graph API quando o orçamento fica no conjunto
+      // de anúncios (nosso caso: daily_budget vai no adset). False = sem compartilhamento.
+      is_adset_budget_sharing_enabled: false,
       ...this.auth,
     };
 
