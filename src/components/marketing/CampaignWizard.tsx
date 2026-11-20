@@ -628,7 +628,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.2 }}
-              className="max-w-4xl"
+              className={step === 6 ? 'w-full' : 'max-w-4xl'}
             >
               {step === 0 && <StepNetwork   form={form} updateForm={updateForm} networks={networks} onSwitchToGoogle={onSwitchToGoogle} />}
               {step === 1 && <StepType      form={form} updateForm={updateForm} selectedImages={selectedImages} hookAlert={hookAlert} clientId={clientId} onGoToTextStep={() => setStep(2)} errors={errorsByField} showErrors={showErrorsForStep} />}
@@ -2104,8 +2104,44 @@ function StepReview({ form, selectedImages, autoFields, initiatives = [] }: any)
   const initiativeName = form.initiativeId
     ? (initiatives.find((i: { id: string; name: string }) => i.id === form.initiativeId)?.name ?? '(vinculada)')
     : 'Sem iniciativa';
+  const isCarouselReview = form.creativeType === 'CAROUSEL' && selectedImages.length > 1;
   return (
-    <div className="space-y-8">
+    <div className="grid gap-8 lg:grid-cols-2 items-start">
+      {/* Coluna direita: criativos na ordem em que serão enviados à rede */}
+      <div className="lg:order-2 lg:sticky lg:top-6 min-w-0">
+      {selectedImages.length > 0 && (
+        <Section title={isCarouselReview ? `Carrossel — ${selectedImages.length} cartões` : `Criativo${selectedImages.length > 1 ? 's' : ''}`}>
+          {isCarouselReview ? (
+            <div className="grid grid-cols-2 gap-4">
+              {selectedImages.map((img: { path?: string; url?: string; name?: string }, i: number) => (
+                <div key={i} className="min-w-0 rounded-xl border border-gray-200 bg-white overflow-hidden">
+                  <div className="relative">
+                    <img src={img.url || img.path} alt={`Cartão ${i + 1}`} className="w-full aspect-[4/5] object-cover" />
+                    <span className="absolute top-2 left-2 rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-black text-white">{i + 1}/{selectedImages.length}</span>
+                  </div>
+                  <div className="p-3 space-y-1">
+                    <p className="text-xs font-bold text-gray-900 truncate">{form.cards?.[i]?.headline || form.headline || '(sem título)'}</p>
+                    {form.cards?.[i]?.description && <p className="text-[11px] text-gray-500 line-clamp-2">{form.cards[i].description}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {selectedImages.map((img: { path?: string; url?: string; name?: string }, i: number) => (
+                <div key={i} className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                  <img src={img.url || img.path} alt={img.name || `Criativo ${i + 1}`} className="w-full aspect-square object-cover" />
+                  {img.name && <p className="px-3 py-2 text-[11px] text-gray-500 truncate">{img.name}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+      )}
+      </div>
+
+      {/* Coluna esquerda: resumo e confirmação */}
+      <div className="space-y-8 min-w-0 lg:order-1">
       <Section title="Resumo da Campanha">
         <div className="divide-y divide-gray-100">
           <Row label="Criativos"   value={`${selectedImages.length} imagem(ns) — ${form.creativeType === 'CAROUSEL' ? 'Carrossel' : selectedImages.length === 0 ? 'Sem criativo' : 'Simples'}`} />
@@ -2132,6 +2168,7 @@ function StepReview({ form, selectedImages, autoFields, initiatives = [] }: any)
           <span className="font-bold">Salvar</span> deixa a campanha PAUSADA até você ativá-la.{' '}
           <span className="font-bold">Lançar campanha</span> começa a veicular e gastar verba imediatamente no {networkLabel(form.networkCode)}.
         </p>
+      </div>
       </div>
     </div>
   );
