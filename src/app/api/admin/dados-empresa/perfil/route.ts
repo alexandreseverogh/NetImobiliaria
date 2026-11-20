@@ -47,6 +47,10 @@ const EDITABLE_FIELDS: Record<string, string> = {
   avatarTtlDays:  'avatar_ttl_days',
   // Mídia de contato sem número: tempo máximo de download, em segundos (gravado em ms).
   lidMediaTimeoutSeconds: 'lid_media_timeout_ms',
+  // Conexão Evolution da empresa. A CHAVE (evolution_api_key) não está aqui de propósito:
+  // é só de escrita, tratada à parte no PUT, e nunca devolvida no GET.
+  evolutionApiUrl:   'evolution_api_url',
+  evolutionInstance: 'evolution_instance',
 };
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
@@ -65,7 +69,7 @@ export async function GET(request: NextRequest) {
   const denied = await requireAnyApiPermission(request, [RESOURCE], 'READ');
   if (denied) return denied;
 
-  const cols = [...Object.values(EDITABLE_FIELDS), 'logo_url'].join(', ');
+  const cols = [...Object.values(EDITABLE_FIELDS), 'logo_url', 'evolution_api_key'].join(', ');
   const { rows } = await pool.query(
     `SELECT ${cols} FROM public.tenants WHERE id = $1::uuid LIMIT 1`,
     [payload.tenantId],
@@ -81,6 +85,8 @@ export async function GET(request: NextRequest) {
     else out[apiKey] = rows[0][col] ?? '';
   }
   out.logo = rows[0].logo_url ?? '';
+  // Só informa SE a chave existe. O valor nunca sai pela API.
+  out.evolutionKeyConfigured = !!rows[0].evolution_api_key;
   out.avatarTtlEnabled = await isAvatarTtlEnabled(payload.tenantId);
   return NextResponse.json(out);
 }
@@ -143,6 +149,8 @@ export async function PUT(request: NextRequest) {
       if (s && col === 'slack_webhook_url' && !SLACK_RE.test(s)) return invalid('Webhook do Slack deve começar com https://hooks.slack.com/services/');
       if (s && col === 'numero_whatsapp' && !/^\d{10,13}$/.test(s)) return invalid('Número de WhatsApp deve conter apenas dígitos, com DDD (10 a 13 dígitos)');
       if (s && col === 'whatsapp_alerta' && !/^\d{10,13}$/.test(s)) return invalid('Número para alertas deve conter apenas dígitos, com DDD (10 a 13 dígitos)');
+      if (s && col === 'evolution_api_url' && !/^https?:\/\/[^\s]+$/i.test(s)) return invalid('URL da Evolution deve começar com http:// ou https://');
+      if (s && col === 'evolution_instance' && !/^[A-Za-z0-9_-]{2,60}$/.test(s)) return invalid('Nome da instância deve ter de 2 a 60 letras, números, _ ou -');
       value = s || null;
     }
     values.push(value);
@@ -161,6 +169,17 @@ export async function PUT(request: NextRequest) {
       sets.push(`logo_url = $${values.length}`);
     } else {
       return invalid('Logo deve ser PNG, JPG, WEBP ou SVG');
+    }
+  }
+
+  // Chave da Evolution: só de escrita. Vazia ou ausente = mantém a atual (não apaga por engano).
+  // Para trocar, envie o novo valor; não há como ler o atual de volta.
+  if ('evolutionApiKey' in body) {
+    const k = body.evolutionApiKey == null ? '' : String(body.evolutionApiKey).trim();
+    if (k) {
+      if (k.length > 200 || /\s/.test(k)) return invalid('Chave da Evolution inválida');
+      values.push(k);
+      sets.push(`evolution_api_key = $${values.length}`);
     }
   }
 

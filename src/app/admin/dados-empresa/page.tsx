@@ -25,6 +25,7 @@ import { DadosEmpresaHelpButton } from '@/components/admin/dados-empresa/HelpMod
 import { DadosCadastraisSection } from '@/components/admin/dados-empresa/DadosCadastraisSection';
 import { WhatsAppCampanhasSection } from '@/components/admin/dados-empresa/WhatsAppCampanhasSection';
 import { WhatsAppConexaoSection } from '@/components/admin/dados-empresa/WhatsAppConexaoSection';
+import { EvolutionConfigSection } from '@/components/admin/dados-empresa/EvolutionConfigSection';
 import { WhatsAppWebhookSection } from '@/components/crm/WhatsAppWebhookSection';
 import { FormularioLeadSection } from '@/components/admin/dados-empresa/FormularioLeadSection';
 import { CentralMensagensSection } from '@/components/admin/dados-empresa/CentralMensagensSection';
@@ -577,6 +578,7 @@ export default function DadosEmpresaPage() {
               <WhatsAppCloudSection selected={selectedProvider} setSelected={setSelectedProvider} />
               {selectedProvider === 'evolution' && (
                 <>
+                  <EvolutionConfigSection />
                   <WhatsAppConexaoSection />
                   <WhatsAppWebhookSection t={LIGHT_WEBHOOK_THEME} />
                 </>
