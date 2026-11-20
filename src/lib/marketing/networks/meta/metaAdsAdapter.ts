@@ -73,6 +73,22 @@ export function normalizePhoneForMatch(phone: string): string {
 
 const META_API_BASE = 'https://graph.facebook.com/v21.0';
 
+/**
+ * Converte um erro do axios numa mensagem com o motivo real que a Meta devolveu
+ * (ex.: "(#100) Param link is invalid"). Sem isso o erro vira só
+ * "Request failed with status code 400", que não diz o que corrigir.
+ */
+function metaApiError(etapa: string, err: any): Error {
+  const metaMsg = err?.response?.data?.error?.message;
+  const metaCode = err?.response?.data?.error?.code;
+  const detalhe = metaMsg
+    ? `${metaMsg}${metaCode ? ` (código ${metaCode})` : ''}`
+    : (err?.message || 'erro desconhecido');
+  const e = new Error(`Meta recusou ${etapa}: ${detalhe}`);
+  console.error(`[META-API] ${etapa}:`, JSON.stringify(err?.response?.data ?? err?.message));
+  return e;
+}
+
 // ── FASE 16 — Postagem orgânica ──────────────────────────────────────────────
 export type OrganicFormat = 'text' | 'image' | 'carousel' | 'video' | 'reel' | 'story';
 
@@ -935,7 +951,7 @@ export class MetaAdsAdapter implements AdNetworkService {
     const campaignRes = await axios.post(
       this.url(`act_${this.adAccountId}/campaigns`),
       campaignPayload,
-    );
+    ).catch((err) => { throw metaApiError('criar campanha', err); });
     // FASE 19.5 — nunca deixar um shape de resposta divergente virar `undefined` propagado
     // silenciosamente pelo resto da cadeia (adset/creative/ad, todos dependem deste id).
     const externalId = extractMetaMutateId(campaignRes.data, 'criar campanha');
@@ -989,7 +1005,8 @@ export class MetaAdsAdapter implements AdNetworkService {
       };
     }
 
-    const adSetRes = await axios.post(this.url(`act_${this.adAccountId}/adsets`), adSetPayload);
+    const adSetRes = await axios.post(this.url(`act_${this.adAccountId}/adsets`), adSetPayload)
+      .catch((err) => { throw metaApiError('criar ad set', err); });
     const externalAdSetId = extractMetaMutateId(adSetRes.data, 'criar ad set'); // FASE 19.5
 
     // 4. Create creative
@@ -1060,7 +1077,7 @@ export class MetaAdsAdapter implements AdNetworkService {
     const creativeRes = await axios.post(
       this.url(`act_${this.adAccountId}/adcreatives`),
       creativePayload,
-    );
+    ).catch((err) => { throw metaApiError('criar creative', err); });
     const creativeId = extractMetaMutateId(creativeRes.data, 'criar creative'); // FASE 19.5
 
     // 5. Create ad
@@ -1070,7 +1087,7 @@ export class MetaAdsAdapter implements AdNetworkService {
       creative: { creative_id: creativeId },
       status: initialStatus,
       ...this.auth,
-    });
+    }).catch((err) => { throw metaApiError('criar anúncio', err); });
 
     return {
       externalId,
