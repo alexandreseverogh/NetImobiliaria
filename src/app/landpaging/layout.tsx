@@ -1,11 +1,11 @@
-import { Playfair_Display } from 'next/font/google'
+import localFont from 'next/font/local'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 
 /* Fonte display de luxo imobiliário (recomendação do motor ui-ux-pro-max) */
-const playfair = Playfair_Display({
-  subsets: ['latin'],
-  weight: ['600', '700', '800'],
+const playfair = localFont({
+  src: '../../fonts/PlayfairDisplay-latin-var.woff2',
+  weight: '600 800',
   variable: '--font-display-imo',
   display: 'swap',
 })

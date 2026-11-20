@@ -1,8 +1,13 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import localFont from 'next/font/local'
 import './globals.css'
 
-const inter = Inter({ subsets: ['latin'] })
+/* Fonte hospedada no próprio projeto (src/fonts). Não depende de rede no build. */
+const inter = localFont({
+  src: '../fonts/Inter-latin-var.woff2',
+  weight: '100 900',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: 'Imovtec',

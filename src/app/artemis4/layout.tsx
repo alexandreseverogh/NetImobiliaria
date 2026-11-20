@@ -1,23 +1,23 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
-import { Space_Grotesk, Inter } from 'next/font/google';
+import localFont from 'next/font/local';
 import { MetaPixel } from '@/components/analytics/MetaPixel';
 import { GoogleTags } from '@/components/analytics/GoogleTags';
 import { getMetaPixelId } from '@/lib/analytics/getMetaPixelId';
 import { FAQ } from './data';
 
 /* Fonte display característica (espacial/premium) para wordmark e títulos */
-const spaceGrotesk = Space_Grotesk({
-  subsets: ['latin'],
-  weight: ['500', '600', '700'],
+const spaceGrotesk = localFont({
+  src: '../../fonts/SpaceGrotesk-latin-var.woff2',
+  weight: '500 700',
   variable: '--font-display',
   display: 'swap',
 });
 
 /* Fonte de corpo neutra e legível */
-const inter = Inter({
-  subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700'],
+const inter = localFont({
+  src: '../../fonts/Inter-latin-var.woff2',
+  weight: '100 900',
   variable: '--font-body',
   display: 'swap',
 });
