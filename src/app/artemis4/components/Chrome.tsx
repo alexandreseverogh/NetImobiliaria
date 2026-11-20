@@ -321,7 +321,7 @@ export function Footer({ onOpenSpecialist }: { onOpenSpecialist: () => void }) {
             <span className="a4-label">Contato</span>
             <ul className="a4-footer__contact">
               <li>
-                <PhoneIcon /> <span>(81) 99793-0422</span>
+                <PhoneIcon /> <span>(81) 98524-0480</span>
               </li>
               <li>
                 <EnvelopeIcon /> <span>contato@artemis9.com.br</span>

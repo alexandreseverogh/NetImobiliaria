@@ -60,8 +60,8 @@ export default function ContactModal({ open, onClose, onOpenSpecialist }: Props)
               </span>
               <span className="a4-contact-row__text">
                 <span className="a4-contact-row__label">WhatsApp / Telefone</span>
-                <a href="tel:+5581997930422" className="a4-contact-row__value">
-                  (81) 99793-0422
+                <a href="tel:+5581985240480" className="a4-contact-row__value">
+                  (81) 98524-0480
                 </a>
               </span>
             </li>
