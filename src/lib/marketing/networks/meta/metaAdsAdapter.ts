@@ -969,6 +969,9 @@ export class MetaAdsAdapter implements AdNetworkService {
       age_min: input.adSet.ageMin,
       age_max: input.adSet.ageMax,
       geo_locations: input.adSet.locations,
+      // Obrigatória na Graph API atual. 0 = Advantage audience desligado (não otimizamos o público
+      // automaticamente sem pedido explícito).
+      targeting_automation: { advantage_audience: 0 },
     };
     if (input.adSet.genders?.length) targeting.genders = input.adSet.genders;
     if (input.adSet.interests?.length) targeting.interests = input.adSet.interests;
@@ -979,6 +982,9 @@ export class MetaAdsAdapter implements AdNetworkService {
       daily_budget:      input.adSet.dailyBudget,
       billing_event:     input.adSet.billingEvent,
       optimization_goal: input.adSet.optimizationGoal,
+      // Sem valor de lance: o orçamento diário é gasto da forma mais barata possível.
+      // A Meta exige a estratégia explícita para este objetivo.
+      bid_strategy:      'LOWEST_COST_WITHOUT_CAP',
       targeting,
       start_time:        new Date(input.adSet.startTime).toISOString(),
       status:            initialStatus,
