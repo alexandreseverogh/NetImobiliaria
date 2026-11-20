@@ -482,7 +482,14 @@ export async function POST(request: NextRequest) {
         );
       }
     } catch (networkError: any) {
-      // Credentials not configured or network error — save locally, warn
+      // A Meta não publicou: registra o motivo no log do servidor e
+      // reverte o status local, para a campanha não aparecer como ativa.
+      console.error(`[CAMPAIGN-PUBLISH] Falha ao publicar em ${networkCode} (campaign ${campaign.id}):`, networkError?.message || networkError);
+      await pool.query(
+        `UPDATE campanhasmarketingdigital."Campaign" SET status = 'PAUSED' WHERE id = $1 AND status = 'ACTIVE'`,
+        [campaign.id],
+      ).catch((e) => console.error('[CAMPAIGN-PUBLISH] Falha ao reverter status:', e));
+      campaign.status = 'PAUSED';
       return NextResponse.json({
         campaign, adSet, ad,
         networkError: networkError.message || `Erro ao publicar na rede ${networkCode}`,
