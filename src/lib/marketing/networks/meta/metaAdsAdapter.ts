@@ -877,9 +877,17 @@ export class MetaAdsAdapter implements AdNetworkService {
     };
   }
 
-  async uploadCreative(imagePath: string): Promise<UploadResult> {
+  async uploadCreative(imageSource: string): Promise<UploadResult> {
     const form = new FormData();
-    form.append('filename', fs.createReadStream(imagePath));
+    if (/^https?:\/\//i.test(imageSource)) {
+      // URL pública (ex.: acervo MinIO). Baixamos os bytes aqui: a Meta não precisa alcançar a URL.
+      const dl = await axios.get(imageSource, { responseType: 'arraybuffer', timeout: 30000 });
+      const buf = Buffer.from(dl.data as ArrayBuffer);
+      const name = imageSource.split('/').pop()?.split('?')[0] || 'creative.jpg';
+      form.append('filename', buf, { filename: name });
+    } else {
+      form.append('filename', fs.createReadStream(imageSource));
+    }
     form.append('access_token', this.token);
 
     const res = await axios.post(
@@ -896,11 +904,20 @@ export class MetaAdsAdapter implements AdNetworkService {
   async createCampaign(input: CreateCampaignInput): Promise<CreateCampaignResult> {
     // 1. Upload images
     const imageHashes: string[] = [];
-    for (const imagePath of input.ad.images) {
-      if (fs.existsSync(imagePath)) {
-        const result = await this.uploadCreative(imagePath);
-        imageHashes.push(result.hash);
+    for (const imageSource of input.ad.images) {
+      const isUrl = /^https?:\/\//i.test(imageSource);
+      if (!isUrl && !fs.existsSync(imageSource)) {
+        // Antes esta imagem era pulada em silêncio e o criativo saía sem hash.
+        throw new Error(
+          `Meta Ads: imagem não encontrada no servidor (${imageSource.slice(0, 80)}). ` +
+          'Os criativos precisam estar na biblioteca (acervo) antes do lançamento.',
+        );
       }
+      const result = await this.uploadCreative(imageSource);
+      imageHashes.push(result.hash);
+    }
+    if (input.ad.creativeType === 'CAROUSEL' && imageHashes.length < 2) {
+      throw new Error('Meta Ads: o carrossel precisa de pelo menos 2 imagens válidas.');
     }
 
     // 2. Create campaign
@@ -994,14 +1011,22 @@ export class MetaAdsAdapter implements AdNetworkService {
     if (ad.creativeType === 'CAROUSEL' && imageHashes.length > 1) {
       const storySpec: any = {
         link_data: {
-          child_attachments: imageHashes.map((hash, i) => ({
-            image_hash: hash,
-            link: ad.linkUrl,
-            name: ad.headline || `Slide ${i + 1}`,
-          })),
+          child_attachments: imageHashes.map((hash, i) => {
+            const card = ad.cards?.[i];
+            const attachment: any = {
+              image_hash: hash,
+              link: ad.linkUrl,
+              name: card?.headline || ad.headline || `Slide ${i + 1}`,
+              call_to_action: { type: ad.ctaType },
+            };
+            if (card?.description) attachment.description = card.description;
+            return attachment;
+          }),
           link: ad.linkUrl,
           message: ad.body,
           call_to_action: { type: ad.ctaType },
+          // Mantém a ordem narrativa dos cartões (Meta por padrão reordena pelo melhor desempenho).
+          multi_share_optimized: false,
         },
         page_id: pageId,
       };

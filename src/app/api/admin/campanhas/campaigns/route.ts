@@ -195,6 +195,8 @@ export async function POST(request: NextRequest) {
       ageMin, ageMax, genders, locations, interests,
       scheduleDays, scheduleStartHour, scheduleEndHour, scheduleTimeSlots,
       creativeType, images, body: adBody, headline, linkUrl, ctaType,
+      // Carrossel: título/descrição por cartão, alinhados com a ordem de `assetIds`/`images`
+      cards,
       // whatsappNumber/whatsappMessage removidos (achado #1, 2026-10-27) — nunca eram lidos
       // por nenhum adapter, o número real vem sempre de WhatsAppConfig em runtime.
       // Novos campos (revisão 2026-05-29 — camada de lançamento 1.6)
@@ -269,6 +271,37 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Tema não encontrado ou não pertence ao tenant' }, { status: 400 });
       }
       resolvedTemaId = temaNum;
+    }
+
+    // Orçamento mínimo da Meta (R$ 5,70/dia). Abaixo disso a Meta rejeita; falhamos antes.
+    if (Number(dailyBudget) < 5.7) {
+      return NextResponse.json({ error: 'O orçamento diário mínimo é R$ 5,70.' }, { status: 400 });
+    }
+
+    // Imagens: quando vêm da biblioteca (assetIds), usamos as URLs persistidas (acervo MinIO),
+    // na ordem exata dos assetIds. Nunca usar blob: do navegador (não existe no servidor).
+    let resolvedImages: string[] = Array.isArray(images) ? images.filter((u: unknown) => typeof u === 'string' && /^https?:\/\//.test(u)) : [];
+    if (Array.isArray(assetIds) && assetIds.length > 0) {
+      const assetRes = await pool.query(
+        `SELECT id::text AS id, storage_url FROM campanhasmarketingdigital."CreativeAsset"
+         WHERE tenant_id = $1::uuid AND id = ANY($2::uuid[])`,
+        [payload.tenantId, assetIds],
+      );
+      const byId = new Map<string, string>(assetRes.rows.map((r: any) => [r.id, r.storage_url]));
+      const ordered = (assetIds as string[]).map(id => byId.get(id)).filter((u): u is string => !!u);
+      if (ordered.length !== assetIds.length) {
+        return NextResponse.json({ error: 'Algum criativo não foi enviado para a biblioteca. Refaça o upload e tente novamente.' }, { status: 400 });
+      }
+      resolvedImages = ordered;
+    }
+    if (resolvedImages.length === 0) {
+      return NextResponse.json({ error: 'Escolha ao menos uma imagem. Os criativos precisam estar na biblioteca.' }, { status: 400 });
+    }
+    if (creativeType === 'CAROUSEL' && resolvedImages.length < 2) {
+      return NextResponse.json({ error: 'O carrossel precisa de pelo menos 2 imagens.' }, { status: 400 });
+    }
+    if (creativeType === 'CAROUSEL' && Array.isArray(cards) && cards.length !== resolvedImages.length) {
+      return NextResponse.json({ error: 'Cada cartão do carrossel precisa de seu próprio texto (ou nenhum).' }, { status: 400 });
     }
 
     // 1. Criar campanha
@@ -352,7 +385,7 @@ export async function POST(request: NextRequest) {
         name: `${name} - Ad`,
         status: initialStatus,
         creativeType,
-        images: images || [],
+        images: resolvedImages,
         body: adBody || '',
         headline,
         linkUrl: linkUrl || '',
@@ -417,6 +450,7 @@ export async function POST(request: NextRequest) {
           headline: ad.headline || undefined,
           linkUrl: trackedLinkUrl,
           ctaType: ad.ctaType,
+          cards: Array.isArray(cards) ? cards : undefined,
         },
       });
 

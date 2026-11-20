@@ -93,11 +93,14 @@ export interface CreateCampaignInput {
   ad: {
     name: string;
     creativeType: string;
+    /** Caminhos locais OU URLs públicas (ex.: MinIO) das imagens, na ordem do carrossel. */
     images: string[];
     body: string;
     headline?: string;
     linkUrl: string;
     ctaType: string;
+    /** Título/descrição por cartão do carrossel, alinhados com `images` (opcional). */
+    cards?: { headline?: string; description?: string }[];
   };
 }
 

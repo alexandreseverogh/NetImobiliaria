@@ -191,6 +191,8 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
     name:         '',
     body:         initialValues?.body     || '',
     headline:     initialValues?.headline || '',
+    // Carrossel: título e descrição de cada cartão (um por imagem, na ordem de seleção)
+    cards:        [] as { headline: string; description: string }[],
     linkUrl:      '',
     ctaType:      'WHATSAPP_MESSAGE',
     ageMin:  18,
@@ -336,6 +338,14 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
     if (!form.headline.trim()) {
       errors.push({ field: 'headline', message: 'O título/headline é obrigatório.', step: 2 });
     }
+    if (form.creativeType === 'CAROUSEL') {
+      // Cada cartão precisa do seu título (a Meta exibe o título de cada cartão)
+      Array.from({ length: selectedImages.length }).forEach((_, i: number) => {
+        if (!form.cards?.[i]?.headline?.trim()) {
+          errors.push({ field: `cardHeadline${i}`, message: `Informe o título do cartão ${i + 1}.`, step: 2 });
+        }
+      });
+    }
     if (form.ctaType === 'WHATSAPP_MESSAGE') {
       // Achado #1 (2026-10-27): não é mais editável aqui — é sempre resolvido via
       // whatsappConfigResolver.ts (cliente → tenant). Sem nenhum número configurado em
@@ -361,6 +371,8 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
 
     if (!form.dailyBudget || isNaN(form.dailyBudget) || form.dailyBudget <= 0) {
       errors.push({ field: 'dailyBudget', message: 'Informe um orçamento diário maior que zero.', step: 4 });
+    } else if (form.dailyBudget < 5.7) {
+      errors.push({ field: 'dailyBudget', message: 'O orçamento diário mínimo da Meta é R$ 5,70.', step: 4 });
     }
     if (!form.startTime) {
       errors.push({ field: 'startTime', message: 'Informe a data de início.', step: 4 });
@@ -458,6 +470,12 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
         images:            selectedImages.map(img => img.path),
         body:              form.body,
         headline:          form.headline,
+        cards:             form.creativeType === 'CAROUSEL'
+          ? selectedImages.map((_, i: number) => ({
+              headline:    form.cards?.[i]?.headline?.trim() || undefined,
+              description: form.cards?.[i]?.description?.trim() || undefined,
+            }))
+          : undefined,
         linkUrl:           form.linkUrl,
         ctaType:           form.ctaType,
         // whatsappNumber/whatsappMessage removidos do payload (achado #1, 2026-10-27) — nunca
@@ -614,7 +632,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
             >
               {step === 0 && <StepNetwork   form={form} updateForm={updateForm} networks={networks} onSwitchToGoogle={onSwitchToGoogle} />}
               {step === 1 && <StepType      form={form} updateForm={updateForm} selectedImages={selectedImages} hookAlert={hookAlert} clientId={clientId} onGoToTextStep={() => setStep(2)} errors={errorsByField} showErrors={showErrorsForStep} />}
-              {step === 2 && <StepTextCta   form={form} updateForm={updateForm} autoFields={autoFields} hookTextHint={initialValues?.hookText} isPrefilled={!!(initialValues?.body || initialValues?.headline)} errors={errorsByField} showErrors={showErrorsForStep} clientId={clientId} />}
+              {step === 2 && <StepTextCta   form={form} updateForm={updateForm} autoFields={autoFields} hookTextHint={initialValues?.hookText} isPrefilled={!!(initialValues?.body || initialValues?.headline)} errors={errorsByField} showErrors={showErrorsForStep} clientId={clientId} imageCount={selectedImages.length} />}
               {step === 3 && <StepTargeting form={form} updateForm={updateForm} clientId={clientId} suggestedInterests={autoFields.suggestedInterests} errors={errorsByField} showErrors={showErrorsForStep} />}
               {step === 4 && <StepBudget    form={form} updateForm={updateForm} errors={errorsByField} showErrors={showErrorsForStep} />}
               {step === 5 && <StepObjective form={form} updateForm={updateForm} autoFields={autoFields} initiatives={initiatives} temaOptions={temaOptions} />}
@@ -1135,7 +1153,18 @@ function StepType({ form, updateForm, selectedImages, hookAlert, clientId, onGoT
    STEP 2 — TEXTO & CTA
 ══════════════════════════════════════════════════════════ */
 
-function StepTextCta({ form, updateForm, autoFields, hookTextHint, isPrefilled, errors = {}, showErrors, clientId }: any) {
+function StepTextCta({ form, updateForm, autoFields, hookTextHint, isPrefilled, errors = {}, showErrors, clientId, imageCount = 0 }: any) {
+
+  /* Carrossel: um título e uma descrição por cartão (um cartão por imagem, na ordem de seleção) */
+  const isCarousel = form.creativeType === 'CAROUSEL' && imageCount > 1;
+  const setCard = (i: number, patch: { headline?: string; description?: string }) => {
+    const next = Array.from({ length: imageCount }).map((_, idx: number) => ({
+      headline:    form.cards?.[idx]?.headline    ?? '',
+      description: form.cards?.[idx]?.description ?? '',
+    }));
+    next[i] = { ...next[i], ...patch };
+    updateForm({ cards: next });
+  };
 
   /* Destinos cadastrados (formulários hospedados / links) para o seletor de CTA */
   const [destinos, setDestinos] = useState<any[]>([]);
@@ -1207,6 +1236,47 @@ function StepTextCta({ form, updateForm, autoFields, hookTextHint, isPrefilled, 
           )}
         </div>
       </Section>
+
+      {isCarousel && (
+        <Section title={`Textos de cada cartão (${imageCount})`}>
+          <p className="text-xs text-gray-500 mb-3">
+            Cada cartão do carrossel tem o seu título e uma descrição opcional, na ordem em que as imagens foram escolhidas. A ordem é mantida na Meta.
+          </p>
+          <div className="space-y-4">
+            {Array.from({ length: imageCount }).map((_, i: number) => (
+              <div key={i} className="grid gap-2 md:grid-cols-2 rounded-xl border border-gray-200 p-3">
+                <div className="md:col-span-2 text-xs font-semibold text-gray-600">Cartão {i + 1}</div>
+                <div>
+                  <Label>Título do cartão *</Label>
+                  <input
+                    type="text"
+                    value={form.cards?.[i]?.headline ?? ''}
+                    onChange={e => setCard(i, { headline: e.target.value })}
+                    placeholder="Título curto deste cartão"
+                    className={cn(
+                      inputCls, 'w-full',
+                      showErrors && errors[`cardHeadline${i}`] && 'border-red-400 focus:ring-red-400',
+                    )}
+                  />
+                  {showErrors && errors[`cardHeadline${i}`] && (
+                    <p className="text-xs text-red-600 font-medium mt-1.5">{errors[`cardHeadline${i}`]}</p>
+                  )}
+                </div>
+                <div>
+                  <Label>Descrição (opcional)</Label>
+                  <input
+                    type="text"
+                    value={form.cards?.[i]?.description ?? ''}
+                    onChange={e => setCard(i, { description: e.target.value })}
+                    placeholder="Linha de apoio deste cartão"
+                    className={cn(inputCls, 'w-full')}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
 
       <Section title="Chamada para Ação (CTA)">
         <div className="max-w-sm">
