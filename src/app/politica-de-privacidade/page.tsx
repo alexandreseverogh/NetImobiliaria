@@ -17,7 +17,7 @@ export default function PoliticaDePrivacidadePage() {
         <h2 className="text-xl font-semibold text-gray-900">1. Quem somos</h2>
         <p>
           Esta política descreve como a <strong>Artemis9</strong> (CAMPOS TECHNOLOGY LTDA, CNPJ 29.278.729/0001-06,
-          Rua Jorge de Lima, 245, Recife/PE) trata os dados pessoais de quem interage com nossos sites, formulários,
+          Rua Jorge de Lima, 1501 A, Recife/PE, CEP 51160-070) trata os dados pessoais de quem interage com nossos sites, formulários,
           anúncios e atendimento pelo WhatsApp.
         </p>
       </section>
