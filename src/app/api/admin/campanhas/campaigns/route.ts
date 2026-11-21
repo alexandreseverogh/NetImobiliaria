@@ -378,6 +378,35 @@ export async function POST(request: NextRequest) {
     const trackingId = `${campaign.id.slice(0, 8)}-${Date.now().toString(36)}`;
     const trackedLinkUrl = `${publicDomain}/api/r/${trackingId}`;
 
+    // Destino cadastrado (ctaType = "DEST:<id>"): resolvido NO SERVIDOR, do tenant autenticado.
+    // Nunca confia no tipo/URL vindos do navegador. O tipo do destino define o CTA e o destino real.
+    let resolvedCtaType: string = ctaType || 'LEARN_MORE';
+    let resolvedLinkUrl: string = linkUrl || '';
+    if (typeof ctaType === 'string' && ctaType.startsWith('DEST:')) {
+      const destId = ctaType.slice(5);
+      const destRes = await pool.query(
+        `SELECT type, cta_type, slug, config FROM campanhasmarketingdigital."CtaDestination"
+          WHERE id = $1 AND tenant_id = $2 AND is_active = true LIMIT 1`,
+        [destId, payload.tenantId],
+      );
+      const dest = destRes.rows[0];
+      if (!dest) {
+        return NextResponse.json({ error: 'Destino não encontrado ou inativo para esta empresa.' }, { status: 400 });
+      }
+      resolvedCtaType = dest.cta_type || 'LEARN_MORE';
+      if (dest.type === 'WHATSAPP') {
+        resolvedCtaType = 'WHATSAPP_MESSAGE';
+        resolvedLinkUrl = '';
+      } else if (dest.type === 'APP_FORM') {
+        resolvedLinkUrl = `${publicDomain}/l/${dest.slug}`;
+      } else if (dest.type === 'EXTERNAL_URL') {
+        resolvedLinkUrl = String(dest.config?.url || '').trim();
+        if (!/^https?:\/\//i.test(resolvedLinkUrl)) {
+          return NextResponse.json({ error: 'O destino externo precisa de uma URL http(s) válida.' }, { status: 400 });
+        }
+      }
+    }
+
     // 4. Criar ad
     const ad = await prisma.ad.create({
       data: {
@@ -388,8 +417,8 @@ export async function POST(request: NextRequest) {
         images: resolvedImages,
         body: adBody || '',
         headline,
-        linkUrl: linkUrl || '',
-        ctaType: ctaType || 'LEARN_MORE',
+        linkUrl: resolvedLinkUrl,
+        ctaType: resolvedCtaType,
         trackingId,
       },
     });
@@ -449,7 +478,7 @@ export async function POST(request: NextRequest) {
           body: ad.body,
           headline: ad.headline || undefined,
           linkUrl: trackedLinkUrl,
-          ctaType: ad.ctaType,
+          ctaType: resolvedCtaType,
           cards: Array.isArray(cards) ? cards : undefined,
         },
       });

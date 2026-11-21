@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { createCampaign, getMetaIdentity, getWhatsAppConfig, getCreativeAnalysisByIds, type Creative, type CreativeAnalysisStatus } from '@/lib/marketing-api';
-import { cn, OBJECTIVES, CTA_TYPES, DAYS_OF_WEEK, formatCurrency, networkLabel } from '@/lib/marketing-utils';
+import { cn, OBJECTIVES, DAYS_OF_WEEK, formatCurrency, networkLabel } from '@/lib/marketing-utils';
 import { LocationPicker, type LocationEntry } from './LocationPicker';
 import DateInputPtBR from '@/components/ui/DateInputPtBR';
 import { ANGLE_OPTIONS, angleLabel } from '@/lib/marketing/angles';
@@ -158,6 +158,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
   // Iniciativas disponíveis para vincular (PLANNED/ACTIVE do cliente/own)
   const [initiatives, setInitiatives] = useState<{ id: string; name: string; status: string }[]>([]);
 
+  const [destinos, setDestinos] = useState<Array<{ id: string; name: string; type: string; cta_type: string | null; is_active: boolean }>>([]);
   const [hookAlert, setHookAlert] = useState<{
     dominantLabel: string; dominantShare: number; suggestion: string | null;
   } | null>(null);
@@ -223,7 +224,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
       try {
         // Carregar em paralelo: identidade Meta, WhatsApp config e segment defaults
         const hookSatQs = clientId ? `?clientId=${clientId}` : '';
-        const [identity, whatsapp, clientSettings, segDefaultsRaw, hookSat] = await Promise.all([
+        const [identity, whatsapp, clientSettings, segDefaultsRaw, hookSat, destinosRaw] = await Promise.all([
           getMetaIdentity().catch(() => null),
           getWhatsAppConfig().catch(() => null),
           clientId
@@ -238,7 +239,16 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
           ).then(r => r.ok ? r.json() : null).catch(() => null),
           fetch(`/api/admin/campanhas/criativos/hook-saturation${hookSatQs}`, { credentials: 'include' })
             .then(r => r.ok ? r.json() : null).catch(() => null),
+          // Destinos de CTA cadastrados pelo tenant (ex.: formulários, links). WhatsApp é sempre
+          // oferecido à parte, por ser o destino nativo do tenant e não depender de cadastro.
+          fetch('/api/admin/campanhas/destinos', { credentials: 'include' })
+            .then(r => r.ok ? r.json() : null).catch(() => null),
         ]);
+        setDestinos(
+          Array.isArray(destinosRaw?.destinos ?? destinosRaw)
+            ? (destinosRaw?.destinos ?? destinosRaw).filter((d: any) => d.is_active)
+            : [],
+        );
         if (hookSat?.saturationAlert) {
           setHookAlert({
             dominantLabel: hookSat.hookStats?.[0]?.label ?? hookSat.dominantHook,
@@ -636,7 +646,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
               {step === 3 && <StepTargeting form={form} updateForm={updateForm} clientId={clientId} suggestedInterests={autoFields.suggestedInterests} errors={errorsByField} showErrors={showErrorsForStep} />}
               {step === 4 && <StepBudget    form={form} updateForm={updateForm} errors={errorsByField} showErrors={showErrorsForStep} />}
               {step === 5 && <StepObjective form={form} updateForm={updateForm} autoFields={autoFields} initiatives={initiatives} temaOptions={temaOptions} />}
-              {step === 6 && <StepReview    form={form} selectedImages={selectedImages} autoFields={autoFields} initiatives={initiatives} />}
+              {step === 6 && <StepReview    form={form} selectedImages={selectedImages} autoFields={autoFields} initiatives={initiatives} destinos={destinos} />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -1286,8 +1296,9 @@ function StepTextCta({ form, updateForm, autoFields, hookTextHint, isPrefilled, 
             onChange={e => updateForm({ ctaType: e.target.value })}
             className={cn(inputCls, 'w-full')}
           >
-            {CTA_TYPES.map(cta => (
-              <option key={cta.value} value={cta.value}>{cta.label}</option>
+            <option value="WHATSAPP_MESSAGE">WhatsApp</option>
+            {destinos.map(d => (
+              <option key={d.id} value={`DEST:${d.id}`}>{d.name}</option>
             ))}
           </select>
         </div>
@@ -2099,7 +2110,7 @@ function StepObjective({ form, updateForm, autoFields, initiatives = [], temaOpt
    STEP 6 — REVISÃO
 ══════════════════════════════════════════════════════════ */
 
-function StepReview({ form, selectedImages, autoFields, initiatives = [] }: any) {
+function StepReview({ form, selectedImages, autoFields, initiatives = [], destinos = [] }: any) {
   const resolveAngleLabel = (slug: string) => resolveAngleLabelFor(slug, autoFields?.allowedAngles);
   const initiativeName = form.initiativeId
     ? (initiatives.find((i: { id: string; name: string }) => i.id === form.initiativeId)?.name ?? '(vinculada)')
@@ -2146,7 +2157,11 @@ function StepReview({ form, selectedImages, autoFields, initiatives = [] }: any)
         <div className="divide-y divide-gray-100">
           <Row label="Criativos"   value={`${selectedImages.length} imagem(ns) — ${form.creativeType === 'CAROUSEL' ? 'Carrossel' : selectedImages.length === 0 ? 'Sem criativo' : 'Simples'}`} />
           <Row label="Texto"       value={form.body || '(não informado)'} />
-          <Row label="CTA"         value={CTA_TYPES.find(c => c.value === form.ctaType)?.label || form.ctaType} />
+          <Row label="CTA"         value={
+            form.ctaType === 'WHATSAPP_MESSAGE'
+              ? 'WhatsApp'
+              : (destinos.find((d: any) => `DEST:${d.id}` === form.ctaType)?.name || form.ctaType)
+          } />
           {form.ctaType === 'WHATSAPP_MESSAGE' && <Row label="WhatsApp" value={autoFields.whatsappNumber || '(não configurado)'} />}
           <Row label="Público"     value={`${form.ageMin}–${form.ageMax} anos, ${form.genders.length === 0 ? 'Todos' : form.genders.includes(1) ? 'Masculino' : 'Feminino'}`} />
           <Row label="Localização" value={form.locationEntries.length === 0 ? 'Brasil inteiro' : form.locationEntries.map((l: LocationEntry) => `${l.name} (${l.radius}km)`).join('; ')} />
