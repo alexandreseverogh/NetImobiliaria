@@ -11,13 +11,13 @@ export default function PoliticaDePrivacidadePage() {
   return (
     <main className="mx-auto max-w-3xl px-4 py-12 text-gray-800 leading-relaxed">
       <h1 className="text-3xl font-bold text-gray-900 mb-2">Política de Privacidade</h1>
-      <p className="text-sm text-gray-500 mb-8">Última atualização: [preencher data]</p>
+      <p className="text-sm text-gray-500 mb-8">Última atualização: 21/11/2026</p>
 
       <section className="space-y-3 mb-8">
         <h2 className="text-xl font-semibold text-gray-900">1. Quem somos</h2>
         <p>
-          Esta política descreve como a <strong>Artemis9</strong> ([razão social completa], CNPJ [número],
-          [endereço completo]) trata os dados pessoais de quem interage com nossos sites, formulários,
+          Esta política descreve como a <strong>Artemis9</strong> (CAMPOS TECHNOLOGY LTDA, CNPJ 29.278.729/0001-06,
+          Rua Jorge de Lima, 245, Recife/PE) trata os dados pessoais de quem interage com nossos sites, formulários,
           anúncios e atendimento pelo WhatsApp.
         </p>
       </section>
@@ -55,7 +55,7 @@ export default function PoliticaDePrivacidadePage() {
         <h2 className="text-xl font-semibold text-gray-900">5. Seus direitos e exclusão de dados</h2>
         <p>
           Você pode pedir acesso, correção ou exclusão dos seus dados pessoais a qualquer momento. Para isso,
-          envie um e-mail para <strong>[e-mail de contato]</strong> com o assunto &quot;Exclusão de dados&quot;,
+          envie um e-mail para <strong>contato@artemis9.com.br</strong> com o assunto &quot;Exclusão de dados&quot;,
           informando o telefone ou e-mail usado no contato. Respondemos em até 15 dias.
         </p>
       </section>
@@ -70,7 +70,7 @@ export default function PoliticaDePrivacidadePage() {
       <section className="space-y-3">
         <h2 className="text-xl font-semibold text-gray-900">7. Contato</h2>
         <p>
-          Dúvidas sobre esta política: <strong>[e-mail de contato]</strong>.
+          Dúvidas sobre esta política: <strong>contato@artemis9.com.br</strong>.
         </p>
       </section>
     </main>
