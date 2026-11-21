@@ -206,7 +206,8 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
     startTime:    new Date().toISOString().split('T')[0],
     endTime:      '',
     scheduleDays:      [0, 1, 2, 3, 4, 5, 6],
-    scheduleTimeSlots: [{ start: 6, end: 23 }] as { start: number; end: number }[],
+    // Padrão: dia inteiro (0 a 24). Sem restrição de horário, a campanha veicula 24h.
+    scheduleTimeSlots: [{ start: 0, end: 24 }] as { start: number; end: number }[],
     scheduleMode:  'uniform' as 'uniform' | 'perday',
     perDaySlots:   {} as Record<number, { start: number; end: number }>,
     objective:         'OUTCOME_LEADS',
@@ -450,7 +451,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
           // Group days that share the same time slot → fewer API entries
           const groups = new Map<string, number[]>();
           form.scheduleDays.forEach((day: number) => {
-            const s = form.perDaySlots[day] || { start: 6, end: 23 };
+            const s = form.perDaySlots[day] || { start: 0, end: 24 };
             const key = `${s.start}-${s.end}`;
             if (!groups.has(key)) groups.set(key, []);
             groups.get(key)!.push(day);
@@ -1731,7 +1732,7 @@ function StepBudget({ form, updateForm, errors = {}, showErrors }: any) {
 
   function switchToPerDay() {
     // Pre-fill from global slot so it feels seamless
-    const globalSlot = form.scheduleTimeSlots?.[0] || { start: 6, end: 23 };
+    const globalSlot = form.scheduleTimeSlots?.[0] || { start: 0, end: 24 };
     const slots: Record<number, { start: number; end: number }> = {};
     for (let d = 0; d < 7; d++) slots[d] = { ...globalSlot };
     updateForm({ scheduleMode: 'perday', perDaySlots: slots });
@@ -1747,7 +1748,7 @@ function StepBudget({ form, updateForm, errors = {}, showErrors }: any) {
     updateForm({
       perDaySlots: {
         ...perDaySlots,
-        [day]: { ...(perDaySlots[day] || { start: 6, end: 23 }), [field]: val },
+        [day]: { ...(perDaySlots[day] || { start: 0, end: 24 }), [field]: val },
       },
     });
   }
@@ -1895,7 +1896,7 @@ function StepBudget({ form, updateForm, errors = {}, showErrors }: any) {
             </p>
             {DAYS_OF_WEEK.map(day => {
               const isActive = form.scheduleDays.includes(day.value);
-              const slot = perDaySlots[day.value] || { start: 6, end: 23 };
+              const slot = perDaySlots[day.value] || { start: 0, end: 24 };
               return (
                 <div key={day.value} className={cn(
                   'flex items-center gap-4 px-4 py-3 rounded-xl border transition-colors',
