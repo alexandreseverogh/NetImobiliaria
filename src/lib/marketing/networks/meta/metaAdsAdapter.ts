@@ -1003,15 +1003,26 @@ export class MetaAdsAdapter implements AdNetworkService {
       adSetPayload.billing_event = 'IMPRESSIONS';
     }
 
-    // Promoted object (pixel + conversão) — quando pixel_id disponível
-    const pixelId = input.pixelId || this.pixelId;
-    if (pixelId) {
-      const customEventType = input.customEventType || 'LEAD';
-      assertCustomEventType(customEventType); // FASE 19.5
-      adSetPayload.promoted_object = {
-        pixel_id:          pixelId,
-        custom_event_type: customEventType,
-      };
+    // Destino WhatsApp: a Meta exige a conta da Página no promoted_object e o destination_type.
+    // Validado diretamente na Graph API (adset criado com CONVERSATIONS + WHATSAPP + page_id).
+    if (input.ad?.ctaType === 'WHATSAPP_MESSAGE') {
+      if (!this.pageId) {
+        throw new Error('Meta Ads: page_id não configurado. Necessário para destino WhatsApp.');
+      }
+      adSetPayload.optimization_goal = 'CONVERSATIONS';
+      adSetPayload.destination_type  = 'WHATSAPP';
+      adSetPayload.promoted_object   = { page_id: this.pageId };
+    } else {
+      // Promoted object (pixel + conversão) — quando pixel_id disponível
+      const pixelId = input.pixelId || this.pixelId;
+      if (pixelId) {
+        const customEventType = input.customEventType || 'LEAD';
+        assertCustomEventType(customEventType); // FASE 19.5
+        adSetPayload.promoted_object = {
+          pixel_id:          pixelId,
+          custom_event_type: customEventType,
+        };
+      }
     }
 
     const adSetRes = await axios.post(this.url(`act_${this.adAccountId}/adsets`), adSetPayload)
@@ -1105,7 +1116,7 @@ export class MetaAdsAdapter implements AdNetworkService {
       networkMetadata: {
         creative_id: creativeId,
         page_id: pageId,
-        pixel_id: pixelId || null,
+        pixel_id: (input.pixelId || this.pixelId) || null,
       },
     };
   }
