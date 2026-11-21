@@ -1129,24 +1129,32 @@ export class MetaAdsAdapter implements AdNetworkService {
   private buildAdsetSchedule(adSet: CreateCampaignInput['adSet']): any[] | null {
     const { scheduleDays, scheduleStartHour, scheduleEndHour, scheduleTimeSlots } = adSet;
 
-    // Se há time slots detalhados, use-os diretamente
+    // Programação só é enviada quando restringe a veiculação. Se a campanha cobre o dia
+    // inteiro (0 a 1440 minutos) em todos os dias, a Meta não aceita nem precisa de adset_schedule:
+    // o anúncio veicula normalmente. A regra é geral: depende só dos intervalos, nunca de um horário fixo.
+    const slots: Array<{ days?: number[]; start_minute: number; end_minute: number }> = [];
+
     if (scheduleTimeSlots && Array.isArray(scheduleTimeSlots) && scheduleTimeSlots.length > 0) {
-      return scheduleTimeSlots;
+      for (const s of scheduleTimeSlots as any[]) slots.push(s);
+    } else if (scheduleDays && scheduleDays.length > 0) {
+      slots.push({
+        days:         scheduleDays,
+        start_minute: (scheduleStartHour ?? 0) * 60,
+        end_minute:   (scheduleEndHour ?? 24) * 60,
+      });
     }
 
-    // Se há dias configurados com horário de início/fim
-    if (scheduleDays && scheduleDays.length > 0) {
-      const startMinute = (scheduleStartHour ?? 0) * 60;
-      const endMinute   = (scheduleEndHour ?? 24) * 60;
-      return [{
-        days:          scheduleDays,
-        start_minute:  startMinute,
-        end_minute:    endMinute === 1440 ? 1439 : endMinute, // Meta: max 1439
-        timezone_type: 'USER',
-      }];
-    }
+    if (slots.length === 0) return null;
 
-    return null;
+    const coversWholeDay = slots.every(s => s.start_minute <= 0 && s.end_minute >= 1440);
+    if (coversWholeDay) return null;
+
+    return slots.map(s => ({
+      days:          s.days ?? scheduleDays,
+      start_minute:  s.start_minute,
+      end_minute:    s.end_minute,
+      timezone_type: 'USER',
+    }));
   }
 
   async updateCampaignStatus(externalId: string, status: 'ACTIVE' | 'PAUSED' | 'ARCHIVED'): Promise<void> {
