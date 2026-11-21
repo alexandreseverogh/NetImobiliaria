@@ -458,14 +458,14 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
           });
           return Array.from(groups.entries()).map(([key, days]) => {
             const [start, end] = key.split('-').map(Number);
-            return { days, start_minute: start * 60, end_minute: Math.min(end * 60, 1439), timezone_type: 'USER' };
+            return { days, start_minute: start * 60, end_minute: Math.min(end * 60, 1440), timezone_type: 'USER' };
           });
         }
         // Uniform: same time slots for all selected days
         return form.scheduleTimeSlots.map((slot: { start: number; end: number }) => ({
           days:          form.scheduleDays,
           start_minute:  slot.start * 60,
-          end_minute:    Math.min(slot.end * 60, 1439),
+          end_minute:    Math.min(slot.end * 60, 1440),
           timezone_type: 'USER',
         }));
       })();
