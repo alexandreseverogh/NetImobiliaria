@@ -1005,7 +1005,7 @@ export class MetaAdsAdapter implements AdNetworkService {
 
     // Destino WhatsApp: a Meta exige a conta da Página no promoted_object e o destination_type.
     // Validado diretamente na Graph API (adset criado com CONVERSATIONS + WHATSAPP + page_id).
-    if (input.ad?.ctaType === 'WHATSAPP_MESSAGE') {
+    if (input.ad?.destinationType === 'WHATSAPP') {
       if (!this.pageId) {
         throw new Error('Meta Ads: page_id não configurado. Necessário para destino WhatsApp.');
       }
@@ -1067,7 +1067,7 @@ export class MetaAdsAdapter implements AdNetworkService {
         },
         page_id: pageId,
       };
-      if (instagramActorId) storySpec.instagram_actor_id = instagramActorId;
+      if (instagramActorId) storySpec.instagram_user_id = instagramActorId;
 
       creativePayload = {
         name: `${ad.name} Creative`,
@@ -1085,7 +1085,7 @@ export class MetaAdsAdapter implements AdNetworkService {
         },
         page_id: pageId,
       };
-      if (instagramActorId) storySpec.instagram_actor_id = instagramActorId;
+      if (instagramActorId) storySpec.instagram_user_id = instagramActorId;
 
       creativePayload = {
         name: `${ad.name} Creative`,

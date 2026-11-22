@@ -99,6 +99,8 @@ export interface CreateCampaignInput {
     headline?: string;
     linkUrl: string;
     ctaType: string;
+    /** Tipo do destino, resolvido no servidor a partir do cadastro (nunca do navegador). */
+    destinationType?: 'WHATSAPP' | 'FORM' | 'WEBSITE';
     /** Título/descrição por cartão do carrossel, alinhados com `images` (opcional). */
     cards?: { headline?: string; description?: string }[];
   };

@@ -382,6 +382,8 @@ export async function POST(request: NextRequest) {
     // Nunca confia no tipo/URL vindos do navegador. O tipo do destino define o CTA e o destino real.
     let resolvedCtaType: string = ctaType || 'LEARN_MORE';
     let resolvedLinkUrl: string = linkUrl || '';
+    let destinationType: 'WHATSAPP' | 'FORM' | 'WEBSITE' =
+      resolvedCtaType === 'WHATSAPP_MESSAGE' ? 'WHATSAPP' : 'WEBSITE';
     if (typeof ctaType === 'string' && ctaType.startsWith('DEST:')) {
       const destId = ctaType.slice(5);
       const destRes = await pool.query(
@@ -397,8 +399,10 @@ export async function POST(request: NextRequest) {
       if (dest.type === 'WHATSAPP') {
         resolvedCtaType = 'WHATSAPP_MESSAGE';
         resolvedLinkUrl = '';
+        destinationType = 'WHATSAPP';
       } else if (dest.type === 'APP_FORM') {
         resolvedLinkUrl = `${publicDomain}/l/${dest.slug}`;
+        destinationType = 'FORM';
       } else if (dest.type === 'EXTERNAL_URL') {
         resolvedLinkUrl = String(dest.config?.url || '').trim();
         if (!/^https?:\/\//i.test(resolvedLinkUrl)) {
@@ -479,6 +483,7 @@ export async function POST(request: NextRequest) {
           headline: ad.headline || undefined,
           linkUrl: trackedLinkUrl,
           ctaType: resolvedCtaType,
+          destinationType,
           cards: Array.isArray(cards) ? cards : undefined,
         },
       });
