@@ -51,6 +51,7 @@ import { AnalyticsView } from '@/components/marketing/dashboard/AnalyticsView';
 import { CreativesPerformanceView } from '@/components/marketing/dashboard/CreativesPerformanceView';
 import { DeepDiveView } from '@/components/marketing/dashboard/DeepDiveView';
 import { GoogleAdsView } from '@/components/marketing/dashboard/GoogleAdsView';
+import { SegmentationView } from '@/components/marketing/dashboard/SegmentationView';
 import { CampaignsTable } from '@/components/marketing/dashboard/CampaignsTable';
 import { PeriodBadge } from '@/components/marketing/dashboard/PeriodBadge';
 import { FarolSection } from '@/components/marketing/dashboard/FarolSection';
@@ -101,7 +102,7 @@ function DashboardPage() {
   const [isDark, setIsDark]                 = useState(true); // dark by default
   // PARTE D1 — "GOOGLE" deixou de ser uma aba paralela; rede agora é filtro (ver networkFilter
   // abaixo). As 3 camadas de profundidade voltam a ser o único eixo de navegação.
-  const [activeLayer, setActiveLayer]       = useState<'COMMAND' | 'ANALYTICS' | 'DEEP_DIVE' | 'CREATIVES'>('COMMAND');
+  const [activeLayer, setActiveLayer]       = useState<'COMMAND' | 'ANALYTICS' | 'DEEP_DIVE' | 'CREATIVES' | 'SEGMENTATION'>('COMMAND');
 
   const [dateRange, setDateRange]           = useState(''); // sem período padrão: dados só após escolha explícita
   const [startDate, setStartDate]           = useState('');
@@ -872,6 +873,12 @@ function DashboardPage() {
             >
                Criativos
             </button>
+            <button
+               onClick={() => setActiveLayer('SEGMENTATION')}
+               className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-colors', activeLayer === 'SEGMENTATION' ? 'bg-gold-premium text-navy-dark' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
+            >
+               Segmentação
+            </button>
           </div>
         </div>
 
@@ -913,6 +920,27 @@ function DashboardPage() {
             loading={loading}
           />
         )}
+
+        {hasPeriod && activeLayer === 'SEGMENTATION' && (() => {
+          // Intervalo efetivo: datas explícitas, ou atalho (N dias até hoje).
+          const today = new Date();
+          const iso = (d: Date) => d.toISOString().slice(0, 10);
+          const days = effectivePeriodDays || 30;
+          const segStart = startDate && endDate ? startDate : iso(new Date(today.getTime() - (days - 1) * 86400000));
+          const segEnd   = startDate && endDate ? endDate   : iso(today);
+          return (
+            <SegmentationView
+              isDark={isDark}
+              cardBase={cardBase}
+              tx={tx}
+              txMuted={txMuted}
+              startDate={segStart}
+              endDate={segEnd}
+              segmentId={activeSegment ?? null}
+              clientId={clientFilter && clientFilter !== 'segment' ? clientFilter : null}
+            />
+          );
+        })()}
 
         {hasPeriod && activeLayer === 'DEEP_DIVE' && (
           <>
