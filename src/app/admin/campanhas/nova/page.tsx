@@ -364,8 +364,9 @@ export default function NovaCampanhaPage() {
   const contextReady = isMaster || campaignFor === 'own' || !!selectedClientId;
 
   function handleSuccess() {
-    setShowWizard(false);
-    router.push('/admin/campanhas/iniciativas');
+    // Volta para o primeiro step, com a tela limpa. Recarregar a página zera todo o estado
+    // (imagens selecionadas, textos pré-preenchidos e o wizard), sem depender de limpar cada um.
+    window.location.assign('/admin/campanhas/nova');
   }
 
   /* ── Phase 2: show wizard ─────────────────────────── */
