@@ -1,13 +1,19 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { adminFetch } from '@/lib/auth/adminFetch';
 import { formatCurrency, formatNumber, cn } from '@/lib/marketing-utils';
 
 /**
  * Aba "Segmentação" do dashboard de campanhas.
- * Mostra as quebras de desempenho (idade×gênero, região e horário) já coletadas pelo job diário.
+ * Quebras de desempenho (idade×gênero, região e horário) coletadas pelo job diário.
  * Plano: docs/PLANO_SEGMENTACAO_E_WIZARD.md — Fase 3. Sem recomendações aqui (Fase 4).
+ *
+ * Regras de visualização (skill dataviz):
+ *  - Marcas finas e arredondadas no fim do dado; grade discreta.
+ *  - Identidade por texto, nunca só por cor: cada extremo traz um rótulo ("menor CPL").
+ *  - Um eixo, uma métrica por gráfico. Tooltip ao passar o mouse em cada marca.
+ *  - Dourado do sistema (acento) reservado ao que merece atenção: o melhor CPL e o pico de leads.
  */
 
 interface Cell { age: string; gender: string; spend: number; leads: number; cpl: number | null; impressions: number; clicks: number }
@@ -21,6 +27,7 @@ interface SegmentationData {
 }
 
 const GENDER_LABEL: Record<string, string> = { male: 'Homens', female: 'Mulheres', unknown: 'Não informado' };
+const TOP_OPTIONS = [5, 10, 15] as const;
 
 interface Props {
   isDark: boolean;
@@ -37,12 +44,13 @@ export function SegmentationView({ isDark, cardBase, tx, txMuted, startDate, end
   const [data, setData] = useState<SegmentationData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [topRegions, setTopRegions] = useState<number>(10);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    const qs = new URLSearchParams({ startDate, endDate });
+    const qs = new URLSearchParams({ startDate, endDate, topRegions: String(topRegions) });
     if (segmentId) qs.set('segmentId', segmentId);
     if (clientId) qs.set('clientId', clientId);
     adminFetch(`/api/admin/campanhas/dashboard/segmentation?${qs}`)
@@ -51,7 +59,7 @@ export function SegmentationView({ isDark, cardBase, tx, txMuted, startDate, end
       .catch(() => { if (!cancelled) setError('Não foi possível carregar a segmentação.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [startDate, endDate, segmentId, clientId]);
+  }, [startDate, endDate, segmentId, clientId, topRegions]);
 
   if (loading) {
     return <div className={cn('rounded-2xl border h-80 animate-pulse', isDark ? 'bg-white/[0.03] border-white/5' : 'bg-white border-slate-100')} />;
@@ -73,59 +81,98 @@ export function SegmentationView({ isDark, cardBase, tx, txMuted, startDate, end
   return (
     <div className="space-y-6">
       <AgeGenderHeatmap data={data.ageGender} isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted} />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <RegionBars regions={data.regions} isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted} />
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <RegionBars
+          regions={data.regions}
+          isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted}
+          top={topRegions} onTop={setTopRegions}
+        />
         <HourBars hours={data.hours} isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted} />
       </div>
     </div>
   );
 }
 
-// ── Idade × gênero: CPL por célula (mais verde = CPL menor) ──────────────────
+// ── Cabeçalho de seção: título, legenda curta e contexto ─────────────────────
+function SectionHeader({ eyebrow, title, hint, txMuted, tx, right }: { eyebrow: string; title: string; hint: string; txMuted: string; tx: string; right?: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-4 mb-5">
+      <div>
+        <p className={cn('text-[10px] font-black uppercase tracking-[0.18em] mb-1', txMuted)}>{eyebrow}</p>
+        <h3 className={cn('text-base font-black tracking-tight', tx)}>{title}</h3>
+        <p className={cn('text-xs mt-1', txMuted)}>{hint}</p>
+      </div>
+      {right}
+    </div>
+  );
+}
+
+// ── Idade × gênero: mapa de calor por CPL, com extremos rotulados por texto ──
 function AgeGenderHeatmap({ data, isDark, cardBase, tx, txMuted }: { data: SegmentationData['ageGender']; isDark: boolean; cardBase: string; tx: string; txMuted: string }) {
-  const cpls = data.cells.map(c => c.cpl).filter((v): v is number => v !== null);
-  const min = cpls.length ? Math.min(...cpls) : 0;
-  const max = cpls.length ? Math.max(...cpls) : 0;
+  const withCpl = data.cells.filter(c => c.cpl !== null) as Array<Cell & { cpl: number }>;
+  const min = withCpl.length ? Math.min(...withCpl.map(c => c.cpl)) : 0;
+  const max = withCpl.length ? Math.max(...withCpl.map(c => c.cpl)) : 0;
   const cellFor = (age: string, gender: string) => data.cells.find(c => c.age === age && c.gender === gender);
 
-  const shade = (cpl: number | null) => {
-    if (cpl === null) return isDark ? 'bg-white/[0.03]' : 'bg-slate-50';
-    const t = max === min ? 0 : (cpl - min) / (max - min); // 0 = melhor, 1 = pior
-    if (t < 0.34) return 'bg-emerald-500/20';
-    if (t < 0.67) return 'bg-amber-500/20';
-    return 'bg-red-500/20';
+  // Três degraus de um mesmo verde→âmbar→vermelho, com rótulo textual (não só cor).
+  const tone = (cpl: number | null) => {
+    if (cpl === null) return { bg: isDark ? 'bg-white/[0.02]' : 'bg-slate-50', dot: '', label: '' };
+    const t = max === min ? 0 : (cpl - min) / (max - min);
+    if (t <= 0.001) return { bg: 'bg-emerald-500/15 ring-1 ring-emerald-500/40', dot: 'bg-emerald-400', label: 'menor CPL' };
+    if (t < 0.5)    return { bg: 'bg-emerald-500/[0.07]', dot: 'bg-emerald-500/60', label: '' };
+    if (t < 0.999)  return { bg: 'bg-amber-500/[0.08]', dot: 'bg-amber-400/70', label: '' };
+    return { bg: 'bg-red-500/10 ring-1 ring-red-500/30', dot: 'bg-red-400', label: 'maior CPL' };
   };
 
   return (
-    <div className={cn('rounded-2xl p-6', cardBase)}>
-      <p className={cn('text-[10px] font-black uppercase tracking-widest mb-1', txMuted)}>Idade × gênero</p>
-      <p className={cn('text-xs mb-4', txMuted)}>CPL por faixa etária e gênero. Verde = CPL menor no período. Vazio = sem dado.</p>
+    <section className={cn('rounded-2xl p-6', cardBase)}>
+      <SectionHeader
+        eyebrow="Público"
+        title="Idade × gênero"
+        hint="CPL de cada faixa etária e gênero no período. Passe o mouse para ver leads e investimento."
+        txMuted={txMuted} tx={tx}
+      />
       {data.ages.length === 0 ? (
         <p className={cn('text-xs', txMuted)}>Sem quebra por idade no período.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full border-separate" style={{ borderSpacing: 8 }}>
             <thead>
               <tr>
-                <th className={cn('text-left py-2 pr-3 font-black', txMuted)}>Faixa</th>
+                <th className={cn('text-left text-[10px] font-black uppercase tracking-widest pb-1', txMuted)}>Faixa</th>
                 {data.genders.map(g => (
-                  <th key={g} className={cn('text-center py-2 px-3 font-black', txMuted)}>{GENDER_LABEL[g] ?? g}</th>
+                  <th key={g} className={cn('text-left text-[10px] font-black uppercase tracking-widest pb-1 pl-2', txMuted)}>{GENDER_LABEL[g] ?? g}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {data.ages.map(age => (
                 <tr key={age}>
-                  <td className={cn('py-2 pr-3 font-bold', tx)}>{age}</td>
+                  <td className={cn('text-sm font-bold pr-2 whitespace-nowrap', tx)}>{age}</td>
                   {data.genders.map(g => {
                     const c = cellFor(age, g);
+                    const t = tone(c?.cpl ?? null);
                     return (
-                      <td key={g} className="py-1 px-1">
-                        <div className={cn('rounded-lg px-3 py-2 text-center', shade(c?.cpl ?? null))}>
-                          <p className={cn('font-black', tx)}>{c?.cpl !== null && c?.cpl !== undefined ? formatCurrency(c.cpl) : '—'}</p>
-                          <p className={cn('text-[10px]', txMuted)}>
+                      <td key={g} className="p-0">
+                        <div
+                          className={cn('group relative rounded-xl px-4 py-3 min-w-[140px] transition-transform duration-200 hover:-translate-y-0.5', t.bg)}
+                          title={c ? `${formatNumber(c.leads)} leads · ${formatCurrency(c.spend)} investidos · ${formatNumber(c.clicks)} cliques` : 'Sem dado nesta célula'}
+                        >
+                          <div className="flex items-center gap-2">
+                            {t.dot && <span className={cn('h-1.5 w-1.5 rounded-full', t.dot)} />}
+                            <p className={cn('text-lg font-black tabular-nums tracking-tight', c?.cpl != null ? tx : txMuted)}>
+                              {c?.cpl != null ? formatCurrency(c.cpl) : '—'}
+                            </p>
+                          </div>
+                          <p className={cn('text-[11px] mt-0.5 tabular-nums', txMuted)}>
                             {c ? `${formatNumber(c.leads)} leads · ${formatCurrency(c.spend)}` : 'sem dado'}
                           </p>
+                          {t.label && (
+                            <span className={cn('absolute top-2 right-3 text-[9px] font-black uppercase tracking-widest',
+                              t.label === 'menor CPL' ? 'text-emerald-400' : 'text-red-400')}>
+                              {t.label}
+                            </span>
+                          )}
                         </div>
                       </td>
                     );
@@ -136,67 +183,151 @@ function AgeGenderHeatmap({ data, isDark, cardBase, tx, txMuted }: { data: Segme
           </table>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
-// ── Região: barras horizontais por gasto, com CPL ─────────────────────────────
-function RegionBars({ regions, isDark, cardBase, tx, txMuted }: { regions: Region[]; isDark: boolean; cardBase: string; tx: string; txMuted: string }) {
+// ── Região: barras horizontais finas, com CPL e seleção do Top N ─────────────
+function RegionBars({
+  regions, isDark, cardBase, tx, txMuted, top, onTop,
+}: {
+  regions: Region[]; isDark: boolean; cardBase: string; tx: string; txMuted: string;
+  top: number; onTop: (n: number) => void;
+}) {
+  const [hovered, setHovered] = useState<string | null>(null);
   const maxSpend = Math.max(1, ...regions.map(r => r.spend));
+  const best = useMemo(() => {
+    const withCpl = regions.filter(r => r.cpl !== null) as Array<Region & { cpl: number }>;
+    if (withCpl.length < 2) return null;
+    return withCpl.reduce((a, b) => (b.cpl < a.cpl ? b : a)).region;
+  }, [regions]);
+
   return (
-    <div className={cn('rounded-2xl p-6', cardBase)}>
-      <p className={cn('text-[10px] font-black uppercase tracking-widest mb-1', txMuted)}>Regiões de divulgação</p>
-      <p className={cn('text-xs mb-4', txMuted)}>Top 15 por investimento, com CPL de cada região.</p>
+    <section className={cn('rounded-2xl p-6', cardBase)}>
+      <SectionHeader
+        eyebrow="Onde divulgar"
+        title="Regiões"
+        hint="Investimento por região. O destaque dourado é a região de menor CPL entre as exibidas."
+        txMuted={txMuted} tx={tx}
+        right={
+          <div className={cn('flex p-0.5 rounded-lg text-[10px] font-black', isDark ? 'bg-white/5' : 'bg-slate-100')}>
+            {TOP_OPTIONS.map(n => (
+              <button
+                key={n}
+                onClick={() => onTop(n)}
+                className={cn('px-2.5 py-1 rounded-md transition-colors',
+                  top === n ? 'bg-gold-premium text-navy-dark' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
+              >
+                Top {n}
+              </button>
+            ))}
+          </div>
+        }
+      />
       {regions.length === 0 ? (
         <p className={cn('text-xs', txMuted)}>Sem quebra por região no período.</p>
       ) : (
-        <div className="space-y-3">
-          {regions.map(r => (
-            <div key={r.region}>
-              <div className="flex justify-between text-xs mb-1">
-                <span className={cn('font-bold truncate pr-2', tx)}>{r.region}</span>
-                <span className={txMuted}>
-                  {formatCurrency(r.spend)} · CPL {r.cpl !== null ? formatCurrency(r.cpl) : '—'}
-                </span>
-              </div>
-              <div className={cn('h-2 rounded-full overflow-hidden', isDark ? 'bg-white/5' : 'bg-slate-100')}>
-                <div className="h-full rounded-full bg-gold-premium" style={{ width: `${(r.spend / maxSpend) * 100}%` }} />
-              </div>
-            </div>
-          ))}
-        </div>
+        <ul className="space-y-2.5">
+          {regions.map(r => {
+            const isBest = r.region === best;
+            const isHover = hovered === r.region;
+            return (
+              <li
+                key={r.region}
+                onMouseEnter={() => setHovered(r.region)}
+                onMouseLeave={() => setHovered(null)}
+                className={cn('group rounded-lg px-2 py-1.5 -mx-2 transition-colors', isHover && (isDark ? 'bg-white/[0.03]' : 'bg-slate-50'))}
+              >
+                <div className="flex items-baseline justify-between gap-3 mb-1.5">
+                  <span className={cn('text-sm font-bold truncate', tx)}>
+                    {r.region}
+                    {isBest && <span className="ml-2 text-[9px] font-black uppercase tracking-widest text-gold-premium">menor CPL</span>}
+                  </span>
+                  <span className={cn('text-[11px] tabular-nums whitespace-nowrap', txMuted)}>
+                    {formatCurrency(r.spend)} <span className="opacity-60">·</span> CPL {r.cpl !== null ? formatCurrency(r.cpl) : '—'}
+                  </span>
+                </div>
+                <div className={cn('h-1.5 rounded-full overflow-hidden', isDark ? 'bg-white/[0.06]' : 'bg-slate-100')}>
+                  <div
+                    className={cn('h-full rounded-full transition-[width] duration-500', isBest ? 'bg-gold-premium' : (isDark ? 'bg-slate-500' : 'bg-slate-400'))}
+                    style={{ width: `${Math.max(2, (r.spend / maxSpend) * 100)}%` }}
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
-    </div>
+    </section>
   );
 }
 
-// ── Horário: 24 barras (leads por hora do dia) ────────────────────────────────
+// ── Horário: 24 colunas finas, pico destacado, tooltip por hora ──────────────
 function HourBars({ hours, isDark, cardBase, tx, txMuted }: { hours: Hour[]; isDark: boolean; cardBase: string; tx: string; txMuted: string }) {
-  const maxLeads = Math.max(1, ...hours.map(h => h.leads));
+  const [hover, setHover] = useState<number | null>(null);
   const hasAny = hours.some(h => h.spend > 0);
+  const maxLeads = Math.max(1, ...hours.map(h => h.leads));
+  const peak = useMemo(() => {
+    const withLeads = hours.filter(h => h.leads > 0);
+    if (withLeads.length === 0) return null;
+    return withLeads.reduce((a, b) => (b.leads > a.leads ? b : a)).hour;
+  }, [hours]);
+  const hoverH = hover !== null ? hours[hover] : null;
+
   return (
-    <div className={cn('rounded-2xl p-6', cardBase)}>
-      <p className={cn('text-[10px] font-black uppercase tracking-widest mb-1', txMuted)}>Horário de veiculação</p>
-      <p className={cn('text-xs mb-4', txMuted)}>Leads por hora do dia (horário do anunciante).</p>
+    <section className={cn('rounded-2xl p-6', cardBase)}>
+      <SectionHeader
+        eyebrow="Quando veicular"
+        title="Horário"
+        hint="Leads por hora do dia, no horário do anunciante. O pico aparece destacado."
+        txMuted={txMuted} tx={tx}
+      />
       {!hasAny ? (
         <p className={cn('text-xs', txMuted)}>Sem quebra por horário no período.</p>
       ) : (
         <>
-          <div className="flex items-end gap-1 h-40">
-            {hours.map(h => (
-              <div key={h.hour} className="flex-1 flex flex-col items-center justify-end h-full" title={`${h.hour}h · ${h.leads} leads · CPL ${h.cpl !== null ? formatCurrency(h.cpl) : '—'}`}>
+          <div className="relative h-44 flex items-end gap-[3px]" onMouseLeave={() => setHover(null)}>
+            {/* Linhas de referência discretas (0, 50%, 100% do pico) */}
+            <div className={cn('pointer-events-none absolute inset-x-0 top-0 border-t', isDark ? 'border-white/[0.04]' : 'border-slate-100')} />
+            <div className={cn('pointer-events-none absolute inset-x-0 top-1/2 border-t border-dashed', isDark ? 'border-white/[0.04]' : 'border-slate-100')} />
+            {hours.map(h => {
+              const isPeak = h.hour === peak;
+              const isHover = hover === h.hour;
+              const height = h.leads > 0 ? Math.max(6, (h.leads / maxLeads) * 100) : 3;
+              return (
                 <div
-                  className={cn('w-full rounded-t', h.leads > 0 ? 'bg-gold-premium' : (isDark ? 'bg-white/5' : 'bg-slate-100'))}
-                  style={{ height: `${Math.max(3, (h.leads / maxLeads) * 100)}%` }}
-                />
+                  key={h.hour}
+                  className="relative flex-1 h-full flex items-end cursor-default"
+                  onMouseEnter={() => setHover(h.hour)}
+                >
+                  <div
+                    className={cn('w-full rounded-t-[3px] transition-[height,opacity] duration-300',
+                      isPeak ? 'bg-gold-premium' : h.leads > 0 ? (isDark ? 'bg-slate-500' : 'bg-slate-400') : (isDark ? 'bg-white/[0.06]' : 'bg-slate-100'),
+                      hover !== null && !isHover && 'opacity-60')}
+                    style={{ height: `${height}%` }}
+                  />
+                </div>
+              );
+            })}
+            {hoverH && (
+              <div
+                className={cn('pointer-events-none absolute -top-2 z-10 -translate-x-1/2 rounded-lg px-3 py-2 shadow-xl whitespace-nowrap',
+                  isDark ? 'bg-[#0d1421] border border-white/10' : 'bg-white border border-slate-200')}
+                style={{ left: `${((hoverH.hour + 0.5) / 24) * 100}%` }}
+              >
+                <p className={cn('text-[10px] font-black uppercase tracking-widest', txMuted)}>{String(hoverH.hour).padStart(2, '0')}h</p>
+                <p className={cn('text-sm font-black tabular-nums', tx)}>{formatNumber(hoverH.leads)} leads</p>
+                <p className={cn('text-[11px] tabular-nums', txMuted)}>
+                  CPL {hoverH.cpl !== null ? formatCurrency(hoverH.cpl) : '—'} · {formatCurrency(hoverH.spend)}
+                </p>
               </div>
-            ))}
+            )}
           </div>
-          <div className={cn('flex justify-between text-[10px] mt-2', txMuted)}>
-            <span>0h</span><span>6h</span><span>12h</span><span>18h</span><span>23h</span>
+          <div className={cn('flex justify-between text-[10px] font-bold tabular-nums mt-2 px-px', txMuted)}>
+            <span>00h</span><span>06h</span><span>12h</span><span>18h</span><span>23h</span>
           </div>
         </>
       )}
-    </div>
+    </section>
   );
 }

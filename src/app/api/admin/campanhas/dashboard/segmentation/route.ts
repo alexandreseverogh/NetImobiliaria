@@ -24,6 +24,8 @@ export async function GET(request: NextRequest) {
     let clientId = searchParams.get('clientId');
     if (clientId === 'segment' || clientId === 'all') clientId = null;
     const segmentId = searchParams.get('segmentId');
+    // Quantas regiões retornar (padrão 10, limite 1–50). Nada fixo no código.
+    const topRegions = Math.min(50, Math.max(1, parseInt(searchParams.get('topRegions') || '10', 10) || 10));
 
     const endDate = endStr
       ? (endStr.length === 10 ? endStr : endStr.slice(0, 10))
@@ -107,7 +109,7 @@ export async function GET(request: NextRequest) {
       period: { startDate, endDate },
       hasData: rows.length > 0,
       ageGender: { ages, genders, cells },
-      regions: regions.slice(0, 15),
+      regions: regions.slice(0, topRegions),
       hours,
     });
   } catch (error: any) {
