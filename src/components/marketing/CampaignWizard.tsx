@@ -430,6 +430,14 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
       setStep(Math.min(...Array.from(affectedSteps)));
       return;
     }
+    // Lançar ativa a campanha na Meta e começa a gastar verba. Pede confirmação para evitar clique por descuido.
+    if (launchNow) {
+      const verba = Number(form.dailyBudget || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      const ok = window.confirm(
+        `Lançar a campanha AGORA?\n\nEla será ATIVADA na Meta e começará a gastar verba de ${verba} por dia.\n\nPara apenas salvar sem veicular, cancele e use "Salvar pausada".`,
+      );
+      if (!ok) return;
+    }
     handleSubmit(launchNow);
   }
 
