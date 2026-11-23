@@ -981,4 +981,26 @@ ALTER TABLE public.tenants
 
 UPDATE public.tenants SET lid_media_timeout_ms = 15000 WHERE id = 'efbf62cf-9e28-4b31-a4f6-82a037412353';
 
+-- ===== migration-2026-11-23-insight-breakdown.sql =====
+-- Quebras de desempenho (idade+gênero, região, horário). Aditiva e idempotente.
+CREATE TABLE IF NOT EXISTS campanhasmarketingdigital."InsightBreakdown" (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id       uuid NOT NULL,
+  campaign_id     text NOT NULL REFERENCES campanhasmarketingdigital."Campaign"(id) ON DELETE CASCADE,
+  date            date NOT NULL,
+  breakdown_type  varchar(20) NOT NULL,
+  breakdown_key   varchar(100) NOT NULL,
+  impressions     integer NOT NULL DEFAULT 0,
+  clicks          integer NOT NULL DEFAULT 0,
+  reach           integer NOT NULL DEFAULT 0,
+  leads           integer NOT NULL DEFAULT 0,
+  spend           numeric(12,2) NOT NULL DEFAULT 0,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT chk_insight_breakdown_type CHECK (breakdown_type IN ('age_gender', 'region', 'hour')),
+  CONSTRAINT uq_insight_breakdown UNIQUE (campaign_id, date, breakdown_type, breakdown_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_insight_breakdown_tenant
+  ON campanhasmarketingdigital."InsightBreakdown" (tenant_id, breakdown_type, date);
+
 COMMIT;

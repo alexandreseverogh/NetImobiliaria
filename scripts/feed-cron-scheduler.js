@@ -239,6 +239,28 @@ scheduleJob('business', '0 9 1 * *', async () => {
   timezone: 'America/Sao_Paulo'
 });
 
+// BREAKDOWNS — todo dia às 07:45 (idade/gênero, região, horário). Separado do sync pesado
+// para não somar chamadas à Meta no mesmo horário. Plano: docs/PLANO_SEGMENTACAO_E_WIZARD.md.
+scheduleJob('business', '45 7 * * *', async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/cron/campanhas/breakdowns`, {
+      method: 'POST',
+      headers: { 'x-cron-secret': CRON_SECRET, 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+      console.error(`❌ [breakdowns] Erro (${response.status})`);
+      return;
+    }
+    const data = await response.json();
+    console.log(`✅ [breakdowns] tenants=${data.tenants} linhas=${data.rowsSaved} ${data.elapsedMs}ms`);
+  } catch (error) {
+    console.error('❌ [breakdowns] Erro de conexão:', error.message);
+  }
+}, {
+  scheduled: true,
+  timezone: 'America/Sao_Paulo'
+});
+
 // 4. AUDIT REPORT SEMANAL — todo domingo às 18:00
 // Gera relatório de auditoria (7 dias) para todos os tenants e seus clientes.
 scheduleJob('business', '0 18 * * 0', async () => {

@@ -1301,6 +1301,63 @@ export class MetaAdsAdapter implements AdNetworkService {
   }
 
   /**
+   * Quebras de desempenho (plano PLANO_SEGMENTACAO_E_WIZARD.md, Fase 1).
+   * Uma chamada por quebra, porque o horário NÃO pode ser combinado com idade/gênero na Meta.
+   *   - 'age_gender': breakdowns age,gender  → chave "faixa|genero"
+   *   - 'region':     breakdowns region      → chave "região"
+   *   - 'hour':       hourly_stats_aggregated_by_advertiser_time_zone → chave "0-23"
+   * Leads por quebra vêm das conversões que a própria Meta informa (lead / conversa iniciada).
+   * Lança erro quando a conta não tem a quebra habilitada; quem chama trata como "indisponível".
+   */
+  async fetchBreakdownInsights(
+    since: string,
+    until: string,
+    breakdown: 'age_gender' | 'region' | 'hour',
+  ): Promise<Array<{
+    campaignExternalId: string; date: string; breakdownType: string; breakdownKey: string;
+    impressions: number; clicks: number; reach: number; leads: number; spend: number;
+  }>> {
+    const breakdownParams: Record<string, string> =
+      breakdown === 'age_gender' ? { breakdowns: 'age,gender' }
+      : breakdown === 'region'   ? { breakdowns: 'region' }
+      : { breakdowns: 'hourly_stats_aggregated_by_advertiser_time_zone' };
+
+    const res = await axios.get(this.url(`act_${this.adAccountId}/insights`), {
+      params: {
+        ...this.auth,
+        level: 'campaign',
+        time_increment: 1,
+        time_range: JSON.stringify({ since, until }),
+        fields: 'campaign_id,date_start,impressions,clicks,reach,spend,actions',
+        limit: 500,
+        ...breakdownParams,
+      },
+    }).catch((err) => { throw metaApiError(`quebra ${breakdown}`, err); });
+
+    const LEAD_ACTIONS = ['lead', 'onsite_conversion.messaging_conversation_started_7d'];
+    return (res.data?.data ?? []).map((r: any) => {
+      let breakdownKey: string;
+      if (breakdown === 'age_gender') breakdownKey = `${r.age ?? 'desconhecido'}|${r.gender ?? 'desconhecido'}`;
+      else if (breakdown === 'region') breakdownKey = String(r.region ?? 'desconhecida');
+      else breakdownKey = String(parseInt(String(r.hourly_stats_aggregated_by_advertiser_time_zone ?? '0'), 10));
+      const leads = (r.actions ?? [])
+        .filter((a: any) => LEAD_ACTIONS.includes(a.action_type))
+        .reduce((s: number, a: any) => s + parseInt(a.value || '0', 10), 0);
+      return {
+        campaignExternalId: String(r.campaign_id),
+        date: r.date_start,
+        breakdownType: breakdown,
+        breakdownKey,
+        impressions: parseInt(r.impressions || '0', 10),
+        clicks: parseInt(r.clicks || '0', 10),
+        reach: parseInt(r.reach || '0', 10),
+        leads,
+        spend: parseFloat(r.spend || '0'),
+      };
+    });
+  }
+
+  /**
    * FASE 8.5 — Busca learning_stage_info de um ad set (sinal de learning do Meta).
    * Retorna null graciosamente se não disponível.
    */
