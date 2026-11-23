@@ -89,6 +89,18 @@ function metaApiError(etapa: string, err: any): Error {
   return e;
 }
 
+/**
+ * Limpa uma URL de destino antes de enviá-la à Meta. Aceita o formato markdown
+ * "[texto](url)" (que chegou a ser salvo por engano) e URLs sem protocolo ("www.site.com").
+ */
+export function normalizeLinkUrl(raw: string | undefined | null): string {
+  let url = String(raw || '').trim();
+  const md = url.match(/^\[[^\]]*\]\(([^)]+)\)$/);
+  if (md) url = md[1].trim();
+  if (url && !/^https?:\/\//i.test(url)) url = `https://${url.replace(/^\/+/, '')}`;
+  return url;
+}
+
 // ── FASE 16 — Postagem orgânica ──────────────────────────────────────────────
 export type OrganicFormat = 'text' | 'image' | 'carousel' | 'video' | 'reel' | 'story';
 
@@ -937,7 +949,9 @@ export class MetaAdsAdapter implements AdNetworkService {
     }
 
     // 2. Create campaign
-    const initialStatus = input.launchNow ? 'ACTIVE' : 'PAUSED';
+    // Tudo nasce PAUSADO. A ativação acontece só no final, depois que campanha, conjunto e anúncio
+    // foram criados sem erro. Assim uma falha no meio nunca deixa uma campanha veiculando sem anúncio.
+    const initialStatus = 'PAUSED';
     const campaignPayload: any = {
       name: input.name,
       objective: input.objective,
@@ -959,6 +973,7 @@ export class MetaAdsAdapter implements AdNetworkService {
     // silenciosamente pelo resto da cadeia (adset/creative/ad, todos dependem deste id).
     const externalId = extractMetaMutateId(campaignRes.data, 'criar campanha');
 
+    try {
     // 3. Create ad set
     // FASE 19.5 — valida os campos que a Meta exige como string não-vazia ANTES de montar o
     // payload de saída (resolvidos automaticamente por network_defaults do segmento — um
@@ -1040,7 +1055,8 @@ export class MetaAdsAdapter implements AdNetworkService {
     }
 
     let creativePayload: any;
-    const { ad } = input;
+    // O link é limpo antes de ir para a Meta (remove formatação markdown e garante https).
+    const ad = { ...input.ad, linkUrl: normalizeLinkUrl(input.ad.linkUrl) };
 
     // Instagram actor para criativos (opcional)
     const instagramActorId = this.instagramActorId;
@@ -1109,16 +1125,32 @@ export class MetaAdsAdapter implements AdNetworkService {
       ...this.auth,
     }).catch((err) => { throw metaApiError('criar anúncio', err); });
 
+    const externalAdId = extractMetaMutateId(adRes.data, 'criar ad'); // FASE 19.5
+
+    // Tudo criado sem erro: só agora ativa (se o usuário pediu lançamento imediato).
+    if (input.launchNow) {
+      for (const objId of [externalId, externalAdSetId, externalAdId]) {
+        await axios.post(this.url(objId), { status: 'ACTIVE', ...this.auth })
+          .catch((err) => { throw metaApiError('ativar campanha', err); });
+      }
+    }
+
     return {
       externalId,
       externalAdSetId,
-      externalAdId: extractMetaMutateId(adRes.data, 'criar ad'), // FASE 19.5
+      externalAdId,
       networkMetadata: {
         creative_id: creativeId,
         page_id: pageId,
         pixel_id: (input.pixelId || this.pixelId) || null,
       },
     };
+    } catch (err) {
+      // Falhou no meio: apaga a campanha que já foi criada na Meta, para não sobrar lixo veiculando.
+      await axios.delete(this.url(externalId), { params: this.auth })
+        .catch((e) => console.error('[META-API] falha ao apagar campanha órfã', externalId, e?.response?.data || e?.message));
+      throw err;
+    }
   }
 
   /**

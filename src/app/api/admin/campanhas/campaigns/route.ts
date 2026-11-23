@@ -3,6 +3,7 @@ import { prisma } from '@/lib/marketing/prisma';
 import pool from '@/lib/database/connection';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { getNetworkServiceForTenant } from '@/lib/marketing/networks/factory';
+import { normalizeLinkUrl } from '@/lib/marketing/networks/meta/metaAdsAdapter';
 import type { NetworkCode } from '@/lib/marketing/networks/types';
 import { normalizeAngleForScope } from '@/lib/marketing/services/angleResolver';
 import { hasCrmModule } from '@/lib/marketing/services/revenueAttributionService';
@@ -381,7 +382,7 @@ export async function POST(request: NextRequest) {
     // Destino cadastrado (ctaType = "DEST:<id>"): resolvido NO SERVIDOR, do tenant autenticado.
     // Nunca confia no tipo/URL vindos do navegador. O tipo do destino define o CTA e o destino real.
     let resolvedCtaType: string = ctaType || 'LEARN_MORE';
-    let resolvedLinkUrl: string = linkUrl || '';
+    let resolvedLinkUrl: string = normalizeLinkUrl(linkUrl);
     let destinationType: 'WHATSAPP' | 'FORM' | 'WEBSITE' =
       resolvedCtaType === 'WHATSAPP_MESSAGE' ? 'WHATSAPP' : 'WEBSITE';
     if (typeof ctaType === 'string' && ctaType.startsWith('DEST:')) {
@@ -524,11 +525,12 @@ export async function POST(request: NextRequest) {
         [campaign.id],
       ).catch((e) => console.error('[CAMPAIGN-PUBLISH] Falha ao reverter status:', e));
       campaign.status = 'PAUSED';
+      // Erro explícito (502), para o wizard mostrar a mensagem da Meta em vez de tratar como sucesso.
       return NextResponse.json({
+        error: networkError.message || `Erro ao publicar na rede ${networkCode}`,
         campaign, adSet, ad,
-        networkError: networkError.message || `Erro ao publicar na rede ${networkCode}`,
-        warning: `Campanha salva localmente mas não publicada em ${networkCode.toUpperCase()}`,
-      }, { status: 201 });
+        warning: `Campanha não publicada em ${networkCode.toUpperCase()}. Nada foi ativado.`,
+      }, { status: 502 });
     }
 
     return NextResponse.json({ campaign, adSet, ad }, { status: 201 });
