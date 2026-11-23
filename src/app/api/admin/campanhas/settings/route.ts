@@ -127,8 +127,10 @@ export async function PUT(request: NextRequest) {
     if (metaAppId !== undefined)            { sets.push(`meta_app_id = $${idx++}`);              vals.push(metaAppId); }
     if (metaAppSecret !== undefined)        { sets.push(`meta_app_secret = $${idx++}`);          vals.push(metaAppSecret); }
     if (metaToken !== undefined) {
+      // A validade real vem da própria Meta (token de System User não expira). Não gravamos mais
+      // uma data fixa de 60 dias, que fazia o aviso de expiração aparecer sem motivo.
       sets.push(`meta_token = $${idx++}`);           vals.push(metaToken);
-      sets.push(`meta_token_expires_at = $${idx++}`); vals.push(new Date(Date.now() + 60 * 86400 * 1000));
+      sets.push(`meta_token_expires_at = NULL`);
     }
     if (adAccountId !== undefined)           { sets.push(`meta_ad_account_id = $${idx++}`);        vals.push(adAccountId); }
     if (anthropicApiKey !== undefined)       { sets.push(`anthropic_api_key = $${idx++}`);        vals.push(anthropicApiKey); }
@@ -146,6 +148,20 @@ export async function PUT(request: NextRequest) {
       await pool.query(
         `UPDATE public.tenants SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${idx}::uuid`,
         vals
+      );
+    }
+
+    // Mantém a fonte nova (tenant_network_credentials) sincronizada com o token salvo.
+    // Antes a tela só gravava em tenants.meta_token, e as duas fontes ficavam divergentes.
+    if (metaToken !== undefined && metaToken) {
+      await pool.query(
+        `INSERT INTO public.tenant_network_credentials (tenant_id, network_id, credentials, is_active, expires_at)
+         VALUES ($1::uuid, (SELECT id FROM public.ad_networks WHERE code = 'meta'), jsonb_build_object('access_token', $2::text), true, NULL)
+         ON CONFLICT (tenant_id, network_id) DO UPDATE SET
+           credentials = COALESCE(public.tenant_network_credentials.credentials, '{}'::jsonb) || jsonb_build_object('access_token', $2::text),
+           expires_at = NULL,
+           is_active = true`,
+        [payload.tenantId, metaToken]
       );
     }
 
