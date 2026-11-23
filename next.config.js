@@ -16,6 +16,12 @@ const nextConfig = {
   // Configurações de imagens
   images: {
     remotePatterns: [
+      // Armazenamento público das marcas (criativos e fotos servidos via /storage/* do Caddy).
+      // Sem isso, o otimizador do Next recusa as miniaturas do painel de campanhas (ícone de imagem quebrada).
+      { protocol: 'https', hostname: 'imovtec.com.br' },
+      { protocol: 'https', hostname: 'www.imovtec.com.br' },
+      { protocol: 'https', hostname: 'artemis9.com.br' },
+      { protocol: 'https', hostname: 'www.artemis9.com.br' },
       // MinIO local (armazenamento de fotos de imóveis, ver src/lib/storage/s3-client.ts) —
       // sem isso, o otimizador de imagem do Next bloqueia silenciosamente qualquer foto vinda
       // de localhost:9000, deixando o card do imóvel com o espaço da imagem em branco (bug real
