@@ -394,9 +394,14 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
     if (!form.scheduleDays || form.scheduleDays.length === 0) {
       errors.push({ field: 'scheduleDays', message: 'Selecione pelo menos um dia de veiculação.', step: 4 });
     }
+    // Tema do ciclo de vendas: obrigatório só com o módulo de CRM contratado. Fica no step 5
+    // (Objetivo). Sem esta checagem o usuário avançava até a Revisão e só era barrado no lançamento.
+    if (temaOptions.crmContracted && !form.temaId) {
+      errors.push({ field: 'temaId', message: 'Selecione o tema do ciclo de vendas desta campanha.', step: 5 });
+    }
 
     return errors;
-  }, [form, selectedImages.length, autoFields.whatsappNumber, autoFields.whatsappMessage, clientId]);
+  }, [form, selectedImages.length, autoFields.whatsappNumber, autoFields.whatsappMessage, clientId, temaOptions.crmContracted]);
 
   const errorsByField = useMemo(() => {
     const map: Record<string, string> = {};
@@ -646,7 +651,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
               {step === 2 && <StepTextCta   form={form} updateForm={updateForm} autoFields={autoFields} hookTextHint={initialValues?.hookText} isPrefilled={!!(initialValues?.body || initialValues?.headline)} errors={errorsByField} showErrors={showErrorsForStep} clientId={clientId} imageCount={selectedImages.length} />}
               {step === 3 && <StepTargeting form={form} updateForm={updateForm} clientId={clientId} suggestedInterests={autoFields.suggestedInterests} errors={errorsByField} showErrors={showErrorsForStep} />}
               {step === 4 && <StepBudget    form={form} updateForm={updateForm} errors={errorsByField} showErrors={showErrorsForStep} />}
-              {step === 5 && <StepObjective form={form} updateForm={updateForm} autoFields={autoFields} initiatives={initiatives} temaOptions={temaOptions} />}
+              {step === 5 && <StepObjective form={form} updateForm={updateForm} autoFields={autoFields} initiatives={initiatives} temaOptions={temaOptions} errors={errorsByField} showErrors={showErrorsForStep} />}
               {step === 6 && <StepReview    form={form} selectedImages={selectedImages} autoFields={autoFields} initiatives={initiatives} destinos={destinos} />}
             </motion.div>
           </AnimatePresence>
@@ -1935,7 +1940,7 @@ function StepBudget({ form, updateForm, errors = {}, showErrors }: any) {
    STEP 5 — OBJETIVO & CONVERSÃO
 ══════════════════════════════════════════════════════════ */
 
-function StepObjective({ form, updateForm, autoFields, initiatives = [], temaOptions }: any) {
+function StepObjective({ form, updateForm, autoFields, initiatives = [], temaOptions, errors = {}, showErrors }: any) {
   const effectiveSpecial = form.specialAdCategory || autoFields.specialAdCategory || 'NONE';
   const effectivePixel   = form.pixelId           || autoFields.pixelId           || '';
   const effectiveEvent   = form.customEventType   || autoFields.customEventType   || 'LEAD';
@@ -2067,13 +2072,16 @@ function StepObjective({ form, updateForm, autoFields, initiatives = [], temaOpt
           <select
             value={form.temaId || ''}
             onChange={e => updateForm({ temaId: e.target.value })}
-            className={cn(inputCls, 'w-full max-w-sm')}
+            className={cn(inputCls, 'w-full max-w-sm', showErrors && errors.temaId && 'border-red-400 focus:ring-red-400')}
           >
             <option value="">Selecione um tema…</option>
             {temaOptions.temas.map((tm: { id: number; nome: string }) => (
               <option key={tm.id} value={String(tm.id)}>{tm.nome}</option>
             ))}
           </select>
+          {showErrors && errors.temaId && (
+            <p className="text-xs text-red-600 font-medium mt-2">{errors.temaId}</p>
+          )}
           {temaOptions.temas.length === 0 && (
             <p className="text-xs text-amber-600 mt-2">
               Nenhum tema cadastrado. Cadastre os temas em Configurações de CRM → Temas do Ciclo de Vendas.
