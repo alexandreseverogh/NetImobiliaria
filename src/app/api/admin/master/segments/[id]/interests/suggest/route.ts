@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth/jwt';
 import pool from '@/lib/database/connection';
 import { suggestSegmentInterests } from '@/lib/marketing/services/segmentInterestSuggestionService';
+import { findHealthyMetaTenantForSegment } from '@/lib/marketing/services/segmentReadiness';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,9 +18,15 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   if (!decoded || !decoded.is_system_role) {
     return NextResponse.json({ error: 'Acesso Master requerido' }, { status: 403 });
   }
-  const tenantId = (decoded as any).tenantId as string | undefined;
+  // O token Meta usado para resolver IDs de interesse é SEMPRE de um tenant do próprio segmento
+  // (não o do Master, que pode não ter Meta conectada e não representa o segmento).
+  const tenantId = await findHealthyMetaTenantForSegment(params.id);
   if (!tenantId) {
-    return NextResponse.json({ error: 'Tenant não resolvido para o token Meta' }, { status: 400 });
+    return NextResponse.json({
+      error: 'Nenhuma empresa deste segmento tem a Meta conectada com token válido. '
+        + 'Conecte a Meta em uma empresa deste segmento antes de sugerir interesses.',
+      code: 'NO_HEALTHY_META_TENANT',
+    }, { status: 409 });
   }
 
   try {

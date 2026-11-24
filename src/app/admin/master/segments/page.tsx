@@ -46,6 +46,11 @@ interface Segment {
   module_names: string
   imagens_por_ia: boolean
   tenant_count:   number
+  has_description?: boolean
+  angles_count?: number
+  interests_count?: number
+  meta_tenants_connected?: number
+  meta_tenants_healthy?: number
   chatbot_max_turns_default: number
   avatar_ttl_days_default?: number
   distribution_role_name: string
@@ -104,6 +109,7 @@ export default function MasterSegmentsPage() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingSegment, setEditingSegment] = useState<Segment | null>(null)
+  const [pendingReport, setPendingReport] = useState<{ name: string; items: string[] } | null>(null)
   const [interestsSegment, setInterestsSegment] = useState<Segment | null>(null)
   const [anglesSegment, setAnglesSegment] = useState<Segment | null>(null)
   const [benchmarksSegment, setBenchmarksSegment] = useState<Segment | null>(null)
@@ -166,6 +172,13 @@ export default function MasterSegmentsPage() {
         : await post(url, payload)
 
       if (response.ok) {
+        // Segmento novo: mostra o que ainda falta para ficar pronto (não é bloqueante).
+        if (!editingSegment) {
+          const created = await response.json().catch(() => null)
+          if (created?.pendencies?.length) {
+            setPendingReport({ name: payload.name, items: created.pendencies })
+          }
+        }
         setShowModal(false)
         setEditingSegment(null)
         setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false, chatbot_max_turns_default: 6, avatar_ttl_days_default: undefined, distribution_role_name: 'Corretor', vocabulary: { ...EMPTY_VOCAB_FORM } })
@@ -268,6 +281,7 @@ export default function MasterSegmentsPage() {
                 <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">IA Imagens</th>
                 <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">IA CRM</th>
                 <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">Empresas</th>
+                <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide whitespace-nowrap">Prontidão</th>
                 <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-right whitespace-nowrap">Ações</th>
               </tr>
             </thead>
@@ -362,6 +376,37 @@ export default function MasterSegmentsPage() {
                     <span className="inline-flex items-center justify-center h-7 min-w-[1.75rem] px-2 rounded-full text-sm font-black bg-gray-100 text-gray-700">
                       {segment.tenant_count ?? 0}
                     </span>
+                  </td>
+                  {/* Prontidão — checklist de curadoria. Verde = pronto, âmbar = falta algo. */}
+                  <td className="px-5 py-4 whitespace-nowrap">
+                    <div className="flex flex-col gap-1 items-start">
+                      {(() => {
+                        const metaConnected = segment.meta_tenants_connected ?? 0
+                        const metaHealthy   = segment.meta_tenants_healthy ?? 0
+                        const metaState: 'ok' | 'warn' | 'off' =
+                          metaHealthy > 0 ? 'ok' : metaConnected > 0 ? 'warn' : 'off'
+                        const metaLabel =
+                          metaState === 'ok'   ? `Meta: ${metaHealthy} empresa${metaHealthy === 1 ? '' : 's'} válida${metaHealthy === 1 ? '' : 's'}` :
+                          metaState === 'warn' ? 'Meta: token com falha' :
+                                                 'Meta: nenhuma empresa conectada'
+                        const items: { ok: boolean; label: string; hint: string }[] = [
+                          { ok: !!segment.has_description, label: 'Descrição', hint: 'A IA usa a descrição para sugerir interesses e ângulos' },
+                          { ok: metaState === 'ok', label: metaLabel, hint: metaState === 'warn' ? 'Há empresas com Meta conectada, mas o token está com falha ou expirado. Reconecte a Meta.' : 'Necessário para resolver os IDs de interesse na Meta' },
+                          { ok: (segment.angles_count ?? 0) > 0, label: `Ângulos: ${segment.angles_count ?? 0}`, hint: 'Ângulos de comunicação curados para este segmento' },
+                          { ok: (segment.interests_count ?? 0) > 0, label: `Interesses: ${segment.interests_count ?? 0}`, hint: 'Interesses Meta sugeridos para este segmento' },
+                        ]
+                        return items.map(it => (
+                          <span
+                            key={it.label}
+                            title={it.hint}
+                            className={`inline-flex items-center gap-1.5 text-[11px] font-bold ${it.ok ? 'text-emerald-600' : 'text-amber-600'}`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${it.ok ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                            {it.label}
+                          </span>
+                        ))
+                      })()}
+                    </div>
                   </td>
                   {/* Ações */}
                   <td className="px-4 py-4 text-right whitespace-nowrap">
@@ -856,6 +901,34 @@ export default function MasterSegmentsPage() {
             setters[key](target)
           }}
         />
+      )}
+
+      {pendingReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setPendingReport(null)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-black text-gray-900">Segmento "{pendingReport.name}" criado</h3>
+            <p className="text-sm text-gray-600 mt-1">
+              Ainda faltam estes itens para o segmento ficar pronto para curadoria:
+            </p>
+            <ul className="mt-4 space-y-2">
+              {pendingReport.items.map(item => (
+                <li key={item} className="flex gap-2 text-sm text-amber-700">
+                  <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-gray-500 mt-4">
+              Esses itens também aparecem na coluna "Prontidão" da lista.
+            </p>
+            <div className="mt-6 flex justify-end">
+              <button onClick={() => setPendingReport(null)}
+                className="px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-bold">
+                Entendi
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth/jwt';
 import pool from '@/lib/database/connection';
 import { SEGMENT_SEED_DEFAULTS } from '@/lib/intelligence/benchmarkResolver';
+import { getSegmentPendencies } from '@/lib/marketing/services/segmentReadiness';
 
 /* ── auth helper ─────────────────────────────────────────────────── */
 
@@ -24,7 +25,29 @@ export async function GET(request: NextRequest) {
         s.*,
         string_agg(m.name, ', ' ORDER BY m.name)              AS module_names,
         array_agg(m.id) FILTER (WHERE m.id IS NOT NULL)       AS module_ids,
-        (SELECT COUNT(*)::int FROM public.clientes c WHERE c.segment_id = s.id) AS tenant_count
+        (SELECT COUNT(*)::int FROM public.clientes c WHERE c.segment_id = s.id) AS tenant_count,
+        -- Prontidão do segmento (checklist de curadoria). "Meta saudável" = credencial ativa com
+        -- token presente, sem falhas consecutivas do canário horário, sem disjuntor aberto e não
+        -- expirada. Mesma condição de findHealthyMetaTenantForSegment (segmentReadiness.ts).
+        (length(btrim(COALESCE(s.description, ''))) > 0)                        AS has_description,
+        (SELECT COUNT(DISTINCT sat.angle_slug)::int
+           FROM campanhasmarketingdigital.segment_angle_terms sat
+          WHERE sat.segment_id = s.id)                                          AS angles_count,
+        jsonb_array_length(COALESCE(s.network_defaults->'meta'->'suggested_interests', '[]'::jsonb))::int AS interests_count,
+        (SELECT COUNT(*)::int
+           FROM public.tenants t
+           JOIN public.tenant_network_credentials tnc ON tnc.tenant_id = t.id AND tnc.is_active = true
+           JOIN public.ad_networks n ON n.id = tnc.network_id AND n.code = 'meta'
+          WHERE t.segment_id = s.id)                                            AS meta_tenants_connected,
+        (SELECT COUNT(*)::int
+           FROM public.tenants t
+           JOIN public.tenant_network_credentials tnc ON tnc.tenant_id = t.id AND tnc.is_active = true
+           JOIN public.ad_networks n ON n.id = tnc.network_id AND n.code = 'meta'
+          WHERE t.segment_id = s.id
+            AND (tnc.credentials->>'access_token') IS NOT NULL
+            AND tnc.consecutive_failures = 0
+            AND tnc.circuit_tripped_at IS NULL
+            AND (tnc.expires_at IS NULL OR tnc.expires_at > now()))             AS meta_tenants_healthy
       FROM public.system_segments s
       LEFT JOIN public.system_segment_modules sm ON sm.segment_id = s.id
       LEFT JOIN public.system_modules         m  ON m.id = sm.module_id
@@ -114,7 +137,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ id: newId }, { status: 201 });
+    // Pendências de prontidão logo após o cadastro: o Master vê o que falta sem depender de
+    // lembrar de abrir a lista depois. Falha aqui nunca desfaz o cadastro (é só informativo).
+    const pendencies = await getSegmentPendencies(newId).catch(() => [] as string[]);
+    return NextResponse.json({ id: newId, pendencies }, { status: 201 });
   } catch (error: any) {
     console.error('[segments POST]', error);
     if (error.code === '23505') {

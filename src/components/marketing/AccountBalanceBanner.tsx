@@ -55,7 +55,7 @@ function formatCurrency(value: number | null, currency: string | null): string {
  * Nem toda rede expõe saldo programaticamente (ver `AccountBalanceResult`) — quando não dá,
  * o card mostra o motivo em vez de inventar um número.
  */
-export function AccountBalanceBanner({ isDark, compact = false }: { isDark?: boolean; compact?: boolean }) {
+export function AccountBalanceBanner({ isDark, compact = false, className }: { isDark?: boolean; compact?: boolean; className?: string }) {
   const [entries, setEntries] = useState<NetworkBalanceEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [reloadTick, setReloadTick] = useState(0);
@@ -86,6 +86,7 @@ export function AccountBalanceBanner({ isDark, compact = false }: { isDark?: boo
           ? 'flex flex-wrap items-center gap-2 px-3 py-2 rounded-xl border'
           : 'flex flex-wrap items-stretch gap-3 p-4 rounded-2xl border mb-6',
         isDark ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100 shadow-sm',
+        className,
       )}
     >
       <div className="flex items-center gap-2 pr-3">

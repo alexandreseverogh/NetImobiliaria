@@ -859,7 +859,8 @@ function DashboardPage() {
         {/* ── Layer Navigation (Tabs) + Consultar Campanhas ── */}
         <div className="flex items-center gap-3 mb-8 flex-wrap">
           {/* Saldo das redes — primeira informação da seção, à esquerda das abas */}
-          <AccountBalanceBanner isDark={isDark} compact />
+          {/* basis-full: ocupa a linha inteira, e os botões abaixo vão para a linha de baixo */}
+          <AccountBalanceBanner isDark={isDark} compact className="basis-full" />
           {/* Consultar Campanhas — mesmo CampanhasModal de /admin/campanhas/nova, antecede
               as 3 abas de visão; estilo neutro (não é um "layer" a mais) seguindo o mesmo
               padrão visual do container das abas (fundo/borda tema-aware), com o acento
