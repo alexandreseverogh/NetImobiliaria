@@ -205,6 +205,7 @@ export async function resolveSegmentNetworkDefaults(
   optimizationGoal: string;
   billingEvent: string;
   suggestedInterests: { id: string; name: string }[];
+  allowedSpecialAdCategories: string[];
 }> {
   const pool = getPool();
 
@@ -231,6 +232,7 @@ export async function resolveSegmentNetworkDefaults(
   // Fallback gracioso: sem segmento ou sem network_defaults → defaults neutros
   const SAFE_DEFAULTS = {
     specialAdCategory:  'NONE',
+    allowedSpecialAdCategories: ['NONE'] as string[],
     objective:          'OUTCOME_LEADS',
     customEventType:    'LEAD',
     optimizationGoal:   'LEAD_GENERATION',
@@ -249,8 +251,10 @@ export async function resolveSegmentNetworkDefaults(
   if (!nd) return SAFE_DEFAULTS;
 
   const cats = nd.special_ad_categories;
+  const allowedCats = Array.isArray(cats) && cats.length > 0 ? ['NONE', ...cats.filter((c: string) => c !== 'NONE')] : ['NONE'];
   return {
     specialAdCategory:  Array.isArray(cats) && cats.length > 0 ? cats[0] : 'NONE',
+    allowedSpecialAdCategories: allowedCats,
     objective:          nd.objective         || SAFE_DEFAULTS.objective,
     customEventType:    nd.custom_event_type || SAFE_DEFAULTS.customEventType,
     optimizationGoal:   nd.optimization_goal || SAFE_DEFAULTS.optimizationGoal,

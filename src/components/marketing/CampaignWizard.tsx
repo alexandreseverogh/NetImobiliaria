@@ -166,6 +166,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
   const [autoFields, setAutoFields] = useState({
     pixelId:            '',
     specialAdCategory:  'NONE',
+    allowedSpecialAdCategories: ['NONE'] as string[],   // curado por segmento (network_defaults.meta.special_ad_categories)
     customEventType:    'LEAD',
     objective:          'OUTCOME_LEADS',
     // Achado da auditoria "O Loop Quebrado do ICP" (2026-09-03): resolveSegmentNetworkDefaults()
@@ -289,6 +290,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
           pixelId:            resolvedPixelId,
           websiteDefault:     resolvedWebsite,
           specialAdCategory:  segDefaults?.specialAdCategory || 'NONE',
+          allowedSpecialAdCategories: segDefaults?.allowedSpecialAdCategories || ['NONE'],
           customEventType:    segDefaults?.customEventType   || 'LEAD',
           objective:          segDefaults?.objective         || 'OUTCOME_LEADS',
           optimizationGoal:   segDefaults?.optimizationGoal  || 'LEAD_GENERATION',
@@ -1414,6 +1416,166 @@ function StepTextCta({ form, updateForm, autoFields, hookTextHint, isPrefilled, 
    STEP 3 — PÚBLICO
 ══════════════════════════════════════════════════════════ */
 
+/**
+ * Sugestão de público a partir do histórico de desempenho da própria empresa (ver
+ * segmentSuggestionService). Cada campo tem Aplicar ou Manter: nada é alterado sem o clique.
+ * Sem dado suficiente, o cartão mostra só o motivo; nunca bloqueia o avanço.
+ */
+/** Distância em km entre dois pontos (haversine). */
+function kmBetween(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371, toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+/**
+ * Converte o nome de uma região sugerida (ex.: "Pernambuco") em um ponto com raio, usando o mesmo
+ * serviço de geocodificação do seletor de localização. O raio cobre a caixa do estado/cidade,
+ * limitado a 200 km (máximo do seletor). É uma aproximação: a Meta segmenta por região, o wizard
+ * usa círculos — por isso o usuário vê e confirma cada região.
+ */
+async function geocodeRegion(name: string): Promise<any | null> {
+  const res = await fetch(
+    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(name + ', Brasil')}&format=json&limit=1&countrycodes=br`,
+    { headers: { 'User-Agent': 'TrafegoPago/1.0' } },
+  );
+  const [hit] = await res.json();
+  if (!hit) return null;
+  const lat = parseFloat(hit.lat), lon = parseFloat(hit.lon);
+  let radius = 25;
+  if (Array.isArray(hit.boundingbox) && hit.boundingbox.length === 4) {
+    const [south, north, west, east] = hit.boundingbox.map(parseFloat);
+    radius = Math.min(200, Math.max(5, Math.round(kmBetween(lat, lon, north, east))));
+    radius = Math.max(radius, Math.round(kmBetween(lat, lon, south, west)));
+    radius = Math.min(200, radius);
+  }
+  return { id: `${name}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, latitude: lat, longitude: lon, radius };
+}
+
+function SegmentSuggestionCard({ clientId, form, updateForm }: any) {
+  const [data, setData] = useState<any>(null);
+  const [applied, setApplied] = useState<Record<string, boolean>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [regionNote, setRegionNote] = useState<string>('');
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/admin/campanhas/segment-suggestion?clientId=${clientId || 'own'}`, { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled) setData(d); })
+      .catch(() => { if (!cancelled) setData(null); });
+    return () => { cancelled = true; };
+  }, [clientId]);
+
+  if (!data) return null;
+
+  if (!data.ready) {
+    return (
+      <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-500">
+        <span className="font-bold text-gray-600">Sugestão de público:</span> {data.reason}
+      </div>
+    );
+  }
+
+  const f = data.fields || {};
+  const ageLabel = f.ageMin != null ? `${f.ageMin}–${f.ageMax} anos` : null;
+  const genderLabel = f.genders ? (f.genders.includes(1) ? 'Masculino' : 'Feminino') : null;
+  const ageEv = data.evidence?.age || [];
+  const genderEv = data.evidence?.gender || [];
+
+  const hourLabel = f.scheduleStartHour != null ? `${f.scheduleStartHour}h–${f.scheduleEndHour}h` : null;
+  const regionList: string[] = f.regions || [];
+
+  const applyRegions = async () => {
+    setBusy('region');
+    setRegionNote('');
+    const existing = new Set((form.locationEntries || []).map((l: any) => l.name));
+    const added: any[] = [];
+    let failed = 0;
+    for (const name of regionList) {
+      if (existing.has(name)) continue;
+      try {
+        const entry = await geocodeRegion(name);
+        if (entry) added.push(entry); else failed++;
+      } catch { failed++; }
+      // Nominatim: no máximo 1 requisição por segundo.
+      await new Promise(r => setTimeout(r, 1100));
+    }
+    updateForm({ locationEntries: [...(form.locationEntries || []), ...added] });
+    setApplied(a => ({ ...a, region: true }));
+    setBusy(null);
+    if (failed > 0) setRegionNote(`${failed} região(ões) não foram localizadas e ficaram de fora.`);
+  };
+
+  const rows: { key: string; label: string; detail: string; apply: () => void | Promise<void> }[] = [];
+  if (hourLabel) {
+    rows.push({
+      key: 'hour',
+      label: `Horário: ${hourLabel}`,
+      detail: 'Faixa de horário com CPL abaixo da média desta campanha',
+      apply: () => updateForm({ scheduleMode: 'uniform', scheduleTimeSlots: [{ start: f.scheduleStartHour, end: f.scheduleEndHour }] }),
+    });
+  }
+  if (regionList.length > 0) {
+    rows.push({
+      key: 'region',
+      label: `Regiões: ${regionList.join(', ')}`,
+      detail: 'Estados com CPL abaixo da média. Aproximado: o alcance é um círculo sobre cada região.',
+      apply: applyRegions,
+    });
+  }
+  if (ageLabel) {
+    rows.push({
+      key: 'age',
+      label: `Idade: ${ageLabel}`,
+      detail: ageEv.length ? `Faixas com CPL abaixo da média: ${ageEv.map((e: any) => e.key).join(', ')}` : '',
+      apply: () => updateForm({ ageMin: f.ageMin, ageMax: f.ageMax }),
+    });
+  }
+  if (genderLabel) {
+    rows.push({
+      key: 'gender',
+      label: `Gênero: ${genderLabel}`,
+      detail: genderEv.length ? 'Gênero com CPL abaixo da média desta campanha' : '',
+      apply: () => updateForm({ genders: f.genders }),
+    });
+  }
+
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5">
+      <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 mb-1">Sugestão de público</p>
+      <p className="text-xs text-gray-600 mb-4">
+        Baseada no histórico de {data.windowDays} dias de {data.segmentName} ({data.totalLeads} leads). Você decide cada campo.
+      </p>
+      {rows.length === 0 ? (
+        <p className="text-xs text-gray-500">Nenhum campo mostrou diferença real de custo por lead. Mantenha o seu público.</p>
+      ) : (
+        <div className="space-y-3">
+          {rows.map(r => (
+            <div key={r.key} className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-gray-800">{r.label}</p>
+                {r.detail && <p className="text-[11px] text-gray-500">{r.detail}</p>}
+              </div>
+              {applied[r.key] ? (
+                <span className="text-xs font-bold text-emerald-700 shrink-0">Aplicado</span>
+              ) : (
+                <button type="button" disabled={busy !== null}
+                  onClick={async () => { await r.apply(); if (r.key !== 'region') setApplied(a => ({ ...a, [r.key]: true })); }}
+                  className="shrink-0 px-3 py-1.5 rounded-lg bg-gold-premium text-navy-dark text-xs font-black disabled:opacity-50">
+                  {busy === r.key ? 'Localizando…' : 'Aplicar'}
+                </button>
+              )}
+            </div>
+          ))}
+          {regionNote && <p className="text-[11px] text-amber-700">{regionNote}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StepTargeting({ form, updateForm, clientId, suggestedInterests, errors = {}, showErrors }: any) {
   const [showInterests, setShowInterests] = useState(false);
   const hasInterests = form.interests.length > 0;
@@ -1426,6 +1588,7 @@ function StepTargeting({ form, updateForm, clientId, suggestedInterests, errors 
 
   return (
     <div className="space-y-8">
+      <SegmentSuggestionCard clientId={clientId} form={form} updateForm={updateForm} />
       <Section title="Demográfico">
         <div className="grid grid-cols-2 gap-8">
           <div>
@@ -2007,7 +2170,9 @@ function StepObjective({ form, updateForm, autoFields, initiatives = [], temaOpt
             <select value={effectiveSpecial}
               onChange={e => updateForm({ specialAdCategory: e.target.value === autoFields.specialAdCategory ? '' : e.target.value })}
               className={cn(inputCls, 'w-full')}>
-              {SPECIAL_AD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              {SPECIAL_AD_OPTIONS
+                .filter(o => (autoFields.allowedSpecialAdCategories || ['NONE']).includes(o.value) || o.value === effectiveSpecial)
+                .map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
             <p className="text-[11px] text-gray-400 mt-1">Obrigatório para imóveis, emprego, crédito.</p>
           </div>
