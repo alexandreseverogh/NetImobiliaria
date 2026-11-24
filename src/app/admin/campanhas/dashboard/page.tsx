@@ -632,8 +632,6 @@ function DashboardPage() {
             >
               {isDark ? <><SunIcon className="h-3.5 w-3.5" /> Claro</> : <><MoonIcon className="h-3.5 w-3.5" /> Escuro</>}
             </button>
-            {/* Saldo das redes (mesmo componente de /admin/campanhas/nova, em versão compacta) */}
-            <AccountBalanceBanner isDark={isDark} compact />
             {/* Sync Meta + Ajuda empilhados */}
             <div className="flex flex-col gap-1.5">
               {data?.lastCollectedAt && (
@@ -860,6 +858,8 @@ function DashboardPage() {
         
         {/* ── Layer Navigation (Tabs) + Consultar Campanhas ── */}
         <div className="flex items-center gap-3 mb-8 flex-wrap">
+          {/* Saldo das redes — primeira informação da seção, à esquerda das abas */}
+          <AccountBalanceBanner isDark={isDark} compact />
           {/* Consultar Campanhas — mesmo CampanhasModal de /admin/campanhas/nova, antecede
               as 3 abas de visão; estilo neutro (não é um "layer" a mais) seguindo o mesmo
               padrão visual do container das abas (fundo/borda tema-aware), com o acento
