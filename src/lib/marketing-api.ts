@@ -598,6 +598,46 @@ export interface TrackingHealthData {
   history: TrackingHealthHistoryEntry[];
 }
 
+export interface SegmentationFact {
+  kind: 'age_gender' | 'region' | 'hour';
+  tone: 'good' | 'warn' | 'info';
+  text: string;
+}
+
+export interface SegmentationInsightsData {
+  days: number;
+  hasData: boolean;
+  facts: SegmentationFact[];
+  narrative: string | null;
+}
+
+export interface SegmentationInsightsParams {
+  startDate: string;
+  endDate: string;
+  segmentId?: string | null;
+  clientId?: string | null;
+}
+
+/** Fatos determinísticos do período (sem IA). */
+export const getSegmentationInsights = (p: SegmentationInsightsParams) =>
+  api.get<SegmentationInsightsData>('/dashboard/segmentation/insights', {
+    params: {
+      startDate: p.startDate, endDate: p.endDate,
+      ...(p.segmentId ? { segmentId: p.segmentId } : {}),
+      ...(p.clientId ? { clientId: p.clientId } : {}),
+    },
+  }).then(r => r.data);
+
+/** Narrativa redigida pela IA sobre os fatos (sob demanda). */
+export const generateSegmentationNarrative = (p: SegmentationInsightsParams) =>
+  api.post<SegmentationInsightsData>('/dashboard/segmentation/insights', null, {
+    params: {
+      startDate: p.startDate, endDate: p.endDate,
+      ...(p.segmentId ? { segmentId: p.segmentId } : {}),
+      ...(p.clientId ? { clientId: p.clientId } : {}),
+    },
+  }).then(r => r.data);
+
 export const getTrackingHealth = (clientId?: string | null, segmentId?: string | null) =>
   api.get<TrackingHealthData>('/tracking/health', {
     params: { ...(clientId ? { clientId } : {}), ...(segmentId ? { segmentId } : {}) },

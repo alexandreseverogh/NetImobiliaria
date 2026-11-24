@@ -76,6 +76,20 @@ export async function GET(request: NextRequest) {
       params,
     );
 
+    // Leads por hora DIA A DIA (base dos gráficos de linhas e de mapa de calor).
+    const { rows: dailyRows } = await pool.query<{ date: string; breakdown_key: string; leads: string }>(
+      `SELECT to_char(date, 'YYYY-MM-DD') AS date, breakdown_key, SUM(leads)::text AS leads
+         FROM campanhasmarketingdigital."InsightBreakdown"
+        WHERE tenant_id = $1::uuid AND date BETWEEN $2::date AND $3::date
+          AND breakdown_type = 'hour' ${scopeSql}
+        GROUP BY date, breakdown_key
+        ORDER BY date`,
+      params,
+    );
+    const dailyHours = dailyRows
+      .map(r => ({ date: r.date, hour: parseInt(r.breakdown_key, 10), leads: Number(r.leads) }))
+      .filter(r => r.hour >= 0 && r.hour <= 23);
+
     const cpl = (spend: number, leads: number) => (leads > 0 ? Math.round((spend / leads) * 100) / 100 : null);
 
     // ── Idade × gênero ──
@@ -105,12 +119,25 @@ export async function GET(request: NextRequest) {
     const genders = Array.from(new Set(cells.map(c => c.gender))).sort();
     regions.sort((a, b) => b.spend - a.spend);
 
+    // Dias do período (inclusive). Horário é mostrado como MÉDIA POR DIA para que
+    // períodos de tamanhos diferentes sejam comparáveis.
+    const dayMs = 86_400_000;
+    const diffDays = Math.round((Date.parse(endDate) - Date.parse(startDate)) / dayMs) + 1;
+    const days = Number.isFinite(diffDays) && diffDays > 0 ? diffDays : 1;
+    const hoursPerDay = hours.map(h => ({
+      ...h,
+      leadsPerDay: Math.round((h.leads / days) * 100) / 100,
+      spendPerDay: Math.round((h.spend / days) * 100) / 100,
+    }));
+
     return NextResponse.json({
       period: { startDate, endDate },
+      days,
       hasData: rows.length > 0,
       ageGender: { ages, genders, cells },
       regions: regions.slice(0, topRegions),
-      hours,
+      hours: hoursPerDay,
+      dailyHours,
     });
   } catch (error: any) {
     console.error('GET /dashboard/segmentation error:', error);
@@ -124,6 +151,8 @@ function emptyResponse(startDate: string, endDate: string) {
     hasData: false,
     ageGender: { ages: [], genders: [], cells: [] },
     regions: [],
-    hours: Array.from({ length: 24 }, (_, h) => ({ hour: h, spend: 0, leads: 0, cpl: null })),
+    days: 1,
+    dailyHours: [],
+    hours: Array.from({ length: 24 }, (_, h) => ({ hour: h, spend: 0, leads: 0, cpl: null, leadsPerDay: 0, spendPerDay: 0 })),
   };
 }

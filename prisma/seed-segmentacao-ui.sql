@@ -45,7 +45,9 @@ age_gender AS (
     ('18-24|male',   1.6), ('18-24|female', 1.4),
     ('25-34|male',   2.2), ('25-34|female', 2.6),
     ('35-44|male',   1.8), ('35-44|female', 2.0),
-    ('45-54|male',   1.1), ('45-54|female', 1.3)
+    ('45-54|male',   1.1), ('45-54|female', 1.3),
+    ('55-64|male',   0.8), ('55-64|female', 0.9),
+    ('65+|male',     0.5), ('65+|female',   0.6)
   ) AS t(breakdown_key, weight)
 ),
 regions AS (

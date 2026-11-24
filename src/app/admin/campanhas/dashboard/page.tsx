@@ -52,6 +52,16 @@ import { CreativesPerformanceView } from '@/components/marketing/dashboard/Creat
 import { DeepDiveView } from '@/components/marketing/dashboard/DeepDiveView';
 import { GoogleAdsView } from '@/components/marketing/dashboard/GoogleAdsView';
 import { SegmentationView } from '@/components/marketing/dashboard/SegmentationView';
+import { SegmentationInsightsPanel } from '@/components/marketing/dashboard/SegmentationInsightsPanel';
+
+/** Intervalo efetivo da segmentação: datas explícitas, ou atalho (N dias até hoje). */
+function segmentationRange(startDate: string | null | undefined, endDate: string | null | undefined, days: number) {
+  const today = new Date();
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const segStart = startDate && endDate ? startDate : iso(new Date(today.getTime() - (days - 1) * 86400000));
+  const segEnd = startDate && endDate ? endDate : iso(today);
+  return { segStart, segEnd };
+}
 import { CampaignsTable } from '@/components/marketing/dashboard/CampaignsTable';
 import { PeriodBadge } from '@/components/marketing/dashboard/PeriodBadge';
 import { FarolSection } from '@/components/marketing/dashboard/FarolSection';
@@ -921,6 +931,20 @@ function DashboardPage() {
           />
         )}
 
+        {hasPeriod && activeLayer === 'ANALYTICS' && (() => {
+          const r = segmentationRange(startDate, endDate, effectivePeriodDays || 30);
+          return (
+            <div className="mt-6">
+              <SegmentationInsightsPanel
+                isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted}
+                startDate={r.segStart} endDate={r.segEnd}
+                segmentId={activeSegment ?? null}
+                clientId={clientFilter && clientFilter !== 'segment' ? clientFilter : null}
+              />
+            </div>
+          );
+        })()}
+
         {hasPeriod && activeLayer === 'SEGMENTATION' && (() => {
           // Intervalo efetivo: datas explícitas, ou atalho (N dias até hoje).
           const today = new Date();
@@ -972,6 +996,19 @@ function DashboardPage() {
             {/* ══════════════════════════════════════════════════════════════
                 DEEP DIVE (Camada 3) — Farol, Briefings, Insights (FASE 8.5/18)
             ══════════════════════════════════════════════════════════════ */}
+            {(() => {
+              const r = segmentationRange(startDate, endDate, effectivePeriodDays || 30);
+              return (
+                <div className="mb-6">
+                  <SegmentationInsightsPanel
+                    isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted}
+                    startDate={r.segStart} endDate={r.segEnd}
+                    segmentId={activeSegment ?? null}
+                    clientId={clientFilter && clientFilter !== 'segment' ? clientFilter : null}
+                  />
+                </div>
+              );
+            })()}
             <DeepDiveView
               isDark={isDark}
               anticipationData={anticipationData}

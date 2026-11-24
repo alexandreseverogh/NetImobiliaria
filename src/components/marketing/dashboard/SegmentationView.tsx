@@ -16,14 +16,19 @@ import { formatCurrency, formatNumber, cn } from '@/lib/marketing-utils';
  *  - Dourado do sistema (acento) reservado ao que merece atenção: o melhor CPL e o pico de leads.
  */
 
+import { HourLinesChart, HourHeatmapChart, type DailyHour } from './HourlyDailyCharts';
+import { HourPeakRanking } from './HourPeakRanking';
+
 interface Cell { age: string; gender: string; spend: number; leads: number; cpl: number | null; impressions: number; clicks: number }
 interface Region { region: string; spend: number; leads: number; cpl: number | null; impressions: number }
-interface Hour { hour: number; spend: number; leads: number; cpl: number | null }
+interface Hour { hour: number; spend: number; leads: number; cpl: number | null; leadsPerDay?: number; spendPerDay?: number }
 interface SegmentationData {
   hasData: boolean;
   ageGender: { ages: string[]; genders: string[]; cells: Cell[] };
   regions: Region[];
   hours: Hour[];
+  days?: number;
+  dailyHours?: DailyHour[];
 }
 
 const GENDER_LABEL: Record<string, string> = { male: 'Homens', female: 'Mulheres', unknown: 'Não informado' };
@@ -87,8 +92,13 @@ export function SegmentationView({ isDark, cardBase, tx, txMuted, startDate, end
           isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted}
           top={topRegions} onTop={setTopRegions}
         />
-        <HourBars hours={data.hours} isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted} />
+        <HourHeatmapChart dailyHours={data.dailyHours ?? []} isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted} />
       </div>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <HourLinesChart dailyHours={data.dailyHours ?? []} isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted} />
+        <HourBars hours={data.hours} days={data.days ?? 1} isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted} />
+      </div>
+      <HourPeakRanking dailyHours={data.dailyHours ?? []} isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted} />
     </div>
   );
 }
@@ -263,69 +273,92 @@ function RegionBars({
 }
 
 // ── Horário: 24 colunas finas, pico destacado, tooltip por hora ──────────────
-function HourBars({ hours, isDark, cardBase, tx, txMuted }: { hours: Hour[]; isDark: boolean; cardBase: string; tx: string; txMuted: string }) {
+function HourBars({ hours, days, isDark, cardBase, tx, txMuted }: { hours: Hour[]; days: number; isDark: boolean; cardBase: string; tx: string; txMuted: string }) {
   const [hover, setHover] = useState<number | null>(null);
   const hasAny = hours.some(h => h.spend > 0);
-  const maxLeads = Math.max(1, ...hours.map(h => h.leads));
+  const perDay = (h: Hour) => h.leadsPerDay ?? (days > 0 ? h.leads / days : 0);
+  const maxPerDay = Math.max(0.01, ...hours.map(perDay));
   const peak = useMemo(() => {
     const withLeads = hours.filter(h => h.leads > 0);
     if (withLeads.length === 0) return null;
-    return withLeads.reduce((a, b) => (b.leads > a.leads ? b : a)).hour;
-  }, [hours]);
+    return withLeads.reduce((a, b) => (perDay(b) > perDay(a) ? b : a)).hour;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hours, days]);
   const hoverH = hover !== null ? hours[hover] : null;
+  const fmt1 = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+  const yTicks = [maxPerDay, maxPerDay / 2, 0];
+  const dayLabel = days === 1 ? '1 dia' : `${days} dias`;
 
   return (
     <section className={cn('rounded-2xl p-6', cardBase)}>
       <SectionHeader
         eyebrow="Quando veicular"
         title="Horário"
-        hint="Leads por hora do dia, no horário do anunciante. O pico aparece destacado."
+        hint={`Média de leads por dia em cada hora, no horário do anunciante, sobre ${dayLabel} do período. O pico aparece destacado.`}
         txMuted={txMuted} tx={tx}
       />
       {!hasAny ? (
         <p className={cn('text-xs', txMuted)}>Sem quebra por horário no período.</p>
       ) : (
         <>
-          <div className="relative h-44 flex items-end gap-[3px]" onMouseLeave={() => setHover(null)}>
-            {/* Linhas de referência discretas (0, 50%, 100% do pico) */}
-            <div className={cn('pointer-events-none absolute inset-x-0 top-0 border-t', isDark ? 'border-white/[0.04]' : 'border-slate-100')} />
-            <div className={cn('pointer-events-none absolute inset-x-0 top-1/2 border-t border-dashed', isDark ? 'border-white/[0.04]' : 'border-slate-100')} />
-            {hours.map(h => {
-              const isPeak = h.hour === peak;
-              const isHover = hover === h.hour;
-              const height = h.leads > 0 ? Math.max(6, (h.leads / maxLeads) * 100) : 3;
-              return (
-                <div
-                  key={h.hour}
-                  className="relative flex-1 h-full flex items-end cursor-default"
-                  onMouseEnter={() => setHover(h.hour)}
-                >
-                  <div
-                    className={cn('w-full rounded-t-[3px] transition-[height,opacity] duration-300',
-                      isPeak ? 'bg-gold-premium' : h.leads > 0 ? (isDark ? 'bg-slate-500' : 'bg-slate-400') : (isDark ? 'bg-white/[0.06]' : 'bg-slate-100'),
-                      hover !== null && !isHover && 'opacity-60')}
-                    style={{ height: `${height}%` }}
-                  />
-                </div>
-              );
-            })}
-            {hoverH && (
-              <div
-                className={cn('pointer-events-none absolute -top-2 z-10 -translate-x-1/2 rounded-lg px-3 py-2 shadow-xl whitespace-nowrap',
-                  isDark ? 'bg-[#0d1421] border border-white/10' : 'bg-white border border-slate-200')}
-                style={{ left: `${((hoverH.hour + 0.5) / 24) * 100}%` }}
-              >
-                <p className={cn('text-[10px] font-black uppercase tracking-widest', txMuted)}>{String(hoverH.hour).padStart(2, '0')}h</p>
-                <p className={cn('text-sm font-black tabular-nums', tx)}>{formatNumber(hoverH.leads)} leads</p>
-                <p className={cn('text-[11px] tabular-nums', txMuted)}>
-                  CPL {hoverH.cpl !== null ? formatCurrency(hoverH.cpl) : '—'} · {formatCurrency(hoverH.spend)}
-                </p>
+          <div className="flex gap-2">
+            {/* Eixo Y: escala em leads/dia */}
+            <div className="flex flex-col">
+              <span className={cn('text-[9px] font-black uppercase tracking-widest mb-1', txMuted)}>leads/dia</span>
+              <div className={cn('flex flex-col justify-between h-44 text-[10px] font-bold tabular-nums text-right pr-1', txMuted)}>
+                {yTicks.map((t, i) => <span key={i}>{fmt1(t)}</span>)}
               </div>
-            )}
+            </div>
+
+            <div className="relative flex-1 min-w-0">
+              <div className="relative h-44 flex items-end gap-[3px]" onMouseLeave={() => setHover(null)}>
+                {/* Linhas de referência (0, 50%, 100% da escala) */}
+                <div className={cn('pointer-events-none absolute inset-x-0 top-0 border-t', isDark ? 'border-white/[0.06]' : 'border-slate-200')} />
+                <div className={cn('pointer-events-none absolute inset-x-0 top-1/2 border-t border-dashed', isDark ? 'border-white/[0.05]' : 'border-slate-100')} />
+                <div className={cn('pointer-events-none absolute inset-x-0 bottom-0 border-t', isDark ? 'border-white/[0.08]' : 'border-slate-300')} />
+                {hours.map(h => {
+                  const v = perDay(h);
+                  const isPeak = h.hour === peak;
+                  const isHover = hover === h.hour;
+                  const height = v > 0 ? Math.max(4, (v / maxPerDay) * 100) : 2;
+                  return (
+                    <div
+                      key={h.hour}
+                      className="relative flex-1 h-full flex items-end cursor-default"
+                      onMouseEnter={() => setHover(h.hour)}
+                    >
+                      <div
+                        className={cn('w-full rounded-t-[3px] transition-[height,opacity] duration-300',
+                          isPeak ? 'bg-gold-premium' : v > 0 ? (isDark ? 'bg-slate-500' : 'bg-slate-400') : (isDark ? 'bg-white/[0.06]' : 'bg-slate-100'),
+                          hover !== null && !isHover && 'opacity-60')}
+                        style={{ height: `${height}%` }}
+                      />
+                    </div>
+                  );
+                })}
+                {hoverH && (
+                  <div
+                    className={cn('pointer-events-none absolute -top-2 z-10 -translate-x-1/2 rounded-lg px-3 py-2 shadow-xl whitespace-nowrap',
+                      isDark ? 'bg-[#0d1421] border border-white/10' : 'bg-white border border-slate-200')}
+                    style={{ left: `${((hoverH.hour + 0.5) / 24) * 100}%` }}
+                  >
+                    <p className={cn('text-[10px] font-black uppercase tracking-widest', txMuted)}>{String(hoverH.hour).padStart(2, '0')}h</p>
+                    <p className={cn('text-sm font-black tabular-nums', tx)}>{fmt1(perDay(hoverH))} leads/dia</p>
+                    <p className={cn('text-[11px] tabular-nums', txMuted)}>
+                      {formatNumber(hoverH.leads)} no período · CPL {hoverH.cpl !== null ? formatCurrency(hoverH.cpl) : '—'}
+                    </p>
+                    <p className={cn('text-[11px] tabular-nums', txMuted)}>Investido {formatCurrency(hoverH.spend)}</p>
+                  </div>
+                )}
+              </div>
+              <div className={cn('flex justify-between text-[10px] font-bold tabular-nums mt-2 px-px', txMuted)}>
+                <span>00h</span><span>06h</span><span>12h</span><span>18h</span><span>23h</span>
+              </div>
+            </div>
           </div>
-          <div className={cn('flex justify-between text-[10px] font-bold tabular-nums mt-2 px-px', txMuted)}>
-            <span>00h</span><span>06h</span><span>12h</span><span>18h</span><span>23h</span>
-          </div>
+          <p className={cn('text-[10px] mt-3', txMuted)}>
+            Altura = média de leads por dia naquela hora ({dayLabel} no período). Passe o mouse para ver o total do período e o CPL.
+          </p>
         </>
       )}
     </section>
