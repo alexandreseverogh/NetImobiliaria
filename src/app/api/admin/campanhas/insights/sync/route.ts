@@ -24,7 +24,12 @@ export const dynamic = 'force-dynamic';
  * Nunca sincroniza rede não contratada (getProvisionedNetworkCodes) — mesmo que a
  * credencial ainda esteja ativa no banco de um provisionamento anterior já encerrado.
  */
+// Trava por tenant: impede duas sincronizações rodando ao mesmo tempo para a mesma empresa
+// (cliques repetidos ou duas abas). Quem chega enquanto outra roda recebe 409 e espera.
+const activeTenantSyncs = new Set<string>();
+
 export async function POST(request: NextRequest) {
+  let lockedTenant: string | null = null;
   try {
     // 'campanhasmarketingdigital' não é permissão real (só o Master passava). O sync é acionado
     // pelo dashboard de campanhas, então usa o recurso dessa tela.
@@ -36,6 +41,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
     const tenantId = payload.tenantId;
+    if (activeTenantSyncs.has(tenantId)) {
+      return NextResponse.json(
+        { error: 'Já existe uma sincronização em andamento para esta empresa. Aguarde terminar.', code: 'SYNC_IN_PROGRESS' },
+        { status: 409 },
+      );
+    }
+    activeTenantSyncs.add(tenantId);
+    lockedTenant = tenantId;
 
     const campaigns = await prisma.campaign.findMany({
       where: {
@@ -143,5 +156,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('POST /insights/sync error:', error);
     return NextResponse.json({ error: error.message || 'Erro ao sincronizar insights' }, { status: 500 });
+  } finally {
+    if (lockedTenant) activeTenantSyncs.delete(lockedTenant);
   }
 }

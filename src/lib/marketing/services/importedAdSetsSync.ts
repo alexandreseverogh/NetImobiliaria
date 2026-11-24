@@ -133,7 +133,10 @@ export async function syncCampaignAdSets(
         if (fullUrls.length === 0) {
           warnings.push(`anúncio ${a.externalId}: sem imagem disponível na Meta`);
         }
-        stored = await storeAdImages(campaign?.tenantId ?? '', a.externalId, fullUrls);
+        // Só substitui as imagens salvas quando a nova rodada trouxe alguma. Se o download/envio
+        // falhar para todas, mantém as imagens que já estavam no anúncio (nunca grava lista vazia).
+        const fresh = await storeAdImages(campaign?.tenantId ?? '', a.externalId, fullUrls);
+        if (fresh.images.length > 0) stored = fresh;
       }
 
       const data = {
