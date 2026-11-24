@@ -195,7 +195,7 @@ export function CommandCenterView({
               : undefined
           }
         />
-        <KpiCard isDark={isDark} label="CPL (Meta)" value={data.metaSignals?.cpl != null ? formatCurrencyCompact(data.metaSignals.cpl) : '—'} fullValue={data.metaSignals?.cpl != null ? formatCurrency(data.metaSignals.cpl) : '—'} color={isDark ? 'text-teal-400' : 'text-teal-600'} tooltip="Gasto Meta ÷ conversas iniciadas no WhatsApp (sinal reportado pela própria Meta)" />
+        <KpiCard isDark={isDark} label="Custo/conversa" value={data.metaSignals?.cpl != null ? formatCurrencyCompact(data.metaSignals.cpl) : '—'} fullValue={data.metaSignals?.cpl != null ? formatCurrency(data.metaSignals.cpl) : '—'} color={isDark ? 'text-teal-400' : 'text-teal-600'} tooltip="Custo por conversa WhatsApp: gasto Meta ÷ conversas iniciadas no WhatsApp (sinal reportado pela própria Meta). Não é o custo por lead do CRM." />
         <KpiCard isDark={isDark} label="Impressões" value={formatNumber(t.impressions || 0)} delta={d?.impressions} color={isDark ? 'text-blue-400' : 'text-blue-600'} />
         <KpiCard isDark={isDark} label="Alcance" value={formatNumber(t.reach || 0)} delta={d?.reach} color={isDark ? 'text-cyan-400' : 'text-cyan-600'} />
         <KpiCard isDark={isDark} label="Cliques" value={formatNumber(t.clicks || 0)} delta={d?.clicks} color={isDark ? 'text-emerald-400' : 'text-emerald-600'} />

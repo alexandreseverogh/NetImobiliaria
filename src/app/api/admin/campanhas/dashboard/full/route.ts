@@ -122,6 +122,11 @@ export async function GET(request: NextRequest) {
         })
       : [];
     const lastActivityByCampaign = new Map(lastActivityRows.map(r => [r.campaignId, r._max.date]));
+    // Última data de dado coletado da Meta/Google no escopo (não é o período filtrado — é o
+    // quão recente é o dado que o dashboard está mostrando). Usado pelo rótulo "coletado há…".
+    const lastCollectedDate = lastActivityRows.reduce<Date | null>(
+      (acc, r) => (r._max.date && (!acc || r._max.date > acc) ? r._max.date : acc), null,
+    );
     const vigenteCutoff = new Date(Date.now() - AGENT_INSIGHT_RECENCY_DAYS * 86400000);
     const campaignsWithVigente = campaigns.map(c => {
       const lastInsight = lastActivityByCampaign.get(c.id) ?? null;
@@ -255,6 +260,7 @@ export async function GET(request: NextRequest) {
       cplByNetwork,
       availableNetworks,
       discontinuedNetworks,
+      lastCollectedAt: lastCollectedDate ? lastCollectedDate.toISOString() : null,
       funnelData,
     });
   } catch (error: any) {

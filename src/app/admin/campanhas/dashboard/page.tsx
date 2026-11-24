@@ -37,6 +37,18 @@ import { MultiClientCplChart } from '@/components/marketing/charts/MultiClientCp
 import { TrackingHealthWidget } from '@/components/marketing/TrackingHealthWidget';
 import { TokenExpiryBanner } from '@/components/marketing/TokenExpiryBanner';
 import { DiscontinuedNetworkBanner } from '@/components/marketing/DiscontinuedNetworkBanner';
+import { AccountBalanceBanner } from '@/components/marketing/AccountBalanceBanner';
+
+/** "agora", "há 3h", "há 2 dias" — de quando é o dado mostrado (coleta automática ou manual). */
+function formatCollectedAgo(iso: string): string {
+  const diffMin = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (diffMin < 2) return 'agora há pouco';
+  if (diffMin < 60) return `há ${diffMin} min`;
+  const h = Math.round(diffMin / 60);
+  if (h < 24) return `há ${h}h`;
+  const d = Math.round(h / 24);
+  return `há ${d} ${d === 1 ? 'dia' : 'dias'}`;
+}
 import { TimeToEventBar }      from '@/components/marketing/charts/TimeToEventBar';
 import { SignalTrajectory }    from '@/components/marketing/charts/SignalTrajectory';
 import { DemandRadar }         from '@/components/marketing/charts/DemandRadar';
@@ -620,8 +632,15 @@ function DashboardPage() {
             >
               {isDark ? <><SunIcon className="h-3.5 w-3.5" /> Claro</> : <><MoonIcon className="h-3.5 w-3.5" /> Escuro</>}
             </button>
+            {/* Saldo das redes (mesmo componente de /admin/campanhas/nova, em versão compacta) */}
+            <AccountBalanceBanner isDark={isDark} compact />
             {/* Sync Meta + Ajuda empilhados */}
             <div className="flex flex-col gap-1.5">
+              {data?.lastCollectedAt && (
+                <p className={cn('text-[10px] font-bold text-right', txMuted)} title={new Date(data.lastCollectedAt).toLocaleString('pt-BR')}>
+                  Dados coletados {formatCollectedAgo(data.lastCollectedAt)}
+                </p>
+              )}
               <ExecuteGuard resource="dashboard-campanhas">
                 {/* DESIGN.md — button-primary: único botão em âmbar por contexto, no ponto de
                     decisão real da tela (disparar uma sincronização). Sem transform/glow no

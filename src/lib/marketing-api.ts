@@ -448,6 +448,8 @@ export interface DashboardFullData {
   // Subconjunto de availableNetworks que NÃO está mais contratado pelo tenant agora — dado
   // histórico continua contando nos cálculos (nunca escondido retroativamente), só avisa.
   discontinuedNetworks?: string[];
+  /** ISO da data mais recente de dado coletado da rede no escopo (null se nunca coletou). */
+  lastCollectedAt?: string | null;
   // Sinais de WhatsApp reportados pela própria Meta (independem do nosso rastreio de cliques)
   metaSignals?: { linkClicks: number; conversationsStarted: number; cpl: number | null };
   funnelData: FunnelData;
