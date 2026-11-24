@@ -16,7 +16,8 @@ import { formatCurrency, formatNumber, cn } from '@/lib/marketing-utils';
  *  - Dourado do sistema (acento) reservado ao que merece atenção: o melhor CPL e o pico de leads.
  */
 
-import { HourLinesChart, HourHeatmapChart, type DailyHour } from './HourlyDailyCharts';
+import { HourLinesChart, type DailyHour } from './HourlyDailyCharts';
+import { HourHeatmap } from './HourHeatmap';
 import { HourPeakRanking } from './HourPeakRanking';
 
 interface Cell { age: string; gender: string; spend: number; leads: number; cpl: number | null; impressions: number; clicks: number }
@@ -92,7 +93,7 @@ export function SegmentationView({ isDark, cardBase, tx, txMuted, startDate, end
           isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted}
           top={topRegions} onTop={setTopRegions}
         />
-        <HourHeatmapChart dailyHours={data.dailyHours ?? []} isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted} />
+        <HourHeatmap dailyHours={data.dailyHours ?? []} isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted} />
       </div>
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <HourLinesChart dailyHours={data.dailyHours ?? []} isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted} />
