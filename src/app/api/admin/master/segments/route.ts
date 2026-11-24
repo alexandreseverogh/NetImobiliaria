@@ -34,20 +34,31 @@ export async function GET(request: NextRequest) {
            FROM campanhasmarketingdigital.segment_angle_terms sat
           WHERE sat.segment_id = s.id)                                          AS angles_count,
         jsonb_array_length(COALESCE(s.network_defaults->'meta'->'suggested_interests', '[]'::jsonb))::int AS interests_count,
+        -- Conectado = tem token Meta na credencial nova OU na coluna legada de tenants (cascata real).
         (SELECT COUNT(*)::int
            FROM public.tenants t
-           JOIN public.tenant_network_credentials tnc ON tnc.tenant_id = t.id AND tnc.is_active = true
-           JOIN public.ad_networks n ON n.id = tnc.network_id AND n.code = 'meta'
-          WHERE t.segment_id = s.id)                                            AS meta_tenants_connected,
-        (SELECT COUNT(*)::int
-           FROM public.tenants t
-           JOIN public.tenant_network_credentials tnc ON tnc.tenant_id = t.id AND tnc.is_active = true
-           JOIN public.ad_networks n ON n.id = tnc.network_id AND n.code = 'meta'
           WHERE t.segment_id = s.id
-            AND (tnc.credentials->>'access_token') IS NOT NULL
-            AND tnc.consecutive_failures = 0
-            AND tnc.circuit_tripped_at IS NULL
-            AND (tnc.expires_at IS NULL OR tnc.expires_at > now()))             AS meta_tenants_healthy
+            AND (
+              EXISTS (SELECT 1 FROM public.tenant_network_credentials tnc
+                        JOIN public.ad_networks n ON n.id = tnc.network_id AND n.code = 'meta'
+                       WHERE tnc.tenant_id = t.id AND tnc.is_active = true)
+              OR COALESCE(t.meta_token, '') <> ''
+            ))                                                                  AS meta_tenants_connected,
+        -- Saudável = token presente e não expirado; na credencial nova, também sem falhas do canário.
+        (SELECT COUNT(*)::int
+           FROM public.tenants t
+          WHERE t.segment_id = s.id
+            AND (
+              EXISTS (SELECT 1 FROM public.tenant_network_credentials tnc
+                        JOIN public.ad_networks n ON n.id = tnc.network_id AND n.code = 'meta'
+                       WHERE tnc.tenant_id = t.id AND tnc.is_active = true
+                         AND (tnc.credentials->>'access_token') IS NOT NULL
+                         AND tnc.consecutive_failures = 0
+                         AND tnc.circuit_tripped_at IS NULL
+                         AND (tnc.expires_at IS NULL OR tnc.expires_at > now()))
+              OR (COALESCE(t.meta_token, '') <> ''
+                  AND (t.meta_token_expires_at IS NULL OR t.meta_token_expires_at > now()))
+            ))                                                                  AS meta_tenants_healthy
       FROM public.system_segments s
       LEFT JOIN public.system_segment_modules sm ON sm.segment_id = s.id
       LEFT JOIN public.system_modules         m  ON m.id = sm.module_id

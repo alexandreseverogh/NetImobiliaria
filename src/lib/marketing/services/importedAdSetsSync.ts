@@ -123,10 +123,16 @@ export async function syncCampaignAdSets(
             const fromPost = await service.fetchPostImages(a.storyId);
             if (fromPost.length) fullUrls = fromPost;
           } catch (e: any) {
-            warnings.push(`anúncio ${a.externalId}: ${e?.message}`);
+            // Imagem em alta resolução é só um ganho de qualidade. Falha aqui (ex.: token sem
+            // permissão de Página) não é erro da sincronização: registra no log e segue com a
+            // imagem que a própria Meta devolveu para o anúncio. Não gera alerta ao usuário.
+            console.warn(`[import-sync] anúncio ${a.externalId}: imagem original não obtida — usando a da Meta. ${e?.message}`);
           }
         }
         if (fullUrls.length === 0) fullUrls = a.imageUrls ?? [];
+        if (fullUrls.length === 0) {
+          warnings.push(`anúncio ${a.externalId}: sem imagem disponível na Meta`);
+        }
         stored = await storeAdImages(campaign?.tenantId ?? '', a.externalId, fullUrls);
       }
 

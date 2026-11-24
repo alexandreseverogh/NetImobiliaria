@@ -43,13 +43,18 @@ export async function findHealthyMetaTenantForSegment(segmentId: string): Promis
   const { rows } = await pool.query(
     `SELECT t.id
        FROM public.tenants t
-       JOIN public.tenant_network_credentials tnc ON tnc.tenant_id = t.id AND tnc.is_active = true
-       JOIN public.ad_networks n ON n.id = tnc.network_id AND n.code = 'meta'
       WHERE t.segment_id = $1::uuid
-        AND (tnc.credentials->>'access_token') IS NOT NULL
-        AND tnc.consecutive_failures = 0
-        AND tnc.circuit_tripped_at IS NULL
-        AND (tnc.expires_at IS NULL OR tnc.expires_at > now())
+        AND (
+          EXISTS (SELECT 1 FROM public.tenant_network_credentials tnc
+                    JOIN public.ad_networks n ON n.id = tnc.network_id AND n.code = 'meta'
+                   WHERE tnc.tenant_id = t.id AND tnc.is_active = true
+                     AND (tnc.credentials->>'access_token') IS NOT NULL
+                     AND tnc.consecutive_failures = 0
+                     AND tnc.circuit_tripped_at IS NULL
+                     AND (tnc.expires_at IS NULL OR tnc.expires_at > now()))
+          OR (COALESCE(t.meta_token, '') <> ''
+              AND (t.meta_token_expires_at IS NULL OR t.meta_token_expires_at > now()))
+        )
       ORDER BY t.name
       LIMIT 1`,
     [segmentId],
