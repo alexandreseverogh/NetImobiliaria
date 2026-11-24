@@ -273,23 +273,23 @@ export default function MasterSegmentsPage() {
           <table className="w-full text-left">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide whitespace-nowrap">Segmento / Identidade</th>
-                <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide whitespace-nowrap">Slug</th>
-                <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide whitespace-nowrap">Módulos</th>
-                <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">Tema</th>
-                <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">Status</th>
-                <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">IA Imagens</th>
-                <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">IA CRM</th>
-                <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">Empresas</th>
-                <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide whitespace-nowrap">Prontidão</th>
-                <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-right whitespace-nowrap">Ações</th>
+                <th className="px-3 py-3 text-xs font-bold text-gray-600 uppercase tracking-wide whitespace-nowrap">Segmento / Identidade</th>
+                <th className="px-3 py-3 text-xs font-bold text-gray-600 uppercase tracking-wide whitespace-nowrap">Slug</th>
+                <th className="px-3 py-3 text-xs font-bold text-gray-600 uppercase tracking-wide whitespace-nowrap">Módulos</th>
+                <th className="px-3 py-3 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">Tema</th>
+                <th className="px-3 py-3 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">Status</th>
+                <th className="px-3 py-3 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">IA Imagens</th>
+                <th className="px-3 py-3 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">IA CRM</th>
+                <th className="px-3 py-3 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">Empresas</th>
+                <th className="px-3 py-3 text-xs font-bold text-gray-600 uppercase tracking-wide whitespace-nowrap">Prontidão</th>
+                <th className="px-3 py-3 text-xs font-bold text-gray-600 uppercase tracking-wide text-right whitespace-nowrap">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {segments.map((segment) => (
                 <tr key={segment.id} className="hover:bg-indigo-50/30 transition-colors">
                   {/* Segmento / Identidade */}
-                  <td className="px-5 py-4">
+                  <td className="px-3 py-3">
                     <div className="flex items-center gap-3">
                       <div
                         className="h-10 w-10 shrink-0 rounded-xl flex items-center justify-center border shadow-sm"
@@ -306,13 +306,13 @@ export default function MasterSegmentsPage() {
                     </div>
                   </td>
                   {/* Slug */}
-                  <td className="px-5 py-4 whitespace-nowrap">
+                  <td className="px-3 py-3 whitespace-nowrap">
                     <span className="px-3 py-1 bg-gray-100 rounded-lg text-sm font-mono font-bold text-gray-700">
                       /{segment.slug}
                     </span>
                   </td>
                   {/* Módulos */}
-                  <td className="px-5 py-4">
+                  <td className="px-3 py-3">
                     <div className="flex flex-wrap gap-1.5">
                       {(segment.module_names || '').split(', ').filter(Boolean).map((mname, idx) => (
                         <span key={idx} className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-md text-[10px] font-bold uppercase tracking-wide border border-indigo-100">
@@ -322,7 +322,7 @@ export default function MasterSegmentsPage() {
                     </div>
                   </td>
                   {/* Tema */}
-                  <td className="px-5 py-4">
+                  <td className="px-3 py-3">
                     <div className="flex flex-col items-center gap-1">
                       <div
                         className="h-5 w-10 rounded-full border border-gray-200 shadow-inner"
@@ -332,7 +332,7 @@ export default function MasterSegmentsPage() {
                     </div>
                   </td>
                   {/* Status */}
-                  <td className="px-5 py-4 text-center whitespace-nowrap">
+                  <td className="px-3 py-3 text-center whitespace-nowrap">
                     <span className={`px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-wide inline-flex items-center gap-1 ${
                       segment.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                     }`}>
@@ -344,7 +344,7 @@ export default function MasterSegmentsPage() {
                     </span>
                   </td>
                   {/* IA Imagens */}
-                  <td className="px-5 py-4 text-center whitespace-nowrap">
+                  <td className="px-3 py-3 text-center whitespace-nowrap">
                     {segment.imagens_por_ia ? (
                       <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-black bg-violet-100 text-violet-700 border border-violet-200">
                         <SparklesIcon className="h-3 w-3" />
@@ -358,7 +358,7 @@ export default function MasterSegmentsPage() {
                     )}
                   </td>
                   {/* IA CRM (qualificação de lead) */}
-                  <td className="px-5 py-4 text-center whitespace-nowrap">
+                  <td className="px-3 py-3 text-center whitespace-nowrap">
                     {segment.crm_ia_ativa ? (
                       <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-black bg-teal-100 text-teal-700 border border-teal-200">
                         <CpuChipIcon className="h-3 w-3" />
@@ -372,13 +372,13 @@ export default function MasterSegmentsPage() {
                     )}
                   </td>
                   {/* Empresas */}
-                  <td className="px-5 py-4 text-center whitespace-nowrap">
+                  <td className="px-3 py-3 text-center whitespace-nowrap">
                     <span className="inline-flex items-center justify-center h-7 min-w-[1.75rem] px-2 rounded-full text-sm font-black bg-gray-100 text-gray-700">
                       {segment.tenant_count ?? 0}
                     </span>
                   </td>
                   {/* Prontidão — checklist de curadoria. Verde = pronto, âmbar = falta algo. */}
-                  <td className="px-5 py-4 whitespace-nowrap">
+                  <td className="px-3 py-3 whitespace-nowrap">
                     <div className="flex flex-col gap-1 items-start">
                       {(() => {
                         const metaConnected = segment.meta_tenants_connected ?? 0
@@ -409,7 +409,7 @@ export default function MasterSegmentsPage() {
                     </div>
                   </td>
                   {/* Ações */}
-                  <td className="px-4 py-4 text-right whitespace-nowrap">
+                  <td className="px-3 py-3 text-right whitespace-nowrap sticky right-0 bg-white shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.12)]">
                     <div className="inline-flex items-center gap-1.5">
                       {/* Substitui os 11 botões-ícone que existiam aqui (cada um só com um
                           `title=` de hover como documentação) por um único ponto de entrada —
@@ -422,7 +422,7 @@ export default function MasterSegmentsPage() {
                         title="Regimento do Segmento — o que cada ferramenta faz e como preencher"
                       >
                         <BookOpenIcon className="h-4 w-4" />
-                        Regimento do Segmento
+                        Regimento
                       </button>
                       <UpdateGuard resource="master-segments">
                         <button
