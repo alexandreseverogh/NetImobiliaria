@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { aggregateMetrics } from '@/components/marketing/dashboard/consolidatedMetrics';
 import { motion } from 'framer-motion';
 import { SparklesIcon, HeartIcon, BoltIcon, ExclamationTriangleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import { formatCurrency, formatCurrencyCompact, formatNumber, formatPercent, cn, networkLabel } from '@/lib/marketing-utils';
@@ -58,6 +59,10 @@ export function CommandCenterView({
   segmentPeriodEnd,
   network,
 }: CommandCenterViewProps) {
+  // Alterna entre métricas consolidadas (padrão) e os mesmos cards por campanha.
+  // Precisa ficar ANTES do retorno antecipado de loading (regra dos hooks).
+  const [expandedCampaigns, setExpandedCampaigns] = useState(false);
+
   if (loading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
@@ -169,6 +174,55 @@ export function CommandCenterView({
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
       {/* ── Top Level KPIs (Macro) ── */}
+      {/* Cabeçalho de consolidação: só aparece com mais de uma campanha no escopo. */}
+      {(() => {
+        const campaignsList = data.campaigns || [];
+        if (campaignsList.length <= 1) return null;
+        return (
+          <div className="flex items-center justify-between gap-3 -mb-2">
+            <p className={cn('text-[11px] font-black uppercase tracking-widest', txMuted)}>
+              {expandedCampaigns
+                ? `Métricas por campanha (${campaignsList.length})`
+                : `Métricas consolidadas de ${campaignsList.length} campanhas`}
+            </p>
+            <button
+              type="button"
+              onClick={() => setExpandedCampaigns(v => !v)}
+              className={cn('text-[11px] font-black uppercase tracking-widest underline-offset-4 hover:underline', isDark ? 'text-gold-premium' : 'text-amber-700')}
+            >
+              {expandedCampaigns ? 'Recolher' : 'Expandir por campanha'}
+            </button>
+          </div>
+        );
+      })()}
+
+      {expandedCampaigns && (data.campaigns || []).length > 1 ? (
+        <div className="space-y-6">
+          {(data.campaigns || []).map((c: any) => {
+            const m = aggregateMetrics(data.currentPeriod.insights || [], data.leadsByCampaign || {}, new Set([c.id]));
+            return (
+              <div key={c.id} className={cn('p-4 rounded-2xl border', cardBase, isDark ? 'border-white/10' : 'border-slate-200')}>
+                <p className={cn('text-sm font-black mb-3 truncate', tx)}>{c.name}</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 2xl:[grid-template-columns:repeat(14,minmax(0,1fr))] gap-2 2xl:gap-1.5">
+                  <KpiCard isDark={isDark} label="Gasto" value={formatCurrencyCompact(m.spend)} fullValue={formatCurrency(m.spend)} color={isDark ? 'text-slate-100' : 'text-slate-900'} />
+                  <KpiCard isDark={isDark} label="Leads" value={formatNumber(m.leads)} color={isDark ? 'text-indigo-400' : 'text-indigo-600'} />
+                  <KpiCard isDark={isDark} label="CPL" value={m.cpl !== null ? formatCurrencyCompact(m.cpl) : '—'} fullValue={m.cpl !== null ? formatCurrency(m.cpl) : '—'} color={isDark ? 'text-teal-400' : 'text-teal-600'} />
+                  <KpiCard isDark={isDark} label="Impressões" value={formatNumber(m.impressions)} color={isDark ? 'text-blue-400' : 'text-blue-600'} />
+                  <KpiCard isDark={isDark} label="Alcance" value={formatNumber(m.reach)} color={isDark ? 'text-cyan-400' : 'text-cyan-600'} />
+                  <KpiCard isDark={isDark} label="Cliques" value={formatNumber(m.clicks)} color={isDark ? 'text-emerald-400' : 'text-emerald-600'} />
+                  <KpiCard isDark={isDark} label="CTR" value={formatPercent(m.ctr)} color={isDark ? 'text-amber-400' : 'text-amber-600'} />
+                  <KpiCard isDark={isDark} label="CPC" value={formatCurrencyCompact(m.cpc)} fullValue={formatCurrency(m.cpc)} color={isDark ? 'text-orange-400' : 'text-orange-600'} />
+                  <KpiCard isDark={isDark} label="CPM" value={formatCurrencyCompact(m.cpm)} fullValue={formatCurrency(m.cpm)} color={isDark ? 'text-violet-400' : 'text-violet-600'} />
+                  <KpiCard isDark={isDark} label="Conversões" value={formatNumber(m.conversions)} color={isDark ? 'text-pink-400' : 'text-pink-600'} />
+                  {m.hookRate !== null && (
+                    <KpiCard isDark={isDark} label="Hook Rate" value={formatPercent(m.hookRate)} color={isDark ? 'text-amber-400' : 'text-amber-600'} />
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
       <div className="grid grid-cols-2 md:grid-cols-4 2xl:[grid-template-columns:repeat(14,minmax(0,1fr))] gap-2 2xl:gap-1.5">
         <KpiCard isDark={isDark} label="Campanhas Ativas" value={String(activeCampaigns)} color={isDark ? 'text-emerald-400' : 'text-emerald-600'} />
         <KpiCard isDark={isDark} label="Gasto Total" value={formatCurrencyCompact(t.spend)} fullValue={formatCurrency(t.spend)} delta={d?.spend} color={isDark ? 'text-slate-100' : 'text-slate-900'} invertDelta 
@@ -210,6 +264,7 @@ export function CommandCenterView({
           <KpiCard isDark={isDark} label="CTR" value={formatPercent(t.ctr || 0)} delta={d?.ctr} color={isDark ? 'text-amber-400' : 'text-amber-600'} />
         )}
       </div>
+      )}
 
       {/* ── LINHA 2: Tendência Geral + Health Score ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
