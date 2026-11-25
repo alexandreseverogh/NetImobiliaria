@@ -514,6 +514,12 @@ model CreativeAsset {
   isActive           Boolean   @default(true) @map("is_active")
   uploadedAt         DateTime  @default(now()) @map("uploaded_at")
 
+  // Criativos em vídeo (Fase 1): duração, ID do vídeo já enviado à Meta e estado do upload
+  durationSeconds    Decimal?  @map("duration_seconds") @db.Decimal(10, 2)
+  metaVideoId        String?   @map("meta_video_id") @db.VarChar(64)
+  uploadStatus       String    @default("ready") @map("upload_status") @db.VarChar(20)
+  uploadId           String?   @map("upload_id")
+
   // FASE 6.5 — rastreabilidade de variações geradas por IA
   aiGenerated        Boolean   @default(false) @map("ai_generated")
   derivedFromAssetId String?   @map("derived_from_asset_id")
