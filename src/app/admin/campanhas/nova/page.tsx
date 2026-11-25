@@ -14,6 +14,9 @@ import { getClientCreativePaths } from '@/lib/marketing-api';
 import { cn } from '@/lib/marketing-utils';
 import { useAuth } from '@/hooks/useAuth';
 import { adminFetch } from '@/lib/auth/adminFetch';
+import { validateVideoMeta } from '@/lib/marketing/video/videoRules';
+import { readVideoMeta } from '@/lib/marketing/video/readVideoMeta';
+import { uploadVideoMultipart } from '@/lib/marketing/video/videoUploader';
 import CampanhasModal from '@/components/marketing/CampanhasModal';
 import { TokenExpiryBanner } from '@/components/marketing/TokenExpiryBanner';
 import { AccountBalanceBanner } from '@/components/marketing/AccountBalanceBanner';
@@ -30,6 +33,14 @@ const GoogleAiMaxWizard = dynamic(
 
 /* ── helpers ─────────────────────────────────────────────── */
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif']);
+const VIDEO_EXTS = new Set(['.mp4', '.mov']);
+function isVideo(name: string) {
+  const dot = name.lastIndexOf('.');
+  return dot !== -1 && VIDEO_EXTS.has(name.slice(dot).toLowerCase());
+}
+function isMedia(name: string) {
+  return isImage(name) || isVideo(name);
+}
 function isImage(name: string) {
   const dot = name.lastIndexOf('.');
   return dot !== -1 && IMAGE_EXTS.has(name.slice(dot).toLowerCase());
@@ -101,6 +112,14 @@ export default function NovaCampanhaPage() {
   }
   // FASE 6: mapa nome→File para upload silencioso na biblioteca
   const [fileObjects, setFileObjects]       = useState<Map<string, File>>(new Map());
+  // Avisos de vídeo (não bloqueiam): o usuário precisa confirmar antes de usar o vídeo.
+  const [videoWarnings, setVideoWarnings]   = useState<Map<string, string[]>>(new Map());
+  // Confirmação explícita: vídeo com aviso só segue para a etapa se o usuário confirmar.
+  const [videoWarningsAccepted, setVideoWarningsAccepted] = useState(false);
+  // Vídeos selecionados que têm aviso e ainda não foram confirmados.
+  const pendingVideoWarnings = selected.filter(s => videoWarnings.has(s.name));
+  // Mudou a seleção → a confirmação anterior não vale mais.
+  useEffect(() => { setVideoWarningsAccepted(false); }, [selected]);
   // FASE 6: promessa de upload iniciada ao abrir o wizard; resolvida antes do submit
   const uploadPromiseRef = useRef<Promise<string[]>>(Promise.resolve([]));
 
@@ -274,19 +293,23 @@ export default function NovaCampanhaPage() {
   async function readFromDirectoryHandle(dirHandle: any) {
     const found: Creative[] = [];
     const newFileMap = new Map<string, File>();
+    const candidates: File[] = [];
     for await (const entry of dirHandle.values()) {
-      if (entry.kind === 'file' && isImage(entry.name)) {
-        const file: File = await entry.getFile();
-        const blobUrl = URL.createObjectURL(file);
-        found.push({
-          name: entry.name,
-          url:  blobUrl,
-          path: blobUrl,
-          size: file.size,
-          modifiedAt: new Date(file.lastModified).toISOString(),
-        });
-        newFileMap.set(entry.name, file);
-      }
+      if (entry.kind === 'file' && isMedia(entry.name)) candidates.push(await entry.getFile());
+    }
+    const screened = await screenVideoFiles(candidates);
+    setVideoWarnings(screened.warned);
+    if (screened.rejected.length > 0) setFolderError(screened.rejected.join(' · '));
+    for (const file of screened.ok) {
+      const blobUrl = URL.createObjectURL(file);
+      found.push({
+        name: file.name,
+        url:  blobUrl,
+        path: blobUrl,
+        size: file.size,
+        modifiedAt: new Date(file.lastModified).toISOString(),
+      });
+      newFileMap.set(file.name, file);
     }
     found.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
     setFolderName(dirHandle.name);
@@ -298,9 +321,36 @@ export default function NovaCampanhaPage() {
     }
   }
 
-  function handleFileInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+  /* Vídeo: lê metadados no navegador e aplica as regras. Bloqueio → fora da lista com motivo.
+     Aviso → entra, marcado para confirmação. Imagem → inalterada. */
+  async function screenVideoFiles(files: File[]): Promise<{ ok: File[]; rejected: string[]; warned: Map<string, string[]> }> {
+    const ok: File[] = [];
+    const rejected: string[] = [];
+    const warned = new Map<string, string[]>();
+    for (const f of files) {
+      if (!isVideo(f.name)) { ok.push(f); continue; }
+      const local = await readVideoMeta(f);
+      const { blockers, warnings } = validateVideoMeta({
+        fileName: f.name,
+        sizeBytes: f.size,
+        mimeType: f.type || (f.name.toLowerCase().endsWith('.mov') ? 'video/quicktime' : 'video/mp4'),
+        durationSeconds: local.durationSeconds,
+        width: local.width,
+        height: local.height,
+      });
+      if (blockers.length > 0) { rejected.push(`${f.name}: ${blockers[0]}`); continue; }
+      ok.push(f);
+      if (warnings.length > 0) warned.set(f.name, warnings);
+    }
+    return { ok, rejected, warned };
+  }
+
+  async function handleFileInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files    = Array.from(e.target.files || []);
-    const imgFiles = files.filter(f => isImage(f.name));
+    const screened = await screenVideoFiles(files.filter(f => isMedia(f.name)));
+    const imgFiles = screened.ok;
+    setVideoWarnings(screened.warned);
+    if (screened.rejected.length > 0) setFolderError(screened.rejected.join(' · '));
     const newFileMap = new Map<string, File>();
     const found: Creative[] = imgFiles.map(file => {
       const blobUrl = URL.createObjectURL(file);
@@ -325,6 +375,18 @@ export default function NovaCampanhaPage() {
       selected.map(async img => {
         const file = fileObjects.get(img.name);
         if (!file) return null;
+        if (isVideo(img.name)) {
+          try {
+            const local = await readVideoMeta(file);
+            const { assetId } = await uploadVideoMultipart(file, {
+              durationSeconds: local.durationSeconds,
+              width: local.width,
+              height: local.height,
+              clientId,
+            });
+            return assetId;
+          } catch { return null; }
+        }
         const fd = new FormData();
         fd.append('file', file);
         if (clientId) fd.append('clientId', clientId);
@@ -736,6 +798,37 @@ export default function NovaCampanhaPage() {
 
           {/* Image grid */}
           {allImages.length > 0 && (
+            <>
+            {pendingVideoWarnings.length > 0 && !videoWarningsAccepted && (
+              <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
+                <p className="text-sm font-semibold text-amber-800">
+                  Confirme antes de seguir: {pendingVideoWarnings.length === 1 ? 'um vídeo' : `${pendingVideoWarnings.length} vídeos`} com avisos
+                </p>
+                <ul className="mt-2 space-y-1">
+                  {pendingVideoWarnings.map(v => (
+                    <li key={v.name} className="text-xs text-amber-800">
+                      <span className="font-medium">{v.name}:</span> {videoWarnings.get(v.name)!.join(' · ')}
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setVideoWarningsAccepted(true)}
+                    className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700"
+                  >
+                    Entendi, usar mesmo assim
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelected(prev => prev.filter(s => !videoWarnings.has(s.name)))}
+                    className="px-3 py-1.5 rounded-lg border border-amber-400 text-amber-800 text-xs font-semibold hover:bg-amber-100"
+                  >
+                    Remover estes vídeos
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 items-start">
               {filtered.map((image, i) => {
                 const isSelected = selected.some(s => s.name === image.name);
@@ -759,13 +852,28 @@ export default function NovaCampanhaPage() {
                       className="relative overflow-hidden bg-gray-50"
                       style={{ aspectRatio: imageAspect[image.name] ?? 1 }}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={image.url}
-                        alt={image.name}
-                        onLoad={e => handleImageLoad(image.name, e)}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
+                      {isVideo(image.name) ? (
+                        <video
+                          src={image.url}
+                          preload="metadata"
+                          muted
+                          playsInline
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                          src={image.url}
+                          alt={image.name}
+                          onLoad={e => handleImageLoad(image.name, e)}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      )}
+                      {isVideo(image.name) && (
+                        <span className="absolute bottom-2 left-2 px-1.5 py-0.5 rounded bg-black/60 text-white text-[10px] font-semibold">
+                          VÍDEO
+                        </span>
+                      )}
                       <div className={cn(
                         'absolute top-2 right-2 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all shadow-sm',
                         isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-white/70 bg-black/20'
@@ -781,6 +889,11 @@ export default function NovaCampanhaPage() {
                     <div className="px-3 py-2.5">
                       <p className="text-xs font-medium text-gray-900 truncate">{image.name}</p>
                       <p className="text-[10px] text-gray-400 mt-0.5">{(image.size / 1024).toFixed(0)} KB</p>
+                      {videoWarnings.has(image.name) && (
+                        <p className="text-[10px] text-amber-600 mt-1 leading-snug">
+                          ⚠ {videoWarnings.get(image.name)!.join(' · ')}
+                        </p>
+                      )}
                     </div>
                   </motion.div>
                 );
@@ -791,6 +904,7 @@ export default function NovaCampanhaPage() {
                 </div>
               )}
             </div>
+            </>
           )}
         </div>
 
@@ -851,6 +965,7 @@ export default function NovaCampanhaPage() {
               return (
                 <button
                   onClick={() => {
+                    if (pendingVideoWarnings.length > 0 && !videoWarningsAccepted) return;
                     setPickedNetwork('meta');
                     uploadPromiseRef.current = uploadSelectedToLibrary(effectiveClientId);
                     setShowWizard(true);
@@ -870,6 +985,7 @@ export default function NovaCampanhaPage() {
               return (
                 <button
                   onClick={() => {
+                    if (pendingVideoWarnings.length > 0 && !videoWarningsAccepted) return;
                     setPickedNetwork('tiktok');
                     uploadPromiseRef.current = uploadSelectedToLibrary(effectiveClientId);
                     setShowWizard(true);
@@ -889,6 +1005,7 @@ export default function NovaCampanhaPage() {
               return (
                 <button
                   onClick={() => {
+                    if (pendingVideoWarnings.length > 0 && !videoWarningsAccepted) return;
                     uploadPromiseRef.current = uploadSelectedToLibrary(effectiveClientId);
                     setShowGoogleWizard(true);
                   }}
@@ -927,7 +1044,7 @@ export default function NovaCampanhaPage() {
         ref={fileInputRef}
         type="file"
         multiple
-        accept="image/*"
+        accept="image/*,video/mp4,video/quicktime"
         // @ts-ignore — webkitdirectory não está no tipo padrão
         webkitdirectory=""
         className="hidden"
