@@ -2171,7 +2171,13 @@ function StepObjective({ form, updateForm, autoFields, initiatives = [], temaOpt
               onChange={e => updateForm({ specialAdCategory: e.target.value === autoFields.specialAdCategory ? '' : e.target.value })}
               className={cn(inputCls, 'w-full')}>
               {SPECIAL_AD_OPTIONS
-                .filter(o => (autoFields.allowedSpecialAdCategories || ['NONE']).includes(o.value) || o.value === effectiveSpecial)
+                // Sem curadoria no segmento (só 'NONE'), oferece o catálogo completo da Meta.
+                // Com curadoria, restringe às categorias que o Master liberou para o segmento.
+                .filter(o => {
+                  const curated = autoFields.allowedSpecialAdCategories || ['NONE'];
+                  const hasCuration = curated.some((v: string) => v !== 'NONE');
+                  return !hasCuration || curated.includes(o.value) || o.value === effectiveSpecial;
+                })
                 .map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
             <p className="text-[11px] text-gray-400 mt-1">Obrigatório para imóveis, emprego, crédito.</p>
@@ -2354,7 +2360,7 @@ function StepReview({ form, selectedImages, autoFields, initiatives = [], destin
           <Row label="Horários"    value={form.scheduleTimeSlots.map((s: any) => `${s.start}h — ${s.end}h`).join(', ')} />
           <Row label="Objetivo"    value={OBJECTIVES.find(o => o.value === form.objective)?.label || form.objective} />
           <Row label="Ângulo"      value={form.declaredAngle ? (resolveAngleLabel(form.declaredAngle) ?? form.declaredAngle) : 'IA infere'} />
-          <Row label="Iniciativa"  value={initiativeName} />
+          {form.initiativeId && <Row label="Iniciativa" value={initiativeName} />}
         </div>
       </Section>
       <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
