@@ -199,7 +199,7 @@ export function CommandCenterView({
       {expandedCampaigns && (data.campaigns || []).length > 1 ? (
         <div className="space-y-6">
           {(data.campaigns || []).map((c: any) => {
-            const m = aggregateMetrics(data.currentPeriod.insights || [], data.leadsByCampaign || {}, new Set([c.id]));
+            const m = aggregateMetrics(data.currentPeriod.insights || [], data.leadsByCampaign || {}, new Set([c.id]), data.videoHookByCampaign);
             return (
               <div key={c.id} className={cn('p-4 rounded-2xl border', cardBase, isDark ? 'border-white/10' : 'border-slate-200')}>
                 <p className={cn('text-sm font-black mb-3 truncate', tx)}>{c.name}</p>

@@ -149,6 +149,28 @@ export async function GET(request: NextRequest) {
       date: { gte: prevStart, lt: prevEnd }
     };
 
+    // Hook Rate correto: só anúncios de VÍDEO (visualizações de 3s ÷ impressões desses próprios
+    // vídeos). Antes era calculado sobre as impressões da campanha inteira, o que incluía carrossel
+    // e imagem no denominador e subestimava a taxa. Dados por anúncio vêm de AdInsight.
+    const videoHookWhere: any = {
+      tenantId: payload.tenantId,
+      campaignId: { in: campaignIds },
+      date: { gte: startDate, lte: endDate },
+      ad: { creativeType: 'VIDEO', ...(adSetId ? { adSetId } : {}) },
+    };
+    const videoHookRows = await prisma.adInsight.groupBy({
+      by: ['campaignId'],
+      where: videoHookWhere,
+      _sum: { videoViews3s: true, impressions: true },
+    });
+    const videoHookByCampaign: Record<string, { views3s: number; impressions: number }> = {};
+    for (const r of videoHookRows) {
+      videoHookByCampaign[r.campaignId] = {
+        views3s: r._sum.videoViews3s ?? 0,
+        impressions: r._sum.impressions ?? 0,
+      };
+    }
+
     // Fonte única de "o que é lead" (ciente de rede e de mecanismo de CTA — WhatsApp, formulário
     // hospedado, Formulário Instantâneo do Meta, conversão real do Google) — ver leadEvents.ts.
     // Achado 2026-07-21: antes cada métrica desta rota tinha sua PRÓPRIA query só com
@@ -261,6 +283,7 @@ export async function GET(request: NextRequest) {
       availableNetworks,
       discontinuedNetworks,
       lastCollectedAt: lastCollectedDate ? lastCollectedDate.toISOString() : null,
+      videoHookByCampaign,
       funnelData,
     });
   } catch (error: any) {

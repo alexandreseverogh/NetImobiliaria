@@ -465,11 +465,14 @@ function DashboardPage() {
     date: utcDateLabel(p.date), spend: p.spend, leads: p.leads, cpl: p.cpl,
   }));
 
-  // FASE 5 — Hook Rate (video_views_3s / impressions × 100)
-  const totalVideoViews3s = data?.currentPeriod.insights.reduce(
-    (s, i) => s + (Number((i as any).videoViews3s) || 0), 0
-  ) ?? 0;
-  const totalImpressionsN = Number(t?.impressions) || 0;
+  // Hook Rate = visualizações de 3s ÷ impressões, SOMENTE dos anúncios de vídeo (vem do servidor
+  // por anúncio). Carrossel e imagem não entram no denominador.
+  const videoHookTotals = Object.values(data?.videoHookByCampaign ?? {}).reduce(
+    (acc, v) => ({ views3s: acc.views3s + (v.views3s || 0), impressions: acc.impressions + (v.impressions || 0) }),
+    { views3s: 0, impressions: 0 },
+  );
+  const totalVideoViews3s = videoHookTotals.views3s;
+  const totalImpressionsN = videoHookTotals.impressions;
   const hookRateRaw       = totalVideoViews3s > 0 && totalImpressionsN > 0
     ? (totalVideoViews3s / totalImpressionsN) * 100 : null;
   const hookRate          = hookRateRaw !== null && isFinite(hookRateRaw) ? hookRateRaw : null;

@@ -441,6 +441,8 @@ export interface DashboardFullData {
   // Leads reais por campanha — alimenta "Onde está o Dinheiro?" (antes lia c.spend/c.leads,
   // campos que nunca existiram no model Campaign — sempre mostrava R$ 0,00 / 0 leads)
   leadsByCampaign?: Record<string, number>;
+  // Hook Rate: visualizações de 3s e impressões SÓ dos anúncios de vídeo, por campanha.
+  videoHookByCampaign?: Record<string, { views3s: number; impressions: number }>;
   // FASE 1 (Google Ads) A7 — comparativo CPL por rede (meta/google/...)
   cplByNetwork?: Record<string, { spend: number; leads: number; cpl: number | null }>;
   // PARTE D1 — redes com dado real no escopo atual (antes do filtro de rede), alimenta o seletor

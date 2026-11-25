@@ -313,7 +313,9 @@ export class MetaAdsAdapter implements AdNetworkService {
       qualityRanking: r.quality_ranking ?? null,
       engagementRateRanking: r.engagement_rate_ranking ?? null,
       conversionRateRanking: r.conversion_rate_ranking ?? null,
-      videoViews3s: firstValue(r.video_play_actions),
+      // Visualização de 3 segundos = action 'video_view' (mesma métrica da sincronização da campanha).
+      // video_play_actions conta reproduções (inclui repetições), por isso não serve para o Hook Rate.
+      videoViews3s: actionValue(r.actions, 'video_view'),
       videoViewsP25: firstValue(r.video_p25_watched_actions),
       videoViewsP50: firstValue(r.video_p50_watched_actions),
       videoViewsP75: firstValue(r.video_p75_watched_actions),

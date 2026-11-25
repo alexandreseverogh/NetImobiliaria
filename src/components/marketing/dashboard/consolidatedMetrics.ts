@@ -26,9 +26,11 @@ export function aggregateMetrics(
   insights: InsightData[],
   leadsByCampaign: Record<string, number>,
   campaignIds?: Set<string>,
+  videoHookByCampaign?: Record<string, { views3s: number; impressions: number }>,
 ): AggregatedMetrics {
-  let spend = 0, impressions = 0, reach = 0, clicks = 0, conversions = 0, videoViews3s = 0;
-  const leadIds = new Set<string>();
+  let spend = 0, impressions = 0, reach = 0, clicks = 0, conversions = 0;
+  // Hook Rate: só anúncios de vídeo (fonte por anúncio). Sem esse mapa, cai na soma da campanha.
+  let videoViews3s = 0, videoImpressions = 0;
 
   for (const ins of insights) {
     if (campaignIds && !campaignIds.has(ins.campaignId)) continue;
@@ -37,8 +39,14 @@ export function aggregateMetrics(
     reach += ins.reach || 0;
     clicks += ins.clicks || 0;
     conversions += ins.conversions || 0;
-    videoViews3s += ins.videoViews3s || 0;
-    leadIds.add(ins.campaignId);
+  }
+
+  if (videoHookByCampaign) {
+    for (const [cid, v] of Object.entries(videoHookByCampaign)) {
+      if (campaignIds && !campaignIds.has(cid)) continue;
+      videoViews3s += v.views3s || 0;
+      videoImpressions += v.impressions || 0;
+    }
   }
 
   // Leads vêm por campanha (leadsByCampaign). Somamos só as campanhas do conjunto.
@@ -60,6 +68,6 @@ export function aggregateMetrics(
     cpc: clicks > 0 ? spend / clicks : 0,
     cpm: impressions > 0 ? (spend / impressions) * 1000 : 0,
     cpl: leads > 0 ? spend / leads : null,
-    hookRate: videoViews3s > 0 && impressions > 0 ? (videoViews3s / impressions) * 100 : null,
+    hookRate: videoViews3s > 0 && videoImpressions > 0 ? (videoViews3s / videoImpressions) * 100 : null,
   };
 }
