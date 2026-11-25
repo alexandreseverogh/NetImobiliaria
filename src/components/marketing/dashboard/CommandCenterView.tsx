@@ -179,7 +179,7 @@ export function CommandCenterView({
         const campaignsList = data.campaigns || [];
         if (campaignsList.length <= 1) return null;
         return (
-          <div className="flex items-center justify-between gap-3 -mb-2">
+          <div className="flex items-center gap-4 -mb-2">
             <p className={cn('text-[11px] font-black uppercase tracking-widest', txMuted)}>
               {expandedCampaigns
                 ? `Métricas por campanha (${campaignsList.length})`

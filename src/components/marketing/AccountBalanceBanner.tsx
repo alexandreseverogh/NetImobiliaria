@@ -136,7 +136,7 @@ export function AccountBalanceBanner({ isDark, compact = false, className }: { i
                 <p className={cn('text-sm font-bold', isDark ? 'text-slate-200' : 'text-gray-700')}>
                   {formatCurrency(b.amountSpent, b.currency)}
                   <span className={cn('ml-1 font-medium text-[10px]', isDark ? 'text-slate-500' : 'text-gray-400')}>
-                    gasto · sem teto
+                    Gasto total das campanhas
                   </span>
                 </p>
               ) : (
