@@ -118,10 +118,25 @@ export default function NovaCampanhaPage() {
   const [videoWarningsAccepted, setVideoWarningsAccepted] = useState(false);
   // Vídeos selecionados que têm aviso e ainda não foram confirmados.
   const pendingVideoWarnings = selected.filter(s => videoWarnings.has(s.name));
+  // Regra de seleção: sem criativo não avança; imagens e vídeo não se misturam na mesma campanha;
+  // um vídeo por campanha. Publicação de vídeo na Meta ainda está em implantação (Fase 3).
+  const selectedVideoCount = selected.filter(s => isVideo(s.name)).length;
+  const selectedImageCount = selected.length - selectedVideoCount;
+  const selectionBlocker: string | null =
+    selected.length === 0 ? 'Selecione ao menos um criativo para continuar.'
+    : selectedVideoCount > 0 && selectedImageCount > 0 ? 'Não é possível misturar imagens e vídeo na mesma campanha. Deixe apenas imagens, ou apenas um vídeo.'
+    : selectedVideoCount > 1 ? 'Selecione apenas um vídeo por campanha.'
+    : null;
+  // Um vídeo só: não bloqueia; a campanha é salva como rascunho (sem publicar na rede ainda).
+  const videoDraftNotice = selectedVideoCount === 1
+    ? 'Vídeo selecionado. Salvar sem lançar guarda como rascunho; lançar envia o vídeo à Meta.'
+    : null;
   // Mudou a seleção → a confirmação anterior não vale mais.
   useEffect(() => { setVideoWarningsAccepted(false); }, [selected]);
   // FASE 6: promessa de upload iniciada ao abrir o wizard; resolvida antes do submit
   const uploadPromiseRef = useRef<Promise<string[]>>(Promise.resolve([]));
+  // Motivos reais de falha do último upload para a biblioteca (exibidos ao lançar).
+  const uploadErrorsRef = useRef<string[]>([]);
 
   /* ── Phase 2: wizard ────────────────────────────────── */
   const [showWizard, setShowWizard] = useState(false);
@@ -360,7 +375,10 @@ export default function NovaCampanhaPage() {
     });
     found.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
     const folder = files[0]?.webkitRelativePath?.split('/')[0] || 'Pasta selecionada';
-    setFolderName(folder); setAllImages(found); setSelected([]);
+    setFolderName(folder); setAllImages(found);
+    // Um único arquivo escolhido é exatamente o que o usuário quer: já entra selecionado,
+    // com a prévia logo abaixo, para não sobrar "Nenhum criativo selecionado" no próximo passo.
+    setSelected(found.length === 1 ? found : []);
     setFileObjects(newFileMap);
     if (found.length === 0) setFolderError('Nenhuma imagem encontrada nesta pasta.');
     e.target.value = '';
@@ -370,11 +388,12 @@ export default function NovaCampanhaPage() {
   // FASE 6: faz upload dos criativos selecionados para a biblioteca e retorna os assetIds
   // gerados. A Promise é iniciada ao abrir o wizard e resolvida antes do submit.
   function uploadSelectedToLibrary(clientId: string | null): Promise<string[]> {
+    uploadErrorsRef.current = [];
     if (!selected.length) return Promise.resolve([]);
     return Promise.allSettled(
       selected.map(async img => {
         const file = fileObjects.get(img.name);
-        if (!file) return null;
+        if (!file) { uploadErrorsRef.current.push(`${img.name}: arquivo não está mais disponível. Selecione novamente.`); return null; }
         if (isVideo(img.name)) {
           try {
             const local = await readVideoMeta(file);
@@ -385,7 +404,11 @@ export default function NovaCampanhaPage() {
               clientId,
             });
             return assetId;
-          } catch { return null; }
+          } catch (err) {
+            const reason = err instanceof Error ? err.message : 'falha desconhecida';
+            uploadErrorsRef.current.push(`${img.name}: ${reason}`);
+            return null;
+          }
         }
         const fd = new FormData();
         fd.append('file', file);
@@ -425,6 +448,11 @@ export default function NovaCampanhaPage() {
   /* context validity: se "Para um cliente", precisa ter selecionado um */
   const contextReady = isMaster || campaignFor === 'own' || !!selectedClientId;
 
+  // "x sair" do wizard: volta à primeira tela de /nova, com a seleção limpa (não ao dashboard).
+  function handleExitToStart() {
+    window.location.assign('/admin/campanhas/nova');
+  }
+
   function handleSuccess() {
     // Volta para o primeiro step, com a tela limpa. Recarregar a página zera todo o estado
     // (imagens selecionadas, textos pré-preenchidos e o wizard), sem depender de limpar cada um.
@@ -438,9 +466,15 @@ export default function NovaCampanhaPage() {
         selectedImages={selected}
         clientId={effectiveClientId}
         onClose={() => setShowWizard(false)}
-        onExit={() => router.push('/admin/campanhas/dashboard')}
+        onExit={handleExitToStart}
         onSuccess={handleSuccess}
-        getAssetIds={() => uploadPromiseRef.current}
+        getAssetIds={async () => {
+          const ids = await uploadPromiseRef.current;
+          if (ids.length === 0 && uploadErrorsRef.current.length > 0) {
+            throw new Error(`Não foi possível enviar o criativo: ${uploadErrorsRef.current.join(' · ')}`);
+          }
+          return ids;
+        }}
         networks={networksRaw}
         initialValues={{
           body:        prefillBody || undefined,
@@ -464,6 +498,9 @@ export default function NovaCampanhaPage() {
         onLaunch={async (payload) => {
           try {
             const assetIds = await uploadPromiseRef.current;
+            if (assetIds.length === 0 && uploadErrorsRef.current.length > 0) {
+              throw new Error(`Não foi possível enviar o criativo: ${uploadErrorsRef.current.join(' · ')}`);
+            }
             const res = await adminFetch('/api/admin/campanhas/google', {
               method: 'POST',
               body: JSON.stringify({
@@ -799,6 +836,27 @@ export default function NovaCampanhaPage() {
           {/* Image grid */}
           {allImages.length > 0 && (
             <>
+            {selectionBlocker && (
+              <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                {selectionBlocker}
+              </p>
+            )}
+            {!selectionBlocker && videoDraftNotice && (
+              <p className="mb-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-800">
+                {videoDraftNotice}
+              </p>
+            )}
+            {selected.some(s => isVideo(s.name)) && (
+              <div className="mb-4 space-y-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Prévia do vídeo que será enviado</p>
+                {selected.filter(s => isVideo(s.name)).map(v => (
+                  <div key={v.name} className="rounded-xl border border-gray-200 bg-black overflow-hidden">
+                    <video src={v.path} controls preload="metadata" playsInline className="w-full max-h-[480px] object-contain" />
+                    <p className="px-3 py-2 text-[11px] text-gray-300 truncate bg-gray-900">{v.name}</p>
+                  </div>
+                ))}
+              </div>
+            )}
             {pendingVideoWarnings.length > 0 && !videoWarningsAccepted && (
               <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
                 <p className="text-sm font-semibold text-amber-800">
@@ -965,12 +1023,12 @@ export default function NovaCampanhaPage() {
               return (
                 <button
                   onClick={() => {
-                    if (pendingVideoWarnings.length > 0 && !videoWarningsAccepted) return;
+                    if (selectionBlocker || (pendingVideoWarnings.length > 0 && !videoWarningsAccepted)) return;
                     setPickedNetwork('meta');
                     uploadPromiseRef.current = uploadSelectedToLibrary(effectiveClientId);
                     setShowWizard(true);
                   }}
-                  disabled={!contextReady || !networksLoaded || !metaOk}
+                  disabled={!contextReady || !networksLoaded || !metaOk || !!selectionBlocker}
                   title={!metaOk && networksLoaded ? (networkStatus.meta?.contracted === false ? 'Rede não contratada' : 'Rede não conectada — configure em Configurações → Redes') : undefined}
                   className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{ background: (contextReady && metaOk) ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : '#94a3b8' }}
@@ -985,12 +1043,12 @@ export default function NovaCampanhaPage() {
               return (
                 <button
                   onClick={() => {
-                    if (pendingVideoWarnings.length > 0 && !videoWarningsAccepted) return;
+                    if (selectionBlocker || (pendingVideoWarnings.length > 0 && !videoWarningsAccepted)) return;
                     setPickedNetwork('tiktok');
                     uploadPromiseRef.current = uploadSelectedToLibrary(effectiveClientId);
                     setShowWizard(true);
                   }}
-                  disabled={!contextReady || !networksLoaded || !tiktokOk}
+                  disabled={!contextReady || !networksLoaded || !tiktokOk || !!selectionBlocker}
                   title={!tiktokOk && networksLoaded ? (networkStatus.tiktok?.contracted === false ? 'Rede não contratada' : 'Rede não conectada — configure em Configurações → Redes') : undefined}
                   className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-slate-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{ background: (contextReady && tiktokOk) ? 'linear-gradient(135deg, #111827, #000000)' : '#94a3b8' }}
@@ -1005,12 +1063,12 @@ export default function NovaCampanhaPage() {
               return (
                 <button
                   onClick={() => {
-                    if (pendingVideoWarnings.length > 0 && !videoWarningsAccepted) return;
+                    if (selectionBlocker || (pendingVideoWarnings.length > 0 && !videoWarningsAccepted)) return;
                     uploadPromiseRef.current = uploadSelectedToLibrary(effectiveClientId);
                     setShowGoogleWizard(true);
                   }}
-                  disabled={!contextReady || !networksLoaded || !googleOk}
-                  title={!googleOk && networksLoaded ? (networkStatus.google?.contracted === false ? 'Rede não contratada' : 'Rede não conectada — configure em Configurações → Redes') : undefined}
+                  disabled={!contextReady || !networksLoaded || !googleOk || !!selectionBlocker || selectedVideoCount > 0}
+                  title={selectedVideoCount > 0 ? 'Rascunho com vídeo ainda disponível só para Meta e TikTok' : (!googleOk && networksLoaded ? (networkStatus.google?.contracted === false ? 'Rede não contratada' : 'Rede não conectada — configure em Configurações → Redes') : undefined)}
                   className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed bg-emerald-600 hover:bg-emerald-700"
                 >
                   <span className="text-base font-black leading-none" aria-hidden="true">G</span>

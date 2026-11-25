@@ -1004,6 +1004,18 @@ function CreativeThumb({ url, index, isDark = false }: { url: string; index: num
       </div>
     );
   }
+  // Vídeo (criativo de rascunho): mostra o primeiro quadro, sem tocar automaticamente.
+  if (/\.(mp4|mov)(\?|$)/i.test(url)) {
+    return (
+      <div className={cn(
+        'w-[68px] h-[68px] rounded-xl overflow-hidden border shrink-0 shadow-sm relative bg-black',
+        isDark ? 'border-white/10' : 'border-gray-100',
+      )}>
+        <video src={url} muted preload="metadata" playsInline className="w-full h-full object-cover" />
+        <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1 text-[8px] font-black text-white">VÍDEO</span>
+      </div>
+    );
+  }
   return (
     <div className={cn(
       'w-[68px] h-[68px] rounded-xl overflow-hidden border shrink-0 shadow-sm relative',
@@ -1193,7 +1205,43 @@ function ScheduleDisplay({
 
 // ── Campaign Card ─────────────────────────────────────────────────
 
+/** Rascunho com vídeo (salvo sem lançar): publica na rede, pausada. Some depois de publicado. */
+function PublishDraftButton({ campaignId, isDark = false, onPublished }: { campaignId: string; isDark?: boolean; onPublished: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function publish() {
+    if (!window.confirm('Publicar este rascunho na rede? Ele será criado PAUSADO, e você ativa depois.')) return;
+    setBusy(true); setError(null);
+    try {
+      const res = await adminFetch(`/api/admin/campanhas/campaigns/${campaignId}/publish-draft`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(data.error || 'Não foi possível publicar o rascunho.'); return; }
+      onPublished();
+    } catch {
+      setError('Falha de conexão ao publicar o rascunho.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <button
+        onClick={publish}
+        disabled={busy}
+        className={cn(
+          'px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all disabled:opacity-50',
+          isDark ? 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25' : 'bg-emerald-600 text-white hover:bg-emerald-700',
+        )}
+      >
+        {busy ? 'Publicando…' : 'Publicar rascunho'}
+      </button>
+      {error && <p className="text-[11px] text-red-500 max-w-xs">{error}</p>}
+    </div>
+  );
+}
+
 function CampaignCard({ campaign, index, isDark = false, onDeleted }: { campaign: CampaignData; index: number; isDark?: boolean; onDeleted?: () => void }) {
+  const [published, setPublished] = useState(false);
   const [interestsExpanded, setInterestsExpanded] = useState(false);
   // FASE 14/14d — ângulo + fonte editáveis localmente sem recarregar a lista
   const [localAngle, setLocalAngle]             = useState<string | null>(campaign.declaredAngle ?? null);
@@ -1239,6 +1287,9 @@ function CampaignCard({ campaign, index, isDark = false, onDeleted }: { campaign
               onDeleted={onDeleted}
               isDark={isDark}
             />
+            {!published && !campaign.externalId && !campaign.metaCampaignId && campaign.adSets.some(as => as.ads.some(a => a.creativeType === 'VIDEO')) && (
+              <PublishDraftButton campaignId={campaign.id} isDark={isDark} onPublished={() => setPublished(true)} />
+            )}
             {campaign.lifecycleStatus && campaign.lifecycleStatus !== campaign.status && (
               <StatusBadge status={campaign.lifecycleStatus} isDark={isDark} />
             )}

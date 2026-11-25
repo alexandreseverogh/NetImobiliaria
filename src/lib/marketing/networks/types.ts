@@ -95,6 +95,8 @@ export interface CreateCampaignInput {
     creativeType: string;
     /** Caminhos locais OU URLs públicas (ex.: MinIO) das imagens, na ordem do carrossel. */
     images: string[];
+    /** URL pública do vídeo (MinIO/S3 acessível pela rede). Quando presente, o criativo é de vídeo. */
+    videoUrl?: string;
     body: string;
     headline?: string;
     linkUrl: string;

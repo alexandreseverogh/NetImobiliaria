@@ -488,7 +488,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
       // FASE 6: aguarda os uploads iniciados no /nova para obter os assetIds
       const assetIds = getAssetIds ? await getAssetIds() : [];
 
-      await createCampaign({
+      const created = await createCampaign({
         networkCode:       form.networkCode,
         name:              form.name || `Campanha ${new Date().toLocaleDateString('pt-BR')}`,
         objective:         form.objective,
@@ -531,6 +531,12 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
         // false = salva PAUSADA (ativar depois); true = lança já ATIVA (gasta verba)
         launchNow,
       });
+      // Rascunho com vídeo: salvo localmente, nada foi publicado na rede. Avisa e volta ao início.
+      if (created?.draft) {
+        alert('Rascunho salvo com o vídeo. Ele ainda não foi publicado na rede; a publicação será feita numa etapa seguinte.');
+        onSuccess();
+        return;
+      }
       // Troca pela tela de confirmação em vez de navegar embora na hora — é ela quem chama
       // onSuccess() quando o usuário clicar em continuar (ver LaunchSuccessScreen).
       setLaunched({ assetIds, declaredAngle: form.declaredAngle || '', launchNow });
@@ -1073,8 +1079,7 @@ function StepType({ form, updateForm, selectedImages, hookAlert, clientId, onGoT
         <Section title="Criativo Selecionado">
           <div className="flex items-start gap-8">
             <div className="w-56 h-56 rounded-2xl overflow-hidden border border-gray-200 shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={selectedImages[0].path} alt="" className="w-full h-full object-cover" />
+              <CreativeMedia item={selectedImages[0]} className="w-full h-full object-cover" controls={false} />
             </div>
             <div className="flex-1 space-y-4 pt-2">
               <p className="text-sm text-gray-600">Formato: <span className="text-gray-900 font-semibold">Imagem única</span></p>
@@ -2298,6 +2303,16 @@ function StepObjective({ form, updateForm, autoFields, initiatives = [], temaOpt
    STEP 6 — REVISÃO
 ══════════════════════════════════════════════════════════ */
 
+/** Prévia de um criativo da biblioteca: vídeo (com player) ou imagem, conforme o arquivo. */
+function CreativeMedia({ item, className, controls = true }: { item: { path?: string; url?: string; name?: string }; className?: string; controls?: boolean }) {
+  const src = item.url || item.path || '';
+  if (item.name && /\.(mp4|mov)$/i.test(item.name)) {
+    return <video src={src} controls={controls} muted={!controls} preload="metadata" playsInline className={className} />;
+  }
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt={item.name || ''} className={className} />;
+}
+
 function StepReview({ form, selectedImages, autoFields, initiatives = [], destinos = [] }: any) {
   const resolveAngleLabel = (slug: string) => resolveAngleLabelFor(slug, autoFields?.allowedAngles);
   const initiativeName = form.initiativeId
@@ -2315,7 +2330,7 @@ function StepReview({ form, selectedImages, autoFields, initiatives = [], destin
               {selectedImages.map((img: { path?: string; url?: string; name?: string }, i: number) => (
                 <div key={i} className="min-w-0 rounded-xl border border-gray-200 bg-white overflow-hidden">
                   <div className="relative">
-                    <img src={img.url || img.path} alt={`Cartão ${i + 1}`} className="w-full aspect-[4/5] object-cover" />
+                    <CreativeMedia item={img} className="w-full aspect-[4/5] object-cover" />
                     <span className="absolute top-2 left-2 rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-black text-white">{i + 1}/{selectedImages.length}</span>
                   </div>
                   <div className="p-3 space-y-1">
@@ -2329,7 +2344,7 @@ function StepReview({ form, selectedImages, autoFields, initiatives = [], destin
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {selectedImages.map((img: { path?: string; url?: string; name?: string }, i: number) => (
                 <div key={i} className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-                  <img src={img.url || img.path} alt={img.name || `Criativo ${i + 1}`} className="w-full aspect-square object-cover" />
+                  <CreativeMedia item={img} className="w-full aspect-square object-cover" />
                   {img.name && <p className="px-3 py-2 text-[11px] text-gray-500 truncate">{img.name}</p>}
                 </div>
               ))}
@@ -2343,7 +2358,13 @@ function StepReview({ form, selectedImages, autoFields, initiatives = [], destin
       <div className="space-y-8 min-w-0 lg:order-1">
       <Section title="Resumo da Campanha">
         <div className="divide-y divide-gray-100">
-          <Row label="Criativos"   value={`${selectedImages.length} imagem(ns) — ${form.creativeType === 'CAROUSEL' ? 'Carrossel' : selectedImages.length === 0 ? 'Sem criativo' : 'Simples'}`} />
+          <Row label="Criativos"   value={(() => {
+            const videos = selectedImages.filter((s: { name?: string }) => /\.(mp4|mov)$/i.test(s.name || '')).length;
+            const images = selectedImages.length - videos;
+            const parts = [images > 0 && `${images} imagem(ns)`, videos > 0 && `${videos} vídeo(s)`].filter(Boolean);
+            const kind = form.creativeType === 'CAROUSEL' ? 'Carrossel' : selectedImages.length === 0 ? 'Sem criativo' : 'Simples';
+            return `${parts.join(' e ') || '0 criativos'} — ${kind}`;
+          })()} />
           <Row label="Texto"       value={form.body || '(não informado)'} />
           <Row label="CTA"         value={
             form.ctaType === 'WHATSAPP_MESSAGE'

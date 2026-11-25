@@ -214,7 +214,10 @@ export async function POST(request: NextRequest) {
       // true = lança já ATIVA (gasta verba); padrão false = PAUSADA para revisão e ativação posterior
       launchNow = false,
     } = body;
-    const initialStatus = launchNow === true ? 'ACTIVE' : 'PAUSED';
+    let initialStatus = launchNow === true ? 'ACTIVE' : 'PAUSED';
+    // Rascunho com vídeo: a publicação do vídeo na Meta é a Fase 3. Até lá a campanha é salva
+    // localmente como PAUSED, sem chamar a rede — nunca aparece como ativa sem anúncio real.
+    let isVideoDraft = false;
 
     // Valida clientId (deve pertencer ao tenant)
     if (clientId) {
@@ -281,10 +284,11 @@ export async function POST(request: NextRequest) {
 
     // Imagens: quando vêm da biblioteca (assetIds), usamos as URLs persistidas (acervo MinIO),
     // na ordem exata dos assetIds. Nunca usar blob: do navegador (não existe no servidor).
+    let videoAssetUrl: string | null = null;
     let resolvedImages: string[] = Array.isArray(images) ? images.filter((u: unknown) => typeof u === 'string' && /^https?:\/\//.test(u)) : [];
     if (Array.isArray(assetIds) && assetIds.length > 0) {
       const assetRes = await pool.query(
-        `SELECT id::text AS id, storage_url FROM campanhasmarketingdigital."CreativeAsset"
+        `SELECT id::text AS id, storage_url, format FROM campanhasmarketingdigital."CreativeAsset"
          WHERE tenant_id = $1::uuid AND id = ANY($2::uuid[])`,
         [payload.tenantId, assetIds],
       );
@@ -293,9 +297,19 @@ export async function POST(request: NextRequest) {
       if (ordered.length !== assetIds.length) {
         return NextResponse.json({ error: 'Algum criativo não foi enviado para a biblioteca. Refaça o upload e tente novamente.' }, { status: 400 });
       }
-      resolvedImages = ordered;
+      // Vídeo: um por campanha, sem misturar com imagem. Salvar sem lançar fica como rascunho
+      // local; lançar envia o vídeo à Meta (advideos → criativo de vídeo).
+      const videoRows = assetRes.rows.filter((r: any) => r.format === 'video');
+      if (videoRows.length > 0) {
+        if (videoRows.length > 1 || videoRows.length !== assetRes.rows.length) {
+          return NextResponse.json({ error: 'Vídeo e imagens não podem ser misturados, e cada campanha aceita um vídeo.' }, { status: 400 });
+        }
+        videoAssetUrl = videoRows[0].storage_url;
+        isVideoDraft = !launchNow;
+      }
+      resolvedImages = videoAssetUrl ? [] : ordered;
     }
-    if (resolvedImages.length === 0) {
+    if (resolvedImages.length === 0 && !videoAssetUrl) {
       return NextResponse.json({ error: 'Escolha ao menos uma imagem. Os criativos precisam estar na biblioteca.' }, { status: 400 });
     }
     if (creativeType === 'CAROUSEL' && resolvedImages.length < 2) {
@@ -418,7 +432,7 @@ export async function POST(request: NextRequest) {
         adSetId: adSet.id,
         name: `${name} - Ad`,
         status: initialStatus,
-        creativeType,
+        creativeType: videoAssetUrl ? 'VIDEO' : creativeType,
         images: resolvedImages,
         body: adBody || '',
         headline,
@@ -442,6 +456,11 @@ export async function POST(request: NextRequest) {
         // Não bloquear o lançamento por erro de vinculação
         console.warn('[FASE6] Falha ao vincular assets:', linkErr.message);
       }
+    }
+
+    // Rascunho com vídeo: fica salvo localmente, sem publicar na rede.
+    if (isVideoDraft) {
+      return NextResponse.json({ campaign, adSet, ad, draft: true }, { status: 201 });
     }
 
     // 5. Publicar na rede de anúncios selecionada
@@ -478,8 +497,9 @@ export async function POST(request: NextRequest) {
         },
         ad: {
           name: ad.name,
-          creativeType: ad.creativeType,
-          images: ad.images || [],
+          creativeType: videoAssetUrl ? 'VIDEO' : ad.creativeType,
+          images: resolvedImages,
+          videoUrl: videoAssetUrl || undefined,
           body: ad.body,
           headline: ad.headline || undefined,
           linkUrl: trackedLinkUrl,

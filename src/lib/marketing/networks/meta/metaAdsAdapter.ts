@@ -907,6 +907,33 @@ export class MetaAdsAdapter implements AdNetworkService {
     };
   }
 
+  /**
+   * Envia um vídeo (URL pública) à conta de anúncios e espera a Meta processá-lo.
+   * Só devolve quando o vídeo está pronto e a miniatura gerada pela Meta já existe.
+   */
+  async publishVideo(fileUrl: string, title: string): Promise<{ videoId: string; thumbnailUrl: string }> {
+    const up = await axios.post(this.url(`act_${this.adAccountId}/advideos`), {
+      file_url: fileUrl,
+      name: title,
+      ...this.auth,
+    }).catch((err) => { throw metaApiError('enviar vídeo', err); });
+    const videoId = extractMetaMutateId(up.data, 'enviar vídeo');
+
+    // Processamento assíncrono: a Meta só libera a miniatura e o criativo depois de processar.
+    for (let attempt = 0; attempt < 60; attempt++) {
+      const st = await axios.get(this.url(videoId), {
+        params: { ...this.auth, fields: 'status,picture' },
+      }).then(r => r.data).catch((err) => { throw metaApiError('consultar vídeo', err); });
+      const state = st?.status?.video_status;
+      if (state === 'ready' && st.picture) return { videoId, thumbnailUrl: st.picture };
+      if (state === 'error') {
+        throw new Error('Meta Ads: a Meta não conseguiu processar o vídeo. Verifique o formato (MP4 ou MOV, H.264/AAC, proporção 4:5 ou 9:16).');
+      }
+      await new Promise(r => setTimeout(r, 5000));
+    }
+    throw new Error('Meta Ads: o vídeo ainda está sendo processado pela Meta. Tente lançar novamente em alguns minutos.');
+  }
+
   async uploadCreative(imageSource: string): Promise<UploadResult> {
     const form = new FormData();
     if (/^https?:\/\//i.test(imageSource)) {
@@ -932,9 +959,12 @@ export class MetaAdsAdapter implements AdNetworkService {
   }
 
   async createCampaign(input: CreateCampaignInput): Promise<CreateCampaignResult> {
+    // 0. Vídeo: envia à Meta antes de tudo. Com vídeo não há upload de imagem.
+    const videoRef = input.ad.videoUrl ? await this.publishVideo(input.ad.videoUrl, input.ad.name) : null;
+
     // 1. Upload images
     const imageHashes: string[] = [];
-    for (const imageSource of input.ad.images) {
+    for (const imageSource of (videoRef ? [] : input.ad.images)) {
       const isUrl = /^https?:\/\//i.test(imageSource);
       if (!isUrl && !fs.existsSync(imageSource)) {
         // Antes esta imagem era pulada em silêncio e o criativo saía sem hash.
@@ -1063,7 +1093,25 @@ export class MetaAdsAdapter implements AdNetworkService {
     // Instagram actor para criativos (opcional)
     const instagramActorId = this.instagramActorId;
 
-    if (ad.creativeType === 'CAROUSEL' && imageHashes.length > 1) {
+    if (videoRef) {
+      const storySpec: any = {
+        video_data: {
+          video_id: videoRef.videoId,
+          image_url: videoRef.thumbnailUrl,
+          title: ad.headline || ad.name,
+          message: ad.body,
+          call_to_action: { type: ad.ctaType, value: { link: ad.linkUrl } },
+        },
+        page_id: pageId,
+      };
+      if (instagramActorId) storySpec.instagram_user_id = instagramActorId;
+
+      creativePayload = {
+        name: `${ad.name} Creative`,
+        object_story_spec: storySpec,
+        ...this.auth,
+      };
+    } else if (ad.creativeType === 'CAROUSEL' && imageHashes.length > 1) {
       const storySpec: any = {
         link_data: {
           child_attachments: imageHashes.map((hash, i) => {
