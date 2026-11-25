@@ -15,6 +15,47 @@ interface Props extends SegmentationInsightsParams {
   cardBase: string;
   tx: string;
   txMuted: string;
+  /** Campanhas do escopo. Com mais de uma, a visão consolidada ganha "expandir por campanha". */
+  campaigns?: { id: string; name: string }[];
+}
+
+/**
+ * Insights de público/região/horário. Consolidado por padrão; com mais de uma campanha, o
+ * cabeçalho oferece "expandir por campanha" e repete o mesmo painel para cada uma (cada campanha
+ * tem o próprio público, região e horário — uma média pode esconder o que funciona em cada uma).
+ */
+export function SegmentationInsightsPanel(props: Props) {
+  const [expanded, setExpanded] = useState(false);
+  const multi = !props.campaignId && (props.campaigns?.length ?? 0) > 1;
+  if (!multi) return <SegmentationInsightsCard {...props} campaigns={undefined} />;
+
+  const { campaigns, isDark, txMuted, tx } = props;
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <p className={cn('text-[11px] font-black uppercase tracking-widest', txMuted)}>
+          {expanded ? `Insights por campanha (${campaigns!.length})` : `Insights consolidados de ${campaigns!.length} campanhas`}
+        </p>
+        <button
+          type="button"
+          onClick={() => setExpanded(v => !v)}
+          className={cn('text-[11px] font-black uppercase tracking-widest underline-offset-4 hover:underline', isDark ? 'text-gold-premium' : 'text-amber-700')}
+        >
+          {expanded ? 'Recolher' : 'Expandir por campanha'}
+        </button>
+      </div>
+      {expanded ? (
+        campaigns!.map(c => (
+          <div key={c.id} className="space-y-3">
+            <p className={cn('text-sm font-black truncate', tx)}>{c.name}</p>
+            <SegmentationInsightsCard {...props} campaignId={c.id} campaigns={undefined} />
+          </div>
+        ))
+      ) : (
+        <SegmentationInsightsCard {...props} campaignId={null} campaigns={undefined} />
+      )}
+    </div>
+  );
 }
 
 const TONE_DOT: Record<string, string> = {
@@ -27,14 +68,14 @@ const TONE_DOT: Record<string, string> = {
  * Insights de Segmentação: fatos calculados por regra (sempre visíveis) + narrativa
  * redigida pela IA sob demanda. A IA não calcula números — só explica os fatos.
  */
-export function SegmentationInsightsPanel({ isDark, cardBase, tx, txMuted, startDate, endDate, segmentId, clientId }: Props) {
+function SegmentationInsightsCard({ isDark, cardBase, tx, txMuted, startDate, endDate, segmentId, clientId, campaignId }: Props) {
   const [data, setData] = useState<SegmentationInsightsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const params: SegmentationInsightsParams = { startDate, endDate, segmentId, clientId };
-  const key = `${startDate}|${endDate}|${segmentId ?? ''}|${clientId ?? ''}`;
+  const params: SegmentationInsightsParams = { startDate, endDate, segmentId, clientId, campaignId };
+  const key = `${startDate}|${endDate}|${segmentId ?? ''}|${clientId ?? ''}|${campaignId ?? ''}`;
 
   useEffect(() => {
     let cancelled = false;

@@ -44,28 +44,79 @@ interface Props {
   endDate: string;
   segmentId?: string | null;
   clientId?: string | null;
+  /** Campanhas do escopo. Com mais de uma, a visão consolidada ganha "expandir por campanha". */
+  campaigns?: { id: string; name: string }[];
+  /** Quando preenchido, mostra só esta campanha (usado pela visão expandida). */
+  campaignId?: string | null;
 }
 
-export function SegmentationView({ isDark, cardBase, tx, txMuted, startDate, endDate, segmentId, clientId }: Props) {
+export function SegmentationView({ isDark, cardBase, tx, txMuted, startDate, endDate, segmentId, clientId, campaigns, campaignId }: Props) {
   const [data, setData] = useState<SegmentationData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [topRegions, setTopRegions] = useState<number>(10);
+  const [expanded, setExpanded] = useState(false);
+
+  // Com mais de uma campanha, o cabeçalho e as visões por campanha fazem as buscas; este componente
+  // não busca nada sozinho (evita a mesma consulta pesada duas vezes).
+  const multi = !campaignId && (campaigns?.length ?? 0) > 1;
 
   useEffect(() => {
+    if (multi) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
     const qs = new URLSearchParams({ startDate, endDate, topRegions: String(topRegions) });
     if (segmentId) qs.set('segmentId', segmentId);
     if (clientId) qs.set('clientId', clientId);
+    if (campaignId) qs.set('campaignId', campaignId);
     adminFetch(`/api/admin/campanhas/dashboard/segmentation?${qs}`)
       .then(r => r.json())
       .then(d => { if (!cancelled) { if (d.error) setError(d.error); else setData(d); } })
       .catch(() => { if (!cancelled) setError('Não foi possível carregar a segmentação.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [startDate, endDate, segmentId, clientId, topRegions]);
+  }, [startDate, endDate, segmentId, clientId, campaignId, topRegions, multi]);
+
+  // Visão consolidada com mais de uma campanha: cabeçalho + expandir por campanha (mesmo padrão
+  // da Visão Executiva). Expandido, repete este mesmo painel para cada campanha.
+  if (multi) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <p className={cn('text-[11px] font-black uppercase tracking-widest', txMuted)}>
+            {expanded ? `Segmentação por campanha (${campaigns!.length})` : `Segmentação consolidada de ${campaigns!.length} campanhas`}
+          </p>
+          <button
+            type="button"
+            onClick={() => setExpanded(v => !v)}
+            className={cn('text-[11px] font-black uppercase tracking-widest underline-offset-4 hover:underline', isDark ? 'text-gold-premium' : 'text-amber-700')}
+          >
+            {expanded ? 'Recolher' : 'Expandir por campanha'}
+          </button>
+        </div>
+        {expanded ? (
+          campaigns!.map(c => (
+            <div key={c.id} className="space-y-3">
+              <p className={cn('text-sm font-black truncate', tx)}>{c.name}</p>
+              <SegmentationView
+                isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted}
+                startDate={startDate} endDate={endDate}
+                segmentId={segmentId} clientId={clientId} campaignId={c.id}
+              />
+            </div>
+          ))
+        ) : (
+          <SegmentationView
+            isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted}
+            startDate={startDate} endDate={endDate}
+            segmentId={segmentId} clientId={clientId} campaignId={null}
+            campaigns={undefined}
+          />
+        )}
+      </div>
+    );
+  }
 
   if (loading) {
     return <div className={cn('rounded-2xl border h-80 animate-pulse', isDark ? 'bg-white/[0.03] border-white/5' : 'bg-white border-slate-100')} />;

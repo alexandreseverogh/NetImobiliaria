@@ -135,6 +135,29 @@ export function CreativesPerformanceView({ isDark, periodDays, clientFilter }: P
 
   return (
     <div className="space-y-6">
+      {/* Consolidado por formato: quantos anúncios, quanto gastam e quantos têm alerta. */}
+      {!loading && !error && ads.length > 0 && (
+        <div className={card}>
+          <p className={cn('text-[11px] font-black uppercase tracking-widest mb-4', txMuted)}>
+            Consolidado por formato · {ads.length} anúncios
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {(['IMAGE', 'VIDEO', 'CAROUSEL'] as const).map(type => {
+              const group = ads.filter(a => a.creativeType === type);
+              const spend = group.reduce((s, a) => s + (a.spend || 0), 0);
+              const alerts = group.filter(a => a.issues.length > 0).length;
+              return (
+                <div key={type} className={tile}>
+                  <p className={cn('text-[10px] font-black uppercase tracking-widest', txMuted)}>{TYPE_LABEL[type]}</p>
+                  <p className={cn('text-lg font-black mt-1', tx)}>{group.length} anúncio{group.length === 1 ? '' : 's'}</p>
+                  <p className={cn('text-xs mt-1', txMuted)}>Gasto {formatCurrency(spend)} · {alerts} com alerta{alerts === 1 ? '' : 's'}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className={card}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

@@ -963,6 +963,7 @@ function DashboardPage() {
                 startDate={r.segStart} endDate={r.segEnd}
                 segmentId={activeSegment ?? null}
                 clientId={clientFilter && clientFilter !== 'segment' ? clientFilter : null}
+                campaigns={(data?.campaigns ?? []).map(c => ({ id: c.id, name: c.name }))}
               />
             </div>
           );
@@ -985,6 +986,7 @@ function DashboardPage() {
               endDate={segEnd}
               segmentId={activeSegment ?? null}
               clientId={clientFilter && clientFilter !== 'segment' ? clientFilter : null}
+              campaigns={(data?.campaigns ?? []).map(c => ({ id: c.id, name: c.name }))}
             />
           );
         })()}
@@ -1028,6 +1030,7 @@ function DashboardPage() {
                     startDate={r.segStart} endDate={r.segEnd}
                     segmentId={activeSegment ?? null}
                     clientId={clientFilter && clientFilter !== 'segment' ? clientFilter : null}
+                    campaigns={(data?.campaigns ?? []).map(c => ({ id: c.id, name: c.name }))}
                   />
                 </div>
               );

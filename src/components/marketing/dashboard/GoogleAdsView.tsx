@@ -101,6 +101,41 @@ export function GoogleAdsView({ isDark, cardBase, tx, txMuted }: GoogleAdsViewPr
         </p>
       </div>
 
+      {/* Consolidado no topo: ROAS = soma do valor ÷ soma do gasto; IS Lost ponderado pelo gasto. */}
+      {data.campaigns.length > 1 && (() => {
+        const totalSpend = data.campaigns.reduce((s, c) => s + (c.spend ?? 0), 0);
+        const totalValue = data.campaigns.reduce((s, c) => s + (c.conversionValue ?? 0), 0);
+        const roasTotal = totalSpend > 0 ? totalValue / totalSpend : null;
+        const isWeighted = totalSpend > 0
+          ? data.campaigns.reduce((s, c) => s + c.avgSearchBudgetLostIs * (c.spend ?? 0), 0) / totalSpend
+          : null;
+        return (
+          <div className={cn('p-5 rounded-2xl border', cardBase, isDark ? 'border-[rgba(255,255,255,0.05)]' : 'border-slate-200')}>
+            <p className={cn('text-[11px] font-black uppercase tracking-widest mb-3', txMuted)}>
+              Consolidado de {data.campaigns.length} campanhas Google
+            </p>
+            <div className="flex items-center gap-10">
+              <div>
+                <p className={cn('text-[10px] uppercase tracking-widest', txMuted)}>ROAS</p>
+                <p className={cn('text-lg font-black', isDark ? 'text-emerald-400' : 'text-emerald-600')}>
+                  {roasTotal !== null ? `${roasTotal.toFixed(2)}x` : '—'}
+                </p>
+              </div>
+              <div>
+                <p className={cn('text-[10px] uppercase tracking-widest', txMuted)}>IS Lost (Budget)</p>
+                <p className={cn('text-lg font-black', isWeighted !== null && isWeighted > 20 ? 'text-amber-500' : (isDark ? 'text-slate-300' : 'text-slate-700'))}>
+                  {isWeighted !== null ? formatPercent(isWeighted) : '—'}
+                </p>
+              </div>
+              <div>
+                <p className={cn('text-[10px] uppercase tracking-widest', txMuted)}>Gasto</p>
+                <p className={cn('text-lg font-black', tx)}>{formatCurrency(totalSpend)}</p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Resumo por campanha — ROAS + IS Lost (Budget) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {data.campaigns.map(c => (

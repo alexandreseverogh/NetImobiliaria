@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { aggregateMetrics } from '@/components/marketing/dashboard/consolidatedMetrics';
+import { aggregateMetrics, campaignDailySeries } from '@/components/marketing/dashboard/consolidatedMetrics';
 import { motion } from 'framer-motion';
 import { SparklesIcon, HeartIcon, BoltIcon, ExclamationTriangleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import { formatCurrency, formatCurrencyCompact, formatNumber, formatPercent, cn, networkLabel } from '@/lib/marketing-utils';
@@ -9,6 +9,7 @@ import { ClassicFunnelChart } from '@/components/marketing/charts/ClassicFunnelC
 import { CampaignMapWidget } from '@/components/marketing/CampaignMapWidget';
 import { RevenueAttributionWidget } from '@/components/marketing/dashboard/RevenueAttributionWidget';
 import { ReallocationOpportunityWidget } from '@/components/marketing/dashboard/ReallocationOpportunityWidget';
+import { ConsolidatedHeader } from '@/components/marketing/dashboard/ConsolidatedHeader';
 import type { DashboardFullData, AiInsightData } from '@/lib/marketing-api';
 import type { HookSaturationResult } from '@/lib/marketing/services/hookSaturationService';
 
@@ -36,73 +37,15 @@ interface CommandCenterViewProps {
   network?: string | null;
 }
 
-export function CommandCenterView({
-  isDark,
-  loading,
-  data,
-  aiInsights,
-  hookSaturation,
-  cardBase,
-  tx,
-  txMuted,
-  txFaint,
-  cpl,
-  hookRate,
-  hookRateBenchmarks,
-  chartData,
-  funnelData,
-  periodLabel,
-  periodDays,
-  activeSegment,
-  clientFilter,
-  segmentPeriodStart,
-  segmentPeriodEnd,
-  network,
-}: CommandCenterViewProps) {
-  // Alterna entre métricas consolidadas (padrão) e os mesmos cards por campanha.
-  // Precisa ficar ANTES do retorno antecipado de loading (regra dos hooks).
-  const [expandedCampaigns, setExpandedCampaigns] = useState(false);
-
-  if (loading) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className={cn('rounded-2xl h-32', isDark ? 'bg-white/[0.03]' : 'bg-slate-100')} />
-        ))}
-      </div>
-    );
-  }
-
-  if (!data) return null;
-
-  const t = data.currentPeriod.totals;
-  const d = data.deltas;
-  const activeCampaigns = (data.campaigns || []).filter(c => c.status === 'ACTIVE').length;
-
-  // CORREÇÃO — "Onde está o Dinheiro?" lia c.spend/c.leads direto do objeto Campaign, campos que
-  // nunca existiram nesse model (spend/leads vivem em Insight/Lead, agregados à parte) — sempre
-  // renderizava R$ 0,00 / 0 leads pra qualquer campanha, em qualquer filtro. Gasto real agregado
-  // a partir de currentPeriod.insights (mesma fonte do gráfico "Evolução"); leads reais de
-  // leadsByCampaign (Lead table, mesmo padrão já usado por leadsByNetwork).
-  const spendByCampaign = (data.currentPeriod.insights || []).reduce((acc: Record<string, number>, ins: any) => {
-    acc[ins.campaignId] = (acc[ins.campaignId] || 0) + (ins.spend || 0);
-    return acc;
-  }, {});
-  const leadsByCampaign = data.leadsByCampaign || {};
-
-  // Health Score — Hook Rate (vídeo) + tendência REAL de CPL, calculada em cima da MESMA série
-  // que o gráfico "Evolução das Campanhas" já mostra (chartData: spend + conversions por
-  // dia) — antes usava a contagem de Lead da tabela separada, uma fonte DIFERENTE da que o
-  // gráfico plota, o que já é uma inconsistência à parte.
-  //
-  // Dois sinais complementares, porque cada um pega um tipo de problema diferente:
-  //   1. Tendência de METADE do período (mesmo padrão de calculateTrend() em aiInsights.ts) —
-  //      pega uma piora sustentada ao longo do mês inteiro.
-  //   2. Janela CURTA recente vs. a janela imediatamente anterior — pega uma virada abrupta
-  //      nos últimos dias que uma média de metade do período dilui (poucos dias ruins não
-  //      movem muito uma média de 15 dias).
-  // Antes, a única regra era "d.leads < 0 ? -10 : nada" — um delta médio do período inteiro
-  // que escondia justamente a virada nos últimos dias, que é o problema mais urgente.
+/**
+ * Índice de Saúde de uma série diária (gasto e conversões por dia). Usado pelo consolidado e por
+ * campanha — a mesma regra nos dois casos, para que um número nunca contradiga o outro.
+ */
+export function computeHealth(
+  chartRows: any[],
+  hookRate: number | null,
+  hookRateBenchmarks: any,
+): { healthScore: number; healthTone: 'good' | 'warning' | 'critical' | 'no_data'; healthReasons: string[]; hasScopeData: boolean } {
   let healthScore = 100;
   let healthTone: 'good' | 'warning' | 'critical' | 'no_data' = 'good';
   const healthReasons: string[] = [];
@@ -112,13 +55,11 @@ export function CommandCenterView({
     healthReasons.push('Hook Rate de vídeo abaixo do benchmark');
   }
 
-  const daysWithData = (chartData || [])
+  const daysWithData = (chartRows || [])
     .filter((x: any) => x.spend > 0 || x.conversions > 0)
     .map((x: any) => ({ spend: x.spend as number, conv: (x.conversions as number) || 0 }));
 
-  // CORREÇÃO — sem dado real no escopo (filtro de rede zerando o período, por exemplo), o score
-  // ficava travado em 100 "saudável" por AUSÊNCIA de sinal de problema, não por saúde comprovada
-  // — enganoso. Distingue explicitamente "sem dado suficiente" de "saudável de verdade".
+  // Sem dado real no escopo, o score não pode ficar "saudável" por ausência de sinal de problema.
   const hasScopeData = daysWithData.length > 0;
 
   const aggCpl = (rows: { spend: number; conv: number }[]) => {
@@ -166,9 +107,88 @@ export function CommandCenterView({
   healthScore = Math.max(0, Math.min(100, healthScore));
   if (healthScore < 70) healthTone = 'warning';
   if (healthScore < 45) healthTone = 'critical';
-  // Sem dado real no escopo — nenhum sinal de piora RODOU (não é que não achou problema, é que
-  // não teve como avaliar). Sobrepõe qualquer tom calculado acima, mesmo o default 'good'.
+  // Sem dado real no escopo — nenhum sinal de piora rodou. Sobrepõe qualquer tom calculado acima.
   if (!hasScopeData) healthTone = 'no_data';
+
+  return { healthScore, healthTone, healthReasons, hasScopeData };
+}
+
+export function CommandCenterView({
+  isDark,
+  loading,
+  data,
+  aiInsights,
+  hookSaturation,
+  cardBase,
+  tx,
+  txMuted,
+  txFaint,
+  cpl,
+  hookRate,
+  hookRateBenchmarks,
+  chartData,
+  funnelData,
+  periodLabel,
+  periodDays,
+  activeSegment,
+  clientFilter,
+  segmentPeriodStart,
+  segmentPeriodEnd,
+  network,
+}: CommandCenterViewProps) {
+  // Alterna entre métricas consolidadas (padrão) e os mesmos cards por campanha.
+  // Precisa ficar ANTES do retorno antecipado de loading (regra dos hooks).
+  const [expandedCampaigns, setExpandedCampaigns] = useState(false);
+  // Expansão por campanha, por seção (cada uma abre sozinha).
+  const [funnelExpanded, setFunnelExpanded] = useState(false);
+  const [evolutionExpanded, setEvolutionExpanded] = useState(false);
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className={cn('rounded-2xl h-32', isDark ? 'bg-white/[0.03]' : 'bg-slate-100')} />
+        ))}
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const t = data.currentPeriod.totals;
+  const d = data.deltas;
+  const activeCampaigns = (data.campaigns || []).filter(c => c.status === 'ACTIVE').length;
+
+  // CORREÇÃO — "Onde está o Dinheiro?" lia c.spend/c.leads direto do objeto Campaign, campos que
+  // nunca existiram nesse model (spend/leads vivem em Insight/Lead, agregados à parte) — sempre
+  // renderizava R$ 0,00 / 0 leads pra qualquer campanha, em qualquer filtro. Gasto real agregado
+  // a partir de currentPeriod.insights (mesma fonte do gráfico "Evolução"); leads reais de
+  // leadsByCampaign (Lead table, mesmo padrão já usado por leadsByNetwork).
+  const spendByCampaign = (data.currentPeriod.insights || []).reduce((acc: Record<string, number>, ins: any) => {
+    acc[ins.campaignId] = (acc[ins.campaignId] || 0) + (ins.spend || 0);
+    return acc;
+  }, {});
+  const leadsByCampaign = data.leadsByCampaign || {};
+
+  // Série diária de UMA campanha (mesma base do gráfico consolidado, filtrada pela campanha).
+  const dailySeriesFor = (campaignId: string) =>
+    campaignDailySeries(data.currentPeriod.insights || [], campaignId);
+
+  // Health Score — Hook Rate (vídeo) + tendência REAL de CPL, calculada em cima da MESMA série
+  // que o gráfico "Evolução das Campanhas" já mostra (chartData: spend + conversions por
+  // dia) — antes usava a contagem de Lead da tabela separada, uma fonte DIFERENTE da que o
+  // gráfico plota, o que já é uma inconsistência à parte.
+  //
+  // Dois sinais complementares, porque cada um pega um tipo de problema diferente:
+  //   1. Tendência de METADE do período (mesmo padrão de calculateTrend() em aiInsights.ts) —
+  //      pega uma piora sustentada ao longo do mês inteiro.
+  //   2. Janela CURTA recente vs. a janela imediatamente anterior — pega uma virada abrupta
+  //      nos últimos dias que uma média de metade do período dilui (poucos dias ruins não
+  //      movem muito uma média de 15 dias).
+  // Antes, a única regra era "d.leads < 0 ? -10 : nada" — um delta médio do período inteiro
+  // que escondia justamente a virada nos últimos dias, que é o problema mais urgente.
+  // Índice de Saúde — mesma regra para o consolidado e para cada campanha (ver computeHealth).
+  const { healthScore, healthTone, healthReasons, hasScopeData } = computeHealth(chartData, hookRate, hookRateBenchmarks);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -200,9 +220,16 @@ export function CommandCenterView({
         <div className="space-y-6">
           {(data.campaigns || []).map((c: any) => {
             const m = aggregateMetrics(data.currentPeriod.insights || [], data.leadsByCampaign || {}, new Set([c.id]), data.videoHookByCampaign);
+            const h = computeHealth(dailySeriesFor(c.id), m.hookRate, hookRateBenchmarks);
             return (
               <div key={c.id} className={cn('p-4 rounded-2xl border', cardBase, isDark ? 'border-white/10' : 'border-slate-200')}>
-                <p className={cn('text-sm font-black mb-3 truncate', tx)}>{c.name}</p>
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <p className={cn('text-sm font-black truncate', tx)}>{c.name}</p>
+                  <span className={cn('text-[11px] font-black uppercase tracking-wider shrink-0',
+                    h.healthTone === 'good' ? 'text-emerald-500' : h.healthTone === 'warning' ? 'text-amber-500' : h.healthTone === 'critical' ? 'text-red-500' : txMuted)}>
+                    {h.healthTone === 'no_data' ? 'Saúde: sem dados' : `Saúde ${h.healthScore}`}
+                  </span>
+                </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 2xl:[grid-template-columns:repeat(14,minmax(0,1fr))] gap-2 2xl:gap-1.5">
                   <KpiCard isDark={isDark} label="Gasto" value={formatCurrencyCompact(m.spend)} fullValue={formatCurrency(m.spend)} color={isDark ? 'text-slate-100' : 'text-slate-900'} />
                   <KpiCard isDark={isDark} label="Leads" value={formatNumber(m.leads)} color={isDark ? 'text-indigo-400' : 'text-indigo-600'} />
@@ -277,9 +304,33 @@ export function CommandCenterView({
                <p className={cn('text-xs', txMuted)}>{periodLabel}</p>
              </div>
           </div>
+          <ConsolidatedHeader count={(data.campaigns || []).length} expanded={evolutionExpanded} onToggle={() => setEvolutionExpanded(v => !v)} isDark={isDark} txMuted={txMuted} label="Evolução consolidada" />
+          {evolutionExpanded && (data.campaigns || []).length > 1 ? (
+            <div className="space-y-6">
+              {(data.campaigns || []).map((c: any) => (
+                <div key={c.id}>
+                  <p className={cn('text-sm font-black mb-2 truncate', tx)}>{c.name}</p>
+                  <div className="h-[220px]">
+                    <MultiMetricChart
+                      data={dailySeriesFor(c.id)}
+                      xKey="date"
+                      height={220}
+                      yLeftLabel="Gasto em R$"
+                      yRightLabel="Leads"
+                      metrics={[
+                        { key: 'spend', label: 'Gasto', color: isDark ? '#6366f1' : '#4f46e5', type: 'area', yAxisId: 'left', formatter: (v: number) => formatCurrency(v) },
+                        { key: 'conversions', label: 'Leads', color: isDark ? '#34d399' : '#10b981', type: 'line', yAxisId: 'right' },
+                      ]}
+                      isDark={isDark}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
           <div className="flex-1 min-h-[250px]">
-            <MultiMetricChart 
-              data={chartData} 
+            <MultiMetricChart
+              data={chartData}
               xKey="date"
               height={250}
               yLeftLabel="Gasto em R$"
@@ -293,6 +344,7 @@ export function CommandCenterView({
               isDark={isDark} 
             />
           </div>
+          )}
         </div>
 
         {/* Índice de Saúde */}
@@ -355,7 +407,24 @@ export function CommandCenterView({
              </div>
            </div>
            <div className="flex-1 mt-4">
-             {funnelData?.totals ? (
+             <ConsolidatedHeader count={(data.campaigns || []).length} expanded={funnelExpanded} onToggle={() => setFunnelExpanded(v => !v)} isDark={isDark} txMuted={txMuted} label="Funil consolidado" />
+             {funnelExpanded && (data.campaigns || []).length > 1 ? (
+               <div className="space-y-6">
+                 {(data.campaigns || []).map((c: any) => {
+                   const m = aggregateMetrics(data.currentPeriod.insights || [], data.leadsByCampaign || {}, new Set([c.id]), data.videoHookByCampaign);
+                   return (
+                     <div key={c.id}>
+                       <p className={cn('text-sm font-black mb-2 truncate', tx)}>{c.name}</p>
+                       <ClassicFunnelChart
+                         funnelData={{ impressions: m.impressions, clicks: m.clicks, leads: m.leads, conversions: m.conversions }}
+                         leadCount={m.leads}
+                         isDark={isDark}
+                       />
+                     </div>
+                   );
+                 })}
+               </div>
+             ) : funnelData?.totals ? (
                <ClassicFunnelChart funnelData={funnelData.totals} leadCount={data.currentPeriod.leadCount || 0} isDark={isDark} />
              ) : (
                <div className="flex items-center justify-center h-full opacity-50 text-xs">Sem dados de funil no período.</div>
@@ -375,7 +444,7 @@ export function CommandCenterView({
             </div>
           </div>
 
-          <div className="flex-1 space-y-3">
+          <div className="flex-1 space-y-3 max-h-[480px] overflow-y-auto pr-1">
             {aiInsights.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full py-8 text-center">
                 {hasScopeData ? (
@@ -393,7 +462,7 @@ export function CommandCenterView({
                 )}
               </div>
             ) : (
-              aiInsights.slice(0, 3).map((insight, idx) => (
+              aiInsights.map((insight, idx) => (
                 <div key={idx} className={cn('p-4 rounded-2xl flex gap-4 items-start', 
                   isDark ? 'bg-white/5 border border-white/5' : 'bg-slate-50 border border-slate-100'
                 )}>
@@ -404,7 +473,10 @@ export function CommandCenterView({
                   )}>
                     {insight.type === 'PAUSE' || insight.type === 'ALERT' ? <ExclamationTriangleIcon className="w-5 h-5" /> : <BoltIcon className="w-5 h-5" />}
                   </div>
-                  <div>
+                  <div className="min-w-0">
+                    {insight.campaignName && (
+                      <p className={cn('text-[10px] font-black uppercase tracking-wider mb-0.5 truncate', txMuted)}>{insight.campaignName}</p>
+                    )}
                     <h4 className={cn('text-sm font-bold mb-1', tx)}>{insight.title}</h4>
                     <p className={cn('text-xs leading-relaxed', txMuted)}>{insight.description}</p>
                   </div>

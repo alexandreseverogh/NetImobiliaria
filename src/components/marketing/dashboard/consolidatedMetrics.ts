@@ -22,6 +22,39 @@ export interface AggregatedMetrics {
   hookRate: number | null; // views 3s ÷ impressões × 100 (null sem vídeo)
 }
 
+/** Série diária (gasto e conversões) de UMA campanha, a partir dos brutos por dia do período. */
+export function campaignDailySeries(
+  insights: InsightData[],
+  campaignId: string,
+): { date: string; spend: number; conversions: number }[] {
+  const byDate = new Map<string, { date: string; spend: number; conversions: number }>();
+  for (const ins of insights) {
+    if (ins.campaignId !== campaignId) continue;
+    const date = String(ins.date).slice(0, 10);
+    const row = byDate.get(date) ?? { date, spend: 0, conversions: 0 };
+    row.spend += ins.spend || 0;
+    row.conversions += ins.conversions || 0;
+    byDate.set(date, row);
+  }
+  return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/**
+ * CPL diário de UMA campanha: gasto do dia ÷ leads do dia (leads vêm do mesmo evento de lead
+ * que alimenta o consolidado). Dias sem lead ficam com cpl null, nunca zero.
+ */
+export function campaignCplSeries(
+  insights: InsightData[],
+  dailyLeads: { date: string; count: number }[],
+  campaignId: string,
+): { date: string; spend: number; leads: number; cpl: number | null }[] {
+  const leadsByDate = new Map(dailyLeads.map(d => [String(d.date).slice(0, 10), d.count]));
+  return campaignDailySeries(insights, campaignId).map(d => {
+    const leads = leadsByDate.get(d.date) ?? 0;
+    return { date: d.date, spend: d.spend, leads, cpl: leads > 0 ? d.spend / leads : null };
+  });
+}
+
 export function aggregateMetrics(
   insights: InsightData[],
   leadsByCampaign: Record<string, number>,

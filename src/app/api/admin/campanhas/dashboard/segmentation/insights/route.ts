@@ -19,7 +19,7 @@ function parseScope(request: NextRequest, tenantId: string) {
   const startDate = startStr
     ? (startStr.length === 10 ? startStr : startStr.slice(0, 10))
     : new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-  return { tenantId, startDate, endDate, clientId, segmentId: searchParams.get('segmentId') };
+  return { tenantId, startDate, endDate, clientId, segmentId: searchParams.get('segmentId'), campaignId: searchParams.get('campaignId') };
 }
 
 /**

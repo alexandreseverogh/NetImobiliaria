@@ -36,7 +36,15 @@ export async function GET(request: NextRequest) {
 
     // ── Escopo de campanhas (mesma regra dos outros endpoints do dashboard) ──
     let campaignIds: string[] | null = null; // null = todas do tenant
-    if (segmentId) {
+    // Visão por campanha: uma campanha específica (dentro do escopo já validado pelo tenant).
+    const oneCampaignId = searchParams.get('campaignId');
+    if (oneCampaignId) {
+      const r = await pool.query<{ id: string }>(
+        `SELECT id FROM campanhasmarketingdigital."Campaign" WHERE tenant_id = $1::uuid AND id = $2`,
+        [payload.tenantId, oneCampaignId],
+      );
+      campaignIds = r.rows.map(x => x.id);
+    } else if (segmentId) {
       campaignIds = await resolveCampaignIdsBySegment(payload.tenantId, segmentId, clientId ?? undefined);
     } else if (clientId === 'own') {
       const r = await pool.query<{ id: string }>(

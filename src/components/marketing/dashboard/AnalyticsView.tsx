@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { ConsolidatedHeader } from '@/components/marketing/dashboard/ConsolidatedHeader';
+import { campaignCplSeries } from '@/components/marketing/dashboard/consolidatedMetrics';
 import { motion } from 'framer-motion';
 import { MultiMetricChart } from '@/components/marketing/charts/MultiMetricChart';
 import { CplTimelineChart } from '@/components/marketing/charts/CplTimelineChart';
@@ -59,6 +61,7 @@ export function AnalyticsView({
   clientFilter,
   loading,
 }: AnalyticsViewProps) {
+  const [cplExpanded, setCplExpanded] = useState(false);
   if (loading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-pulse">
@@ -128,7 +131,24 @@ export function AnalyticsView({
           {/* CPL Timeline */}
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className={cn('rounded-2xl p-6', cardBase)}>
             <h3 className={cn('text-sm font-black mb-2', tx)}>CPL Timeline</h3>
-            <CplTimelineChart data={cplData} isDark={isDark} />
+            <ConsolidatedHeader count={campaigns.length} expanded={cplExpanded} onToggle={() => setCplExpanded(v => !v)} isDark={isDark} txMuted={txMuted} label="CPL consolidado" />
+            {cplExpanded && campaigns.length > 1 ? (
+              <div className="space-y-6">
+                {campaigns.map((c: any) => (
+                  <div key={c.id}>
+                    <p className={cn('text-sm font-black mb-2 truncate', tx)}>{c.name}</p>
+                    <CplTimelineChart
+                      data={campaignCplSeries(data?.currentPeriod.insights || [], data?.dailyLeadsByCampaign?.[c.id] || [], c.id)
+                        .filter(p => p.cpl !== null)
+                        .map(p => ({ date: p.date, spend: p.spend, leads: p.leads, cpl: p.cpl as number }))}
+                      isDark={isDark}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <CplTimelineChart data={cplData} isDark={isDark} />
+            )}
           </motion.div>
 
           {/* Distribuição por Campanha */}
@@ -224,6 +244,28 @@ export function AnalyticsView({
             ) : (
               <FunnelChart data={data.funnelData} isDark={isDark} />
             )}
+            {/* Campanhas em cada estágio (TOF/MOF/BOF) — o total fica no gráfico acima. */}
+            <div className="mt-5 space-y-3">
+              {(['TOF', 'MOF', 'BOF'] as const).map(stage => {
+                const list = campaigns.filter((c: any) => (c.funnelStage ?? 'TOF') === stage);
+                return (
+                  <div key={stage}>
+                    <p className={cn('text-[10px] font-black uppercase tracking-widest mb-1', txMuted)}>
+                      {stage} · {list.length} campanha{list.length === 1 ? '' : 's'}
+                    </p>
+                    {list.length === 0 ? (
+                      <p className={cn('text-[11px]', txFaint)}>Nenhuma campanha neste estágio.</p>
+                    ) : (
+                      <ul className="space-y-1">
+                        {list.map((c: any) => (
+                          <li key={c.id} className={cn('text-[11px] truncate', tx)}>{c.name}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </motion.div>
         </div>
       </div>

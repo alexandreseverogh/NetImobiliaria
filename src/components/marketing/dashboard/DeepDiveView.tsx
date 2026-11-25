@@ -86,23 +86,29 @@ export function DeepDiveView({
         {anticipationData.length > 0 ? (
           <div className="space-y-6">
             {/* ── TimeToEvent bars ──────────────────────────────────── */}
+            {/* Agrupado por campanha: cada evento pertence a uma campanha específica. */}
             {(() => {
-              const allEvents = anticipationData.flatMap(r =>
-                r.events.map(e => ({ ...e, campaignId: r.campaignId }))
-              );
-              if (allEvents.length === 0) return null;
+              const withEvents = anticipationData.filter(r => r.events.length > 0);
+              if (withEvents.length === 0) return null;
               return (
                 <div>
                   <p className={cn('text-[10px] font-black uppercase tracking-widest mb-3', isDark ? 'text-cyan-700' : 'text-sky-500')}>
                     Contagem Regressiva de Eventos
                   </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {allEvents.map((e, i) => {
-                      const campName = campaigns.find(c => c.id === e.campaignId)?.name;
+                  <div className="space-y-5">
+                    {withEvents.map((r, ri) => {
+                      const campName = campaigns.find(c => c.id === r.campaignId)?.name;
                       return (
-                        <motion.div key={i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}>
-                          <TimeToEventBar event={e as TimeToEvent} campaignName={campName} />
-                        </motion.div>
+                        <div key={ri}>
+                          <p className={cn('text-xs font-black mb-2 truncate', tx)}>{campName ?? 'Campanha'}</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {r.events.map((e, i) => (
+                              <motion.div key={i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}>
+                                <TimeToEventBar event={e as TimeToEvent} campaignName={campName} />
+                              </motion.div>
+                            ))}
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
@@ -362,6 +368,11 @@ export function DeepDiveView({
                       {hk.suggestion && ` ${hk.suggestion}.`}
                       {' '}Diversidade criativa: {hk.diversityIndex}/100.
                     </p>
+                    {Array.isArray(hk.dominantCampaigns) && hk.dominantCampaigns.length > 0 && (
+                      <p className={cn('text-xs mt-2', txMuted)}>
+                        <span className="font-black">Campanhas com esse hook:</span> {hk.dominantCampaigns.join(' · ')}
+                      </p>
+                    )}
                   </motion.div>
                 );
               })()}

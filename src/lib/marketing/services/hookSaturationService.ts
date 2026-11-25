@@ -18,6 +18,7 @@ export interface HookSaturationResult {
   diversityIndex: number;    // 0-100 (Shannon), higher = more diverse
   dominantHook: string | null;
   dominantShare: number;     // 0-100
+  dominantCampaigns: string[]; // campanhas que usam o hook dominante
   saturationAlert: boolean;  // dominantShare >= 70
   suggestion: string | null;
 }
@@ -128,7 +129,7 @@ export async function getHookSaturation(
   if (rows.length === 0) {
     return {
       hookStats: [], totalCreatives: 0, diversityIndex: 100,
-      dominantHook: null, dominantShare: 0, saturationAlert: false, suggestion: null,
+      dominantHook: null, dominantShare: 0, dominantCampaigns: [], saturationAlert: false, suggestion: null,
     };
   }
 
@@ -147,6 +148,20 @@ export async function getHookSaturation(
   // alerta em ≥50%: amarelo (50-69%), vermelho (≥70%)
   const saturationAlert = dominant.share >= 50;
 
+  // Campanhas que usam o hook dominante — o alerta precisa dizer ONDE a saturação está.
+  const domParams = [...params, dominant.hookType];
+  const { rows: domRows } = await pool.query(`
+    SELECT DISTINCT cam.name
+      FROM campanhasmarketingdigital."CreativeAsset" ca
+      JOIN campanhasmarketingdigital."CreativeAnalysis" an ON an.asset_id = ca.id
+      JOIN campanhasmarketingdigital."Campaign" cam ON cam.id = ca.campaign_id
+     WHERE ca.tenant_id = $1::uuid
+       AND COALESCE(an.hook_type, 'other') = $${domParams.length}
+       ${clientWhere}
+     ORDER BY cam.name
+  `, domParams);
+  const dominantCampaigns: string[] = domRows.map((r: any) => String(r.name));
+
   // Só sorteia entre hooks REAIS do segmento (nunca um valor de angle, nunca um slug que o
   // segmento não tenha cadastrado) pra sugerir como alternativa.
   const missing = realHookSlugs
@@ -160,6 +175,7 @@ export async function getHookSaturation(
   return {
     hookStats, totalCreatives: total, diversityIndex,
     dominantHook: dominant.hookType, dominantShare: dominant.share,
+    dominantCampaigns,
     saturationAlert, suggestion,
   };
 }

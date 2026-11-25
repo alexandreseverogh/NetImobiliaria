@@ -36,6 +36,8 @@ interface Scope {
   endDate: string;
   segmentId: string | null;
   clientId: string | null;
+  /** Visão por campanha: restringe a uma campanha (já validada como do tenant na rota). */
+  campaignId?: string | null;
 }
 
 const brl = (n: number) =>
@@ -46,7 +48,13 @@ const AGE_GENDER_LABEL: Record<string, string> = { male: 'homens', female: 'mulh
 
 async function loadBreakdownRows(scope: Scope) {
   let campaignIds: string[] | null = null;
-  if (scope.segmentId) {
+  if (scope.campaignId) {
+    const r = await pool.query<{ id: string }>(
+      `SELECT id FROM campanhasmarketingdigital."Campaign" WHERE tenant_id = $1::uuid AND id = $2`,
+      [scope.tenantId, scope.campaignId],
+    );
+    campaignIds = r.rows.map(x => x.id);
+  } else if (scope.segmentId) {
     campaignIds = await resolveCampaignIdsBySegment(scope.tenantId, scope.segmentId, scope.clientId ?? undefined);
   } else if (scope.clientId === 'own') {
     const r = await pool.query<{ id: string }>(

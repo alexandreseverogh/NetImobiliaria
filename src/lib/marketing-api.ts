@@ -443,6 +443,8 @@ export interface DashboardFullData {
   leadsByCampaign?: Record<string, number>;
   // Hook Rate: visualizações de 3s e impressões SÓ dos anúncios de vídeo, por campanha.
   videoHookByCampaign?: Record<string, { views3s: number; impressions: number }>;
+  // Leads por dia de cada campanha (CPL diário por campanha).
+  dailyLeadsByCampaign?: Record<string, { date: string; count: number }[]>;
   // FASE 1 (Google Ads) A7 — comparativo CPL por rede (meta/google/...)
   cplByNetwork?: Record<string, { spend: number; leads: number; cpl: number | null }>;
   // PARTE D1 — redes com dado real no escopo atual (antes do filtro de rede), alimenta o seletor
@@ -620,6 +622,7 @@ export interface SegmentationInsightsParams {
   endDate: string;
   segmentId?: string | null;
   clientId?: string | null;
+  campaignId?: string | null;
 }
 
 /** Fatos determinísticos do período (sem IA). */
@@ -629,6 +632,7 @@ export const getSegmentationInsights = (p: SegmentationInsightsParams) =>
       startDate: p.startDate, endDate: p.endDate,
       ...(p.segmentId ? { segmentId: p.segmentId } : {}),
       ...(p.clientId ? { clientId: p.clientId } : {}),
+      ...(p.campaignId ? { campaignId: p.campaignId } : {}),
     },
   }).then(r => r.data);
 
@@ -639,6 +643,7 @@ export const generateSegmentationNarrative = (p: SegmentationInsightsParams) =>
       startDate: p.startDate, endDate: p.endDate,
       ...(p.segmentId ? { segmentId: p.segmentId } : {}),
       ...(p.clientId ? { clientId: p.clientId } : {}),
+      ...(p.campaignId ? { campaignId: p.campaignId } : {}),
     },
   }).then(r => r.data);
 
@@ -825,6 +830,8 @@ export interface GoogleCampaignSummary {
   name: string;
   avgSearchBudgetLostIs: number;
   roas: number | null;
+  spend?: number;
+  conversionValue?: number;
 }
 
 export interface GoogleSearchTermsData {

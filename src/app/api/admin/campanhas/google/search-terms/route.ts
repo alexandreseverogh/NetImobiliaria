@@ -87,6 +87,9 @@ export async function GET(request: NextRequest) {
         name: c.name,
         avgSearchBudgetLostIs: s?.avg_is_lost || 0,
         roas: spend > 0 ? convValue / spend : null,
+        // Brutos para o consolidado (ROAS = soma do valor ÷ soma do gasto, nunca média de ROAS).
+        spend,
+        conversionValue: convValue,
       };
     });
 

@@ -33,8 +33,9 @@ interface Props {
 
 // ── SVG campaign pin icon ──────────────────────────────────────────────────────
 function makeCampaignIcon(count: number, isDark: boolean): string {
-  const color = count >= 5 ? '#f59e0b' : count >= 2 ? '#818cf8' : '#34d399';
-  const label = count > 9 ? '9+' : String(count);
+  // count = total de leads da localização (consolidado). Faixas de cor e rótulo acompanham leads.
+  const color = count >= 50 ? '#f59e0b' : count >= 10 ? '#818cf8' : '#34d399';
+  const label = count > 99 ? '99+' : String(count);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="48" viewBox="0 0 40 48">
     <defs>
       <filter id="sh" x="-30%" y="-20%" width="160%" height="160%">
@@ -95,7 +96,9 @@ function buildMap(
     bounds.push([loc.lat, loc.lng]);
 
     // Custom icon
-    const iconUrl = makeCampaignIcon(loc.campaigns.length, isDark);
+    // Consolidado por localização: o marcador mostra o total de leads do local (todas as campanhas).
+    const locLeads = loc.campaigns.reduce((s, c) => s + c.leads, 0);
+    const iconUrl = makeCampaignIcon(locLeads, isDark);
     const icon = Lf.icon({
       iconUrl,
       iconSize:   [40, 48],
@@ -416,6 +419,8 @@ export function CampaignMapWidget({ isDark, clientId, segmentId, startDate, endD
             <div className="mt-3 flex flex-col gap-1.5 max-h-28 overflow-y-auto pr-1">
               {locations.map((loc, i) => {
                 const active = loc.campaigns.filter(c => c.status === 'ACTIVE').length;
+                const locLeads = loc.campaigns.reduce((s, c) => s + c.leads, 0);
+                const locSpend = loc.campaigns.reduce((s, c) => s + c.spend, 0);
                 return (
                   <div key={i} className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
@@ -424,6 +429,12 @@ export function CampaignMapWidget({ isDark, clientId, segmentId, startDate, endD
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className={`text-[10px] font-bold ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`}>
+                        {locLeads} leads
+                      </span>
+                      <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(locSpend)}
+                      </span>
+                      <span className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                         {loc.campaigns.length} camp.
                       </span>
                       {active > 0 && (

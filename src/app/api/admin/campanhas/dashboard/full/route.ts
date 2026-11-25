@@ -239,6 +239,15 @@ export async function GET(request: NextRequest) {
 
     const leadsByCampaign = Object.fromEntries(groupLeadsByCampaign(currentLeadEvents));
 
+    // Leads por dia de cada campanha — base do CPL diário por campanha (mesma fonte do consolidado).
+    const dailyLeadsByCampaign: Record<string, { date: string; count: number }[]> = {};
+    for (const e of currentLeadEvents) {
+      const arr = (dailyLeadsByCampaign[e.campaignId] ??= []);
+      const day = arr.find(x => x.date === e.date);
+      if (day) day.count += e.count;
+      else arr.push({ date: e.date, count: e.count });
+    }
+
     const funnelData = {
       impressions: currentTotals.impressions,
       clicks: currentTotals.clicks,
@@ -284,6 +293,7 @@ export async function GET(request: NextRequest) {
       discontinuedNetworks,
       lastCollectedAt: lastCollectedDate ? lastCollectedDate.toISOString() : null,
       videoHookByCampaign,
+      dailyLeadsByCampaign,
       funnelData,
     });
   } catch (error: any) {
