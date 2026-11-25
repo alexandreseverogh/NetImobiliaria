@@ -92,7 +92,7 @@ export function AccountBalanceBanner({ isDark, compact = false, className }: { i
       <div className="flex items-center gap-2 pr-3">
         <WalletIcon className={cn('h-5 w-5', isDark ? 'text-slate-400' : 'text-gray-400')} />
         <p className={cn('text-[10px] font-black uppercase tracking-widest', isDark ? 'text-slate-400' : 'text-gray-400')}>
-          Saldo para Campanhas
+          Gasto Total das Campanhas
         </p>
       </div>
 
