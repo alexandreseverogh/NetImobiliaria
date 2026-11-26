@@ -102,10 +102,14 @@ export function computeHealth(
   if (healthScore < 70) healthTone = 'warning';
   if (healthScore < 45) healthTone = 'critical';
 
+  // Razões — só as que de fato pesaram na nota (peso > 0). INFO (peso 0) é só contexto
+  // informativo, nunca "ponto de atenção" — a frase completa dele vive só no card de
+  // Alertas Acionáveis; aqui o card de Saúde não a repete mais, só aponta pra lá.
   const healthReasons = Array.from(worstByCampaign.values())
+    .filter(w => (HEALTH_SEVERITY_WEIGHT[w.insight.type] ?? 0) > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, 3)
-    .map(w => w.insight.description);
+    .map(w => w.insight.title);
 
   return { healthScore, healthTone, healthReasons, hasScopeData: true };
 }
@@ -414,18 +418,14 @@ export function CommandCenterView({
               : 'Problemas críticos detectados no ecossistema.'}
           </p>
           {/* Achado real (2026-11-26): mesmo com Saúde "boa" (≥70), pode haver motivo real por
-              trás de não ser 100 (ex.: um insight informativo de baixo peso) — antes essa lista
-              só aparecia em warning/critical, escondendo o porquê sempre que o tom geral era bom.
-              Agora aparece sempre que existir, com ou sem o tom ser "bom". */}
+              trás de não ser 100 — antes essa lista só aparecia em warning/critical, escondendo
+              o porquê sempre que o tom geral era bom. Agora aparece sempre que existir.
+              Resumo curto, não mais a frase inteira (que já se repete, igual, no card de
+              Alertas Acionáveis logo abaixo — texto completo vive só lá). */}
           {healthReasons.length > 0 && (
-            <ul className={cn('text-xs mt-2 px-2 space-y-1.5 text-left w-full', txMuted)}>
-              {healthReasons.map((reason, idx) => (
-                <li key={idx} className="flex gap-1.5">
-                  <span className="shrink-0">•</span>
-                  <span>{reason}</span>
-                </li>
-              ))}
-            </ul>
+            <p className={cn('text-xs mt-2 px-2 text-center w-full', txMuted)}>
+              {healthReasons.length} {healthReasons.length === 1 ? 'ponto de atenção' : 'pontos de atenção'} — ver em Alertas Acionáveis ↓
+            </p>
           )}
           {/* Expansão por campanha — mesmo padrão já usado em Evolução/Funil consolidados
               (ConsolidatedHeader), faltava só aqui. */}
@@ -453,14 +453,9 @@ export function CommandCenterView({
                           </span>
                         </div>
                         {hc.healthReasons.length > 0 ? (
-                          <ul className={cn('text-[11px] space-y-1', txMuted)}>
-                            {hc.healthReasons.map((reason, idx) => (
-                              <li key={idx} className="flex gap-1.5">
-                                <span className="shrink-0">•</span>
-                                <span>{reason}</span>
-                              </li>
-                            ))}
-                          </ul>
+                          <p className={cn('text-[11px]', txMuted)}>
+                            {hc.healthReasons.length} {hc.healthReasons.length === 1 ? 'ponto de atenção' : 'pontos de atenção'} — ver em Alertas Acionáveis ↓
+                          </p>
                         ) : (
                           <p className={cn('text-[11px]', txMuted)}>Sem pontos de atenção registrados.</p>
                         )}
