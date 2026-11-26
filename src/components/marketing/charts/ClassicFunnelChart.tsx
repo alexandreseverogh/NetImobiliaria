@@ -38,8 +38,13 @@ const STAGES = [
   },
 ];
 
+// "—" era usado tanto pra "não temos esse dado" (null/undefined) quanto pra "zero real"
+// (n === 0) — os dois acabavam indistinguíveis na tela. Campanha de Engajamento/Reconhecimento
+// genuinamente tem 0 lead (não gera CTA de lead por desenho, já esclarecido em INFO insights
+// do dashboard) — mostrar "—" ali sugere "falta dado", quando na real é "zero mesmo, e é
+// esperado". Agora só "—" significa ausência; zero real aparece como "0".
 function fmt(n?: number | null): string {
-  if (n === undefined || n === null || isNaN(n) || n <= 0) return '—';
+  if (n === undefined || n === null || isNaN(n) || n < 0) return '—';
   if (n >= 1_000_000)  return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000)      return `${(n / 1_000).toFixed(1)}K`;
   return n.toLocaleString('pt-BR');
