@@ -58,6 +58,10 @@ export interface Campaign {
   // atividade real (Insight) ou criação dentro de AGENT_INSIGHT_RECENCY_DAYS. Não afeta
   // nenhum cálculo — só o que aparece por padrão na lista.
   isVigente?: boolean;
+  // Vida inteira da campanha (nunca o período filtrado no dashboard) — dias desde o 1º dado
+  // real até hoje, e gasto médio diário nessa janela completa. null = sem nenhum dado ainda.
+  daysRunning?: number | null;
+  avgDailySpend?: number | null;
 }
 
 export interface AdSet {

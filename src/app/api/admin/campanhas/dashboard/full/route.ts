@@ -115,14 +115,24 @@ export async function GET(request: NextRequest) {
     // frontend decidir o que aparece por padrão no <select>. Mesmo limiar de
     // AGENT_INSIGHT_RECENCY_DAYS já usado no piso de recência do agente/briefing —
     // conceito único de "vigente" na plataforma, mecanismos independentes.
+    // Mesma query já aproveitada pra trazer, de brinde, a VIDA INTEIRA da campanha (sem round-
+    // trip novo): data do 1º dado real (_min) e gasto total desde sempre (_sum) — nunca
+    // limitados ao período filtrado, ao contrário de "Gasto" no card (que é do período). É o
+    // que alimenta "Dias Rodando"/"Custo Médio/Dia" por campanha — pedido real do usuário
+    // (2026-11-26) depois de a gente mesmo ter confundido janela filtrada com vida real da
+    // campanha algumas vezes nesta mesma sessão.
     const lastActivityRows = campaignIds.length > 0
       ? await prisma.insight.groupBy({
           by: ['campaignId'],
           where: { campaignId: { in: campaignIds } },
           _max: { date: true },
+          _min: { date: true },
+          _sum: { spend: true },
         })
       : [];
     const lastActivityByCampaign = new Map(lastActivityRows.map(r => [r.campaignId, r._max.date]));
+    const firstActivityByCampaign = new Map(lastActivityRows.map(r => [r.campaignId, r._min.date]));
+    const lifetimeSpendByCampaign = new Map(lastActivityRows.map(r => [r.campaignId, r._sum.spend ?? 0]));
     // Última data de dado coletado da Meta/Google no escopo (não é o período filtrado — é o
     // quão recente é o dado que o dashboard está mostrando). Usado pelo rótulo "coletado há…".
     const lastCollectedDate = lastActivityRows.reduce<Date | null>(
@@ -135,7 +145,16 @@ export async function GET(request: NextRequest) {
         (!!lastInsight && lastInsight >= vigenteCutoff) ||
         (c.createdAt >= vigenteCutoff)
       );
-      return { ...c, isVigente };
+      // Vida inteira da campanha — independente do período filtrado no dashboard (diferente de
+      // "Gasto", que é só do período). daysRunning = dias corridos desde o 1º dado real até
+      // hoje (nunca até endDate filtrado, pra não mudar conforme o usuário mexe no período).
+      const firstInsight = firstActivityByCampaign.get(c.id) ?? null;
+      const lifetimeSpend = lifetimeSpendByCampaign.get(c.id) ?? 0;
+      const daysRunning = firstInsight
+        ? Math.max(1, Math.floor((Date.now() - firstInsight.getTime()) / 86400000) + 1)
+        : null;
+      const avgDailySpend = daysRunning ? lifetimeSpend / daysRunning : null;
+      return { ...c, isVigente, daysRunning, avgDailySpend };
     });
 
     const insightWhere: any = {

@@ -1,10 +1,14 @@
 import React from 'react';
 import { cn } from '@/lib/marketing-utils';
+import { HelpHint } from '@/components/marketing/DashboardHelpModal';
 
-export function KpiCard({ isDark, label, value, fullValue, color, delta, invertDelta, tooltip, breakdown }: {
+export function KpiCard({ isDark, label, value, fullValue, color, delta, invertDelta, tooltip, breakdown, helpTerm }: {
   isDark: boolean; label: string; value: string; fullValue?: string; color: string;
   delta?: number; invertDelta?: boolean; tooltip?: string;
   breakdown?: { label: string; value: string }[];
+  // Termo do Guia (DashboardHelpModal) a abrir ao clicar no "?" — omitido quando o KPI ainda
+  // não tem entrada no glossário (ex.: "Custo/conversa", "Campanhas Ativas").
+  helpTerm?: string;
 }) {
   let deltaColor = isDark ? 'text-slate-600' : 'text-gray-400';
   let deltaIcon  = '';
@@ -48,10 +52,10 @@ export function KpiCard({ isDark, label, value, fullValue, color, delta, invertD
     >
       {/* Label */}
       <span
-        className={`text-[9px] font-black uppercase tracking-widest leading-tight break-words min-h-[2.4em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}
-        title={label}
+        className={`flex items-center gap-1 text-[9px] font-black uppercase tracking-widest leading-tight break-words min-h-[2.4em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}
       >
-        {label}
+        <span title={label}>{label}</span>
+        {helpTerm && <HelpHint term={helpTerm} isDark={isDark} />}
       </span>
 
       {/* Valor — versão compacta para caber no card */}

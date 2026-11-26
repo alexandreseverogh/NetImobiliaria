@@ -45,6 +45,37 @@ const METRICAS: HelpItem[] = [
     tip: 'A seta vermelha (↑) é esperada — mais gasto significa mais investimento. Preocupe-se quando o CPL sobe junto.',
   },
   {
+    emoji: '📆',
+    term: 'Dias Rodando',
+    subtitle: 'Vida inteira da campanha — não o período filtrado acima',
+    what: 'Quantos dias se passaram desde a primeira vez que a campanha teve atividade real registrada, até hoje. Diferente de "Gasto" e dos outros números do card: este nunca muda conforme você troca o período filtrado no topo da tela.',
+    how: 'Use pra entender se a campanha é nova (poucos dias, dê tempo antes de julgar) ou já madura (muitos dias, os números já são confiáveis). Também evita um erro comum: olhar um gasto do período filtrado achando que é tudo que a campanha já gastou na vida.',
+    actions: {
+      do: [
+        'Campanha com poucos dias rodando e métrica ruim: dê mais tempo antes de pausar — pode ainda estar em aprendizado.',
+        'Compare "Dias Rodando" com o período que você selecionou pra saber se está vendo a campanha inteira ou só um pedaço dela.',
+      ],
+      dont: [
+        'Não compare "Gasto" (do período filtrado) direto com decisões de pausar/escalar sem checar quantos dias isso realmente cobre.',
+      ],
+    },
+  },
+  {
+    emoji: '🧮',
+    term: 'Custo Médio/Dia',
+    subtitle: 'Ritmo médio de gasto desde o lançamento da campanha',
+    what: 'Gasto total da campanha (desde sempre) dividido pelos "Dias Rodando". É o ritmo médio de investimento ao longo de toda a vida da campanha — não o gasto do período que você filtrou.',
+    how: 'Serve pra comparar o que a campanha historicamente gasta por dia com o que ela está gastando AGORA (no "Gasto" do período filtrado). Se o gasto do período, dividido pelos dias desse mesmo período, estiver bem diferente do Custo Médio/Dia, algo mudou — orçamento foi ajustado, ou o Meta está entregando de forma irregular.',
+    actions: {
+      do: [
+        'Use como referência de "ritmo normal" antes de desconfiar de um gasto que parece alto ou baixo demais num período curto.',
+      ],
+      dont: [
+        'Não confunda com o orçamento diário configurado na campanha — este é o gasto REAL médio, pode ser maior ou menor que o configurado.',
+      ],
+    },
+  },
+  {
     emoji: '👁️',
     term: 'Impressões',
     subtitle: 'Quantas vezes o anúncio foi exibido',
