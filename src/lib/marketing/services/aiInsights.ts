@@ -378,11 +378,18 @@ const RULES: InsightRule[] = [
     // pausa — só explica, com o dado real da própria campanha, por que "zero lead" não é
     // tratado como problema aqui. Sem isso, o usuário vê gasto real + zero lead + nenhum
     // alerta, e pode achar que a IA simplesmente não percebeu.
+    //
+    // Achado real (2026-11-26, pós-revisão com o usuário): antes essa explicação só disparava
+    // acima do MESMO limiar proporcional de gasto da regra de alarme PAUSE — ou seja, o caso
+    // "normal" (campanha de Engajamento gastando dentro do ritmo esperado, zero lead) ficava
+    // mudo, sem nenhum insight, exatamente o cenário que esta regra existe pra esclarecer.
+    // Agora dispara sempre que há gasto real registrado, sem depender do limiar — o limiar
+    // continua existindo só pra decidir ALARME (regra PAUSE acima), nunca pra decidir se a
+    // explicação aparece.
     check: (d, b) => {
       if (d.funnelStage === 'BOF' || d.isLearning) return false;
       if (d.leads !== 0 || d.daysRunning < b.min_days_running) return false;
-      const limite = computeSpendNoLeadThreshold(d, b);
-      return limite != null && d.totalSpend > limite;
+      return d.totalSpend > 0;
     },
     type: 'INFO',
     title: 'Sem lead — esperado para o objetivo desta campanha',
