@@ -233,13 +233,24 @@ export function CommandCenterView({
                   {(() => {
                     const sig = data.metaSignalsByCampaign?.[c.id] ?? { linkClicks: 0, conversationsStarted: 0 };
                     const sigCpl = sig.conversationsStarted > 0 ? m.spend / sig.conversationsStarted : null;
+                    // Leads/CPL (do CRM) só fazem sentido pra campanha de fundo de funil (BOF) —
+                    // campanha de Engajamento/Reconhecimento (MOF/TOF) nunca gera lead identificado
+                    // no CRM por desenho, então sempre mostraria "0"/"—" morto. O resultado REAL
+                    // dessas etapas já está nos cards "Custo/conversa"/"Conversas iniciadas (Meta)"
+                    // logo depois — então aqui só se esconde o par que nunca teria dado, não se
+                    // inventa um substituto novo.
+                    const stage = (c.funnelStage ?? 'TOF') as 'TOF' | 'MOF' | 'BOF';
                     return (
                       <>
                         <KpiCard isDark={isDark} label="Gasto" helpTerm="Gasto" value={formatCurrencyCompact(m.spend)} fullValue={formatCurrency(m.spend)} color={isDark ? 'text-slate-100' : 'text-slate-900'} />
                         <KpiCard isDark={isDark} label="Dias Rodando" helpTerm="Dias Rodando" value={c.daysRunning != null ? `${c.daysRunning}d` : '—'} color={isDark ? 'text-slate-300' : 'text-slate-700'} tooltip="Dias corridos desde a 1ª atividade real da campanha — vida inteira, independente do período filtrado acima." />
                         <KpiCard isDark={isDark} label="Custo Médio/Dia" helpTerm="Custo Médio/Dia" value={c.avgDailySpend != null ? formatCurrencyCompact(c.avgDailySpend) : '—'} fullValue={c.avgDailySpend != null ? formatCurrency(c.avgDailySpend) : '—'} color={isDark ? 'text-slate-300' : 'text-slate-700'} tooltip="Gasto total da campanha (desde o início) ÷ Dias Rodando — ritmo médio de vida inteira, não do período filtrado." />
-                        <KpiCard isDark={isDark} label="Leads" helpTerm="Leads" value={formatNumber(m.leads)} color={isDark ? 'text-indigo-400' : 'text-indigo-600'} />
-                        <KpiCard isDark={isDark} label="CPL" helpTerm="CPL" value={m.cpl !== null ? formatCurrencyCompact(m.cpl) : '—'} fullValue={m.cpl !== null ? formatCurrency(m.cpl) : '—'} color={isDark ? 'text-teal-400' : 'text-teal-600'} />
+                        {stage === 'BOF' && (
+                          <>
+                            <KpiCard isDark={isDark} label="Leads" helpTerm="Leads" value={formatNumber(m.leads)} color={isDark ? 'text-indigo-400' : 'text-indigo-600'} />
+                            <KpiCard isDark={isDark} label="CPL" helpTerm="CPL" value={m.cpl !== null ? formatCurrencyCompact(m.cpl) : '—'} fullValue={m.cpl !== null ? formatCurrency(m.cpl) : '—'} color={isDark ? 'text-teal-400' : 'text-teal-600'} />
+                          </>
+                        )}
                         <KpiCard isDark={isDark} label="Custo/conversa" value={sigCpl !== null ? formatCurrencyCompact(sigCpl) : '—'} fullValue={sigCpl !== null ? formatCurrency(sigCpl) : '—'} color={isDark ? 'text-teal-400' : 'text-teal-600'} tooltip="Custo por conversa WhatsApp: gasto ÷ conversas iniciadas (sinal reportado pela Meta). Não é o custo por lead do CRM." />
                         <KpiCard isDark={isDark} label="Impressões" helpTerm="Impressões" value={formatNumber(m.impressions)} color={isDark ? 'text-blue-400' : 'text-blue-600'} />
                         <KpiCard isDark={isDark} label="Alcance" helpTerm="Alcance" value={formatNumber(m.reach)} color={isDark ? 'text-cyan-400' : 'text-cyan-600'} />
