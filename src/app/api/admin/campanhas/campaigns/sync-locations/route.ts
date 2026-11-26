@@ -9,8 +9,10 @@ export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/admin/campanhas/campaigns/sync-locations
- * Relê da Meta os conjuntos de anúncios (com localização) de TODAS as campanhas importadas
- * do tenant. Cada campanha é independente: uma falha não interrompe as demais.
+ * Relê da Meta os conjuntos de anúncios (com localização) de TODAS as campanhas do tenant que
+ * já existem na Meta — importadas OU criadas pela plataforma. A localização que o mapa mostra
+ * precisa refletir o que está veiculando de fato, não só o que foi salvo localmente.
+ * Cada campanha é independente: uma falha não interrompe as demais.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -21,7 +23,7 @@ export async function POST(request: NextRequest) {
     if (!payload?.tenantId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
 
     const campaigns = await prisma.campaign.findMany({
-      where: { tenantId: payload.tenantId, importedReadOnly: true, metaCampaignId: { not: null } },
+      where: { tenantId: payload.tenantId, metaCampaignId: { not: null } },
       select: { id: true, clientId: true, metaCampaignId: true },
     });
 

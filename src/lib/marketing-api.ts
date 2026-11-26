@@ -456,6 +456,8 @@ export interface DashboardFullData {
   lastCollectedAt?: string | null;
   // Sinais de WhatsApp reportados pela própria Meta (independem do nosso rastreio de cliques)
   metaSignals?: { linkClicks: number; conversationsStarted: number; cpl: number | null };
+  // Mesmos sinais, por campanha (id da campanha → totais no período)
+  metaSignalsByCampaign?: Record<string, { linkClicks: number; conversationsStarted: number }>;
   funnelData: FunnelData;
 }
 

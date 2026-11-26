@@ -230,27 +230,38 @@ export function CommandCenterView({
                     {h.healthTone === 'no_data' ? 'Saúde: sem dados' : `Saúde ${h.healthScore}`}
                   </span>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 2xl:[grid-template-columns:repeat(14,minmax(0,1fr))] gap-2 2xl:gap-1.5">
-                  <KpiCard isDark={isDark} label="Gasto" value={formatCurrencyCompact(m.spend)} fullValue={formatCurrency(m.spend)} color={isDark ? 'text-slate-100' : 'text-slate-900'} />
-                  <KpiCard isDark={isDark} label="Leads" value={formatNumber(m.leads)} color={isDark ? 'text-indigo-400' : 'text-indigo-600'} />
-                  <KpiCard isDark={isDark} label="CPL" value={m.cpl !== null ? formatCurrencyCompact(m.cpl) : '—'} fullValue={m.cpl !== null ? formatCurrency(m.cpl) : '—'} color={isDark ? 'text-teal-400' : 'text-teal-600'} />
-                  <KpiCard isDark={isDark} label="Impressões" value={formatNumber(m.impressions)} color={isDark ? 'text-blue-400' : 'text-blue-600'} />
-                  <KpiCard isDark={isDark} label="Alcance" value={formatNumber(m.reach)} color={isDark ? 'text-cyan-400' : 'text-cyan-600'} />
-                  <KpiCard isDark={isDark} label="Cliques" value={formatNumber(m.clicks)} color={isDark ? 'text-emerald-400' : 'text-emerald-600'} />
-                  <KpiCard isDark={isDark} label="CTR" value={formatPercent(m.ctr)} color={isDark ? 'text-amber-400' : 'text-amber-600'} />
-                  <KpiCard isDark={isDark} label="CPC" value={formatCurrencyCompact(m.cpc)} fullValue={formatCurrency(m.cpc)} color={isDark ? 'text-orange-400' : 'text-orange-600'} />
-                  <KpiCard isDark={isDark} label="CPM" value={formatCurrencyCompact(m.cpm)} fullValue={formatCurrency(m.cpm)} color={isDark ? 'text-violet-400' : 'text-violet-600'} />
-                  <KpiCard isDark={isDark} label="Conversões" value={formatNumber(m.conversions)} color={isDark ? 'text-pink-400' : 'text-pink-600'} />
-                  {m.hookRate !== null && (
-                    <KpiCard isDark={isDark} label="Hook Rate" value={formatPercent(m.hookRate)} color={isDark ? 'text-amber-400' : 'text-amber-600'} />
-                  )}
+                <div className="grid grid-cols-2 md:grid-cols-4 2xl:[grid-template-columns:repeat(15,minmax(0,1fr))] gap-2 2xl:gap-1.5">
+                  {(() => {
+                    const sig = data.metaSignalsByCampaign?.[c.id] ?? { linkClicks: 0, conversationsStarted: 0 };
+                    const sigCpl = sig.conversationsStarted > 0 ? m.spend / sig.conversationsStarted : null;
+                    return (
+                      <>
+                        <KpiCard isDark={isDark} label="Gasto" value={formatCurrencyCompact(m.spend)} fullValue={formatCurrency(m.spend)} color={isDark ? 'text-slate-100' : 'text-slate-900'} />
+                        <KpiCard isDark={isDark} label="Leads" value={formatNumber(m.leads)} color={isDark ? 'text-indigo-400' : 'text-indigo-600'} />
+                        <KpiCard isDark={isDark} label="CPL" value={m.cpl !== null ? formatCurrencyCompact(m.cpl) : '—'} fullValue={m.cpl !== null ? formatCurrency(m.cpl) : '—'} color={isDark ? 'text-teal-400' : 'text-teal-600'} />
+                        <KpiCard isDark={isDark} label="Custo/conversa" value={sigCpl !== null ? formatCurrencyCompact(sigCpl) : '—'} fullValue={sigCpl !== null ? formatCurrency(sigCpl) : '—'} color={isDark ? 'text-teal-400' : 'text-teal-600'} tooltip="Custo por conversa WhatsApp: gasto ÷ conversas iniciadas (sinal reportado pela Meta). Não é o custo por lead do CRM." />
+                        <KpiCard isDark={isDark} label="Impressões" value={formatNumber(m.impressions)} color={isDark ? 'text-blue-400' : 'text-blue-600'} />
+                        <KpiCard isDark={isDark} label="Alcance" value={formatNumber(m.reach)} color={isDark ? 'text-cyan-400' : 'text-cyan-600'} />
+                        <KpiCard isDark={isDark} label="Cliques" value={formatNumber(m.clicks)} color={isDark ? 'text-emerald-400' : 'text-emerald-600'} />
+                        <KpiCard isDark={isDark} label="CPC" value={formatCurrencyCompact(m.cpc)} fullValue={formatCurrency(m.cpc)} color={isDark ? 'text-orange-400' : 'text-orange-600'} />
+                        <KpiCard isDark={isDark} label="CPM" value={formatCurrencyCompact(m.cpm)} fullValue={formatCurrency(m.cpm)} color={isDark ? 'text-violet-400' : 'text-violet-600'} />
+                        <KpiCard isDark={isDark} label="Conversões" value={formatNumber(m.conversions)} color={isDark ? 'text-pink-400' : 'text-pink-600'} />
+                        <KpiCard isDark={isDark} label="Cliques no link (Meta)" value={formatNumber(sig.linkClicks)} color={isDark ? 'text-emerald-400' : 'text-emerald-600'} tooltip="Cliques no link reportados pela Meta" />
+                        <KpiCard isDark={isDark} label="Conversas iniciadas (Meta)" value={formatNumber(sig.conversationsStarted)} color={isDark ? 'text-sky-400' : 'text-sky-600'} tooltip="Conversas iniciadas no WhatsApp reportadas pela Meta" />
+                        <KpiCard isDark={isDark} label="CTR" value={formatPercent(m.ctr)} color={isDark ? 'text-amber-400' : 'text-amber-600'} />
+                        {m.hookRate !== null && (
+                          <KpiCard isDark={isDark} label="Hook Rate" value={formatPercent(m.hookRate)} color={isDark ? 'text-amber-400' : 'text-amber-600'} />
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             );
           })}
         </div>
       ) : (
-      <div className="grid grid-cols-2 md:grid-cols-4 2xl:[grid-template-columns:repeat(14,minmax(0,1fr))] gap-2 2xl:gap-1.5">
+      <div className="grid grid-cols-2 md:grid-cols-4 2xl:[grid-template-columns:repeat(15,minmax(0,1fr))] gap-2 2xl:gap-1.5">
         <KpiCard isDark={isDark} label="Campanhas Ativas" value={String(activeCampaigns)} color={isDark ? 'text-emerald-400' : 'text-emerald-600'} />
         <KpiCard isDark={isDark} label="Gasto Total" value={formatCurrencyCompact(t.spend)} fullValue={formatCurrency(t.spend)} delta={d?.spend} color={isDark ? 'text-slate-100' : 'text-slate-900'} invertDelta 
           breakdown={
@@ -283,12 +294,11 @@ export function CommandCenterView({
         <KpiCard isDark={isDark} label="CPC" value={formatCurrencyCompact(t.cpc || 0)} fullValue={formatCurrency(t.cpc || 0)} delta={d?.cpc} color={isDark ? 'text-orange-400' : 'text-orange-600'} invertDelta />
         <KpiCard isDark={isDark} label="CPM" value={formatCurrencyCompact(t.cpm || 0)} fullValue={formatCurrency(t.cpm || 0)} delta={d?.cpm} color={isDark ? 'text-violet-400' : 'text-violet-600'} invertDelta />
         <KpiCard isDark={isDark} label="Conversões" value={formatNumber(t.conversions || 0)} delta={d?.conversions} color={isDark ? 'text-pink-400' : 'text-pink-600'} />
-        <KpiCard isDark={isDark} label="Cliques WhatsApp (Meta)" value={formatNumber(data.metaSignals?.linkClicks || 0)} color={isDark ? 'text-emerald-400' : 'text-emerald-600'} tooltip="Cliques no link reportados pela Meta" />
+        <KpiCard isDark={isDark} label="Cliques no link (Meta)" value={formatNumber(data.metaSignals?.linkClicks || 0)} color={isDark ? 'text-emerald-400' : 'text-emerald-600'} tooltip="Cliques no link reportados pela Meta" />
         <KpiCard isDark={isDark} label="Conversas iniciadas (Meta)" value={formatNumber(data.metaSignals?.conversationsStarted || 0)} color={isDark ? 'text-sky-400' : 'text-sky-600'} tooltip="Conversas iniciadas no WhatsApp reportadas pela Meta (7 dias)" />
-        {hookRate !== null ? (
+        <KpiCard isDark={isDark} label="CTR" value={formatPercent(t.ctr || 0)} delta={d?.ctr} color={isDark ? 'text-amber-400' : 'text-amber-600'} />
+        {hookRate !== null && (
           <HookRateKpiCard isDark={isDark} value={hookRate} color={isDark ? 'text-amber-400' : 'text-amber-600'} benchmarks={hookRateBenchmarks} />
-        ) : (
-          <KpiCard isDark={isDark} label="CTR" value={formatPercent(t.ctr || 0)} delta={d?.ctr} color={isDark ? 'text-amber-400' : 'text-amber-600'} />
         )}
       </div>
       )}

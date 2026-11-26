@@ -275,19 +275,22 @@ export async function GET(request: NextRequest) {
         spend:  Number(row.spend),
       };
 
-      // Format 1: custom_locations with lat/lng
+      // Format 1: custom_locations with lat/lng.
+      // NÃO usa `continue`: a mesma campanha pode ter `places` (ex.: "ParqueDona Lindu")
+      // junto de `custom_locations`; antes, places era ignorado quando custom existia.
       if (loc.custom_locations && Array.isArray(loc.custom_locations)) {
         for (const cl of loc.custom_locations) {
-          if (!cl.latitude || !cl.longitude) continue;
+          if (typeof cl?.latitude !== 'number' || typeof cl?.longitude !== 'number') continue;
           const key = `${cl.latitude.toFixed(4)},${cl.longitude.toFixed(4)}`;
+          const km = cl.radius ? (cl.distance_unit === 'mile' ? cl.radius * 1.609 : cl.radius) : undefined;
           addCampaignToLocation(key, {
-            name:   cl.name || 'Localização personalizada',
+            // Meta não envia nome para custom_locations; só raio/coordenadas. Rótulo honesto.
+            name:   cl.name || (km ? `Raio de ${Math.round(km)} km` : 'Local sem nome'),
             lat:    cl.latitude,
             lng:    cl.longitude,
-            radius: cl.radius,
+            radius: km,
           }, campaign);
         }
-        continue;
       }
 
       // Format 2b: places da Meta (lugar específico com lat/lng e raio) — formato real observado
