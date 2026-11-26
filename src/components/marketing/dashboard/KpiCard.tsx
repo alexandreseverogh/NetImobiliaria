@@ -47,7 +47,10 @@ export function KpiCard({ isDark, label, value, fullValue, color, delta, invertD
       )}
     >
       {/* Label */}
-      <span className={`text-[9px] font-black uppercase tracking-widest leading-none truncate ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+      <span
+        className={`text-[9px] font-black uppercase tracking-widest leading-tight break-words min-h-[2.4em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}
+        title={label}
+      >
         {label}
       </span>
 

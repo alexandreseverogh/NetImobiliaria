@@ -278,8 +278,18 @@ export async function GET(request: NextRequest) {
       cpl: metaConversationsStarted > 0 ? currentTotals.spend / metaConversationsStarted : null,
     };
 
+    // Mesmos sinais, por campanha (para a visão expandida ter exatamente os mesmos KPIs).
+    const metaSignalsByCampaign: Record<string, { linkClicks: number; conversationsStarted: number }> = {};
+    for (const i of currentInsights as any[]) {
+      const key = i.campaignId as string;
+      const acc = (metaSignalsByCampaign[key] ||= { linkClicks: 0, conversationsStarted: 0 });
+      acc.linkClicks += i.metaLinkClicks || 0;
+      acc.conversationsStarted += i.metaConversationsStarted || 0;
+    }
+
     return NextResponse.json({
       metaSignals,
+      metaSignalsByCampaign,
       currentPeriod: { insights: currentInsights, totals: currentTotals, leadCount: currentLeadCount },
       previousPeriod: { totals: prevTotals, leadCount: prevLeadCount },
       deltas,
