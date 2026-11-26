@@ -10,7 +10,7 @@ import { FunnelChart } from '@/components/marketing/charts/FunnelChart';
 import { PeriodBadge } from './PeriodBadge';
 import { KpiCard, HookRateKpiCard } from '@/components/marketing/dashboard/KpiCard';
 import { formatCurrency, formatCurrencyCompact, formatNumber, formatPercent, cn } from '@/lib/marketing-utils';
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
+import { CampaignSpendPieChart } from '@/components/marketing/charts/CampaignSpendPieChart';
 
 import type { DashboardFullData, FunnelData7 } from '@/lib/marketing-api';
 
@@ -154,70 +154,7 @@ export function AnalyticsView({
           {/* Distribuição por Campanha */}
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className={cn('rounded-2xl p-6', cardBase)}>
             <h3 className={cn('text-sm font-black mb-4', tx)}>Distribuição por Campanha</h3>
-            {campaignSpendData.length > 0 ? (
-              <>
-                <ResponsiveContainer width="100%" height={220}>
-                  <PieChart>
-                    <Pie data={campaignSpendData} dataKey="value" nameKey="name"
-                      cx="50%" cy="50%" outerRadius={90} innerRadius={38}
-                      paddingAngle={3}
-                      labelLine={false}
-                      label={({ cx, cy, midAngle, innerRadius, outerRadius, value, percent }: any) => {
-                        if (percent < 0.05) return null;
-                        const RADIAN = Math.PI / 180;
-                        const r = innerRadius + (outerRadius - innerRadius) * 0.55;
-                        const x = cx + r * Math.cos(-midAngle * RADIAN);
-                        const y = cy + r * Math.sin(-midAngle * RADIAN);
-                        const formatted = value >= 1000
-                          ? `R$${(value / 1000).toFixed(1)}k`
-                          : `R$${value.toFixed(0)}`;
-                        return (
-                          <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central"
-                            style={{ fontSize: 11, fontWeight: 700, textShadow: '0 1px 2px rgba(0,0,0,0.4)' }}>
-                            {formatted}
-                          </text>
-                        );
-                      }}>
-                      {campaignSpendData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                    </Pie>
-                    <Tooltip {...tooltipCss} formatter={(v: any) => `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="flex flex-col gap-1.5 mt-3 px-1">
-                  {(() => {
-                    const total = campaignSpendData.reduce((s, c) => s + c.value, 0);
-                    return (
-                      <>
-                        {campaignSpendData.map((d, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
-                            <span className={cn('text-[10px] flex-1 leading-tight', isDark ? 'text-slate-400' : 'text-slate-600')}>{d.name}</span>
-                            <span className={cn('text-[10px] font-semibold shrink-0', isDark ? 'text-slate-400' : 'text-slate-500')}>
-                              {total > 0 ? ((d.value / total) * 100).toFixed(0) : 0}%
-                            </span>
-                            <span className={cn('text-[10px] font-bold shrink-0 min-w-[64px] text-right', isDark ? 'text-slate-200' : 'text-slate-800')}>
-                              R$ {d.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
-                          </div>
-                        ))}
-                        {campaignSpendData.length > 1 && (
-                          <div className={cn('flex items-center gap-2 mt-1 pt-2 border-t', isDark ? 'border-white/8' : 'border-slate-100')}>
-                            <span className="w-2.5 h-2.5 shrink-0" />
-                            <span className={cn('text-[10px] flex-1 font-black uppercase tracking-wide', isDark ? 'text-slate-400' : 'text-slate-500')}>Total</span>
-                            <span className={cn('text-[10px] font-black shrink-0', isDark ? 'text-slate-300' : 'text-slate-700')}>100%</span>
-                            <span className={cn('text-[10px] font-black shrink-0 min-w-[64px] text-right', isDark ? 'text-white' : 'text-slate-900')}>
-                              R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
-                </div>
-              </>
-            ) : (
-              <p className={cn('text-sm text-center py-12', txMuted)}>Sem dados de campanhas</p>
-            )}
+            <CampaignSpendPieChart campaignSpendData={campaignSpendData} isDark={isDark} txMuted={txMuted} />
           </motion.div>
         </div>
 

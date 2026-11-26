@@ -10,6 +10,7 @@ import { CampaignMapWidget } from '@/components/marketing/CampaignMapWidget';
 import { RevenueAttributionWidget } from '@/components/marketing/dashboard/RevenueAttributionWidget';
 import { ReallocationOpportunityWidget } from '@/components/marketing/dashboard/ReallocationOpportunityWidget';
 import { ConsolidatedHeader } from '@/components/marketing/dashboard/ConsolidatedHeader';
+import { CampaignSpendPieChart, type CampaignSpendDatum } from '@/components/marketing/charts/CampaignSpendPieChart';
 import type { DashboardFullData, AiInsightData } from '@/lib/marketing-api';
 import type { HookSaturationResult } from '@/lib/marketing/services/hookSaturationService';
 
@@ -35,6 +36,9 @@ interface CommandCenterViewProps {
   segmentPeriodStart?: string;
   segmentPeriodEnd?: string;
   network?: string | null;
+  // Mesmo dado já usado na pizza "Distribuição por Campanha" da aba Análise de Dados —
+  // reaproveitado aqui, nunca recalculado (fonte única, ver CampaignSpendPieChart.tsx).
+  campaignSpendData?: CampaignSpendDatum[];
 }
 
 // Peso de severidade por tipo de insight (mesma taxonomia de aiInsights.ts) — SCALE é sinal
@@ -128,6 +132,7 @@ export function CommandCenterView({
   segmentPeriodStart,
   segmentPeriodEnd,
   network,
+  campaignSpendData,
 }: CommandCenterViewProps) {
   // Alterna entre métricas consolidadas (padrão) e os mesmos cards por campanha.
   // Precisa ficar ANTES do retorno antecipado de loading (regra dos hooks).
@@ -135,6 +140,7 @@ export function CommandCenterView({
   // Expansão por campanha, por seção (cada uma abre sozinha).
   const [funnelExpanded, setFunnelExpanded] = useState(false);
   const [evolutionExpanded, setEvolutionExpanded] = useState(false);
+  const [healthExpanded, setHealthExpanded] = useState(false);
 
   if (loading) {
     return (
@@ -353,7 +359,7 @@ export function CommandCenterView({
         </div>
 
         {/* Índice de Saúde */}
-        <div className={cn('p-6 rounded-3xl border flex flex-col items-center justify-center text-center', cardBase,
+        <div className={cn('p-6 rounded-3xl border flex flex-col items-center text-center', cardBase,
           healthTone === 'good' ? (isDark ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-emerald-200 bg-emerald-50/50') :
           healthTone === 'warning' ? (isDark ? 'border-amber-500/20 bg-amber-500/5' : 'border-amber-200 bg-amber-50/50') :
           healthTone === 'no_data' ? (isDark ? 'border-white/10 bg-white/[0.02]' : 'border-slate-200 bg-slate-50/50') :
@@ -386,19 +392,21 @@ export function CommandCenterView({
               </span>
             </div>
           </div>
-          {healthTone === 'no_data' || healthTone === 'good' || healthReasons.length === 0 ? (
-            <p className={cn('text-xs mt-2 text-center px-2', txMuted)}>
-              {healthTone === 'no_data'
-                ? 'Sem dados suficientes no período ou filtro selecionado para avaliar a saúde.'
-                : healthTone === 'good'
-                ? 'Ecossistema saudável e performando bem.'
-                : healthTone === 'warning'
-                ? 'Algumas métricas requerem sua atenção.'
-                : 'Problemas críticos detectados no ecossistema.'}
-            </p>
-          ) : (
-            // Uma linha por campanha — nunca um parágrafo só juntando os motivos de
-            // campanhas diferentes com "·" (ficava difícil separar quem é quem de relance).
+          {/* Frase-resumo — sempre visível, nunca condicionada a ter ou não motivo detalhado. */}
+          <p className={cn('text-xs mt-2 text-center px-2', txMuted)}>
+            {healthTone === 'no_data'
+              ? 'Sem dados suficientes no período ou filtro selecionado para avaliar a saúde.'
+              : healthTone === 'good'
+              ? 'Ecossistema saudável e performando bem.'
+              : healthTone === 'warning'
+              ? 'Algumas métricas requerem sua atenção.'
+              : 'Problemas críticos detectados no ecossistema.'}
+          </p>
+          {/* Achado real (2026-11-26): mesmo com Saúde "boa" (≥70), pode haver motivo real por
+              trás de não ser 100 (ex.: um insight informativo de baixo peso) — antes essa lista
+              só aparecia em warning/critical, escondendo o porquê sempre que o tom geral era bom.
+              Agora aparece sempre que existir, com ou sem o tom ser "bom". */}
+          {healthReasons.length > 0 && (
             <ul className={cn('text-xs mt-2 px-2 space-y-1.5 text-left w-full', txMuted)}>
               {healthReasons.map((reason, idx) => (
                 <li key={idx} className="flex gap-1.5">
@@ -407,6 +415,50 @@ export function CommandCenterView({
                 </li>
               ))}
             </ul>
+          )}
+          {/* Expansão por campanha — mesmo padrão já usado em Evolução/Funil consolidados
+              (ConsolidatedHeader), faltava só aqui. */}
+          {(data.campaigns || []).length > 1 && (
+            <div className="w-full mt-3">
+              <ConsolidatedHeader
+                count={(data.campaigns || []).length}
+                expanded={healthExpanded}
+                onToggle={() => setHealthExpanded(v => !v)}
+                isDark={isDark}
+                txMuted={txMuted}
+                label="Saúde por campanha"
+              />
+              {healthExpanded && (
+                <div className="space-y-3">
+                  {(data.campaigns || []).map((c: any) => {
+                    const hc = computeHealth(dailySeriesFor(c.id), aiInsights.filter(i => i.campaignId === c.id), 1);
+                    return (
+                      <div key={c.id} className={cn('p-3 rounded-xl border', isDark ? 'border-white/10 bg-white/[0.02]' : 'border-slate-200 bg-slate-50/50')}>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <p className={cn('text-xs font-bold truncate', tx)}>{c.name}</p>
+                          <span className={cn('text-[10px] font-black uppercase tracking-wider shrink-0',
+                            hc.healthTone === 'good' ? 'text-emerald-500' : hc.healthTone === 'warning' ? 'text-amber-500' : hc.healthTone === 'critical' ? 'text-red-500' : txMuted)}>
+                            {hc.healthTone === 'no_data' ? 'Sem dados' : `Saúde ${hc.healthScore}`}
+                          </span>
+                        </div>
+                        {hc.healthReasons.length > 0 ? (
+                          <ul className={cn('text-[11px] space-y-1', txMuted)}>
+                            {hc.healthReasons.map((reason, idx) => (
+                              <li key={idx} className="flex gap-1.5">
+                                <span className="shrink-0">•</span>
+                                <span>{reason}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className={cn('text-[11px]', txMuted)}>Sem pontos de atenção registrados.</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -523,7 +575,7 @@ export function CommandCenterView({
             <h3 className={cn('text-base font-black', tx)}>Onde está o Dinheiro?</h3>
             <p className={cn('text-xs', txMuted)}>Top 5 campanhas por investimento no período</p>
           </div>
-          <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+          <div className="space-y-3">
             {[...(data.campaigns || [])]
               .sort((a, b) => (spendByCampaign[b.id] || 0) - (spendByCampaign[a.id] || 0))
               .slice(0, 5)
@@ -553,6 +605,14 @@ export function CommandCenterView({
               <div className="h-full flex items-center justify-center text-xs opacity-50">Nenhuma campanha no período.</div>
             )}
           </div>
+          {/* Mesmo gráfico de "Distribuição por Campanha" da aba Análise de Dados, acrescentado
+              aqui (pedido explícito do usuário — nunca substituindo o ranking acima). */}
+          {campaignSpendData && campaignSpendData.length > 0 && (
+            <div className={cn('mt-4 pt-4 border-t', isDark ? 'border-white/8' : 'border-slate-100')}>
+              <h4 className={cn('text-xs font-black uppercase tracking-widest mb-2', txMuted)}>Distribuição por Campanha</h4>
+              <CampaignSpendPieChart campaignSpendData={campaignSpendData} isDark={isDark} txMuted={txMuted} />
+            </div>
+          )}
         </div>
 
         {/* Mapa Neural (Direita) */}

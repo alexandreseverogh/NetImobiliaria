@@ -925,6 +925,7 @@ function DashboardPage() {
             activeSegment={activeSegment} clientFilter={clientFilter}
             segmentPeriodStart={segmentPeriodStart} segmentPeriodEnd={segmentPeriodEnd}
             network={networkFilter || null}
+            campaignSpendData={campaignSpendData}
           />
         )}
 
