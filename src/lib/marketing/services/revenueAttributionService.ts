@@ -71,6 +71,76 @@ export async function hasCrmModule(tenantId: string): Promise<boolean> {
 }
 
 
+export interface DealsWonResult {
+  /** false = tenant sem módulo CRM contratado — nunca confundir com "0 negócios fechados". */
+  crmAvailable: boolean
+  totalDealsWon: number | null
+  totalRevenue: number | null
+  dealsByCampaignId: Record<string, number>
+}
+
+/**
+ * Negócios fechados (CRM) por um conjunto de campanhas JÁ resolvido por quem chama — ex.:
+ * `/dashboard/funnel` e `/dashboard/full` já calculam sua própria lista de campaignIds
+ * respeitando segmento/cliente/rede/objetivo/status/adSet (via resolveCampaignIdsBySegment),
+ * e repassam essa MESMA lista aqui — evita uma 2ª implementação de filtro de escopo que
+ * poderia divergir da que já alimenta leads/impressões/cliques no mesmo card.
+ *
+ * Mesmo cohort/CTE de `getRevenueAttribution` (marketing_eventos → leads_staging →
+ * leads_kanban → kanban_colunas.is_ganho = true) — nunca um 2º jeito de calcular a mesma
+ * coisa. Única diferença: aceita `startDate`/`endDate` explícitos (em vez de "últimos N dias
+ * a partir de agora"), pra bater com o range exato que o caller já está usando (inclusive
+ * período customizado, não só "últimos N dias").
+ */
+export async function getDealsWonByCampaignIds(
+  tenantId: string,
+  campaignIds: string[],
+  startDate: Date,
+  endDate: Date,
+): Promise<DealsWonResult> {
+  const crmAvailable = await hasCrmModule(tenantId)
+  if (!crmAvailable) {
+    return { crmAvailable: false, totalDealsWon: null, totalRevenue: null, dealsByCampaignId: {} }
+  }
+  if (campaignIds.length === 0) {
+    return { crmAvailable: true, totalDealsWon: 0, totalRevenue: 0, dealsByCampaignId: {} }
+  }
+
+  const { rows } = await pool.query<{ campaign_id: string; deals_won: string; revenue: string }>(
+    `
+    WITH cohort AS (
+      SELECT me.campaign_id, me.lead_uuid
+      FROM public.marketing_eventos me
+      WHERE me.tenant_id = $1::uuid
+        AND me.campaign_id = ANY($2::text[])
+        AND me.created_at >= $3::timestamptz
+        AND me.created_at <= $4::timestamptz
+    )
+    SELECT cohort.campaign_id,
+           COUNT(DISTINCT ls.lead_uuid)::text AS deals_won,
+           COALESCE(SUM(ls.valor_venda), 0)::text AS revenue
+    FROM cohort
+    JOIN public.leads_staging ls ON ls.lead_uuid = cohort.lead_uuid
+    JOIN public.leads_kanban lk ON lk.lead_uuid = ls.lead_uuid
+    JOIN public.kanban_colunas kc ON kc.id = lk.coluna_id AND kc.is_ganho = true
+    GROUP BY cohort.campaign_id
+    `,
+    [tenantId, campaignIds, startDate, endDate],
+  )
+
+  const dealsByCampaignId: Record<string, number> = {}
+  let totalDealsWon = 0
+  let totalRevenue = 0
+  for (const r of rows) {
+    const deals = parseInt(r.deals_won, 10)
+    const revenue = parseFloat(r.revenue)
+    dealsByCampaignId[r.campaign_id] = deals
+    totalDealsWon += deals
+    totalRevenue += revenue
+  }
+  return { crmAvailable: true, totalDealsWon, totalRevenue, dealsByCampaignId }
+}
+
 export async function getRevenueAttribution(params: {
   tenantId: string
   /** undefined = todas as campanhas (próprias + clientes); null | 'own' = só próprias; uuid = só daquele cliente */

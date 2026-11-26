@@ -3,6 +3,7 @@ import { getTokenPayload } from '@/lib/auth/jwt-node';
 import pool from '@/lib/database/connection';
 import { resolveCampaignIdsBySegment } from '@/lib/marketing/segmentUtils';
 import { getLeadEvents, leadsByCampaign as groupLeadsByCampaign } from '@/lib/marketing/services/leadEvents';
+import { hasCrmModule, getDealsWonByCampaignIds } from '@/lib/marketing/services/revenueAttributionService';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,10 @@ export async function GET(request: NextRequest) {
       : new Date();
     const startDate = startStr ? new Date(startStr) : new Date(endDate.getTime() - 30 * 86400000);
 
+    // Negócios fechados (CRM) — flag resolvida cedo pra valer tanto no caminho normal quanto
+    // no early-return de "segmento sem campanha nenhuma" logo abaixo.
+    const crmAvailable = await hasCrmModule(payload.tenantId);
+
     // ── Construir condições dinâmicas com parâmetros seguros ──────────────────
     const qParams: any[] = [payload.tenantId, startDate, endDate];
     const extraWhere: string[] = [];
@@ -53,7 +58,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
           stages: empty,
           conversionRates: { tof_ctr: 0, mof_ltr: 0, bof_cvr: 0, overall_ctr: 0, overall_ltr: 0, overall_cpl: 0 },
-          totals: { spend: 0, impressions: 0, clicks: 0, leads: 0, conversions: 0, cpl: 0 },
+          totals: { spend: 0, impressions: 0, clicks: 0, leads: 0, conversions: 0, cpl: 0, dealsWon: crmAvailable ? 0 : null, crmAvailable },
           bottleneck: null,
           period: { startDate: startDate.toISOString(), endDate: endDate.toISOString() },
         });
@@ -149,6 +154,12 @@ export async function GET(request: NextRequest) {
       : [];
     const leadsByCampaignMap = groupLeadsByCampaign(leadEvents);
 
+    // Negócios fechados (CRM) — 4ª etapa do Funil de Conversão (ClassicFunnelChart). Reusa a
+    // MESMA lista de campanhas (scopedCampaignIds) já filtrada por segmento/cliente/rede/
+    // objetivo/status/adSet acima — nunca um 2º critério de escopo que poderia divergir do
+    // que já conta leads/impressões/cliques neste mesmo endpoint.
+    const dealsResult = await getDealsWonByCampaignIds(payload.tenantId, scopedCampaignIds, startDate, endDate);
+
     const leadsMap: Record<string, number> = {};
     for (const [campId, count] of Array.from(leadsByCampaignMap.entries())) {
       const stage = stageByCampaignId.get(campId);
@@ -233,6 +244,8 @@ export async function GET(request: NextRequest) {
         leads:       totalLeads,
         conversions: totalConversions,
         cpl:         Number(cpl_all.toFixed(2)),
+        dealsWon:    dealsResult.totalDealsWon,
+        crmAvailable: dealsResult.crmAvailable,
       },
       bottleneck,
       period: { startDate: startDate.toISOString(), endDate: endDate.toISOString() },

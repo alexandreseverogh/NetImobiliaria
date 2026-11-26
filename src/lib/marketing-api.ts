@@ -417,7 +417,14 @@ export interface FunnelData {
   impressions: number;
   clicks: number;
   leads: number;
+  // Conversão bruta reportada pela própria rede de anúncio (Meta/Google) — não é mais usado
+  // pela 4ª etapa do funil (ver dealsWon), mantido só pra retrocompatibilidade de tipo.
   conversions: number;
+  // Negócios fechados reais (CRM — Kanban, etapa Ganho), atribuídos à campanha via
+  // marketing_eventos. null = indisponível (tenant sem módulo CRM contratado) — nunca
+  // confundir com "0 negócios fechados" (ver revenueAttributionService.getDealsWonByCampaignIds).
+  dealsWon: number | null;
+  crmAvailable: boolean;
 }
 
 export interface DashboardTotals {
@@ -443,6 +450,11 @@ export interface DashboardFullData {
   // Leads reais por campanha — alimenta "Onde está o Dinheiro?" (antes lia c.spend/c.leads,
   // campos que nunca existiram no model Campaign — sempre mostrava R$ 0,00 / 0 leads)
   leadsByCampaign?: Record<string, number>;
+  // Negócios fechados (CRM) por campanha — alimenta a 4ª etapa do Funil de Conversão quando
+  // expandido por campanha. Ausente/vazio quando crmAvailable=false.
+  dealsByCampaignId?: Record<string, number>;
+  // Tenant tem o módulo CRM contratado — mesmo flag usado em dealsByCampaignId/funnelData.
+  crmAvailable?: boolean;
   // Hook Rate: visualizações de 3s e impressões SÓ dos anúncios de vídeo, por campanha.
   videoHookByCampaign?: Record<string, { views3s: number; impressions: number }>;
   // Leads por dia de cada campanha (CPL diário por campanha).
@@ -518,6 +530,7 @@ export interface FunnelData7 {
   totals: {
     spend: number; impressions: number; clicks: number;
     leads: number; conversions: number; cpl: number;
+    dealsWon: number | null; crmAvailable: boolean;
   };
   bottleneck: string | null;
   period: { startDate: string; endDate: string };

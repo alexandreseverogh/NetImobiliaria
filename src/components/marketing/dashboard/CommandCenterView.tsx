@@ -417,7 +417,11 @@ export function CommandCenterView({
                      <div key={c.id}>
                        <p className={cn('text-sm font-black mb-2 truncate', tx)}>{c.name}</p>
                        <ClassicFunnelChart
-                         funnelData={{ impressions: m.impressions, clicks: m.clicks, leads: m.leads, conversions: m.conversions }}
+                         funnelData={{
+                           impressions: m.impressions, clicks: m.clicks, leads: m.leads, conversions: m.conversions,
+                           dealsWon: data.dealsByCampaignId?.[c.id] ?? 0,
+                           crmAvailable: data.crmAvailable ?? false,
+                         }}
                          leadCount={m.leads}
                          isDark={isDark}
                        />

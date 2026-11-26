@@ -9,6 +9,7 @@ import {
   leadsByCampaign as groupLeadsByCampaign,
   leadsByNetwork as groupLeadsByNetwork,
 } from '@/lib/marketing/services/leadEvents';
+import { getDealsWonByCampaignIds } from '@/lib/marketing/services/revenueAttributionService';
 
 export const dynamic = 'force-dynamic';
 
@@ -239,6 +240,11 @@ export async function GET(request: NextRequest) {
 
     const leadsByCampaign = Object.fromEntries(groupLeadsByCampaign(currentLeadEvents));
 
+    // Negócios fechados (CRM) — 4ª etapa do Funil de Conversão (consolidado em funnelData
+    // abaixo, e por campanha via dealsByCampaignId na resposta) — mesma lista de campaignIds
+    // já filtrada por segmento/cliente/rede/objetivo/status/adSet acima.
+    const dealsResult = await getDealsWonByCampaignIds(payload.tenantId, campaignIds, startDate, endDate);
+
     // Leads por dia de cada campanha — base do CPL diário por campanha (mesma fonte do consolidado).
     const dailyLeadsByCampaign: Record<string, { date: string; count: number }[]> = {};
     for (const e of currentLeadEvents) {
@@ -253,6 +259,8 @@ export async function GET(request: NextRequest) {
       clicks: currentTotals.clicks,
       leads: currentLeadCount,
       conversions: currentTotals.conversions,
+      dealsWon: dealsResult.totalDealsWon,
+      crmAvailable: dealsResult.crmAvailable,
     };
 
     const leadsByNetwork = Object.fromEntries(groupLeadsByNetwork(currentLeadEvents));
@@ -304,6 +312,8 @@ export async function GET(request: NextRequest) {
       lastCollectedAt: lastCollectedDate ? lastCollectedDate.toISOString() : null,
       videoHookByCampaign,
       dailyLeadsByCampaign,
+      dealsByCampaignId: dealsResult.dealsByCampaignId,
+      crmAvailable: dealsResult.crmAvailable,
       funnelData,
     });
   } catch (error: any) {

@@ -80,14 +80,19 @@ function segMidW(i: number): number {
 }
 
 export function ClassicFunnelChart({ funnelData, leadCount, isDark, periodLabel, className }: Props) {
-  const values = [funnelData.impressions, funnelData.clicks, leadCount, funnelData.conversions];
-  const top    = values[0] || 1;
+  // 4ª etapa: negócio fechado real (CRM/Kanban), não mais a conversão bruta da rede de
+  // anúncio. null = tenant sem módulo CRM contratado — nunca um "0" que pareça zero negócio.
+  const crmAvailable = funnelData.crmAvailable ?? false;
+  const dealsValue: number | null = crmAvailable ? (funnelData.dealsWon ?? 0) : null;
+  const values: (number | null)[] = [funnelData.impressions, funnelData.clicks, leadCount, dealsValue];
+  const top    = (values[0] as number) || 1;
 
   const rates = [
     0,
-    values[0] > 0 ? (values[1] / values[0]) * 100 : 0,
-    values[1] > 0 ? (values[2] / values[1]) * 100 : 0,
-    values[2] > 0 ? (values[3] / values[2]) * 100 : 0,
+    (values[0] as number) > 0 ? (values[1] as number) / (values[0] as number) * 100 : 0,
+    (values[1] as number) > 0 ? (values[2] as number) / (values[1] as number) * 100 : 0,
+    // Taxa de fechamento só existe quando há negócio fechado real pra calcular.
+    crmAvailable && (values[2] as number) > 0 && dealsValue !== null ? (dealsValue / (values[2] as number)) * 100 : null,
   ];
 
   const cardCls = isDark
@@ -123,16 +128,22 @@ export function ClassicFunnelChart({ funnelData, leadCount, isDark, periodLabel,
           </span>
         )}
       </div>
-      {/* "Conversões" vem de Insight.conversions — número bruto que a conta de anúncios (Meta OU
-          Google) reporta pra qualquer ação de conversão configurada lá, não necessariamente o
-          mesmo "Lead" (WhatsApp/formulário) do restante da plataforma. Confirmado ao vivo:
-          2 campanhas Meta com 0 leads reais mostravam 427 "conversões" nesta mesma etapa —
-          mesma ambiguidade já sinalizada só pro Google em GoogleAdsView.tsx, generalizada aqui
-          pra ambas as redes. */}
-      <p className={`text-[10px] font-semibold leading-relaxed mb-4 ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
-        ⚠️ "Conversões" reflete a ação de conversão configurada na conta de anúncios (Meta ou
-        Google) — pode não ser o mesmo "Lead" identificado no resto da plataforma.
-      </p>
+      {/* 4ª etapa deixou de ler Insight.conversions (número bruto da rede de anúncio, Meta ou
+          Google, sem relação com lead/negócio real — confirmado ao vivo: 2 campanhas Meta com
+          0 leads reais mostravam 427 "conversões" aqui) e passou a ler negócio fechado real do
+          CRM (Kanban, etapa Ganho). Sem o módulo CRM contratado, não há como calcular isso —
+          o aviso abaixo diz exatamente por quê, em vez de mostrar um "0" que pareceria "zero
+          negócio fechado" quando na real é "não temos como saber". */}
+      {!crmAvailable ? (
+        <p className={`text-[10px] font-semibold leading-relaxed mb-4 ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+          🔒 "Negócios fechados" indisponível — ative o módulo <strong>CRM</strong> pra acompanhar quais
+          campanhas realmente geram venda, não só lead.
+        </p>
+      ) : (
+        <p className={`text-[10px] font-semibold leading-relaxed mb-4 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+          ✓ "Negócios fechados" vem do CRM (Kanban → etapa Ganho), atribuído à campanha que originou o lead.
+        </p>
+      )}
 
       {/* ── Layout: SVG (≈45%) + Métricas (≈55%) ── */}
       <div className="flex gap-8 items-stretch min-h-0">
@@ -220,9 +231,14 @@ export function ClassicFunnelChart({ funnelData, leadCount, isDark, periodLabel,
         >
           {STAGES.map((s, i) => {
             const val  = values[i];
-            const pct  = top > 0 ? (val / top) * 100 : 0;
+            const valNum = typeof val === 'number' ? val : 0;
+            const pct  = top > 0 ? (valNum / top) * 100 : 0;
             const rate = rates[i];
             const th   = isDark ? s.dark : s.light;
+            // 4ª etapa sem CRM contratado: nunca "0 negócios" — rótulo e sub-texto avisam o
+            // motivo real, reforçando o mesmo argumento comercial do banner acima.
+            const isDealsStage = i === 3;
+            const stageSub = isDealsStage && !crmAvailable ? 'Requer módulo CRM' : s.sub;
 
             return (
               <div
@@ -230,8 +246,9 @@ export function ClassicFunnelChart({ funnelData, leadCount, isDark, periodLabel,
                 className="flex flex-col justify-center flex-1 min-h-0"
                 style={{ height: H }}
               >
-                {/* Seta de taxa de conversão entre estágios */}
-                {i > 0 && s.conv && (
+                {/* Seta de taxa de conversão entre estágios — some quando a taxa não existe
+                    (4ª etapa sem CRM contratado, nunca mostra "Tx. Fechamento: 0.00%" indevido) */}
+                {i > 0 && s.conv && rate !== null && (
                   <div className={`flex items-center gap-1 text-[10px] font-bold pl-1 mb-1 ${rateColor(rate, isDark)}`}>
                     <svg width="7" height="9" viewBox="0 0 7 9" fill="none">
                       <path d="M3.5 0v8M1 5.5l2.5 3 2.5-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
@@ -247,12 +264,14 @@ export function ClassicFunnelChart({ funnelData, leadCount, isDark, periodLabel,
                       <span className="text-base shrink-0">{s.icon}</span>
                       <div className="min-w-0">
                         <p className="text-[11px] font-black leading-tight">{s.label}</p>
-                        <p className={`text-[9px] leading-tight ${isDark ? 'opacity-50' : 'opacity-60'}`}>{s.sub}</p>
+                        <p className={`text-[9px] leading-tight ${isDark ? 'opacity-50' : 'opacity-60'}`}>{stageSub}</p>
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className={`text-sm font-black tabular-nums ${th.num}`}>{fmt(val)}</p>
-                      {i > 0 && (
+                      <p className={`text-sm font-black tabular-nums ${th.num}`}>
+                        {isDealsStage && !crmAvailable ? '🔒' : fmt(val)}
+                      </p>
+                      {i > 0 && !(isDealsStage && !crmAvailable) && (
                         <p className={`text-[9px] tabular-nums ${isDark ? 'opacity-50' : 'opacity-60'}`}>
                           {pct >= 0.001 ? pct.toFixed(pct < 1 ? 3 : 1) + '%' : '<0.001%'} do topo
                         </p>
@@ -263,7 +282,7 @@ export function ClassicFunnelChart({ funnelData, leadCount, isDark, periodLabel,
                   <div className={`h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-white/10' : 'bg-black/8'}`}>
                     <div
                       className={`h-full rounded-full ${th.bar}`}
-                      style={{ width: `${Math.max(pct, val > 0 ? 2 : 0)}%`, transition: 'width 0.6s ease' }}
+                      style={{ width: `${Math.max(pct, valNum > 0 ? 2 : 0)}%`, transition: 'width 0.6s ease' }}
                     />
                   </div>
                 </div>
