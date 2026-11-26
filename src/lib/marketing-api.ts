@@ -114,7 +114,9 @@ export interface InsightData {
 export interface AiInsightData {
   campaignId: string;
   campaignName: string;
-  type: 'OPTIMIZE' | 'PAUSE' | 'SCALE' | 'ALERT';
+  // DOWNSCALE já era gerado por aiInsights.ts (regra de CPL muito alto) mas nunca entrou nesse
+  // union — a API sempre devolveu o valor real, só o tipo TS ficava desatualizado.
+  type: 'OPTIMIZE' | 'PAUSE' | 'SCALE' | 'ALERT' | 'DOWNSCALE';
   title: string;
   description: string;
   confidence: number;

@@ -37,80 +37,71 @@ interface CommandCenterViewProps {
   network?: string | null;
 }
 
+// Peso de severidade por tipo de insight (mesma taxonomia de aiInsights.ts) — SCALE é sinal
+// positivo (campanha saudável, pronta pra escalar), nunca penaliza.
+const HEALTH_SEVERITY_WEIGHT: Record<string, number> = {
+  PAUSE: 40,
+  DOWNSCALE: 35,
+  ALERT: 20,
+  OPTIMIZE: 12,
+  SCALE: 0,
+};
+
 /**
- * Índice de Saúde de uma série diária (gasto e conversões por dia). Usado pelo consolidado e por
- * campanha — a mesma regra nos dois casos, para que um número nunca contradiga o outro.
+ * Índice de Saúde — derivado dos MESMOS Insights da IA já exibidos no card "Alertas
+ * Acionáveis" (aiInsights.ts: getLeadEvents + benchmark real por segmento/rede, já cobre
+ * "gasto sem nenhum lead" de forma absoluta, não só tendência). Antes este índice recalculava
+ * sozinho uma tendência de CPL/lead em cima de Insight.conversions — campo que, pra campanhas
+ * Meta, não reflete lead nenhum (o lead real vem de CtaSubmission/cta_engagement) — por isso
+ * o score ficava preso perto de 100 mesmo com uma campanha sinalizada PAUSE (gasto sem
+ * resultado) no card ao lado. Usado pelo consolidado e por campanha — a mesma regra nos dois
+ * casos, pra um número nunca contradizer o outro (nem o card de Insights da IA).
+ *
+ * @param chartRows mesma série diária (spend/conversions) só pra decidir SE há dado real no
+ *   escopo/período (hasScopeData) — não entra mais na nota em si.
+ * @param insights Insights da IA já escopados pro mesmo filtro (consolidado: a lista inteira;
+ *   por campanha: filtrada por campaignId).
+ * @param totalCampaignsInScope total de campanhas no mesmo escopo (consolidado: todas as do
+ *   filtro ativo; por campanha: 1) — a penalidade é a MÉDIA por campanha, não a soma bruta,
+ *   pra 1-2 campanhas problemáticas num portfólio grande não derrubarem o índice inteiro.
  */
 export function computeHealth(
   chartRows: any[],
-  hookRate: number | null,
-  hookRateBenchmarks: any,
+  insights: AiInsightData[],
+  totalCampaignsInScope: number,
 ): { healthScore: number; healthTone: 'good' | 'warning' | 'critical' | 'no_data'; healthReasons: string[]; hasScopeData: boolean } {
-  let healthScore = 100;
+  const hasScopeData = (chartRows || []).some((x: any) => x.spend > 0 || x.conversions > 0);
+
+  if (!hasScopeData) {
+    return { healthScore: 0, healthTone: 'no_data', healthReasons: [], hasScopeData: false };
+  }
+
+  // Pior insight POR CAMPANHA (um OPTIMIZE e um PAUSE na mesma campanha são o mesmo problema
+  // visto por dois ângulos — conta só o mais grave, nunca soma os dois).
+  const worstByCampaign = new Map<string, { score: number; insight: AiInsightData }>();
+  for (const insight of insights || []) {
+    const weight = HEALTH_SEVERITY_WEIGHT[insight.type] ?? 0;
+    const score = weight * insight.confidence;
+    const current = worstByCampaign.get(insight.campaignId);
+    if (!current || score > current.score) {
+      worstByCampaign.set(insight.campaignId, { score, insight });
+    }
+  }
+
+  const totalPenalty = Array.from(worstByCampaign.values()).reduce((sum, w) => sum + w.score, 0);
+  const avgPenalty = totalPenalty / Math.max(1, totalCampaignsInScope);
+  const healthScore = Math.max(0, Math.min(100, Math.round(100 - avgPenalty)));
+
   let healthTone: 'good' | 'warning' | 'critical' | 'no_data' = 'good';
-  const healthReasons: string[] = [];
-
-  if (hookRate && hookRate < hookRateBenchmarks.hook_rate_min) {
-    healthScore -= 15;
-    healthReasons.push('Hook Rate de vídeo abaixo do benchmark');
-  }
-
-  const daysWithData = (chartRows || [])
-    .filter((x: any) => x.spend > 0 || x.conversions > 0)
-    .map((x: any) => ({ spend: x.spend as number, conv: (x.conversions as number) || 0 }));
-
-  // Sem dado real no escopo, o score não pode ficar "saudável" por ausência de sinal de problema.
-  const hasScopeData = daysWithData.length > 0;
-
-  const aggCpl = (rows: { spend: number; conv: number }[]) => {
-    const spend = rows.reduce((s, x) => s + x.spend, 0);
-    const conv = rows.reduce((s, x) => s + x.conv, 0);
-    return { spend, conv, cpl: conv > 0 ? spend / conv : null };
-  };
-
-  // Sinal 1 — tendência de metade do período
-  if (daysWithData.length >= 4) {
-    const mid = Math.floor(daysWithData.length / 2);
-    const older = aggCpl(daysWithData.slice(0, mid));
-    const recent = aggCpl(daysWithData.slice(mid));
-
-    if (recent.spend > 0 && recent.conv === 0 && older.conv > 0) {
-      healthScore -= 35;
-      healthReasons.push('Gasto continua mas os leads zeraram na metade mais recente do período');
-    } else if (older.cpl !== null && recent.cpl !== null) {
-      const change = (recent.cpl - older.cpl) / older.cpl; // > 0 = CPL piorou
-      if (change > 0.15) {
-        healthScore -= Math.min(30, Math.round(change * 50));
-        healthReasons.push(`CPL piorou ${Math.round(change * 100)}% na metade mais recente do período`);
-      }
-    }
-  }
-
-  // Sinal 2 — queda abrupta nos últimos dias (janela curta vs. a janela imediatamente anterior)
-  if (daysWithData.length >= 6) {
-    const w = Math.min(4, Math.max(2, Math.floor(daysWithData.length * 0.15)));
-    const lastWindow = aggCpl(daysWithData.slice(-w));
-    const priorWindow = aggCpl(daysWithData.slice(-(w * 2), -w));
-
-    if (lastWindow.spend > 0 && lastWindow.conv === 0 && priorWindow.conv > 0) {
-      healthScore -= 25;
-      healthReasons.push(`Últimos ${w} dias sem nenhum lead, mesmo com gasto ativo`);
-    } else if (priorWindow.cpl !== null && lastWindow.cpl !== null) {
-      const change = (lastWindow.cpl - priorWindow.cpl) / priorWindow.cpl;
-      if (change > 0.25) {
-        healthScore -= Math.min(35, Math.round(change * 55));
-        healthReasons.push(`CPL dos últimos ${w} dias está ${Math.round(change * 100)}% pior que os dias anteriores`);
-      }
-    }
-  }
-
-  healthScore = Math.max(0, Math.min(100, healthScore));
   if (healthScore < 70) healthTone = 'warning';
   if (healthScore < 45) healthTone = 'critical';
-  // Sem dado real no escopo — nenhum sinal de piora rodou. Sobrepõe qualquer tom calculado acima.
-  if (!hasScopeData) healthTone = 'no_data';
 
-  return { healthScore, healthTone, healthReasons, hasScopeData };
+  const healthReasons = Array.from(worstByCampaign.values())
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .map(w => w.insight.description);
+
+  return { healthScore, healthTone, healthReasons, hasScopeData: true };
 }
 
 export function CommandCenterView({
@@ -188,7 +179,7 @@ export function CommandCenterView({
   // Antes, a única regra era "d.leads < 0 ? -10 : nada" — um delta médio do período inteiro
   // que escondia justamente a virada nos últimos dias, que é o problema mais urgente.
   // Índice de Saúde — mesma regra para o consolidado e para cada campanha (ver computeHealth).
-  const { healthScore, healthTone, healthReasons, hasScopeData } = computeHealth(chartData, hookRate, hookRateBenchmarks);
+  const { healthScore, healthTone, healthReasons, hasScopeData } = computeHealth(chartData, aiInsights, (data.campaigns || []).length);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -220,7 +211,7 @@ export function CommandCenterView({
         <div className="space-y-6">
           {(data.campaigns || []).map((c: any) => {
             const m = aggregateMetrics(data.currentPeriod.insights || [], data.leadsByCampaign || {}, new Set([c.id]), data.videoHookByCampaign);
-            const h = computeHealth(dailySeriesFor(c.id), m.hookRate, hookRateBenchmarks);
+            const h = computeHealth(dailySeriesFor(c.id), aiInsights.filter(i => i.campaignId === c.id), 1);
             return (
               <div key={c.id} className={cn('p-4 rounded-2xl border', cardBase, isDark ? 'border-white/10' : 'border-slate-200')}>
                 <div className="flex items-center justify-between gap-3 mb-3">
