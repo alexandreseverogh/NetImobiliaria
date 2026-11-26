@@ -24,6 +24,7 @@ const AGENT_KEYS: Record<string, { label: string; unit: string }> = {
   ctr_scale:          { label: 'CTR p/ Escalar (%)',           unit: 'PCT' },
   frequency_max:      { label: 'Frequência Máxima',            unit: 'NUM' },
   spend_no_lead:      { label: 'Gasto sem Lead (R$)',          unit: 'BRL' },
+  spend_no_lead_budget_multiplier: { label: 'Tolerância de Gasto s/ Lead (×orçamento)', unit: 'NUM' },
   min_leads_scale:    { label: 'Leads Mín. p/ Escalar',        unit: 'NUM' },
   min_days_running:   { label: 'Dias Mín. Rodando',            unit: 'NUM' },
   hook_rate_critical: { label: 'Hook Rate Crítico (%)',        unit: 'PCT' },

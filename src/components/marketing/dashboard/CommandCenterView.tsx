@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { aggregateMetrics, campaignDailySeries } from '@/components/marketing/dashboard/consolidatedMetrics';
 import { motion } from 'framer-motion';
-import { SparklesIcon, HeartIcon, BoltIcon, ExclamationTriangleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { SparklesIcon, HeartIcon, BoltIcon, ExclamationTriangleIcon, CheckCircleIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import { formatCurrency, formatCurrencyCompact, formatNumber, formatPercent, cn, networkLabel } from '@/lib/marketing-utils';
 import { KpiCard, HookRateKpiCard } from '@/components/marketing/dashboard/KpiCard';
 import { MultiMetricChart } from '@/components/marketing/charts/MultiMetricChart';
@@ -45,6 +45,8 @@ const HEALTH_SEVERITY_WEIGHT: Record<string, number> = {
   ALERT: 20,
   OPTIMIZE: 12,
   SCALE: 0,
+  // Informativo (ex.: "zero lead é esperado pro objetivo desta campanha") — nunca penaliza.
+  INFO: 0,
 };
 
 /**
@@ -382,17 +384,28 @@ export function CommandCenterView({
               </span>
             </div>
           </div>
-          <p className={cn('text-xs mt-2 text-center px-2', txMuted)}>
-            {healthTone === 'no_data'
-              ? 'Sem dados suficientes no período ou filtro selecionado para avaliar a saúde.'
-              : healthTone === 'good'
-              ? 'Ecossistema saudável e performando bem.'
-              : healthReasons.length > 0
-              ? healthReasons.join(' · ')
-              : healthTone === 'warning'
-              ? 'Algumas métricas requerem sua atenção.'
-              : 'Problemas críticos detectados no ecossistema.'}
-          </p>
+          {healthTone === 'no_data' || healthTone === 'good' || healthReasons.length === 0 ? (
+            <p className={cn('text-xs mt-2 text-center px-2', txMuted)}>
+              {healthTone === 'no_data'
+                ? 'Sem dados suficientes no período ou filtro selecionado para avaliar a saúde.'
+                : healthTone === 'good'
+                ? 'Ecossistema saudável e performando bem.'
+                : healthTone === 'warning'
+                ? 'Algumas métricas requerem sua atenção.'
+                : 'Problemas críticos detectados no ecossistema.'}
+            </p>
+          ) : (
+            // Uma linha por campanha — nunca um parágrafo só juntando os motivos de
+            // campanhas diferentes com "·" (ficava difícil separar quem é quem de relance).
+            <ul className={cn('text-xs mt-2 px-2 space-y-1.5 text-left w-full', txMuted)}>
+              {healthReasons.map((reason, idx) => (
+                <li key={idx} className="flex gap-1.5">
+                  <span className="shrink-0">•</span>
+                  <span>{reason}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 
@@ -471,12 +484,15 @@ export function CommandCenterView({
                 <div key={idx} className={cn('p-4 rounded-2xl flex gap-4 items-start', 
                   isDark ? 'bg-white/5 border border-white/5' : 'bg-slate-50 border border-slate-100'
                 )}>
-                  <div className={cn('p-2 rounded-full shrink-0', 
-                    insight.type === 'PAUSE' || insight.type === 'ALERT' ? 'bg-red-500/10 text-red-500' : 
-                    insight.type === 'OPTIMIZE' ? 'bg-amber-500/10 text-amber-500' : 
+                  <div className={cn('p-2 rounded-full shrink-0',
+                    insight.type === 'PAUSE' || insight.type === 'ALERT' ? 'bg-red-500/10 text-red-500' :
+                    insight.type === 'OPTIMIZE' ? 'bg-amber-500/10 text-amber-500' :
+                    insight.type === 'INFO' ? (isDark ? 'bg-slate-500/10 text-slate-400' : 'bg-slate-500/10 text-slate-500') :
                     'bg-indigo-500/10 text-indigo-500'
                   )}>
-                    {insight.type === 'PAUSE' || insight.type === 'ALERT' ? <ExclamationTriangleIcon className="w-5 h-5" /> : <BoltIcon className="w-5 h-5" />}
+                    {insight.type === 'PAUSE' || insight.type === 'ALERT' ? <ExclamationTriangleIcon className="w-5 h-5" />
+                      : insight.type === 'INFO' ? <InformationCircleIcon className="w-5 h-5" />
+                      : <BoltIcon className="w-5 h-5" />}
                   </div>
                   <div className="min-w-0">
                     {insight.campaignName && (

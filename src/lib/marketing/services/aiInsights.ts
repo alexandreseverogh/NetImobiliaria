@@ -173,6 +173,7 @@ async function mapReadyLookalikeAudiences(
 
 const BENCHMARK_KEYS = [
   'cpl_ideal', 'cpl_critical', 'ctr_min', 'ctr_scale', 'frequency_max', 'spend_no_lead',
+  'spend_no_lead_budget_multiplier',
   'min_leads_scale', 'min_days_running', 'hook_rate_critical', 'hook_rate_min',
   'scale_budget_pct', 'downscale_budget_pct',
   // Cálculo proporcional de escala (substituem scale_budget_pct quando configurados)
@@ -213,6 +214,14 @@ interface CampaignData {
   avgFrequency: number;
   trend: 'up' | 'down' | 'stable';
   daysRunning: number;
+  // Orçamento diário real da campanha (R$, a partir do 1º AdSet) — null quando não há AdSet
+  // (campanha importada só-leitura, ou rede sem esse conceito) — nunca 0 fabricado.
+  dailyBudgetReais: number | null;
+  // Estágio de funil EFETIVO (TOF/MOF/BOF) — ver resolveEffectiveFunnelStage acima.
+  funnelStage: 'TOF' | 'MOF' | 'BOF';
+  // Campanha ainda na fase de aprendizado do Meta (campaignStateMachine.ts) — "zero lead"
+  // durante LEARNING é esperado, não é falha; nunca penaliza enquanto nessa fase.
+  isLearning: boolean;
   // FASE 5 — Video Metrics
   hasVideoMetrics: boolean;
   avgHookRate: number;  // video_views_3s / impressions * 100
@@ -259,6 +268,58 @@ function hasAcceptableLeadQuality(d: CampaignData, b: BenchmarkMap): boolean {
   return d.avgFit === null || d.avgFit >= (b.avg_fit_scale_min ?? 40);
 }
 
+// Teto de gasto-sem-lead pro período avaliado (d.daysRunning dias, já capado em 14 pelo
+// `take` da query de Insight) — achado real (2026-11-26, revisão com o usuário): o teto
+// antigo era um valor fixo em R$ (`spend_no_lead`, ex. R$57) comparado direto contra o gasto
+// acumulado — dois problemas reais, não hipotéticos: (1) a janela de dias cresce (até 14) mas
+// o teto nunca acompanhava, então uma campanha rodando há semanas sempre acabava violando um
+// limite pensado pros primeiros dias; (2) o teto era o MESMO pra toda campanha do segmento,
+// sem olhar o orçamento diário que o próprio anunciante configurou — uma campanha com
+// orçamento diário maior que o teto já nasce fadada a disparar o alerta assim que o gate de
+// dias mínimos (`min_days_running`) libera a avaliação, mesmo sem nada de errado.
+// Corrigido comparando o gasto real contra o que SE ESPERAVA gastar nesses dias, dado o
+// orçamento diário real da própria campanha — nunca um R$ fixo desconectado do que foi
+// orçado. `spend_no_lead_budget_multiplier` (padrão 1.5) é a folga: "pode gastar até 1,5× o
+// planejado pro período, zero lead, antes de soar o alarme". Sem orçamento diário conhecido
+// (campanha importada só-leitura, rede sem esse conceito) ou sem o multiplicador configurado
+// pro segmento, cai no teto antigo (`spend_no_lead`) já escalado pelos dias avaliados —
+// preserva o comportamento pra quem nunca configurar o campo novo, nunca retorna null à toa.
+function computeSpendNoLeadThreshold(d: CampaignData, b: BenchmarkMap): number | null {
+  const multiplier = b.spend_no_lead_budget_multiplier;
+  if (d.dailyBudgetReais != null && d.dailyBudgetReais > 0 && multiplier != null) {
+    return d.dailyBudgetReais * d.daysRunning * multiplier;
+  }
+  if (!b.spend_no_lead || !b.min_days_running) return null;
+  return b.spend_no_lead * (d.daysRunning / b.min_days_running);
+}
+
+// Mesma convenção já usada em dashboard/funnel/route.ts e reallocationEngine.ts pra mapear
+// objetivo → estágio de funil (TOF/MOF/BOF) — reusada aqui, não reinventada.
+const OBJECTIVE_TO_STAGE: Record<string, 'TOF' | 'MOF' | 'BOF'> = {
+  OUTCOME_AWARENESS: 'TOF', OUTCOME_TRAFFIC: 'TOF', OUTCOME_REACH: 'TOF',
+  OUTCOME_ENGAGEMENT: 'MOF',
+  OUTCOME_LEADS: 'BOF', OUTCOME_SALES: 'BOF', OUTCOME_APP_PROMOTION: 'BOF', OUTCOME_CONVERSIONS: 'BOF',
+};
+
+/**
+ * Achado real (2026-11-26): `Campaign.funnel_stage` só é confiável quando alguém de fato
+ * classificou manualmente (PATCH /campaigns/[id]/funnel-stage) — toda campanha nasce com o
+ * default bruto da coluna ('TOF'), nunca calculado a partir do objetivo real na criação/
+ * importação (confirmado lendo campaigns/route.ts e o endpoint de import: nenhum dos dois
+ * grava funnel_stage). Confiar cegamente na coluna faria qualquer campanha de Engajamento/
+ * Leads nunca-reclassificada manualmente parecer "Topo de Funil" pras regras abaixo — exatamente
+ * o tipo de comparação errada (banana com abacaxi) que motivou esta revisão. Quando o valor
+ * salvo é 'TOF' (o default cru), recalcula a partir do objetivo; qualquer outro valor salvo
+ * (MOF/BOF) é respeitado — sinal de classificação deliberada, que pode legitimamente divergir
+ * do objetivo (ex.: campanha Leads que na prática funciona como nutrição, reclassificada à mão).
+ */
+function resolveEffectiveFunnelStage(campaign: { funnelStage?: string | null; objective?: string | null }): 'TOF' | 'MOF' | 'BOF' {
+  if (campaign.funnelStage && campaign.funnelStage !== 'TOF') {
+    return campaign.funnelStage === 'MOF' || campaign.funnelStage === 'BOF' ? campaign.funnelStage : 'TOF';
+  }
+  return OBJECTIVE_TO_STAGE[campaign.objective ?? ''] ?? 'TOF';
+}
+
 const RULES: InsightRule[] = [
   {
     check: (d, b) => d.avgCtr < b.ctr_min && d.daysRunning >= b.min_days_running,
@@ -285,12 +346,51 @@ const RULES: InsightRule[] = [
     confidence: () => 0.7,
   },
   {
-    check: (d, b) => d.totalSpend > b.spend_no_lead && d.leads === 0 && d.daysRunning >= b.min_days_running,
+    // Achado real (2026-11-26, revisão com o usuário): as 2 campanhas reais que motivaram
+    // esta regra são objective=OUTCOME_ENGAGEMENT — ou seja, nunca foram configuradas pra
+    // gerar lead direto. Avaliar "zero lead" nelas é cobrar um resultado que o próprio
+    // anunciante não pediu ao Meta pra otimizar — só faz sentido pra campanhas BOF (Leads/
+    // Vendas/Conversão). Pra TOF/MOF, a regra informativa abaixo assume o lugar, sem penalizar
+    // saúde nem recomendar pausa. Também nunca dispara em LEARNING — "zero lead" nos primeiros
+    // dias de aprendizado do Meta é esperado, não falha.
+    check: (d, b) => {
+      if (d.funnelStage !== 'BOF' || d.isLearning) return false;
+      if (d.leads !== 0 || d.daysRunning < b.min_days_running) return false;
+      const limite = computeSpendNoLeadThreshold(d, b);
+      return limite != null && d.totalSpend > limite;
+    },
     type: 'PAUSE',
     title: 'Gasto sem resultados',
-    description: (d, b) =>
-      `A campanha "${d.campaignName}" gastou R$${d.totalSpend.toFixed(2)} (limite: R$${b.spend_no_lead}) sem gerar nenhum lead. Recomendamos pausar e reavaliar.`,
-    confidence: (d, b) => Math.min(0.95, 0.75 + d.totalSpend / (b.spend_no_lead * 10)),
+    description: (d, b) => {
+      const limite = computeSpendNoLeadThreshold(d, b) ?? 0;
+      const orcamento = d.dailyBudgetReais != null
+        ? ` (orçamento planejado: R$${d.dailyBudgetReais.toFixed(2)}/dia)`
+        : '';
+      return `A campanha "${d.campaignName}" já gastou R$${d.totalSpend.toFixed(2)} em ${d.daysRunning} dia(s)${orcamento} sem gerar nenhum lead — acima do esperado para esse período (R$${limite.toFixed(2)}). Recomendamos pausar e reavaliar.`;
+    },
+    confidence: (d, b) => {
+      const limite = computeSpendNoLeadThreshold(d, b) || 1;
+      return Math.min(0.95, 0.75 + Math.max(0, d.totalSpend / limite - 1) * 0.5);
+    },
+  },
+  {
+    // Contraparte informativa da regra acima, pra TOF/MOF: nunca penaliza, nunca recomenda
+    // pausa — só explica, com o dado real da própria campanha, por que "zero lead" não é
+    // tratado como problema aqui. Sem isso, o usuário vê gasto real + zero lead + nenhum
+    // alerta, e pode achar que a IA simplesmente não percebeu.
+    check: (d, b) => {
+      if (d.funnelStage === 'BOF' || d.isLearning) return false;
+      if (d.leads !== 0 || d.daysRunning < b.min_days_running) return false;
+      const limite = computeSpendNoLeadThreshold(d, b);
+      return limite != null && d.totalSpend > limite;
+    },
+    type: 'INFO',
+    title: 'Sem lead — esperado para o objetivo desta campanha',
+    description: (d) => {
+      const stageLabel = d.funnelStage === 'MOF' ? 'Engajamento' : 'Reconhecimento/Tráfego';
+      return `A campanha "${d.campaignName}" é de ${stageLabel} — não foi configurada para gerar lead direto, então os R$${d.totalSpend.toFixed(2)} gastos em ${d.daysRunning} dia(s) sem nenhum lead não são tratados como problema aqui. Continuamos de olho em CTR, frequência e CPC dela normalmente.`;
+    },
+    confidence: () => 0.7,
   },
   {
     check: (d, b) =>
@@ -548,7 +648,13 @@ export async function generateAiInsights(
     where.clientId = clientId;
   }
 
-  let campaigns = await prisma.campaign.findMany({ where });
+  let campaigns = await prisma.campaign.findMany({
+    where,
+    // dailyBudget real (1º AdSet) — orçamento planejado pelo próprio anunciante, usado pra
+    // calibrar o teto de "gasto sem lead" pelo que ELE configurou, não um R$ fixo pro segmento
+    // inteiro (ver computeSpendNoLeadThreshold acima).
+    include: { adSets: { select: { dailyBudget: true }, take: 1 } },
+  });
   // PARTE D1 (correção) — sem isso, Insights da IA / Actionable Alerts continuavam citando
   // campanha de outra rede mesmo com o filtro do dashboard ativo (ex.: Google com "Meta"
   // selecionado) — pior que incompleto, era enganoso.
@@ -673,6 +779,11 @@ export async function generateAiInsights(
       avgFrequency,
       trend: calculateTrend(insights),
       daysRunning: insights.length,
+      dailyBudgetReais: (campaign as any).adSets?.[0]?.dailyBudget != null
+        ? (campaign as any).adSets[0].dailyBudget / 100
+        : null,
+      funnelStage: resolveEffectiveFunnelStage(campaign as any),
+      isLearning: (campaign as any).lifecycleStatus === 'LEARNING',
       hasVideoMetrics,
       avgHookRate,
       avgSearchImpressionShare,
