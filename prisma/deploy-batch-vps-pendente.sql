@@ -1050,4 +1050,22 @@ CREATE INDEX IF NOT EXISTS idx_creative_asset_tenant_format
   ON campanhasmarketingdigital."CreativeAsset" (tenant_id, format);
 
 
+-- ===== migration-2026-11-27-ad-video-url.sql =====
+-- Player de vídeo pro criativo na aba "Criativos" do dashboard (/admin/campanhas/dashboard).
+-- Aditiva e idempotente.
+ALTER TABLE campanhasmarketingdigital."Ad"
+  ADD COLUMN IF NOT EXISTS "videoUrl" TEXT;
+
+-- Backfill: anúncio de vídeo lançado pelo próprio wizard ANTES desta correção já tem o
+-- arquivo real guardado permanentemente no nosso storage (CreativeAsset.storage_url, vinculado
+-- via ad_id na própria criação) — só nunca tinha sido copiado pro Ad. Idempotente (WHERE
+-- "videoUrl" IS NULL) e nunca sobrescreve um valor já preenchido por outro caminho.
+UPDATE campanhasmarketingdigital."Ad" a
+   SET "videoUrl" = ca.storage_url
+  FROM campanhasmarketingdigital."CreativeAsset" ca
+ WHERE ca.ad_id = a.id
+   AND ca.format = 'video'
+   AND a."videoUrl" IS NULL
+   AND a."creativeType" = 'VIDEO';
+
 COMMIT;

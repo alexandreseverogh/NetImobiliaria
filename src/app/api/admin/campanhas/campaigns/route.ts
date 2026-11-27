@@ -434,6 +434,9 @@ export async function POST(request: NextRequest) {
         status: initialStatus,
         creativeType: videoAssetUrl ? 'VIDEO' : creativeType,
         images: resolvedImages,
+        // videoAssetUrl já é a URL permanente no nosso storage (MinIO/S3, via CreativeAsset) —
+        // é o que o player de criativo em "Criativos" do dashboard usa pra reproduzir o vídeo.
+        videoUrl: videoAssetUrl || null,
         body: adBody || '',
         headline,
         linkUrl: resolvedLinkUrl,

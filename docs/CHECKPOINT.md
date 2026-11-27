@@ -1,3 +1,32 @@
+> **Atualizado em:** 2026-11-27 — Player de vídeo na aba "Criativos" do dashboard
+> (`/admin/campanhas/dashboard`). Clicar num criativo `creativeType='VIDEO'` abria o mesmo
+> visualizador de imagem, que nunca tinha de onde vir o arquivo real — nenhum caminho de
+> código (nem o lançamento pelo próprio wizard, nem a sincronização de campanha importada do
+> Meta) jamais persistia a URL do vídeo em si, só a miniatura. **Schema:** nova coluna
+> `campanhasmarketingdigital."Ad"."videoUrl"` (migração `prisma/migration-2026-11-27-ad-video-
+> url.sql`, **incluída no lote da VPS**, aplicada 2x local — `ON_ERROR_STOP=1`; 1ª rodada
+> `ALTER TABLE`, 2ª `NOTICE: já existe, skipping` + `UPDATE 0`, confirmando idempotência).
+> **Lançamento próprio:** `campaigns/route.ts` agora persiste `videoAssetUrl` (já era a URL
+> permanente no MinIO/S3, via `CreativeAsset`) direto no `Ad` criado — vale pra toda campanha
+> de vídeo lançada a partir de agora. **Backfill:** a mesma migração copia `CreativeAsset.
+> storage_url` pro `Ad.videoUrl` de vídeos lançados ANTES desta correção, via o vínculo `ad_id`
+> já existente (idempotente, `WHERE "videoUrl" IS NULL`) — `UPDATE 0` no ambiente local porque
+> não há nenhum vídeo de teste cadastrado aqui ainda, não é erro. **Campanha importada da
+> Meta:** `MetaAdsAdapter.fetchCampaignAds` passa a extrair `video_data.video_id` do criativo e
+> um novo método `fetchVideoSourceUrl(videoId)` busca a URL real (temporária) do arquivo;
+> `importedAdSetsSync.storeAdVideo()` (novo, mesmo padrão best-effort de `storeAdImages`) baixa
+> e guarda permanentemente no storage próprio — dispara sozinho na próxima vez que o botão
+> "Sincronizar" rodar, sem precisar de ação manual extra. `fetchVideoSourceUrl` é opcional na
+> interface `AdNetworkService` (Google/TikTok/fakes não implementam, sem impacto). **UI:**
+> `CreativesPerformanceView.tsx` — clique num criativo de vídeo abre um player `<video controls
+> autoPlay>` de verdade em vez do visualizador de imagem; sem `videoUrl` disponível (ainda não
+> sincronizado, ou download falhou), mostra aviso honesto em vez de abrir player sem fonte;
+> miniatura da lista ganha selo de play (`PlayIcon`) só nos criativos de vídeo. **Verificado:**
+> `npx tsc --noEmit` — **zero erros em todo o projeto**. Não testado ao vivo no navegador (sem
+> criativo de vídeo real neste ambiente de dev) nem contra a API real do Meta (`fetchVideoSourceUrl`
+> nunca foi exercitado contra uma campanha real) — pendência de confirmação visual/funcional
+> assim que houver um criativo de vídeo real (lançado ou importado) pra testar.
+>
 > **Atualizado em:** 2026-11-24 — Aba Segmentação (quebras idade×gênero, região, horário) com gráficos premium e Top N de regiões (commit 6cd78058). Seed de teste local prisma/seed-segmentacao-ui.sql (somente local, não vai para a VPS). Lote deploy-batch-vps-pendente.sql validado 2x local (ON_ERROR_STOP=1). Pendente local: Docker Desktop sem encaminhamento de porta 15432 (processo com.docker.backend antigo, PID 12940, segura a porta; requer reinício do computador). Dashboard de campanhas ainda não validado na tela por causa disso.
 
 > **Atualizado em:** 2026-11-23 (segmentação por quebra — Fases 1 e 2) — **Quebras de desempenho** (plano `docs/PLANO_SEGMENTACAO_E_WIZARD.md`): nova tabela `campanhasmarketingdigital."InsightBreakdown"` (migração `prisma/migration-2026-11-23-insight-breakdown.sql`, **incluída no lote da VPS**, aplicada 2x no local). Adaptador Meta `fetchBreakdownInsights` (uma chamada por quebra: idade+gênero, região, horário). Serviço `breakdownSyncService.ts` e cron `POST /api/cron/campanhas/breakdowns` (07:45, registrado no scheduler). Falha numa quebra não interrompe as outras. **Testado:** as três combinações foram aceitas pela Meta na conta Artemis9 (teste só de leitura; sem dados ainda, a campanha não entregou). **Pendente:** aba "Segmentação" (Fase 3), recomendação da IA (Fase 4), sugestão no wizard (Fase 5). **Deploy:** lote de banco + código (`main`).

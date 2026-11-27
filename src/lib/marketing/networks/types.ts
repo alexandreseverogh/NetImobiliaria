@@ -215,6 +215,11 @@ export interface AdNetworkService {
 
   /** Opcional — imagens em tamanho original da publicação de origem. */
   fetchPostImages?(storyId: string): Promise<string[]>;
+
+  /** Opcional — URL temporária (expira) do arquivo real de vídeo, a partir do ID do vídeo
+   *  retornado pelo criativo do anúncio. Pra player de criativo em vídeo: baixar e guardar
+   *  no storage próprio, nunca servir essa URL direto (a Meta a invalida depois de um tempo). */
+  fetchVideoSourceUrl?(videoId: string): Promise<string | null>;
 }
 
 /** Resumo de 1 campanha vista direto na API da rede, pra fluxo de importação (ver
@@ -256,6 +261,9 @@ export interface ExternalAdSummary {
   imageHashes: string[];
   /** ID da publicação de origem do anúncio (para buscar a imagem original quando não há hash). */
   storyId: string | null;
+  /** ID do vídeo na rede (só quando creativeType === 'VIDEO') — usado para buscar o arquivo
+   *  real do vídeo via fetchVideoSourceUrl. */
+  videoId: string | null;
 }
 
 /** Conjunto de anúncios real de uma campanha na rede, com o direcionamento de localização

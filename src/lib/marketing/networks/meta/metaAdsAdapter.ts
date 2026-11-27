@@ -328,7 +328,7 @@ export class MetaAdsAdapter implements AdNetworkService {
     const res = await axios.get(this.url(`${externalCampaignId}/ads`), {
       params: {
         ...this.auth,
-        fields: 'id,name,status,adset_id,creative{title,body,call_to_action_type,thumbnail_url,image_url,image_hash,effective_object_story_id,object_story_spec}',
+        fields: 'id,name,status,adset_id,creative{title,body,call_to_action_type,thumbnail_url,image_url,image_hash,effective_object_story_id,object_story_spec{video_data,link_data}}',
         limit: 200,
       },
       timeout: 15000,
@@ -360,8 +360,19 @@ export class MetaAdsAdapter implements AdNetworkService {
         imageUrls,
         imageHashes,
         storyId: r.creative?.effective_object_story_id ? String(r.creative.effective_object_story_id) : null,
+        videoId: story.video_data?.video_id ? String(story.video_data.video_id) : null,
       };
     });
+  }
+
+  /** URL temporária (a Meta a invalida depois de um tempo) do arquivo real do vídeo —
+   *  usado para baixar e guardar no storage próprio, nunca pra servir direto. */
+  async fetchVideoSourceUrl(videoId: string): Promise<string | null> {
+    const res = await axios.get(this.url(videoId), {
+      params: { ...this.auth, fields: 'source' },
+      timeout: 20000,
+    });
+    return res.data?.source || null;
   }
 
   /** Conjuntos de anúncios reais de uma campanha, com o targeting de localização (geo_locations). */

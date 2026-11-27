@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
     const ads = await prisma.ad.findMany({
       where: { metaAdId: { not: null }, adSet: { campaign: campaignWhere } },
       select: {
-        id: true, name: true, status: true, creativeType: true, headline: true, body: true, images: true, thumbnails: true,
+        id: true, name: true, status: true, creativeType: true, headline: true, body: true, images: true, thumbnails: true, videoUrl: true,
         adSet: { select: { campaign: { select: { id: true, name: true } } } },
       },
     });
@@ -256,6 +256,7 @@ export async function GET(request: NextRequest) {
         thumbnailUrl: ad.thumbnails?.[0] ?? ad.images?.[0] ?? null,
         images: ad.images ?? [],
         imageCount: ad.images?.length ?? 0,
+        videoUrl: ad.videoUrl ?? null,
         headline: ad.headline,
         body: ad.body,
         campaignId: ad.adSet.campaign.id,

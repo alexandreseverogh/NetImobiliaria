@@ -51,6 +51,32 @@ export async function storeAdImages(
 }
 
 /**
+ * Baixa o arquivo REAL de vídeo de um anúncio (a URL que a Meta devolve expira) e guarda
+ * no storage próprio, pra servir de source do player de criativo em `/admin/campanhas/
+ * dashboard` → aba Criativos. Mesma disciplina de `storeAdImages`: best-effort, sem S3
+ * configurado ou falha de download devolve `null` sem derrubar a sincronização.
+ */
+export async function storeAdVideo(
+  tenantId: string,
+  metaAdId: string,
+  videoSourceUrl: string,
+): Promise<string | null> {
+  if (!isS3Configured()) return null;
+  try {
+    const res = await axios.get(videoSourceUrl, { responseType: 'arraybuffer', timeout: 60000 });
+    const buffer = Buffer.from(res.data);
+    const ct = String(res.headers['content-type'] || 'video/mp4').split(';')[0];
+    const ext = ct.includes('mp4') ? 'mp4' : ct.includes('quicktime') ? 'mov' : 'mp4';
+    const key = `criativos/${tenantId}/meta/${metaAdId}-video.${ext}`;
+    await uploadToS3(key, buffer, ct);
+    return getS3Url(key);
+  } catch (e: any) {
+    console.warn('[ads] falha ao guardar vídeo do anúncio', metaAdId, e?.message);
+    return null;
+  }
+}
+
+/**
  * Espelha os conjuntos de anúncios REAIS de uma campanha (importada ou criada fora da
  * plataforma) como linhas de AdSet, com o direcionamento de localização da rede.
  *
@@ -109,8 +135,9 @@ export async function syncCampaignAdSets(
       if (!parent) continue;
 
       // Sempre rebaixa a imagem: anúncios guardados antes com miniatura pequena são corrigidos aqui.
-      const existing = await prisma.ad.findUnique({ where: { metaAdId: a.externalId }, select: { thumbnails: true, images: true } });
+      const existing = await prisma.ad.findUnique({ where: { metaAdId: a.externalId }, select: { thumbnails: true, images: true, videoUrl: true } });
       let stored = { images: existing?.images ?? [], thumbnails: existing?.thumbnails ?? [] };
+      let videoUrl: string | null = existing?.videoUrl ?? null;
       {
         // Preferência: original por hash; sem hash, a melhor URL disponível da própria Meta.
         let fullUrls: string[] = [];
@@ -139,6 +166,19 @@ export async function syncCampaignAdSets(
         if (fresh.images.length > 0) stored = fresh;
       }
 
+      // Vídeo: só tenta buscar se ainda não temos o arquivo guardado (a URL da Meta expira,
+      // mas o nosso já é permanente — não precisa baixar de novo a cada sincronização).
+      if (!videoUrl && a.videoId && service.fetchVideoSourceUrl) {
+        try {
+          const source = await service.fetchVideoSourceUrl(a.videoId);
+          if (source) videoUrl = await storeAdVideo(campaign?.tenantId ?? '', a.externalId, source);
+        } catch (e: any) {
+          // Mesma disciplina das imagens: falha aqui nunca bloqueia a sincronização — o
+          // criativo continua com a miniatura, só o player de vídeo fica indisponível.
+          console.warn(`[import-sync] anúncio ${a.externalId}: vídeo original não obtido. ${e?.message}`);
+        }
+      }
+
       const data = {
         adSetId: parent.id,
         name: a.name,
@@ -150,6 +190,7 @@ export async function syncCampaignAdSets(
         ctaType: a.ctaType ?? 'LEARN_MORE',
         images: stored.images,
         thumbnails: stored.thumbnails,
+        videoUrl,
       };
       await prisma.ad.upsert({
         where: { metaAdId: a.externalId },

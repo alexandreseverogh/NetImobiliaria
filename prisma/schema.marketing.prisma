@@ -189,6 +189,7 @@ model Ad {
   creativeType String
   images       String[]
   thumbnails   String[] @default([])
+  videoUrl     String?
   body         String
   headline     String?
   linkUrl      String?
