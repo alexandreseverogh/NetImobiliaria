@@ -1,18 +1,16 @@
 import React, { useState } from 'react';
 import { ConsolidatedHeader } from '@/components/marketing/dashboard/ConsolidatedHeader';
-import { campaignCplSeries } from '@/components/marketing/dashboard/consolidatedMetrics';
+import { campaignCplSeries, aggregateDailySeries, aggregateMetrics } from '@/components/marketing/dashboard/consolidatedMetrics';
 import { motion } from 'framer-motion';
 import { MultiMetricChart } from '@/components/marketing/charts/MultiMetricChart';
 import { CplTimelineChart } from '@/components/marketing/charts/CplTimelineChart';
-import { ClassicFunnelChart } from '@/components/marketing/charts/ClassicFunnelChart';
-import { StageFunnelWidget } from '@/components/marketing/StageFunnelWidget';
+import { StageFunnelWidget, StageCard } from '@/components/marketing/StageFunnelWidget';
 import { FunnelChart } from '@/components/marketing/charts/FunnelChart';
 import { PeriodBadge } from './PeriodBadge';
 import { KpiCard, HookRateKpiCard } from '@/components/marketing/dashboard/KpiCard';
-import { formatCurrency, formatCurrencyCompact, formatNumber, formatPercent, cn } from '@/lib/marketing-utils';
-import { CampaignSpendPieChart } from '@/components/marketing/charts/CampaignSpendPieChart';
+import { formatCurrency, formatCurrencyCompact, formatNumber, formatPercent, cn, utcDateLabel } from '@/lib/marketing-utils';
 
-import type { DashboardFullData, FunnelData7 } from '@/lib/marketing-api';
+import type { DashboardFullData, FunnelData7, FunnelStage } from '@/lib/marketing-api';
 
 interface AnalyticsViewProps {
   isDark: boolean;
@@ -25,9 +23,8 @@ interface AnalyticsViewProps {
   periodLabel: string;
   periodBadgeLabel: string;
   predColors: string[];
-  chartData: any[]; 
+  chartData: any[];
   cplData: any[];
-  campaignSpendData: any[];
   campaigns: any[];
   tooltipCss: any;
   cpl: number | null;
@@ -51,7 +48,6 @@ export function AnalyticsView({
   predColors,
   chartData,
   cplData,
-  campaignSpendData,
   campaigns,
   tooltipCss,
   cpl,
@@ -61,7 +57,12 @@ export function AnalyticsView({
   clientFilter,
   loading,
 }: AnalyticsViewProps) {
-  const [cplExpanded, setCplExpanded] = useState(false);
+  const [cplExpanded, setCplExpanded]             = useState(false);
+  const [volumeExpanded, setVolumeExpanded]       = useState(false);
+  const [efficiencyExpanded, setEfficiencyExpanded] = useState(false);
+  const [linkClicksExpanded, setLinkClicksExpanded] = useState(false);
+  const [stageExpanded, setStageExpanded]         = useState(false);
+
   if (loading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-pulse">
@@ -77,6 +78,24 @@ export function AnalyticsView({
 
   const t = data.currentPeriod.totals;
   const d = data.deltas;
+
+  // Mesma disciplina do CPL Timeline: série diária agregada por data (nunca 1 ponto por
+  // linha de Insight — Insight é 1 linha por campanha por dia) — consolidada quando
+  // `campaignId` é omitido, de 1 campanha só quando informado.
+  const toChartSeries = (campaignId?: string) =>
+    aggregateDailySeries(data.currentPeriod.insights || [], campaignId).map(r => ({
+      date: utcDateLabel(r.date),
+      spend: r.spend, clicks: r.clicks, impressions: r.impressions, conversions: r.conversions,
+      ctr: r.ctr, cpc: r.cpc,
+      metaLinkClicks: r.metaLinkClicks, metaConversationsStarted: r.metaConversationsStarted,
+    }));
+
+  // Ícone/rótulo reais de cada estágio (vem do mesmo /dashboard/funnel que já alimenta o
+  // StageFunnelWidget consolidado) — nunca um mapa hardcoded aqui, que poderia divergir do
+  // que o Master curou pro segmento.
+  const stageMetaByCode = new Map(
+    (funnelData7?.stages ?? []).map(s => [s.code, { label: s.label, icon: s.icon }]),
+  );
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -110,22 +129,58 @@ export function AnalyticsView({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Volume */}
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className={cn('rounded-2xl p-6', cardBase)}>
-            <MultiMetricChart isDark={isDark} data={chartData} title="Volume — Gasto × Cliques"
-              yLeftLabel="Gasto (R$)" yRightLabel="Cliques"
-              metrics={[
-                { key: 'spend',  label: 'Gasto (R$)', color: predColors[0], type: 'area' },
-                { key: 'clicks', label: 'Cliques',    color: predColors[1], type: 'line', yAxisId: 'right' },
-              ]} />
+            <h3 className={cn('text-sm font-black mb-2', tx)}>Volume — Gasto × Cliques</h3>
+            <ConsolidatedHeader count={campaigns.length} expanded={volumeExpanded} onToggle={() => setVolumeExpanded(v => !v)} isDark={isDark} txMuted={txMuted} label="Volume consolidado" />
+            {volumeExpanded && campaigns.length > 1 ? (
+              <div className="space-y-6">
+                {campaigns.map((c: any) => (
+                  <div key={c.id}>
+                    <p className={cn('text-sm font-black mb-2 truncate', tx)}>{c.name}</p>
+                    <MultiMetricChart isDark={isDark} data={toChartSeries(c.id)}
+                      yLeftLabel="Gasto (R$)" yRightLabel="Cliques"
+                      metrics={[
+                        { key: 'spend',  label: 'Gasto (R$)', color: predColors[0], type: 'area' },
+                        { key: 'clicks', label: 'Cliques',    color: predColors[1], type: 'line', yAxisId: 'right' },
+                      ]} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <MultiMetricChart isDark={isDark} data={chartData}
+                yLeftLabel="Gasto (R$)" yRightLabel="Cliques"
+                metrics={[
+                  { key: 'spend',  label: 'Gasto (R$)', color: predColors[0], type: 'area' },
+                  { key: 'clicks', label: 'Cliques',    color: predColors[1], type: 'line', yAxisId: 'right' },
+                ]} />
+            )}
           </motion.div>
-          
+
           {/* Eficiência */}
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className={cn('rounded-2xl p-6', cardBase)}>
-            <MultiMetricChart isDark={isDark} data={chartData} title="Eficiência — CTR % × CPC (R$)"
-              yLeftLabel="CTR %" yRightLabel="CPC (R$)"
-              metrics={[
-                { key: 'ctr', label: 'CTR %',    color: predColors[2], type: 'area' },
-                { key: 'cpc', label: 'CPC (R$)', color: predColors[3], type: 'line', yAxisId: 'right' },
-              ]} />
+            <h3 className={cn('text-sm font-black mb-2', tx)}>Eficiência — CTR % × CPC (R$)</h3>
+            <ConsolidatedHeader count={campaigns.length} expanded={efficiencyExpanded} onToggle={() => setEfficiencyExpanded(v => !v)} isDark={isDark} txMuted={txMuted} label="Eficiência consolidada" />
+            {efficiencyExpanded && campaigns.length > 1 ? (
+              <div className="space-y-6">
+                {campaigns.map((c: any) => (
+                  <div key={c.id}>
+                    <p className={cn('text-sm font-black mb-2 truncate', tx)}>{c.name}</p>
+                    <MultiMetricChart isDark={isDark} data={toChartSeries(c.id)}
+                      yLeftLabel="CTR %" yRightLabel="CPC (R$)"
+                      metrics={[
+                        { key: 'ctr', label: 'CTR %',    color: predColors[2], type: 'area' },
+                        { key: 'cpc', label: 'CPC (R$)', color: predColors[3], type: 'line', yAxisId: 'right' },
+                      ]} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <MultiMetricChart isDark={isDark} data={chartData}
+                yLeftLabel="CTR %" yRightLabel="CPC (R$)"
+                metrics={[
+                  { key: 'ctr', label: 'CTR %',    color: predColors[2], type: 'area' },
+                  { key: 'cpc', label: 'CPC (R$)', color: predColors[3], type: 'line', yAxisId: 'right' },
+                ]} />
+            )}
           </motion.div>
 
           {/* CPL Timeline */}
@@ -151,28 +206,71 @@ export function AnalyticsView({
             )}
           </motion.div>
 
-          {/* Distribuição por Campanha */}
+          {/* Cliques no Link (Meta) × Conversas Iniciadas (Meta) — substitui "Distribuição por
+              Campanha" (já exibida em Visão Executiva, FASE do pedido do usuário); os 2 sinais
+              de engajamento reais do Meta, já persistidos em Insight desde a FASE anterior. */}
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className={cn('rounded-2xl p-6', cardBase)}>
-            <h3 className={cn('text-sm font-black mb-4', tx)}>Distribuição por Campanha</h3>
-            <CampaignSpendPieChart campaignSpendData={campaignSpendData} isDark={isDark} txMuted={txMuted} />
+            <h3 className={cn('text-sm font-black mb-2', tx)}>Cliques no Link (Meta) × Conversas Iniciadas (Meta)</h3>
+            <ConsolidatedHeader count={campaigns.length} expanded={linkClicksExpanded} onToggle={() => setLinkClicksExpanded(v => !v)} isDark={isDark} txMuted={txMuted} label="Engajamento consolidado" />
+            {linkClicksExpanded && campaigns.length > 1 ? (
+              <div className="space-y-6">
+                {campaigns.map((c: any) => (
+                  <div key={c.id}>
+                    <p className={cn('text-sm font-black mb-2 truncate', tx)}>{c.name}</p>
+                    <MultiMetricChart isDark={isDark} data={toChartSeries(c.id)}
+                      yLeftLabel="Quantidade"
+                      metrics={[
+                        { key: 'metaLinkClicks',           label: 'Cliques no Link (Meta)',        color: isDark ? '#22d3ee' : '#0891b2', type: 'area' },
+                        { key: 'metaConversationsStarted',  label: 'Conversas Iniciadas (Meta)',    color: isDark ? '#f472b6' : '#db2777', type: 'line' },
+                      ]} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <MultiMetricChart isDark={isDark} data={chartData}
+                yLeftLabel="Quantidade"
+                metrics={[
+                  { key: 'metaLinkClicks',          label: 'Cliques no Link (Meta)',       color: isDark ? '#22d3ee' : '#0891b2', type: 'area' },
+                  { key: 'metaConversationsStarted', label: 'Conversas Iniciadas (Meta)',   color: isDark ? '#f472b6' : '#db2777', type: 'line' },
+                ]} />
+            )}
           </motion.div>
         </div>
 
-        {/* ── Funil Clássico + Funil por Estágio ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5 items-start">
-          {data.funnelData && (
-            <ClassicFunnelChart
-              funnelData={data.funnelData}
-              leadCount={data.currentPeriod.leadCount}
-              isDark={isDark}
-              periodLabel={periodBadgeLabel}
-              className="mt-0"
-            />
-          )}
+        {/* ── Funil por Estágio ── (Funil do Ciclo de Conversão em Vendas suprimido aqui —
+            já exibido em Visão Executiva, com seu próprio expand/collapse; sem ele, "Funil por
+            Estágio" passa a ocupar a largura inteira, sem deixar buraco de layout.) */}
+        <div className="mt-5">
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
             className={cn('rounded-2xl p-6', cardBase)}>
-            <h3 className={cn('text-sm font-black mb-4', tx)}>Funil por Estágio</h3>
-            {funnelData7 ? (
+            <h3 className={cn('text-sm font-black mb-2', tx)}>Funil por Estágio</h3>
+            <ConsolidatedHeader count={campaigns.length} expanded={stageExpanded} onToggle={() => setStageExpanded(v => !v)} isDark={isDark} txMuted={txMuted} label="Funil consolidado" />
+            {stageExpanded && campaigns.length > 1 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {campaigns.map((c: any) => {
+                  const stageCode = c.funnelStage ?? 'TOF';
+                  const meta = stageMetaByCode.get(stageCode) ?? { label: stageCode, icon: '📊' };
+                  const m = aggregateMetrics(data.currentPeriod.insights || [], data.leadsByCampaign ?? {}, new Set([c.id]));
+                  const stage: FunnelStage = {
+                    code: stageCode,
+                    label: meta.label,
+                    icon: meta.icon,
+                    campaigns_count: 1,
+                    spend: m.spend,
+                    impressions: m.impressions,
+                    clicks: m.clicks,
+                    leads: m.leads,
+                    conversions: m.conversions,
+                  };
+                  return (
+                    <div key={c.id} className="min-w-0">
+                      <p className={cn('text-[11px] font-black mb-1.5 truncate', tx)}>{c.name}</p>
+                      <StageCard stage={stage} isBottleneck={false} isDark={isDark} />
+                    </div>
+                  );
+                })}
+              </div>
+            ) : funnelData7 ? (
               <StageFunnelWidget
                 data={funnelData7}
                 isDark={isDark}
@@ -181,28 +279,6 @@ export function AnalyticsView({
             ) : (
               <FunnelChart data={data.funnelData} isDark={isDark} />
             )}
-            {/* Campanhas em cada estágio (TOF/MOF/BOF) — o total fica no gráfico acima. */}
-            <div className="mt-5 space-y-3">
-              {(['TOF', 'MOF', 'BOF'] as const).map(stage => {
-                const list = campaigns.filter((c: any) => (c.funnelStage ?? 'TOF') === stage);
-                return (
-                  <div key={stage}>
-                    <p className={cn('text-[10px] font-black uppercase tracking-widest mb-1', txMuted)}>
-                      {stage} · {list.length} campanha{list.length === 1 ? '' : 's'}
-                    </p>
-                    {list.length === 0 ? (
-                      <p className={cn('text-[11px]', txFaint)}>Nenhuma campanha neste estágio.</p>
-                    ) : (
-                      <ul className="space-y-1">
-                        {list.map((c: any) => (
-                          <li key={c.id} className={cn('text-[11px] truncate', tx)}>{c.name}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
           </motion.div>
         </div>
       </div>

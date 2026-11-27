@@ -276,11 +276,18 @@ export function CplTimelineChart({ data, isDark }: Props) {
   }
 
   // ── Empty state ───────────────────────────────────────────────────────────
+  // 2 motivos distintos pro mesmo visual "sem gráfico" — nunca confundir um com o outro:
+  // (1) nenhuma campanha com dado de gasto no período/escopo filtrado (array vazio) vs.
+  // (2) há gasto real, mas nenhum dia teve lead identificado (clique de WhatsApp/formulário) —
+  // comum em campanhas de Engajamento/Alcance, que nunca geram esse sinal por desenho.
   if (data.every(d => d.cpl === 0)) {
+    const hasSpend = data.some(d => d.spend > 0);
     return (
-      <div style={{ height: 264, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ fontSize: 13, color: isDark ? '#475569' : '#94a3b8' }}>
-          CPL disponível após captura de leads
+      <div style={{ height: 264, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 24px' }}>
+        <p style={{ fontSize: 13, color: isDark ? '#475569' : '#94a3b8', textAlign: 'center', lineHeight: 1.5 }}>
+          {hasSpend
+            ? 'Nenhum lead identificado ainda neste período (clique de WhatsApp ou envio de formulário) — CPL aparece quando houver o primeiro.'
+            : 'Nenhuma campanha com gasto no período/filtro selecionado.'}
         </p>
       </div>
     );

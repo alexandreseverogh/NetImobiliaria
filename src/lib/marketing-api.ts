@@ -583,6 +583,7 @@ export interface CplTimelineData {
 
 export const getCplTimeline = (params?: {
   startDate?: string; endDate?: string; clientId?: ClientFilter; segmentId?: string; campaignId?: string;
+  network?: string;
 }) => api.get<CplTimelineData>('/dashboard/cpl', { params }).then(r => r.data);
 
 /* ──────────────────────────────────────────────────────────────

@@ -1,3 +1,63 @@
+> **Atualizado em:** 2026-11-27 (continuação 4) — Aba "ANÁLISE DE DADOS": expand/collapse por
+> campanha em Volume (Gasto × Cliques), Eficiência (CTR % × CPC) e Funil por Estágio (os 3
+> ainda sem isso); "CPL Timeline" já tinha desde uma sessão anterior. "Distribuição por
+> Campanha" substituída por "Cliques no Link (Meta) × Conversas Iniciadas (Meta)" (os mesmos 2
+> sinais reais já persistidos em `Insight`, reaproveitados do gráfico "Evolução das Campanhas"
+> de Visão Executiva — zero cálculo novo). "Funil do Ciclo de Conversão em Vendas" suprimido
+> desta aba (já exibido em Visão Executiva, com o próprio expand/collapse) — "Funil por
+> Estágio" passa a ocupar a largura inteira, sem buraco de layout.
+>
+> **Bug real encontrado e corrigido no caminho, não hipotético:** `chartData` (o consolidado
+> compartilhado por esta aba E pela "Evolução das Campanhas" de Visão Executiva) montava 1
+> ponto do gráfico por LINHA de `Insight`, sem agrupar por data — `Insight` é 1 linha por
+> CAMPANHA por DIA, então qualquer período com 2+ campanhas ativas no mesmo dia duplicava a
+> mesma data no eixo X dos dois gráficos. Corrigido com `aggregateDailySeries()` (nova, em
+> `consolidatedMetrics.ts`) — soma por data ANTES de virar ponto, e `ctr`/`cpc`/`cpm` são
+> sempre recalculados a partir da soma de clicks/impressions/spend, nunca lidos de
+> `ins.ctr`/`ins.cpc`/`ins.cpm` (nulos em linha antiga/seedada) — fecha de vez, na raiz, o
+> motivo que já tinha exigido um fallback ali antes. Mesma função alimenta os 3 gráficos desta
+> aba quando expandidos por campanha (`toChartSeries(campaignId)`, local a `AnalyticsView.tsx`).
+>
+> **"CPL Timeline não exibe nada" — 2 causas reais, não 1 bug só:** (1)
+> `cplTimelineService.ts` nunca respeitava o filtro de rede do topo do dashboard (`network`),
+> diferente de `/dashboard/full` (PARTE D1) — corrigido com o mesmo mapa `ad_networks`
+> id→code já usado lá, nos mesmos 3 lugares (serviço, rota, cliente em `marketing-api.ts`).
+> (2) `CplTimelineChart.tsx` mostrava sempre a mesma mensagem genérica ("CPL disponível após
+> captura de leads") todo dia que o período tinha `cpl=0` — que é o estado NORMAL e correto
+> quando há gasto real mas nenhum lead identificado ainda (ex.: campanhas de Engajamento, que
+> nunca geram clique de WhatsApp/formulário por desenho — mesmo achado já diagnosticado nesta
+> sessão pro Funil de Receita/Visão 4, entrada anterior). Mensagem reescrita pra distinguir os
+> 2 casos reais ("nenhuma campanha com gasto no período/filtro" vs. "gasto real, sem lead
+> ainda") — não era um gráfico quebrado, era uma frase única cobrindo 2 situações diferentes.
+>
+> `utcDateLabel` movida de `page.tsx` pra `src/lib/marketing-utils.ts` (fonte única, reusada
+> agora por `AnalyticsView.tsx`/`consolidatedMetrics.ts`/`cplTimelineService.ts` também, via o
+> client). `StageFunnelWidget.tsx` — `StageCard` exportado, reaproveitado pro card por-campanha
+> do Funil por Estágio expandido, com ícone/rótulo reais lidos de `funnelData7.stages` (nunca
+> hardcoded — se divergisse do que o Master curou pro segmento, seria um bug novo). `npx tsc
+> --noEmit`: zero erros em todo o projeto, nos 9 arquivos tocados (`AnalyticsView.tsx`,
+> `consolidatedMetrics.ts`, `StageFunnelWidget.tsx`, `CplTimelineChart.tsx`,
+> `cplTimelineService.ts`, `dashboard/cpl/route.ts`, `marketing-api.ts`, `marketing-utils.ts`,
+> `dashboard/page.tsx`). **Não verificado visualmente no navegador** (nenhum servidor dev ativo
+> nesta sessão) — confiança vem da revisão de código + reuso dos mesmos componentes
+> (`ConsolidatedHeader`, `MultiMetricChart`, `StageCard`) já comprovados visualmente em Visão
+> Executiva/CPL Timeline em sessões anteriores.
+>
+> **Atualizado em:** 2026-11-27 (continuação 3) — **Incidente de produção na VPS, resolvido:**
+> depois do deploy que incluiu o player de vídeo (entrada anterior, migração `Ad.videoUrl`),
+> o tenant real "Net Imobiliária" ficou sem nenhuma informação em "Consultar Campanhas" e o
+> botão "Sincronizar" lançava `The column "Ad.videoUrl" does not exist in the current
+> database` — a migração nunca tinha sido aplicada em produção (deploy de código e migração de
+> banco são passos manuais separados neste projeto, por decisão deliberada). `scripts/vps/
+> apply-migrations.sh producao` relatou repetidamente "0 aplicadas, 3 já existentes" mesmo com
+> o arquivo novo genuinamente presente no diretório que o próprio script escaneia (confirmado
+> via `find` direto) — causa raiz não determinada, registrada como pendência de baixa
+> prioridade pra investigar com calma depois, sem bloquear a correção real. Aplicada a
+> migração **direto** via `docker compose exec prod_db psql` (heredoc com o `ALTER TABLE
+> ... ADD COLUMN IF NOT EXISTS "videoUrl"` + `UPDATE` de backfill), verificado antes/depois via
+> `information_schema.columns` (coluna ausente → presente). Confirmado com o usuário: **não usa
+> staging** — qualquer remediação futura deve ser direcionada só à produção.
+>
 > **Atualizado em:** 2026-11-27 (continuação 2) — "Funil de Receita · Visão 4"
 > (`RevenueAttributionWidget.tsx`) ganha 2 avisos em destaque (fundo âmbar), a pedido do
 > usuário: (1) tenant sem o módulo de CRM contratado (`data.available=false`) — "Utilize o

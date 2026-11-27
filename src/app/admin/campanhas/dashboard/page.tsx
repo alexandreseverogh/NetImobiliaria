@@ -12,7 +12,8 @@ import {
 } from '@/lib/marketing-api';
 import type { HookSaturationResult } from '@/lib/marketing/services/hookSaturationService';
 import type { SegmentDashboardResponse } from '@/app/api/admin/campanhas/dashboard/segment/route';
-import { formatCurrency, formatCurrencyCompact, formatNumber, formatPercent, cn, OBJECTIVES, NETWORK_LABELS } from '@/lib/marketing-utils';
+import { formatCurrency, formatCurrencyCompact, formatNumber, formatPercent, cn, OBJECTIVES, NETWORK_LABELS, utcDateLabel } from '@/lib/marketing-utils';
+import { aggregateDailySeries } from '@/components/marketing/dashboard/consolidatedMetrics';
 import { MultiMetricChart } from '@/components/marketing/charts/MultiMetricChart';
 import { FunnelChart } from '@/components/marketing/charts/FunnelChart';
 import { ClassicFunnelChart } from '@/components/marketing/charts/ClassicFunnelChart';
@@ -440,22 +441,20 @@ function DashboardPage() {
   const cpl: number | null = t && data?.currentPeriod.leadCount && data.currentPeriod.leadCount > 0
     ? t.spend / data.currentPeriod.leadCount : null;
 
-  // ctr/cpc/cpm são colunas nullable em Insight — algumas linhas (ex.: sync antigo, dado
-  // seedado) nunca tiveram esses campos preenchidos mesmo com spend/clicks/impressions reais.
-  // Sem fallback, o gráfico de Eficiência ficava em branco (nenhuma linha, nenhum eixo) pra
-  // qualquer período que caísse só nessas linhas — mesma fórmula já usada em calcTotals acima.
-  const chartData = data?.currentPeriod.insights
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    .map(i => ({
-      date: utcDateLabel(i.date),
-      spend: i.spend, clicks: i.clicks, impressions: i.impressions,
-      ctr: i.ctr ?? (i.impressions > 0 ? (i.clicks / i.impressions) * 100 : 0),
-      cpc: i.cpc ?? (i.clicks > 0 ? i.spend / i.clicks : 0),
-      cpm: i.cpm ?? (i.impressions > 0 ? (i.spend / i.impressions) * 1000 : 0),
-      conversions: i.conversions,
-      metaLinkClicks: i.metaLinkClicks ?? 0,
-      metaConversationsStarted: i.metaConversationsStarted ?? 0,
-    })) || [];
+  // Série diária CONSOLIDADA — agrupada por data antes de virar ponto do gráfico.
+  // `Insight` é 1 linha por CAMPANHA por DIA: sem esse agrupamento, um período com 2+
+  // campanhas ativas no mesmo dia gerava 1 ponto por campanha no mesmo dia (duplicando a
+  // data no eixo X de Volume/Eficiência/Evolução das Campanhas). ctr/cpc/cpm nunca são lidos
+  // de `i.ctr`/`i.cpc`/`i.cpm` (nullable em linha antiga/seedada) — são sempre recalculados a
+  // partir da soma de clicks/impressions/spend, por isso nunca ficam em branco.
+  const chartData = aggregateDailySeries(data?.currentPeriod.insights || []).map(r => ({
+    date: utcDateLabel(r.date),
+    spend: r.spend, clicks: r.clicks, impressions: r.impressions,
+    ctr: r.ctr, cpc: r.cpc, cpm: r.cpm,
+    conversions: r.conversions,
+    metaLinkClicks: r.metaLinkClicks,
+    metaConversationsStarted: r.metaConversationsStarted,
+  }));
 
   // CPL por dia vem de /dashboard/cpl (endpoint dedicado, cplTimelineService.ts) — antes era
   // derivado aqui zipando spend por linha de Insight (1 linha por CAMPANHA por dia) com leads
@@ -943,7 +942,6 @@ function DashboardPage() {
             predColors={predColors}
             chartData={chartData}
             cplData={cplData}
-            campaignSpendData={campaignSpendData}
             campaigns={campaigns}
             tooltipCss={tooltipCss}
             cpl={cpl}
@@ -1787,15 +1785,8 @@ function RetrovisorSection({ isDark, children, periodLabel }: { isDark: boolean;
 // ═════════════════════════════════════════════════════════════════════════════
 //  DATE INPUT PT-BR  (máscara dd/mm/aaaa → ISO internamente)
 // ═════════════════════════════════════════════════════════════════════════════
-
-// Formata qualquer valor de data (ISO string ou Date) para "dd/mm" usando UTC,
-// evitando o deslocamento de timezone (UTC-3 deslocaria meia-noite UTC para o dia anterior).
-function utcDateLabel(dateVal: string | Date): string {
-  const d = typeof dateVal === 'string' ? new Date(dateVal) : dateVal;
-  const day   = String(d.getUTCDate()).padStart(2, '0');
-  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
-  return `${day}/${month}`;
-}
+// utcDateLabel foi movida pra src/lib/marketing-utils.ts (fonte única) — reusada também
+// por AnalyticsView.tsx/consolidatedMetrics.ts, nunca mais duplicada aqui.
 
 function ptBrToIso(v: string): string {
   const [d, m, y] = v.split('/');

@@ -66,7 +66,7 @@ function RateArrow({ label, value, isBottleneck }: { label: string; value: numbe
   );
 }
 
-function StageCard({ stage, isBottleneck, isDark }: { stage: FunnelStage; isBottleneck: boolean; isDark: boolean }) {
+export function StageCard({ stage, isBottleneck, isDark }: { stage: FunnelStage; isBottleneck: boolean; isDark: boolean }) {
   const c = STAGE_COLORS[stage.code] ?? STAGE_COLORS.TOF;
 
   return (

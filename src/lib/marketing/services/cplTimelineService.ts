@@ -20,6 +20,10 @@ export interface CplTimelineOptions {
   clientId?: string | null;   // 'own' | uuid | undefined (undefined = todo o tenant)
   segmentId?: string | null;
   campaignId?: string | null;
+  // Código da rede (meta/google/tiktok) — mesmo filtro já aplicado em /dashboard/full
+  // (PARTE D1); sem isso, o CPL Timeline sempre somava TODAS as redes do escopo, mesmo com
+  // "Google"/"TikTok" selecionado no seletor de rede do topo do dashboard.
+  network?: string | null;
 }
 
 /**
@@ -35,7 +39,7 @@ export async function getCplTimeline(
   tenantId: string,
   opts: CplTimelineOptions,
 ): Promise<CplTimelineResult> {
-  const { startDate, endDate, clientId, segmentId, campaignId } = opts;
+  const { startDate, endDate, clientId, segmentId, campaignId, network } = opts;
 
   let campaignIds: string[] | null = null;
 
@@ -51,6 +55,22 @@ export async function getCplTimeline(
   }
 
   if (campaignId) campaignIds = campaignIds.filter(id => id === campaignId);
+
+  // Filtro de rede (mesmo mapa id→code de /dashboard/full) — restringe campaignIds antes de
+  // qualquer query de gasto/lead, pra nunca misturar rede fora do escopo escolhido no topo.
+  if (network && campaignIds.length > 0) {
+    const networkRows = await prisma.$queryRaw<{ id: string; code: string }[]>`
+      SELECT id, code FROM public.ad_networks
+    `;
+    const codeById = new Map(networkRows.map(r => [r.id, r.code]));
+    const campaignsWithNetwork = await prisma.campaign.findMany({
+      where: { id: { in: campaignIds } },
+      select: { id: true, networkId: true },
+    });
+    campaignIds = campaignsWithNetwork
+      .filter(c => (c.networkId ? (codeById.get(c.networkId) || 'meta') : 'meta') === network)
+      .map(c => c.id);
+  }
 
   if (campaignIds.length === 0) {
     return { data: [], totals: { spend: 0, leads: 0, cpl: 0 } };

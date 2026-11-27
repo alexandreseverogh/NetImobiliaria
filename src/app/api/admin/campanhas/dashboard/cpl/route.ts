@@ -11,6 +11,7 @@ export const dynamic = 'force-dynamic';
  * de cada consumidor derivar o próprio cálculo. Ver src/lib/marketing/services/cplTimelineService.ts.
  *
  * Query params: startDate, endDate (YYYY-MM-DD) · clientId ('own'|<uuid>) · segmentId · campaignId
+ * · network (código da rede — meta/google/tiktok, mesmo filtro do seletor de rede do dashboard)
  */
 export async function GET(request: NextRequest) {
   const payload = getTokenPayload(request);
@@ -25,6 +26,7 @@ export async function GET(request: NextRequest) {
   if (clientId === 'segment' || clientId === 'all') clientId = null;
   const segmentId = searchParams.get('segmentId');
   const campaignId = searchParams.get('campaignId');
+  const network = searchParams.get('network');
 
   const endDate = endStr
     ? (endStr.length === 10 ? new Date(endStr + 'T23:59:59.999Z') : new Date(endStr))
@@ -33,7 +35,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const result = await getCplTimeline(payload.tenantId, {
-      startDate, endDate, clientId, segmentId, campaignId,
+      startDate, endDate, clientId, segmentId, campaignId, network,
     });
     return NextResponse.json(result);
   } catch (err: any) {

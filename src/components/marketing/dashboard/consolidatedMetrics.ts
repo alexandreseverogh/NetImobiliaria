@@ -55,6 +55,51 @@ export function campaignCplSeries(
   });
 }
 
+/**
+ * Série diária agregada — soma TODAS as linhas de UM mesmo dia antes de virar 1 ponto do
+ * gráfico (seja o consolidado, com `campaignId` ausente, seja de uma única campanha, com
+ * `campaignId` informado). `Insight` é 1 linha por CAMPANHA por DIA — sem esse agrupamento,
+ * um período com 2+ campanhas ativas no mesmo dia gera 1 ponto por campanha nesse dia,
+ * duplicando a data no eixo X. `ctr`/`cpc` nunca são lidos de `ins.ctr`/`ins.cpc` (que
+ * podem vir nulos em linha antiga) — são sempre recalculados a partir da soma de
+ * clicks/impressions/spend, nunca somados nem calculados como média das taxas por linha.
+ */
+export function aggregateDailySeries(
+  insights: InsightData[],
+  campaignId?: string,
+): {
+  date: string; spend: number; clicks: number; impressions: number; conversions: number;
+  metaLinkClicks: number; metaConversationsStarted: number; ctr: number; cpc: number; cpm: number;
+}[] {
+  const byDate = new Map<string, {
+    date: string; spend: number; clicks: number; impressions: number; conversions: number;
+    metaLinkClicks: number; metaConversationsStarted: number;
+  }>();
+  for (const ins of insights) {
+    if (campaignId && ins.campaignId !== campaignId) continue;
+    const date = String(ins.date).slice(0, 10);
+    const row = byDate.get(date) ?? {
+      date, spend: 0, clicks: 0, impressions: 0, conversions: 0,
+      metaLinkClicks: 0, metaConversationsStarted: 0,
+    };
+    row.spend += ins.spend || 0;
+    row.clicks += ins.clicks || 0;
+    row.impressions += ins.impressions || 0;
+    row.conversions += ins.conversions || 0;
+    row.metaLinkClicks += (ins as any).metaLinkClicks ?? 0;
+    row.metaConversationsStarted += (ins as any).metaConversationsStarted ?? 0;
+    byDate.set(date, row);
+  }
+  return Array.from(byDate.values())
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map(r => ({
+      ...r,
+      ctr: r.impressions > 0 ? (r.clicks / r.impressions) * 100 : 0,
+      cpc: r.clicks > 0 ? r.spend / r.clicks : 0,
+      cpm: r.impressions > 0 ? (r.spend / r.impressions) * 1000 : 0,
+    }));
+}
+
 export function aggregateMetrics(
   insights: InsightData[],
   leadsByCampaign: Record<string, number>,

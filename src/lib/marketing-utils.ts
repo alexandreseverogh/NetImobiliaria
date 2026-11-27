@@ -37,6 +37,20 @@ export function formatDate(date: string): string {
 }
 
 /**
+ * Formata qualquer valor de data (ISO string ou Date) como "dd/mm" usando getters UTC —
+ * evita o deslocamento de timezone que faria meia-noite UTC virar o dia anterior em
+ * `America/Sao_Paulo`. Fonte única para rótulo de eixo X dos gráficos do dashboard; nunca
+ * ordenar por este rótulo (ambíguo entre meses/anos) — sempre ordenar pela data ISO antes
+ * e só formatar como último passo, exibição.
+ */
+export function utcDateLabel(dateVal: string | Date): string {
+  const d = typeof dateVal === 'string' ? new Date(dateVal) : dateVal;
+  const day   = String(d.getUTCDate()).padStart(2, '0');
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+  return `${day}/${month}`;
+}
+
+/**
  * Rótulo de exibição por código de rede (public.ad_networks.code). Fonte única — antes
  * `dashboard/page.tsx` e `agentNotificador.ts` mantinham cópias próprias deste mapa, e
  * `CommandCenterView.tsx` nem usava um mapa: tinha um ternário binário
