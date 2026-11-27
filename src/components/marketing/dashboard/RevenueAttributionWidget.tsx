@@ -105,15 +105,21 @@ export function RevenueAttributionWidget({ isDark, clientId, periodDays, cardBas
   // Degradação graciosa — sem CRM contratado, não existe como saber o que virou negócio fechado.
   if (!data.available) {
     return (
-      <div className={cn('p-6 rounded-3xl border flex items-start gap-4', cardBase, borderCls)}>
-        <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-lg', isDark ? 'bg-white/5' : 'bg-slate-100')}>
-          🔒
+      <div className={cn('p-6 rounded-3xl border', cardBase, borderCls)}>
+        <div className="flex items-start gap-4">
+          <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-lg', isDark ? 'bg-white/5' : 'bg-slate-100')}>
+            🔒
+          </div>
+          <div>
+            <h3 className={cn('text-base font-black mb-1', tx)}>Funil de Receita · Visão 4</h3>
+            <p className={cn('text-xs', txMuted)}>
+              {data.message ?? 'Indisponível — módulo de CRM não contratado.'}
+            </p>
+          </div>
         </div>
-        <div>
-          <h3 className={cn('text-base font-black mb-1', tx)}>Funil de Receita · Visão 4</h3>
-          <p className={cn('text-xs', txMuted)}>
-            {data.message ?? 'Indisponível — módulo de CRM não contratado.'}
-          </p>
+        <div className={cn('mt-4 rounded-xl p-3 text-[11px] leading-relaxed', isDark ? 'bg-amber-500/10 text-amber-300' : 'bg-amber-50 text-amber-800')}>
+          <span className="font-black">Utilize o módulo de CRM</span> para obtenção do Custo Por Aquisição (CPA) e do
+          ROAS — Retorno Sobre o Investimento em Anúncios (receita gerada dividida pelo valor investido).
         </div>
       </div>
     );
@@ -158,6 +164,18 @@ export function RevenueAttributionWidget({ isDark, clientId, periodDays, cardBas
           <p className={cn('text-lg font-black', tx)}>{totals.dealsWon}</p>
         </div>
       </div>
+
+      {/* CRM contratado mas sem nenhum negócio fechado no cohort — nunca sabemos se é porque
+          o tenant genuinamente não usa o Kanban (não move lead pra "Ganho") ou porque as
+          campanhas do período são de topo de funil (Engajamento/Reconhecimento, que nunca
+          geram lead identificado por desenho) — a orientação vale nos dois casos. */}
+      {totals.dealsWon === 0 && (
+        <div className={cn('mb-5 rounded-xl p-3 text-[11px] leading-relaxed', isDark ? 'bg-amber-500/10 text-amber-300' : 'bg-amber-50 text-amber-800')}>
+          <span className="font-black">O módulo de CRM não está sendo utilizado.</span> Utilize-o para obtenção do
+          Custo Por Aquisição (CPA) e do ROAS — Retorno Sobre o Investimento em Anúncios (receita gerada dividida
+          pelo valor investido).
+        </div>
+      )}
 
       {/* Top campanhas por ROAS */}
       {top.length > 0 ? (

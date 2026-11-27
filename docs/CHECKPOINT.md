@@ -1,3 +1,18 @@
+> **Atualizado em:** 2026-11-27 (continuação 2) — "Funil de Receita · Visão 4"
+> (`RevenueAttributionWidget.tsx`) ganha 2 avisos em destaque (fundo âmbar), a pedido do
+> usuário: (1) tenant sem o módulo de CRM contratado (`data.available=false`) — "Utilize o
+> módulo de CRM para obtenção do Custo Por Aquisição (CPA) e do ROAS..."; (2) tenant COM CRM
+> contratado mas com `totals.dealsWon === 0` (nenhum negócio fechado no cohort do período) —
+> "O módulo de CRM não está sendo utilizado. Utilize-o para obtenção do Custo Por Aquisição
+> (CPA) e do ROAS...". As duas mensagens explicam o que é ROAS inline (Retorno Sobre o
+> Investimento em Anúncios, receita gerada dividida pelo valor investido). **Investigação que
+> motivou o pedido** (tenant real na VPS "Net Imobiliária", card mostrando R$0,00/—/0.00x/0
+> apesar de gasto real): confirmado que não é bug — as 2 únicas campanhas com gasto no período
+> eram objetivo Engajamento (MOF), que nunca gera lead identificado no CRM por desenho (mesmo
+> padrão já diagnosticado antes nesta sessão pro Funil de Conversão/Alertas Acionáveis); o card
+> já é cross-network por construção (gasto soma qualquer rede via `Insight`, negócio fechado
+> vem só do CRM, sem distinção de rede nenhuma) — nada específico da Meta a corrigir ali.
+>
 > **Atualizado em:** 2026-11-27 (continuação) — Mesmo player de vídeo agora também na tira de
 > criativos do "Consultar Campanhas" (`CampanhasModal.tsx`, no final de cada card). Extraído
 > `src/components/marketing/VideoPlayerModal.tsx` (modal + `isVideoAssetUrl`) a partir do que
