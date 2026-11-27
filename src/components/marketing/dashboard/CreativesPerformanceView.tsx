@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { PlayIcon } from '@heroicons/react/24/solid';
 import { adminFetch } from '@/lib/auth/adminFetch';
 import { cn, formatCurrency, formatNumber } from '@/lib/marketing-utils';
+import { VideoPlayerModal, type VideoViewerState } from '@/components/marketing/VideoPlayerModal';
 
 type Status = 'ok' | 'atencao' | 'critico' | 'info' | 'sem_dado';
 
@@ -79,12 +80,10 @@ export function CreativesPerformanceView({ isDark, periodDays, clientFilter }: P
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [viewer, setViewer] = useState<{ name: string; images: string[]; index: number } | null>(null);
-  // Player de vídeo — separado do visualizador de imagem: `url: null` significa "é vídeo,
-  // mas o arquivo real ainda não foi guardado" (anúncio importado antes deste recurso, ou
-  // falha best-effort no download) — mostra um aviso honesto, nunca um player sem fonte.
-  const [videoViewer, setVideoViewer] = useState<{ name: string; url: string | null } | null>(null);
+  const [videoViewer, setVideoViewer] = useState<VideoViewerState | null>(null);
 
-  // Fecha com Esc e navega com as setas quando o visualizador estiver aberto.
+  // Fecha com Esc e navega com as setas quando o visualizador de imagem estiver aberto
+  // (o player de vídeo tem seu próprio Esc, dentro de VideoPlayerModal).
   useEffect(() => {
     if (!viewer) return;
     const onKey = (e: KeyboardEvent) => {
@@ -95,13 +94,6 @@ export function CreativesPerformanceView({ isDark, periodDays, clientFilter }: P
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [viewer]);
-
-  useEffect(() => {
-    if (!videoViewer) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setVideoViewer(null); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [videoViewer]);
 
   useEffect(() => {
     let cancelled = false;
@@ -379,42 +371,7 @@ export function CreativesPerformanceView({ isDark, periodDays, clientFilter }: P
         </div>
       )}
 
-      {videoViewer && (
-        <div
-          className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4"
-          onClick={e => { if (e.target === e.currentTarget) setVideoViewer(null); }}
-        >
-          <div className="relative max-w-[95vw] max-h-[95vh] flex flex-col items-center">
-            <div className="flex w-full items-center justify-between gap-4 mb-3">
-              <p className="text-sm font-black text-white truncate">{videoViewer.name}</p>
-              <button
-                type="button"
-                onClick={() => setVideoViewer(null)}
-                className="text-[11px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20"
-              >
-                Fechar (Esc)
-              </button>
-            </div>
-            {videoViewer.url ? (
-              <video
-                src={videoViewer.url}
-                controls
-                autoPlay
-                className="max-h-[85vh] max-w-[90vw] rounded-xl bg-black"
-              />
-            ) : (
-              <div className="max-w-md rounded-xl bg-white/5 border border-white/10 p-6 text-center">
-                <p className="text-sm font-bold text-white">Vídeo original ainda não disponível</p>
-                <p className="text-xs text-slate-300 mt-2">
-                  Este criativo foi sincronizado antes de o player de vídeo existir, ou o arquivo
-                  original não pôde ser baixado da Meta. Rode uma nova sincronização para tentar
-                  buscá-lo de novo.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <VideoPlayerModal viewer={videoViewer} onClose={() => setVideoViewer(null)} />
     </div>
   );
 }

@@ -25,9 +25,11 @@ import { adminFetch } from '@/lib/auth/adminFetch';
 import { cn, NETWORK_LABELS } from '@/lib/marketing-utils';
 import { ANGLE_OPTIONS, angleLabel } from '@/lib/marketing/angles';
 import { PencilIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { PlayIcon } from '@heroicons/react/24/solid';
 import ClientSelector, { type ClientOption, type ClientFilterValue } from '@/components/crm/ClientSelector';
 import DateInputPtBR from '@/components/ui/DateInputPtBR';
 import SafeImage from '@/components/common/SafeImage';
+import { VideoPlayerModal, isVideoAssetUrl, type VideoViewerState } from '@/components/marketing/VideoPlayerModal';
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -38,6 +40,7 @@ interface AdData {
   creativeType?: string | null;
   images: string[];
   assetUrls?: string[];   // CDN URLs from CreativeAsset (enriched by GET route)
+  videoUrl?: string | null; // arquivo real do vídeo (Ad.videoUrl) — pro player, nunca uma miniatura
   body: string;
   headline?: string | null;
   linkUrl?: string | null;
@@ -992,7 +995,17 @@ function ClassifyModal({ isOpen, onClose, onDone, isDark = false }: {
 
 // ── Creative Image Thumb ──────────────────────────────────────────
 
-function CreativeThumb({ url, index, isDark = false }: { url: string; index: number; isDark?: boolean }) {
+interface CreativeThumbProps {
+  url: string;
+  index: number;
+  isDark?: boolean;
+  /** Presente quando este thumb é vídeo — fonte real para o player (pode ser `null`: "é
+   *  vídeo, mas o arquivo ainda não foi guardado"). Ausente = thumb de imagem comum. */
+  videoUrl?: string | null;
+  onPlayVideo?: (url: string | null) => void;
+}
+
+function CreativeThumb({ url, index, isDark = false, videoUrl, onPlayVideo }: CreativeThumbProps) {
   const [broken, setBroken] = useState(false);
   if (broken) {
     return (
@@ -1004,16 +1017,27 @@ function CreativeThumb({ url, index, isDark = false }: { url: string; index: num
       </div>
     );
   }
-  // Vídeo (criativo de rascunho): mostra o primeiro quadro, sem tocar automaticamente.
-  if (/\.(mp4|mov)(\?|$)/i.test(url)) {
+  // Vídeo: mostra o primeiro quadro (sem tocar automaticamente) com selo de play — clicar
+  // abre o player de verdade (VideoPlayerModal, compartilhado com a aba Criativos do
+  // dashboard — nunca um 2º player reimplementado aqui).
+  if (videoUrl !== undefined) {
     return (
-      <div className={cn(
-        'w-[68px] h-[68px] rounded-xl overflow-hidden border shrink-0 shadow-sm relative bg-black',
-        isDark ? 'border-white/10' : 'border-gray-100',
-      )}>
+      <button
+        type="button"
+        onClick={() => onPlayVideo?.(videoUrl)}
+        title="Assistir ao criativo em vídeo"
+        className={cn(
+          'relative w-[68px] h-[68px] rounded-xl overflow-hidden border shrink-0 shadow-sm bg-black',
+          isDark ? 'border-white/10' : 'border-gray-100',
+        )}
+      >
         <video src={url} muted preload="metadata" playsInline className="w-full h-full object-cover" />
-        <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1 text-[8px] font-black text-white">VÍDEO</span>
-      </div>
+        <span className="absolute inset-0 flex items-center justify-center bg-black/25">
+          <span className="h-6 w-6 rounded-full bg-white/90 flex items-center justify-center">
+            <PlayIcon className="h-3 w-3 text-slate-900 ml-0.5" />
+          </span>
+        </span>
+      </button>
     );
   }
   return (
@@ -1042,11 +1066,30 @@ function CreativeThumb({ url, index, isDark = false }: { url: string; index: num
 // ── Creative Strip ────────────────────────────────────────────────
 // Order: headline/body text FIRST, then thumbnails
 
+interface CreativeThumbSource {
+  url: string;
+  /** `undefined` = thumb de imagem comum; presente (mesmo `null`) = thumb de vídeo. */
+  videoUrl?: string | null;
+}
+
 function CreativesStrip({ ads, isDark = false }: { ads: AdData[]; isDark?: boolean }) {
-  // Prefer CDN asset URLs over blob URLs
-  const allImages = ads.flatMap(ad =>
-    (ad.assetUrls && ad.assetUrls.length > 0) ? ad.assetUrls : (ad.images ?? [])
-  ).slice(0, 8);
+  const [videoViewer, setVideoViewer] = useState<VideoViewerState | null>(null);
+
+  // Prefer CDN asset URLs over blob URLs. Vídeo: 1 anúncio = 1 vídeo (regra do wizard) — vira
+  // um único thumb, nunca uma lista de URLs; o arquivo real do player é sempre `ad.videoUrl`
+  // (Ad.videoUrl, o mesmo campo que alimenta a aba Criativos do dashboard), com fallback pra
+  // a própria primeira URL quando ela já É o arquivo de vídeo (caso do criativo lançado pela
+  // plataforma, onde CreativeAsset.storage_url é o mp4 em si, não uma miniatura separada).
+  const allThumbs: CreativeThumbSource[] = ads.flatMap(ad => {
+    const urls = (ad.assetUrls && ad.assetUrls.length > 0) ? ad.assetUrls : (ad.images ?? []);
+    if (ad.creativeType === 'VIDEO') {
+      const thumbUrl = urls[0];
+      if (!thumbUrl) return [];
+      const realVideoUrl = ad.videoUrl ?? (isVideoAssetUrl(thumbUrl) ? thumbUrl : null);
+      return [{ url: thumbUrl, videoUrl: realVideoUrl }];
+    }
+    return urls.map(url => ({ url }));
+  }).slice(0, 8);
 
   const firstAd = ads[0];
 
@@ -1085,9 +1128,18 @@ function CreativesStrip({ ads, isDark = false }: { ads: AdData[]; isDark?: boole
       )}
 
       {/* Thumbnails SECOND */}
-      {allImages.length > 0 ? (
+      {allThumbs.length > 0 ? (
         <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-0.5 px-0.5">
-          {allImages.map((url, i) => <CreativeThumb key={`${i}-${url}`} url={url} index={i} isDark={isDark} />)}
+          {allThumbs.map((t, i) => (
+            <CreativeThumb
+              key={`${i}-${t.url}`}
+              url={t.url}
+              index={i}
+              isDark={isDark}
+              videoUrl={t.videoUrl}
+              onPlayVideo={(url) => setVideoViewer({ name: firstAd?.headline || firstAd?.name || 'Criativo', url })}
+            />
+          ))}
         </div>
       ) : (
         <div className={cn('flex items-center gap-2 py-1', isDark ? 'text-slate-600' : 'text-gray-400')}>
@@ -1095,6 +1147,8 @@ function CreativesStrip({ ads, isDark = false }: { ads: AdData[]; isDark?: boole
           <span className="text-[11px] font-medium">Sem imagens vinculadas</span>
         </div>
       )}
+
+      <VideoPlayerModal viewer={videoViewer} onClose={() => setVideoViewer(null)} />
     </div>
   );
 }

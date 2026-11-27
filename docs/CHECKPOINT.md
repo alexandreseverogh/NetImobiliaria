@@ -1,3 +1,14 @@
+> **Atualizado em:** 2026-11-27 (continuação) — Mesmo player de vídeo agora também na tira de
+> criativos do "Consultar Campanhas" (`CampanhasModal.tsx`, no final de cada card). Extraído
+> `src/components/marketing/VideoPlayerModal.tsx` (modal + `isVideoAssetUrl`) a partir do que
+> tinha sido construído inline na aba Criativos — `CreativesPerformanceView.tsx` foi refatorado
+> pra usar o componente compartilhado em vez da própria cópia; `CreativesStrip`/`CreativeThumb`
+> (`CampanhasModal.tsx`) passaram a construir a fonte real do vídeo por anúncio (`Ad.videoUrl`,
+> com fallback pra `assetUrls[0]` quando esse já É o arquivo de vídeo — caso do criativo
+> lançado pela própria plataforma) e abrir o mesmo player ao clicar na miniatura, em vez de só
+> mostrar o quadro estático sem interação que já existia. `npx tsc --noEmit`: zero erros em
+> todo o projeto.
+>
 > **Atualizado em:** 2026-11-27 — Player de vídeo na aba "Criativos" do dashboard
 > (`/admin/campanhas/dashboard`). Clicar num criativo `creativeType='VIDEO'` abria o mesmo
 > visualizador de imagem, que nunca tinha de onde vir o arquivo real — nenhum caminho de
